@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1
+- A video you started now pauses when it is scrolled half out of view (GIFs still play only while visible).
+- Several posts' comments can be opened at once: they queue and fill in one after another instead of refusing the second.
+- "That's everything X has sent" no longer appears early: two ad-only pages in a row used to count as the end. It now needs X's
+  "no next page" marker (or a long run of empty pages), and posts that arrive later cancel it.
+- Loading stays about two pages ahead of what you've drawn, so fast scrolling doesn't hit the wall.
+- The Columns pill uses X's own sidebar font and size, has an icon instead of a text glyph, is outlined when columns are on
+  and filled when they are off, and turns into a round icon button when X's sidebar is narrow.
+
 ## 0.7.0
 - Top bar redesigned: tabs and controls on one line (wrapping on small windows), the All / Tweets / Retweets… views on a sub-line;
   a view only appears once the feed has something for it (no empty Replies tab).

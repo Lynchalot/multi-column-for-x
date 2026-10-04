@@ -125,6 +125,7 @@
     }
     const rk = routeKey();
     const isRefreshOfTop = f.topCursors.has(r.reqCursor);
+    const repeatedBottom = !!r.bottomCursor && f.cursors.has(r.bottomCursor); // X pointed at a page we already followed
     if (r.bottomCursor) f.cursors.add(r.bottomCursor);
     if (r.topCursor) f.topCursors.add(r.topCursor);
 
@@ -148,8 +149,8 @@
     } else { // 'append': "load more", added at the bottom
       const before = f.items.length;
       addItems(f, r.items);
-      if (f.items.length === before) { f.empty++; if (f.empty >= 2 || !r.bottomCursor) f.exhausted = true; } else f.empty = 0;
-      if (!r.bottomCursor) f.exhausted = true; // X sent no "next page" marker: that was the last page
+      const p = XMCLogic.nextPaging(f, { added: f.items.length - before, bottomCursor: r.bottomCursor, repeated: repeatedBottom });
+      f.empty = p.empty; f.exhausted = p.exhausted;
     }
     if ((first || established) && r.items.length) {
       state.latestByRoute.set(rk, state.latestByRoute.get(rk) || f.key);
@@ -232,6 +233,7 @@
     ban: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M5.6 5.6l12.8 12.8'],
     gear: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'],
     close: ['M18 6L6 18', 'M6 6l12 12'],
+    columns: ['M4 4h4.5v16H4z', 'M9.75 4h4.5v10.5h-4.5z', 'M15.5 4H20v13h-4.5z'],
     prev: ['M15 18l-6-6 6-6'],
     next: ['M9 18l6-6-6-6'],
   };
@@ -261,12 +263,16 @@
 
   // ---------- card rendering ----------
   const tweetOf = new WeakMap(); // card element -> tweet
-  // GIFs (and videos, if you asked for autoplay) play while on screen and pause when not
+  // GIFs (and videos, if you asked for autoplay) play while mostly on screen and pause when not. A video you started
+  // yourself is paused as soon as it is half scrolled away (it is only watched while it plays).
   const playObserver = new IntersectionObserver((entries) => {
     for (const en of entries) {
-      if (en.isIntersecting) en.target.play().catch(() => {}); else en.target.pause();
+      const v = en.target;
+      if (document.fullscreenElement === v || document.pictureInPictureElement === v) continue;
+      const act = XMCLogic.videoAction({ gif: !!v.dataset.gif, ratio: en.intersectionRatio, paused: v.paused });
+      if (act === 'play') v.play().catch(() => {}); else if (act === 'pause') v.pause();
     }
-  }, { threshold: 0.5 });
+  }, { threshold: [0, 0.25, 0.5, 0.75] });
 
   function renderSegs(segs) {
     const frag = document.createDocumentFragment();
@@ -465,15 +471,38 @@
     if (state.failed === route) { state.failed = ''; state.failedBy = ''; state.routeSince = Date.now(); } else { state.failed = route; state.failedBy = 'user'; }
     tick();
   }
+  // Looks like part of the sidebar: X's own font, size and height (copied from the Post button), and the icon-only
+  // round shape X switches to when the sidebar is narrow.
+  const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
   function placePill() {
     const host = document.querySelector('[data-testid="SideNav_NewTweet_Button"]') || document.querySelector('header[role="banner"] nav');
-    if (host && (!pill.isConnected || pill.previousElementSibling !== host)) host.after(pill);
+    if (!host) return;
+    if (!pill.isConnected || pill.previousElementSibling !== host) host.after(pill);
+    const box = host.getBoundingClientRect();
+    const width = box.width || (host.closest('nav') || host).getBoundingClientRect().width; // the Post button may be hidden by a setting
+    const compact = width > 0 && width < 140;
+    pill.classList.toggle('compact', compact);
+    const label = [...host.querySelectorAll('span')].reverse().find((n) => !n.children.length && n.textContent.trim());
+    const cs = getComputedStyle(label || host);
+    const family = (cs.fontFamily && cs.fontFamily !== 'serif' ? cs.fontFamily + ', ' : '') + SANS;
+    if (pill.style.fontFamily !== family) pill.style.fontFamily = family;
+    const size = cs.fontSize;
+    if (size && pill.style.fontSize !== size) pill.style.fontSize = size;
+    const height = box.height > 30 ? Math.round(box.height) + 'px' : '';
+    if (pill.style.minHeight !== height) pill.style.minHeight = height;
+    const wide = !compact && box.width > 140 ? Math.round(box.width) + 'px' : ''; // as wide as the Post button
+    if (pill.style.width !== wide) pill.style.width = wide;
   }
   function updatePill(show, on) {
     pill.hidden = !show;
     pill.classList.toggle('off', !on);
-    pill.textContent = on ? '\u25a6 Columns' : state.failedBy === 'user' ? '\u25a6 Columns off \u2014 turn on' : '\u25a6 Retry columns';
+    const text = on ? 'Columns' : state.failedBy === 'user' ? 'Columns off \u2014 turn on' : 'Retry columns';
+    if (pill.dataset.text !== text) { // only touch the DOM when it changes
+      pill.dataset.text = text;
+      pill.replaceChildren(icon('columns'), h('span', { className: 'xmc-pill-label', textContent: text }));
+    }
     pill.title = on ? 'Columns are on for this page. Click to see X\u2019s normal feed instead.' : 'Click to show this page in columns';
+    pill.setAttribute('aria-label', text);
   }
 
   let toastTimer = 0;
@@ -663,7 +692,7 @@
     if (settings.disableHome && where() === 'home') return;
     const f = activeFeed();
     if (!f || f.exhausted) return;
-    if (view.upto < f.items.length) return; // still drawing what we already have
+    if (f.items.length - view.upto > 40) return; // plenty already waiting to be drawn; stay about two pages ahead, not more
     const need = scroller.scrollTop + scroller.clientHeight > scroller.scrollHeight - innerHeight * 8;
     if (!need) return;
     const now = Date.now();
@@ -828,10 +857,28 @@
   // changes on screen: our columns stay put), read the conversation as it arrives, and go straight back.
   const onPostPage = () => /\/status\/\d+/.test(location.pathname);
   // resolves to {data} or {why}: the reason is shown to the person (and tells me what X did)
-  async function loadReplies(t) {
+  // Only one post can be open on X's hidden side at a time, so comments asked for together are fetched one after the
+  // other (each panel opens at once and fills in as its turn comes), instead of refusing all but the first.
+  let replyQueue = Promise.resolve();
+  let repliesWaiting = 0;
+  function loadReplies(t, opts) {
+    opts = opts || {};
     const cached = state.details.get(t.id);
-    if (cached) return { data: cached };
-    if (state.peek) return { why: 'Another post\u2019s comments are still loading \u2014 try again in a moment.' };
+    if (cached) return Promise.resolve({ data: cached });
+    repliesWaiting++;
+    const run = replyQueue.then(async () => {
+      repliesWaiting--;
+      const again = state.details.get(t.id); // an earlier request for the same post may have fetched it meanwhile
+      if (again) return { data: again };
+      if (opts.wanted && !opts.wanted()) return { why: 'Closed before it loaded.' };
+      if (opts.onStart) opts.onStart();
+      await waitFor(() => !state.posting, 15000);
+      return fetchReplies(t);
+    });
+    replyQueue = run.catch(() => {});
+    return run;
+  }
+  async function fetchReplies(t) {
     state.peek = { id: t.id, replies: null };
     state.proxyUntil = Date.now() + 40000;
     try {
@@ -898,6 +945,7 @@
   // Posting a comment from here: X's own reply box is opened out of sight, the text is typed into it and Send
   // is pressed, exactly as you would. If any step fails, X's reply box is left open for you to finish.
   async function postReply(t, text) {
+    await replyQueue; // comment loads borrow the same hidden page
     state.posting = true;
     const doc = document.documentElement;
     doc.classList.add('xmc-acting');
@@ -964,10 +1012,11 @@
     if (!card) return;
     const open = card.querySelector('.xmc-replies');
     if (open) { open.remove(); updateActions(t); return; }
-    const panel = h('div', { className: 'xmc-replies' }, h('div', { className: 'xmc-rhead' }, spinner(), h('span', { textContent: ' Loading comments…' })));
+    const label = h('span', { textContent: repliesWaiting || state.peek ? ' Waiting for the comments above…' : ' Loading comments…' });
+    const panel = h('div', { className: 'xmc-replies' }, h('div', { className: 'xmc-rhead' }, spinner(), label));
     card.querySelector('.xmc-actions').after(panel);
     updateActions(t);
-    const res = await loadReplies(t);
+    const res = await loadReplies(t, { wanted: () => panel.isConnected, onStart: () => { label.textContent = ' Loading comments…'; } });
     if (!panel.isConnected) return; // closed while loading
     fillReplies(panel, t, res);
   }
@@ -1191,11 +1240,14 @@
     if (quote) { if (settings.openIn === 'newtab') window.open(new URL(quote.dataset.href, location.origin).href, '_blank', 'noopener'); else location.assign(quote.dataset.href); return; }
     navigate(t.url, t);
   });
-  // only one (non-autoplaying) video plays at a time
+  // only one (non-autoplaying) video plays at a time, and it is watched while it plays so it stops when scrolled away
   colsEl.addEventListener('play', (e) => {
     if (e.target.tagName !== 'VIDEO' || e.target.dataset.gif) return;
     for (const v of colsEl.querySelectorAll('video')) if (v !== e.target && !v.dataset.gif) v.pause();
+    playObserver.observe(e.target);
   }, true);
+  colsEl.addEventListener('pause', (e) => { if (e.target.tagName === 'VIDEO' && !e.target.dataset.gif) playObserver.unobserve(e.target); }, true);
+  colsEl.addEventListener('ended', (e) => { if (e.target.tagName === 'VIDEO' && !e.target.dataset.gif) playObserver.unobserve(e.target); }, true);
 
   // ---------- tabs (For you / Following, Top / Latest, Posts / Replies...) ----------
   let lastSig = '';

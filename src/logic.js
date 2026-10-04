@@ -165,7 +165,24 @@ var XMCLogic = (function () {
     return paging ? 'append' : 'pending';
   }
 
-  const api = { availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  // Has X run out of posts? Decided after each "load more" answer. Two empty pages in a row used to count as "the end",
+  // but X sometimes sends a page of only ads/suggestions with a perfectly good "next" marker, which showed
+  // "That's everything" while more was on its way. Now: no next marker, or a marker we already followed (a loop),
+  // or a long run of empty pages. Posts arriving later always cancel it.
+  function nextPaging(prev, c) {
+    const empty = c.added > 0 ? 0 : (prev.empty || 0) + 1;
+    return { empty, exhausted: !c.bottomCursor || (c.added === 0 && !!c.repeated) || empty >= 5 };
+  }
+
+  // What to do with a video given how much of it is on screen (0..1): GIFs/autoplay clips play while at least half
+  // visible; a video you started yourself pauses as soon as it is more than half scrolled away.
+  function videoAction(v) {
+    const seen = v.ratio >= 0.5;
+    if (v.gif) return seen ? 'play' : 'pause';
+    return !seen && !v.paused ? 'pause' : null;
+  }
+
+  const api = { videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

@@ -281,10 +281,17 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
 .xmc-colgroup .xmc-count { min-width: 40px; }
 
 /* the columns on/off + retry pill, in X's left sidebar under its Post/Tweet button */
-#xmc-pill { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; min-height: 44px; margin-top: 12px; padding: 0 18px;
-  border: 0; border-radius: 9999px; background: #1d9bf0; color: #fff; font: 700 16px/1 inherit; font-family: inherit; white-space: nowrap; cursor: pointer; }
-#xmc-pill:hover { filter: brightness(.92); }
-#xmc-pill.off { background: transparent; color: #1d9bf0; box-shadow: inset 0 0 0 2px #1d9bf0; }
+#xmc-pill { display: flex; align-items: center; justify-content: center; gap: 10px; box-sizing: border-box; width: 100%; min-height: 52px; margin-top: 12px; padding: 0 20px;
+  border: 0; border-radius: 9999px; background: transparent; color: #1d9bf0; box-shadow: inset 0 0 0 1px currentColor;
+  font: inherit; font-weight: 700; line-height: 1.2; white-space: nowrap; cursor: pointer; }
+#xmc-pill svg { width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#xmc-pill:hover { background: rgba(29, 155, 240, .1); }
+/* off (or fell back to X's own feed): filled, so it is easy to find */
+#xmc-pill.off { background: #1d9bf0; color: #fff; box-shadow: none; }
+#xmc-pill.off:hover { background: #1a8cd8; }
+/* narrow sidebar: X shows a round icon-only Post button, so do the same */
+#xmc-pill.compact { width: 50px; min-height: 50px; padding: 0; margin-left: auto; margin-right: auto; }
+#xmc-pill.compact .xmc-pill-label { display: none; }
 #xmc-pill[hidden] { display: none !important; }
 
 /* the comment order menu is the same size as the comments */

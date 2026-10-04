@@ -262,3 +262,29 @@ test('algorithmic content has its own settings category with every switch indepe
   for (const k of ['hideForYou', 'onlyFollowed', 'hideTrending', 'hideWhoToFollow', 'hideTopics', 'hideDiscoverMore', 'hidePremiumPromo']) assert.ok(keys.includes(k), k);
   assert.equal(new Set(S.SCHEMA.flatMap((x) => x.items.map((i) => i.key))).size, S.SCHEMA.flatMap((x) => x.items).length, 'no setting is listed twice');
 });
+
+test('"that’s everything" is shown only when X really has no more, and posts arriving later cancel it', () => {
+  let p = { empty: 0, exhausted: false };
+  p = L.nextPaging(p, { added: 0, bottomCursor: 'c1', repeated: false });
+  p = L.nextPaging(p, { added: 0, bottomCursor: 'c2', repeated: false });
+  assert.equal(p.exhausted, false, 'two ad-only pages with fresh cursors are not the end');
+  p = L.nextPaging(p, { added: 7, bottomCursor: 'c3', repeated: false });
+  assert.deepEqual(p, { empty: 0, exhausted: false }, 'posts reset the count and the flag');
+  assert.equal(L.nextPaging(p, { added: 4, bottomCursor: '', repeated: false }).exhausted, true, 'no next marker: last page');
+  assert.equal(L.nextPaging(p, { added: 0, bottomCursor: 'c3', repeated: true }).exhausted, true, 'a marker we already followed is a loop');
+  assert.equal(L.nextPaging(p, { added: 3, bottomCursor: 'c3', repeated: true }).exhausted, false, 'a repeated marker that still brought posts is fine');
+  let q = { empty: 0 };
+  for (let i = 0; i < 4; i++) q = L.nextPaging(q, { added: 0, bottomCursor: 'n' + i, repeated: false });
+  assert.equal(q.exhausted, false);
+  assert.equal(L.nextPaging(q, { added: 0, bottomCursor: 'n5', repeated: false }).exhausted, true, 'five empty pages in a row: stop asking');
+});
+
+test('videos pause when scrolled half away; GIFs also resume when back', () => {
+  assert.equal(L.videoAction({ gif: false, ratio: 0.3, paused: false }), 'pause', 'a playing video that is cut off stops');
+  assert.equal(L.videoAction({ gif: false, ratio: 0, paused: false }), 'pause');
+  assert.equal(L.videoAction({ gif: false, ratio: 0.8, paused: false }), null, 'mostly visible: leave it playing');
+  assert.equal(L.videoAction({ gif: false, ratio: 0.2, paused: true }), null, 'already paused');
+  assert.equal(L.videoAction({ gif: false, ratio: 1, paused: true }), null, 'never starts a video the person did not start');
+  assert.equal(L.videoAction({ gif: true, ratio: 0.9, paused: true }), 'play');
+  assert.equal(L.videoAction({ gif: true, ratio: 0.4, paused: false }), 'pause');
+});

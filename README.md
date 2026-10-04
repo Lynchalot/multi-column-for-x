@@ -77,3 +77,6 @@ didn't run; `Seen: {HomeTimeline: n}` with no posts means X changed its data for
 
 If **Loading more** never finishes, or comments say they couldn't load, press **Copy diagnostics** (it appears on the spinner after
 20 seconds, and in the comments panel). It copies a private snapshot — request names and counts, no post text — to paste when asking for help.
+
+## Support
+Free and open source (MIT). If it saves you time, you can [buy me a coffee on Ko-fi](https://ko-fi.com/falsehamartia). Bugs and ideas: [GitHub issues](https://github.com/Lynchalot/multi-column-for-x/issues).

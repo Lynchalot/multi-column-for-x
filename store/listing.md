@@ -27,6 +27,9 @@ Media Harvest features, built in
 Privacy
 No data collected. No analytics, accounts or remote code. Everything stays in your browser. Open source (MIT).
 
+**Support link (add-on page "Support" field):** https://ko-fi.com/falsehamartia
+**Homepage:** https://github.com/Lynchalot/multi-column-for-x
+
 **Categories:** Social & Communication; Appearance
 **Tags:** twitter, x, columns, multi-column, timeline, media download, control panel
 **License:** MIT

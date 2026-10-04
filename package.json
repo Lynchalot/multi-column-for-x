@@ -1,6 +1,6 @@
 {
   "name": "multi-column-for-x",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "Your X (Twitter) timeline in multiple columns, with the best of Control Panel for Twitter and Media Harvest built in. A Firefox extension.",
   "scripts": {
@@ -12,6 +12,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/Lynchalot/multi-column-for-x.git"
+  },
+  "homepage": "https://github.com/Lynchalot/multi-column-for-x",
+  "bugs": {
+    "url": "https://github.com/Lynchalot/multi-column-for-x/issues"
   }
 }
