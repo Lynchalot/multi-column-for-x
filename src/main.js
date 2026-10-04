@@ -352,7 +352,7 @@
     for (const m of list) {
       let node;
       if (m.type === 'photo') {
-        node = h('img', { src: photoUrl(m.thumb, n === 1 ? 'large' : 'medium'), alt: m.alt, loading: 'lazy', decoding: 'async' });
+        node = h('img', { src: photoUrl(m.thumb, n === 1 ? 'large' : 'medium'), alt: m.alt, loading: 'eager', decoding: 'async' }); // the card is only drawn a few screens ahead, so loading now keeps photos from sitting black while you scroll
         node.dataset.lb = String(photoIdx++);
       } else node = renderVideo(m, t);
       if (n === 1) box.style.aspectRatio = String(clampRatio(m.w, m.h));
@@ -488,10 +488,11 @@
   const refreshBtn = h('button', { className: 'xmc-refresh', title: 'Refresh', type: 'button', onclick: () => refresh() }, icon('refresh'), h('span', { className: 'xmc-newn' }));
   const nsfwBtn = h('button', { className: 'xmc-nsfw', type: 'button', onclick: () => cycleNsfw() }, h('span', { className: 'xmc-nsfwi' }), h('span', { className: 'xmc-nsfwl', textContent: 'NSFW' }));
 
+  const autoBtn = btn('Auto', 'Fit the number of columns to the window (highlighted = on)', () => setCols(0));
   const colGroup = h('div', { className: 'xmc-colgroup' },
-    btn('\u2212', 'Fewer columns', () => setCols(colCount() - 1)), countEl,
-    btn('+', 'More columns', () => setCols(colCount() + 1)),
-    btn('Auto', 'Fit columns to width', () => setCols(0)));
+    btn('\u2212', 'Fewer columns', () => setCols((settings.cols || colCount()) - 1)), countEl,
+    btn('+', 'More columns', () => setCols((settings.cols || colCount()) + 1)),
+    autoBtn);
   const row1 = h('div', { className: 'xmc-bar1' }, tabsEl, h('span', { className: 'xmc-spacer' }), refreshBtn, colGroup, nsfwBtn, gearBtn);
   const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
   const bar = h('div', { className: 'xmc-bar' }, row1, row2);
@@ -635,8 +636,13 @@
   // ---------- columns ----------
   let columns = [];
   const view = { feedKey: null, version: -1, sig: '', renderSig: '', upto: 0, cards: [] };
+  // Automatic: as many as fit at the chosen width. A fixed number you picked is honoured only while columns stay at least
+  // MIN_COL wide; on a narrower window it gives way (down to one) instead of squeezing them to slivers.
+  const MIN_COL = 320;
   function colCount() {
-    return settings.cols > 0 ? settings.cols : XMCLogic.autoCols(colsEl.clientWidth, settings, GAP);
+    const w = colsEl.clientWidth;
+    if (settings.cols > 0) return Math.min(settings.cols, XMCLogic.autoCols(w, { minColWidth: MIN_COL, maxAutoCols: 8 }, GAP));
+    return XMCLogic.autoCols(w, settings, GAP);
   }
   // everything that changes which posts pass; when it changes the view is rebuilt
   const FILTER_KEYS = ['filter', 'repostsHome', 'quotesHome', 'repliesHome', 'repostsProfile', 'repostsLists', 'onlyFollowed',
@@ -677,6 +683,7 @@
   function relayout() {
     const n = colCount();
     countEl.textContent = (settings.cols ? '' : 'auto · ') + n;
+    autoBtn.classList.toggle('on', !settings.cols); // shows whether the number is automatic or fixed
     const real = view.cards.map((t) => (t.el ? t.el.offsetHeight : 0));
     columns = Array.from({ length: n }, () => h('div', { className: 'xmc-col' }));
     colsEl.classList.toggle('auto', !settings.cols); // automatic: columns keep about one width, the window shows more or fewer
@@ -794,7 +801,7 @@
     state.parkedAt = Date.now();
     window.scrollTo(0, 0);
   }
-  new ResizeObserver(() => { if (!root.hidden && !settings.cols && colCount() !== columns.length) relayout(); }).observe(scroller);
+  new ResizeObserver(() => { if (!root.hidden && colCount() !== columns.length) relayout(); }).observe(scroller);
 
   // Refresh only ever happens when you press the button.
   function refresh() {
@@ -1797,7 +1804,7 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => { // once you stop: X may have swapped layouts, so re-measure the sidebars
       navRestore();
-      if (!root.hidden) { guard('position', position); if (!settings.cols && colCount() !== columns.length) relayout(); }
+      if (!root.hidden) { guard('position', position); if (colCount() !== columns.length) relayout(); }
     }, 200);
   });
 
@@ -1834,12 +1841,32 @@
   }
   // X's floating Grok and Chat buttons sit bottom right, on top of the sidebar's lower part. Give them their own room under it.
   const sideHeight = () => (settings.hideGrokDrawer && settings.hideDmDrawer ? '100vh' : 'calc(100vh - 84px)');
-  // X moves its sidebar's contents as the page scrolls (sticky offsets); the hidden page scrolls all the time, so every
-  // sticky element in the sidebar's first few levels is made to stay put
-  function unstick(side) {
-    for (const el of side.querySelectorAll(':scope > div, :scope > div > div, :scope > div > div > div, :scope > div > div > div > div')) {
-      if (el.style.position !== 'static' && getComputedStyle(el).position === 'sticky') el.style.setProperty('position', 'static', 'important');
+  // X moves its sidebar's contents as the page scrolls: a wrapper goes sticky or fixed, or gets an offset, so the contents slide
+  // away or jump down. The hidden page scrolls all the time, so the wrappers (the first six levels) are made to stay put, and
+  // re-checked the moment X touches their style or class.
+  const WRAPPERS = Array.from({ length: 6 }, (_, i) => ':scope' + ' > div'.repeat(i + 1)).join(',');
+  function holdStill(side) {
+    for (const el of side.querySelectorAll(WRAPPERS)) {
+      const st = el.style, pos = getComputedStyle(el).position;
+      if ((pos === 'sticky' || pos === 'fixed') && st.position !== 'static') st.setProperty('position', 'static', 'important');
+      if (st.top && st.top !== 'auto') st.setProperty('top', 'auto', 'important');
+      if (st.bottom && st.bottom !== 'auto') st.setProperty('bottom', 'auto', 'important');
+      if (st.marginTop && parseFloat(st.marginTop) > 48) st.setProperty('margin-top', '0', 'important');
+      if (st.transform && st.transform !== 'none') st.setProperty('transform', 'none', 'important');
+      if (st.translate && st.translate !== 'none') st.setProperty('translate', 'none', 'important');
     }
+  }
+  const sideWatch = { el: null, obs: null, queued: false };
+  function watchSide(side) {
+    if (sideWatch.el === side) return;
+    if (sideWatch.obs) sideWatch.obs.disconnect();
+    sideWatch.el = side;
+    sideWatch.obs = new MutationObserver(() => {
+      if (sideWatch.queued) return;
+      sideWatch.queued = true;
+      queueMicrotask(() => { sideWatch.queued = false; if (side.isConnected && side.dataset.xmcStyle !== undefined) holdStill(side); });
+    });
+    sideWatch.obs.observe(side, { attributes: true, attributeFilter: ['style', 'class'], subtree: true });
   }
   function positionSide() {
     const p = pin.side, side = p.el();
@@ -1857,7 +1884,8 @@
     } else if (!p.fallback) {
       const hh = sideHeight();
       if (side.style.getPropertyValue('height') !== hh) side.style.setProperty('height', hh, 'important');
-      unstick(side);
+      holdStill(side);
+      watchSide(side);
       // probe whichever of its links is on screen right now (the sidebar scrolls, so the first one often isn't)
       const probe = [...side.querySelectorAll('input, a[href]')].find((el) => { const r = el.getBoundingClientRect(); return r.width && r.top >= 0 && r.bottom <= innerHeight; });
       const b = probe && probe.getBoundingClientRect();
