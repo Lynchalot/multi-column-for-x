@@ -334,3 +334,20 @@ html.xmc-tidyReplies.xmc-onpost article[data-testid="tweet"][tabindex="0"] butto
 /* X shifts its right column's contents with the page's scroll (sticky offsets); our column is pinned, and the hidden page
    scrolls constantly while loading, so let the contents sit still */
 html.xmc-on [data-testid="sidebarColumn"] [style*="sticky"] { position: static !important; top: auto !important; bottom: auto !important; transform: none !important; }
+
+/* ---- polish ---- */
+/* keyboard users can see where they are */
+#xmc-root button:focus-visible, #xmc-root select:focus-visible, #xmc-root textarea:focus-visible, #xmc-pill:focus-visible, .xmc-nat-btn:focus-visible {
+  outline: 2px solid var(--xmc-accent); outline-offset: 2px; }
+#xmc-root .xmc-scroller:focus { outline: none; }
+/* soft hovers, only on the properties that are cheap to animate */
+.xmc-bar button, .xmc-act, .xmc-card, .xmc-rbtn, .xmc-menu button, #xmc-pill, .xmc-nat-btn { transition: background-color .12s ease, color .12s ease, box-shadow .12s ease; }
+.xmc-menu { animation: xmc-pop .1s ease-out; transform-origin: top left; }
+@keyframes xmc-pop { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+#xmc-toast { animation: xmc-fade .15s ease-out; }
+@keyframes xmc-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .xmc-bar button, .xmc-act, .xmc-card, .xmc-rbtn, .xmc-menu button, #xmc-pill, .xmc-nat-btn { transition: none; }
+  .xmc-menu, #xmc-toast { animation: none; }
+  .xmc-spin { animation-duration: 2.4s; }
+}

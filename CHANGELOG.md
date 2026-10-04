@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.5
+Audit pass.
+- A failure while loading comments or a translation now ends in a message instead of a panel stuck on "Loading comments...".
+- Going back after a comments visit only happens if X's page is still on the post we opened (not one you went to yourself meanwhile).
+- Pressing the tab you are already on keeps what's on screen and returns to the top (it used to blank the columns for a couple of seconds).
+- Resizing the window no longer makes the sidebars flicker to X's own position while you drag; they are re-measured once you stop.
+- Links in posts are only ever web addresses (never `javascript:` or `data:`).
+- Lighter: the top bar and Columns pill are only touched when something changed; floating-button scan skips background tabs;
+  the list of conversations kept is capped; videos removed from the page stop being watched.
+- Safety net: X's own pop-ups can't stay invisible for more than 20s if a menu is left open.
+- Polish: visible keyboard focus rings, soft hover transitions, reduced-motion support, menu and toast fade in.
+- Settings: "Support" link; shorter description.
+- Packaging: `web-ext lint` is clean; Firefox for Android minimum version declared (142) to match the data-collection declaration.
+
 ## 0.8.4
 - **Explore is X's own page again** (Today's News, Trending, Who to follow, Posts For You): the columns only showed the posts at the bottom and
   hid the rest, and waited a long time for them. A **Try columns** pill in the sidebar turns the columns on for that page if you want them.

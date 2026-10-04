@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Multi-Column for X",
-  "version": "0.8.4",
-  "description": "Your X (Twitter) timeline in multiple columns, with in-card video, downloads, filters and the best of Control Panel and Media Harvest built in.",
+  "version": "0.8.5",
+  "description": "Your X (Twitter) timeline in multiple columns, with in-card video, filters and media download button.",
   "icons": {
     "48": "icons/icon.svg",
     "96": "icons/icon.svg"
@@ -61,6 +61,9 @@
           "none"
         ]
       }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
     }
   },
   "options_ui": {

@@ -125,6 +125,7 @@
       const d = XMCParse.parseDetail(body, url, reqBody, state.peek ? state.peek.id : idOfHref(location.pathname));
       if (d) {
         state.details.set(d.focalId, d); if (state.peek && state.peek.id === d.focalId) state.peek.replies = d;
+        while (state.details.size > 200) state.details.delete(state.details.keys().next().value);
         remember([d.focal].concat(d.replies));
       }
       return;
@@ -554,8 +555,8 @@
       pill.dataset.text = text;
       pill.replaceChildren(icon('columns'), h('span', { className: 'xmc-pill-label', textContent: text }));
     }
-    pill.title = on ? 'Columns are on for this page. Click to see X\u2019s normal feed instead.' : 'Click to show this page in columns';
-    pill.setAttribute('aria-label', text);
+    const title = on ? 'Columns are on for this page. Click to see X\u2019s normal feed instead.' : 'Click to show this page in columns';
+    if (pill.title !== title) { pill.title = title; pill.setAttribute('aria-label', text); }
   }
 
   let toastTimer = 0;
@@ -593,7 +594,8 @@
     for (const key of Object.keys(viewEls)) {
       const el = viewEls[key];
       el.hidden = split || !views.includes(key);
-      el.textContent = VIEW_LABELS[key]();
+      const label = VIEW_LABELS[key]();
+      if (el.textContent !== label) el.textContent = label;
       el.classList.toggle('on', settings.filter === key);
     }
     const kind = subFor(state.sel);
@@ -603,7 +605,7 @@
     nsfwBtn.title = label + ' — click to change';
     nsfwBtn.classList.toggle('shown', settings.nsfw === 'show');
     nsfwBtn.classList.toggle('hidden-mode', settings.nsfw === 'hide');
-    nsfwBtn.firstChild.replaceChildren(icon(ic));
+    if (nsfwBtn.dataset.ic !== ic) { nsfwBtn.dataset.ic = ic; nsfwBtn.firstChild.replaceChildren(icon(ic)); }
   }
   function setFilter(key) { settings.filter = key; save(); applyBar(); guard('render', renderFeed); } // draw now, not on the next tick
   function setCols(n) { settings.cols = Math.max(0, Math.min(8, n)); save(); relayout(); }
@@ -686,7 +688,11 @@
     statusEl.hidden = !msg;
   }
   function dropCards(pred) { // remove cards in place (e.g. after muting) without rebuilding or losing your place
-    view.cards = view.cards.filter((t) => { if (pred(t)) { if (t.el) t.el.remove(); return false; } return true; });
+    view.cards = view.cards.filter((t) => {
+      if (!pred(t)) return true;
+      if (t.el) { for (const v of t.el.querySelectorAll('video')) playObserver.unobserve(v); t.el.remove(); }
+      return false;
+    });
   }
 
   // Draw only what you can reach soon (about four screens ahead) instead of every loaded post at once:
@@ -973,7 +979,10 @@
       if (opts.wanted && !opts.wanted()) return { why: 'Closed before it loaded.' };
       if (opts.onStart) opts.onStart();
       await waitFor(() => !state.posting, 15000);
-      return fetchReplies(t, opts);
+      try { return await fetchReplies(t, opts); } catch (err) {
+        console.warn('[xmc] comments failed', err);
+        return { why: 'Something went wrong while loading this (' + ((err && err.message) || err) + ').' };
+      }
     });
     replyQueue = run.catch(() => {});
     return run;
@@ -1023,7 +1032,7 @@
         ? 'X didn\u2019t open the post when asked to.'
         : 'X opened the post but sent no comments. Requests seen: ' + Object.keys(state.seenOps).join(', ') };
     } finally {
-      if (onPostPage()) {
+      if (onPostPage() && idOfHref(location.pathname) === t.id) { // still the page we opened (not one you've since gone to yourself)
         window.history.back();
         await waitFor(() => !onPostPage(), 3500);
       }
@@ -1329,9 +1338,8 @@
   async function translatePost(t, cardEl, button) {
     button.disabled = true; button.textContent = 'Translating...';
     t.transBusy = true;
-    const res = t.translation ? { translation: t.translation } : await loadReplies(t, { translate: true });
-    t.transBusy = false;
-    button.disabled = false;
+    let res = null;
+    try { res = t.translation ? { translation: t.translation } : await loadReplies(t, { translate: true }); } finally { t.transBusy = false; button.disabled = false; }
     if (!res || !res.translation) { button.textContent = 'Translate post'; toast('X didn\u2019t offer a translation for this post.'); return; }
     t.translation = res.translation;
     showTranslation(t, cardEl);
@@ -1532,7 +1540,12 @@
   }
   async function tabMenu(i, anchor, before) {
     const menu = await waitFor(findXMenu, 700);
-    if (!menu) { releaseLayers(); return; } // no dropdown: it was an ordinary second press
+    if (!menu) { // no dropdown: an ordinary second press. Keep what is on screen; go back to the top, as X does
+      releaseLayers();
+      state.awaiting = before.awaiting; state.cur = before.cur; lastSig = '';
+      scroller.scrollTop = 0;
+      return;
+    }
     state.menuTabs.add(routeKey() + '|' + i);
     state.awaiting = before.awaiting; state.cur = before.cur; // pressing it again does not change the feed
     lastSig = '';
@@ -1675,9 +1688,11 @@
   const navRestore = () => { thawSidebar(); unpin('nav'); unpin('side'); };
   let resizeTimer = 0;
   window.addEventListener('resize', () => {
-    navRestore(); // X may swap layouts; re-measure
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { if (!root.hidden) { guard('position', position); if (!settings.cols && colCount() !== columns.length) relayout(); } }, 120);
+    resizeTimer = setTimeout(() => { // once you stop: X may have swapped layouts, so re-measure the sidebars
+      navRestore();
+      if (!root.hidden) { guard('position', position); if (!settings.cols && colCount() !== columns.length) relayout(); }
+    }, 200);
   });
 
   // Is something we pinned still what you'd click? A probe that is off screen (or missing) says nothing, so it is not a
@@ -1759,7 +1774,7 @@
     return n;
   }
   function scanFloaters() {
-    if (Date.now() - lastScan < 1500) return;
+    if (document.hidden || Date.now() - lastScan < 1500) return;
     lastScan = Date.now();
     const rr = document.getElementById('react-root');
     const main = mainCol();
@@ -1848,9 +1863,13 @@
     root.hidden = !active;
     root.classList.toggle('xmc-under', modal);
     const pillShown = eligible() || canTry();
-    if (pillShown) placePill();
+    if (pillShown && (tickN % 10 === 0 || !pill.isConnected)) placePill();
     updatePill(pillShown, active);
     document.documentElement.classList.toggle('xmc-onpost', onPostPage());
+    if (document.documentElement.classList.contains('xmc-acting')) { // never leave X's menus invisible for good
+      if (!state.actingSince) state.actingSince = Date.now();
+      else if (Date.now() - state.actingSince > 20000 && !state.posting && !state.peek) { document.documentElement.classList.remove('xmc-acting'); state.actingSince = 0; }
+    } else state.actingSince = 0;
     if (!active) {
       if (tickN % 4 === 0) guard('native tools', decorateNative);
       tickN++; if (!modal) { state.route = ''; state.homeInit = false; } return;

@@ -23,6 +23,8 @@ var XMCParse = (function () {
     return { vars: {}, known: false };
   }
   const varsOf = (url, reqBody) => requestVars(url, reqBody).vars;
+  // links in posts come from other people: only ever web addresses (never javascript: or data: and the like)
+  const safeUrl = (u) => (typeof u === 'string' && /^https?:\/\//i.test(u) ? u : '');
   // what makes two responses part of the same feed (everything except paging)
   const feedKeyOf = (op, v) => [op, v.rawQuery || '', v.product || '', v.listId || '', v.userId || '',
     v.bookmark_collection_id || '', v.communityId || ''].join('|');
@@ -109,8 +111,8 @@ var XMCParse = (function () {
     const end = range ? Math.min(range[1], chars.length) : chars.length;
     const reps = [];
     for (const u of ents.urls || []) {
-      const expanded = u.expanded_url || u.url;
-      reps.push({ s: u.indices[0], e: u.indices[1], seg: dropUrl(expanded) ? null : { t: 'url', href: expanded, label: u.display_url || expanded } });
+      const expanded = safeUrl(u.expanded_url) || safeUrl(u.url);
+      reps.push({ s: u.indices[0], e: u.indices[1], seg: !expanded || dropUrl(expanded) ? null : { t: 'url', href: expanded, label: u.display_url || expanded } });
     }
     for (const m of ents.user_mentions || []) reps.push({ s: m.indices[0], e: m.indices[1], seg: { t: 'mention', handle: m.screen_name } });
     for (const h of ents.hashtags || []) reps.push({ s: h.indices[0], e: h.indices[1], seg: { t: 'tag', tag: h.text } });
@@ -169,7 +171,7 @@ var XMCParse = (function () {
     const hit = ((legacy.entities && legacy.entities.urls) || []).find((u) => u.url === tco);
     const title = str('title');
     if (!title && !img) return null;
-    return { url: hit ? hit.expanded_url : tco, title, desc: str('description'), domain: str('vanity_url') || str('domain'), image: img };
+    return { url: safeUrl(hit && hit.expanded_url) || safeUrl(tco) || '#', title, desc: str('description'), domain: str('vanity_url') || str('domain'), image: img };
   }
 
   function normalizeTweet(result, depth) {

@@ -188,3 +188,10 @@ test('requests seen on a real X page that are not feeds of posts are ignored', (
   }
   assert.ok(P.parseResponse(F.homeTimeline(), 'https://x.com/i/api/graphql/abc/HomeTimeline?variables={}'));
 });
+
+test('links in posts are only ever web addresses', () => {
+  const segs = P.buildSegments('see javascript-link here', { urls: [{ url: 'https://t.co/a', expanded_url: 'javascript:alert(1)', display_url: 'x', indices: [4, 19] }] }, null, () => false);
+  assert.equal(segs.find((s) => s.t === 'url').href, 'https://t.co/a', 'an unsafe expanded address falls back to the short link');
+  const none = P.buildSegments('x data:text/html,boo', { urls: [{ url: 'data:text/html,boo', expanded_url: 'data:text/html,boo', display_url: 'd', indices: [2, 20] }] }, null, () => false);
+  assert.ok(!none.some((s) => s.t === 'url'), 'nothing safe to link to: no link');
+});

@@ -1,12 +1,12 @@
 {
   "name": "multi-column-for-x",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "private": true,
-  "description": "Your X (Twitter) timeline in multiple columns, with the best of Control Panel for Twitter and Media Harvest built in. A Firefox extension.",
+  "description": "Your X (Twitter) timeline in multiple columns, with in-card video, filters and media download button.",
   "scripts": {
     "test": "node --test test/",
-    "lint": "npx --yes web-ext lint",
-    "build": "npx --yes web-ext build --overwrite-dest",
+    "lint": "npx --yes web-ext lint --config web-ext-config.cjs",
+    "build": "npx --yes web-ext build --config web-ext-config.cjs --overwrite-dest",
     "start": "npx --yes web-ext run"
   },
   "license": "MIT",

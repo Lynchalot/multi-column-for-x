@@ -162,7 +162,7 @@
     watchScroll();
     const sup = $('#support');
     const bits = [];
-    if (XMCMeta.donate) bits.push(document.createTextNode('Do you like this extension? '), h('a', { href: XMCMeta.donate, textContent: 'Support development here.', target: '_blank', rel: 'noopener' }));
+    if (XMCMeta.donate) bits.push(h('a', { href: XMCMeta.donate, textContent: 'Support', target: '_blank', rel: 'noopener' }));
     if (XMCMeta.repo) bits.push(document.createTextNode(bits.length ? ' \u00b7 ' : ''), h('a', { href: XMCMeta.repo, textContent: 'Source & issues', target: '_blank', rel: 'noopener' }));
     if (bits.length) { sup.replaceChildren(...bits); sup.hidden = false; }
 
