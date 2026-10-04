@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.1
+- **No more jumping back to the top**: the columns could be wiped (and the scroll position lost) while X's hidden side was on a
+  post's page fetching comments or translations. Fixed, and hovering only starts fetching comments for a real hover, not when the page scrolls under the pointer.
+- **Posts in other languages translate automatically**, like X: once a post has been on screen a moment it is translated (one at a time,
+  at most ten a minute, never while comments load), shown in place of the original with "Translated from Japanese · Show original".
+  Switch off in Posts for a "Translate post" button instead.
+- **Explore's Trending / News / Sports / Entertainment** tabs are lists of trends and stories, not posts: they now show X's own page,
+  with a **Try columns** pill if you want to see. (They used to wait for posts that never came.) Explore's For you tab is still columns.
+- **Loading spinner turns smoothly** (it was being rebuilt ten times a second), and the "Loading more" pill is solid and readable.
+- **Right sidebar no longer jumps**: it fell back to X's own position for 10s whenever its first link had scrolled out of view,
+  and X's own sticky offsets moved its contents as the hidden page scrolled.
+- **Lighter on X's side**: X's hidden copy of the timeline can no longer start its videos (they streamed and decoded for nothing).
+  Loading stops asking after four unanswered nudges instead of spinning forever.
+- Settings page: icon, shorter header, "Do you like this extension? Support development here."
+
 ## 0.8.0
 - **Comments are much faster**, and they work when you're far down the feed: the post's page is opened the way X's own router
   follows a link, instead of scrolling X's hidden list back to the post first (which could take ~10s or fail). If X ignores that, it falls

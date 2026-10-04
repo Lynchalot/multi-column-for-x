@@ -304,13 +304,16 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
 /* translation */
 .xmc-translate { appearance: none; border: 0; background: none; color: var(--xmc-accent); font: inherit; font-size: 14px; padding: 0 0 8px; cursor: pointer; display: block; }
 .xmc-translate:hover { text-decoration: underline; }
-.xmc-trans { margin: 0 0 6px; padding: 8px 10px; border-left: 3px solid var(--xmc-accent); background: var(--xmc-hover); border-radius: 0 10px 10px 0; }
-.xmc-trans[hidden] { display: none; }
-.xmc-translabel { font-size: 12px; margin-bottom: 2px; }
+.xmc-trans { margin: 0 0 6px; }
+.xmc-trans[hidden], .xmc-text[hidden] { display: none; }
+.xmc-translabel { appearance: none; border: 0; background: none; padding: 4px 0 0; font: inherit; font-size: 13px; color: var(--xmc-muted); cursor: pointer; display: block; }
+.xmc-translabel:hover { text-decoration: underline; }
 
 /* waiting for more posts while a column has blank space on screen: keep the spinner where you can see it */
-.xmc-loader.xmc-sticky { position: sticky; bottom: 16px; margin: 0 auto; width: max-content; max-width: calc(100% - 24px); padding: 10px 18px;
-  border-radius: 9999px; background: var(--xmc-bg); box-shadow: 0 0 0 1px var(--xmc-border), 0 6px 24px rgba(0, 0, 0, .35); z-index: 2; }
+.xmc-loader.xmc-sticky { position: sticky; bottom: 16px; margin: 0 auto; width: max-content; max-width: calc(100% - 24px); padding: 11px 20px; gap: 10px;
+  border-radius: 9999px; background: var(--xmc-bg); color: var(--xmc-fg); font-weight: 600;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xmc-fg) 35%, transparent), 0 8px 28px rgba(0, 0, 0, .55); z-index: 2; }
+.xmc-loader.xmc-sticky .xmc-spin { width: 18px; height: 18px; }
 
 /* automatic columns keep about one width (at most 20% wider); extra room is margin, and a narrower window drops columns */
 .xmc-cols.auto { justify-content: center; }
@@ -327,3 +330,7 @@ html.xmc-tidyReplies.xmc-onpost article[data-testid="tweet"][tabindex="0"] butto
 .xmc-nat-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .xmc-nat-btn:hover { color: #1d9bf0; background: rgba(29, 155, 240, .1); }
 .xmc-nat-btn[hidden] { display: none !important; }
+
+/* X shifts its right column's contents with the page's scroll (sticky offsets); our column is pinned, and the hidden page
+   scrolls constantly while loading, so let the contents sit still */
+html.xmc-on [data-testid="sidebarColumn"] [style*="sticky"] { position: static !important; top: auto !important; bottom: auto !important; transform: none !important; }

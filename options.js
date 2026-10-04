@@ -160,13 +160,11 @@
     $('#nav').replaceChildren(...[...document.querySelectorAll('section[data-nav]')].map((s) => h('a', { href: '#' + s.id, textContent: s.dataset.nav })));
     renderHistory();
     watchScroll();
-    const links = [];
-    if (XMCMeta.donate) links.push(h('a', { href: XMCMeta.donate, textContent: 'Support development', target: '_blank', rel: 'noopener' }));
-    if (XMCMeta.repo) links.push(h('a', { href: XMCMeta.repo, textContent: 'Source & issues', target: '_blank', rel: 'noopener' }));
-    if (links.length) {
-      $('#support').replaceChildren(document.createTextNode('Enjoying it? '), links[0], ...(links[1] ? [document.createTextNode(' \u00b7 '), links[1]] : []));
-      $('#support').hidden = false;
-    }
+    const sup = $('#support');
+    const bits = [];
+    if (XMCMeta.donate) bits.push(document.createTextNode('Do you like this extension? '), h('a', { href: XMCMeta.donate, textContent: 'Support development here.', target: '_blank', rel: 'noopener' }));
+    if (XMCMeta.repo) bits.push(document.createTextNode(bits.length ? ' \u00b7 ' : ''), h('a', { href: XMCMeta.repo, textContent: 'Source & issues', target: '_blank', rel: 'noopener' }));
+    if (bits.length) { sup.replaceChildren(...bits); sup.hidden = false; }
 
     $('#history-clear').addEventListener('click', () => {
       history = [];

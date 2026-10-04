@@ -62,9 +62,14 @@
   const T = (k) => STR[settings.branding === 'twitter' ? 'twitter' : 'x'][k];
 
   // ---------- routes ----------
+  // Explore's other tabs (Trending, News, Sports, Entertainment) are lists of trends and stories rather than posts, so
+  // the columns have little to show there: X's page is left alone, with a pill to try columns anyway.
+  const isExploreSub = (p) => /^\/explore\/tabs\/(?!for-you(\/|$))/.test(p);
+  const canTry = () => isExploreSub(location.pathname.replace(/\/+$/, ''));
   function eligible() {
     const p = location.pathname.replace(/\/+$/, '') || '/';
-    if (p === '/home' || p === '/search' || p === '/i/bookmarks' || p.startsWith('/i/lists/') || p === '/explore' || p.startsWith('/explore/tabs/')) return true;
+    if (p === '/home' || p === '/search' || p === '/i/bookmarks' || p.startsWith('/i/lists/') || p === '/explore' || p === '/explore/tabs/for-you') return true;
+    if (isExploreSub(p)) return state.trial === routeKey(); // Trending, News, Sports...: X's own page unless you press the Columns pill
     const seg = p.split('/').filter(Boolean);
     if (seg.length === 1) return !RESERVED.has(seg[0].toLowerCase());
     if (seg.length === 2 && !RESERVED.has(seg[0].toLowerCase())) {
@@ -407,7 +412,12 @@
       const long = textLength(t.segs) > 420;
       card.append(h('div', { className: 'xmc-text' + (long ? ' clamp' : '') }, renderSegs(t.segs)));
       if (long) card.append(h('button', { className: 'xmc-more', type: 'button', textContent: 'Show more' }));
-      if (needsTranslation(t)) card.append(h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post' }));
+      if (needsTranslation(t)) {
+        const tb = h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post' });
+        card.append(tb);
+        if (t.translation) queueMicrotask(() => showTranslation(t, card));
+        else if (settings.autoTranslate) translateObserver.observe(tb);
+      }
     }
     if (t.media.length) card.append(renderMedia(t));
     if (t.card) card.append(renderLinkCard(t.card));
@@ -496,8 +506,10 @@
   const focusScroller = () => { if (!root.hidden && !/^(input|textarea|select)$/i.test((document.activeElement || {}).tagName || '')) scroller.focus({ preventScroll: true }); };
   root.addEventListener('pointerdown', (e) => { if (!e.target.closest('input, textarea, select')) setTimeout(focusScroller, 0); });
   let drawSoon = 0;
+  let lastScrollAt = 0;
   scroller.addEventListener('scroll', () => {
     if (root.hidden) return;
+    lastScrollAt = Date.now();
     view.memoTop = scroller.scrollTop;
     if (!drawSoon) drawSoon = setTimeout(() => { drawSoon = 0; if (!root.hidden) guard('render', renderFeed); }, 40); // fill blank space as it appears, not on the next tick
   }, { passive: true });
@@ -507,6 +519,7 @@
   const pill = h('button', { id: 'xmc-pill', type: 'button', hidden: true, onclick: () => togglePage() });
   function togglePage() {
     const route = routeKey();
+    if (canTry() && state.trial !== route) { state.trial = route; state.failed = ''; state.failedBy = ''; state.routeSince = Date.now(); tick(); return; }
     if (state.failed === route) { state.failed = ''; state.failedBy = ''; state.routeSince = Date.now(); } else { state.failed = route; state.failedBy = 'user'; }
     tick();
   }
@@ -535,7 +548,7 @@
   function updatePill(show, on) {
     pill.hidden = !show;
     pill.classList.toggle('off', !on);
-    const text = on ? 'Columns' : state.failedBy === 'user' ? 'Columns off \u2014 turn on' : 'Retry columns';
+    const text = on ? 'Columns' : canTry() && state.trial !== routeKey() ? 'Try columns' : state.failedBy === 'user' ? 'Columns off \u2014 turn on' : 'Retry columns';
     if (pill.dataset.text !== text) { // only touch the DOM when it changes
       pill.dataset.text = text;
       pill.replaceChildren(icon('columns'), h('span', { className: 'xmc-pill-label', textContent: text }));
@@ -662,8 +675,13 @@
     scroller.scrollTop = 0;
     relayout();
   }
+  let statusKey = '';
   function setStatus(msg, spinning) {
-    statusEl.replaceChildren(...(msg ? [spinning ? spinner() : null, h('span', { textContent: msg })].filter(Boolean) : []));
+    const key = (msg || '') + '|' + (spinning ? 1 : 0);
+    if (key !== statusKey) { // rebuilding it every tick restarted the spinner each time, so it never got to turn
+      statusKey = key;
+      statusEl.replaceChildren(...(msg ? [spinning ? spinner() : null, h('span', { textContent: msg })].filter(Boolean) : []));
+    }
     statusEl.hidden = !msg;
   }
   function dropCards(pred) { // remove cards in place (e.g. after muting) without rebuilding or losing your place
@@ -674,6 +692,9 @@
   // switching views stays instant however much is loaded, and more is drawn as you scroll.
   const CHUNK = 14;
   function renderFeed() {
+    // Never while X's hidden side is on a post's page or the compose box (comments, translation, replying): there is no
+    // feed for that page, and "no feed" would wipe the columns and throw you back to the top.
+    if (state.peek || state.posting || onPostPage() || isModalRoute()) return;
     if (settings.disableHome && where() === 'home') {
       if (view.feedKey) resetView(null);
       setStatus('The Home timeline is turned off in settings.');
@@ -716,9 +737,10 @@
     loaderEl.hidden = !waiting;
     loaderEl.classList.toggle('xmc-sticky', waiting && shortestBottom() < scroller.scrollTop + scroller.clientHeight); // blank space on screen: keep the spinner in view
     const fl = state.fail && Date.now() - state.fail.at < 90000 ? state.fail : null;
-    loaderText.textContent = waiting && fl
+    const loaderMsg = waiting && fl
       ? (fl.status === 429 ? 'X says slow down (rate limit) - retrying shortly...' : 'X returned an error (' + fl.status + ') - retrying...')
       : waiting && Date.now() - state.waitSince > 12000 ? 'Still waiting for X...' : 'Loading more...';
+    if (loaderText.textContent !== loaderMsg) loaderText.textContent = loaderMsg;
     diagBtn.hidden = !(waiting && Date.now() - state.waitSince > 20000 || waiting && fl);
     endEl.hidden = !(f.exhausted && drawn && view.cards.length);
   }
@@ -777,6 +799,10 @@
     if (now - state.lastJump < gap) return;
     if (f.retryOnce) { f.retryOnce = false; f.exhausted = true; state.waitingPage = false; state.waitSince = 0; return; } // you asked once; X really has nothing
     f.misses++;
+    if (f.misses >= 4 && !state.fail) { // X has not answered four nudges in a row (and isn't refusing): this is the end of what it will send
+      f.exhausted = true; state.waitingPage = false; state.waitSince = 0;
+      return;
+    }
     state.lastJump = now;
     if (f.misses === 2 && !state.walkOnly) { // the big move didn't convince X: go back up and walk down, a screen at a time
       state.walkOnly = true;
@@ -812,6 +838,14 @@
     const d = document.documentElement;
     return `hidden page ${Math.round(window.scrollY)}/${d.scrollHeight}px, X's list shows ${articles().length} posts, ` +
       `requests seen: ${JSON.stringify(state.seenOps)}` + (state.fail ? `, last refusal: ${state.fail.status}` : '');
+  }
+
+  // X's own copy of the timeline is hidden behind our columns but still alive, and X starts its videos (streaming and
+  // decoding them for nothing). Keep them stopped.
+  function stopHiddenVideos() {
+    const col = mainCol();
+    if (!col) return;
+    for (const v of col.querySelectorAll('video')) { if (!v.paused) v.pause(); if (v.autoplay) v.autoplay = false; }
   }
 
   // ---------- driving X's real (hidden) page for actions ----------
@@ -929,21 +963,33 @@
   function loadReplies(t, opts) {
     opts = opts || {};
     const cached = state.details.get(t.id);
-    if (cached) return Promise.resolve({ data: cached });
+    if (cached && !opts.translate) return Promise.resolve({ data: cached });
     repliesWaiting++;
     const run = replyQueue.then(async () => {
       repliesWaiting--;
       const again = state.details.get(t.id); // an earlier request for the same post may have fetched it meanwhile
-      if (again) return { data: again };
+      if (again && !opts.translate) return { data: again };
       if (opts.wanted && !opts.wanted()) return { why: 'Closed before it loaded.' };
       if (opts.onStart) opts.onStart();
       await waitFor(() => !state.posting, 15000);
-      return fetchReplies(t);
+      return fetchReplies(t, opts);
     });
     replyQueue = run.catch(() => {});
     return run;
   }
-  async function fetchReplies(t) {
+  // On the post's own page (X's copy of the post is the one marked tabindex -1), press "Translate post" and read the result
+  async function translateOnPage() {
+    const art = await waitFor(() => document.querySelector('article[data-testid="tweet"][tabindex="-1"]'), 3000);
+    if (!art) return '';
+    const textEl = () => art.querySelector('[data-testid="tweetText"]');
+    const before = textEl() ? textEl().textContent : '';
+    const link = await waitFor(() => [...art.querySelectorAll('[role="button"], button, a')].find((el) => /^\s*translate\b/i.test(el.textContent || '')), 2500);
+    if (!link) return '';
+    fire(link);
+    return (await waitFor(() => { const now = textEl() ? textEl().textContent : ''; return now && now !== before ? now : ''; }, 6000)) || '';
+  }
+  async function fetchReplies(t, opts) {
+    opts = opts || {};
     state.peek = { id: t.id, replies: null };
     state.proxyUntil = Date.now() + 40000;
     try {
@@ -956,7 +1002,7 @@
           window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
         } catch { /* fall through to the slow way */ }
         const quick = await waitFor(() => state.peek && state.peek.replies, 3500);
-        if (quick) { state.fastFails = 0; return { data: quick }; }
+        if (quick) { state.fastFails = 0; return { data: quick, translation: opts.translate ? await translateOnPage() : '' }; }
         state.fastFails = (state.fastFails || 0) + 1;
         if (state.fastFails >= 2) state.fastPeek = false; // X ignores it: stop trying for this page load
         if (location.pathname !== was) { window.history.back(); await waitFor(() => location.pathname === was, 3000); }
@@ -970,7 +1016,7 @@
       await waitFor(() => location.pathname !== before || state.peek.replies, 3000);
       if (!state.peek.replies && location.pathname === before) { link.click(); await waitFor(() => location.pathname !== before || state.peek.replies, 2500); } // a plain click as a second try
       const got = await waitFor(() => state.peek && state.peek.replies, 9000);
-      if (got) return { data: got };
+      if (got) return { data: got, translation: opts.translate ? await translateOnPage() : '' };
       return { why: location.pathname === before
         ? 'X didn\u2019t open the post when asked to.'
         : 'X opened the post but sent no comments. Requests seen: ' + Object.keys(state.seenOps).join(', ') };
@@ -1252,27 +1298,70 @@
   // and show the result under the original. (Only works when X offers it, and the link is matched by its English wording.)
   const uiLang = () => String(document.documentElement.lang || navigator.language || 'en').slice(0, 2).toLowerCase();
   const needsTranslation = (t) => !!t.lang && !/^(und|qme|qht|qam|qst|zxx|art)$/.test(t.lang) && t.lang.slice(0, 2).toLowerCase() !== uiLang();
-  async function fetchTranslation(t) {
-    const art = await realArticle(t);
-    if (!art) return '';
-    const textEl = () => art.querySelector('[data-testid="tweetText"]');
-    const before = textEl() ? textEl().textContent : '';
-    const link = [...art.querySelectorAll('[role="button"], button, a')].find((el) => /^\s*translate\b/i.test(el.textContent || ''));
-    if (!link) return '';
-    fire(link);
-    return await waitFor(() => { const now = textEl() ? textEl().textContent : ''; return now && now !== before ? now : ''; }, 7000) || '';
+  const langName = (code) => { try { return new Intl.DisplayNames([uiLang()], { type: 'language' }).of(code) || code; } catch { return code.toUpperCase(); } };
+  // The translation replaces the post's text, as on X, with a line to get the original back.
+  function showTranslation(t, cardEl) {
+    const textEl = cardEl.querySelector(':scope > .xmc-text');
+    const button = cardEl.querySelector('.xmc-translate');
+    if (button) button.remove();
+    if (!textEl || cardEl.querySelector('.xmc-trans')) return;
+    const box = h('div', { className: 'xmc-trans' },
+      h('div', { className: 'xmc-text', textContent: t.translation }),
+      h('button', { className: 'xmc-translabel', type: 'button', textContent: 'Translated from ' + langName(t.lang) + ' \u00b7 Show original' }));
+    textEl.before(box);
+    textEl.hidden = true;
+    const more = cardEl.querySelector('.xmc-more'); if (more) more.hidden = true;
+  }
+  function toggleTranslation(cardEl, label) {
+    const textEl = cardEl.querySelector(':scope > .xmc-text'), box = cardEl.querySelector('.xmc-trans');
+    const t = tweetOf.get(cardEl);
+    if (!textEl || !box || !t) return;
+    const wasOriginal = !textEl.hidden;
+    textEl.hidden = wasOriginal;               // original shown -> hide it and show the translation
+    box.firstChild.hidden = !wasOriginal;
+    label.textContent = wasOriginal ? 'Translated from ' + langName(t.lang) + ' \u00b7 Show original' : 'Show translation';
   }
   async function translatePost(t, cardEl, button) {
-    let box = cardEl.querySelector('.xmc-trans');
-    if (box) { box.hidden = !box.hidden; button.textContent = box.hidden ? 'Translate post' : 'Hide translation'; return; }
     button.disabled = true; button.textContent = 'Translating...';
-    const text = t.translation || await fetchTranslation(t);
+    t.transBusy = true;
+    const res = t.translation ? { translation: t.translation } : await loadReplies(t, { translate: true });
+    t.transBusy = false;
     button.disabled = false;
-    if (!text) { button.textContent = 'Translate post'; toast('X didn\u2019t offer a translation for this post.'); return; }
-    t.translation = text;
-    box = h('div', { className: 'xmc-trans' }, h('div', { className: 'xmc-dim xmc-translabel', textContent: 'Translated from ' + t.lang.toUpperCase() }), h('div', { className: 'xmc-text', textContent: text }));
-    button.before(box);
-    button.textContent = 'Hide translation';
+    if (!res || !res.translation) { button.textContent = 'Translate post'; toast('X didn\u2019t offer a translation for this post.'); return; }
+    t.translation = res.translation;
+    showTranslation(t, cardEl);
+  }
+
+  // Automatically, like X: translate posts in other languages once they've been on screen for a moment, one at a time
+  // and not while comments are loading (each one is two quick requests on X's hidden side, so it is paced).
+  const autoPending = new Set();
+  const autoLog = [];
+  let autoLast = 0;
+  const translateObserver = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      const card = en.target.closest('.xmc-card'), t = card && tweetOf.get(card);
+      if (!t) continue;
+      if (en.intersectionRatio >= 0.5) { if (!t.visibleSince) t.visibleSince = Date.now(); autoPending.add(t); }
+      else { t.visibleSince = 0; autoPending.delete(t); }
+    }
+  }, { threshold: [0, 0.5] });
+  function autoTranslateTick() {
+    if (!settings.autoTranslate || !autoPending.size) return;
+    const now = Date.now();
+    if (state.peek || repliesWaiting || state.posting || state.fail || now < state.proxyUntil || now - autoLast < 2200) return;
+    while (autoLog.length && now - autoLog[0] > 60000) autoLog.shift();
+    if (autoLog.length >= 10) return; // at most ten a minute
+    const t = [...autoPending].find((x) => x.visibleSince && now - x.visibleSince > 700 && !x.translation && !x.transBusy && (x.transTries || 0) < 2 && x.el && x.el.isConnected);
+    if (!t) return;
+    autoLast = now; autoLog.push(now);
+    t.transBusy = true;
+    const btn = t.el.querySelector('.xmc-translate');
+    if (btn) btn.textContent = 'Translating...';
+    loadReplies(t, { translate: true, wanted: () => !!(t.el && t.el.isConnected) }).then((res) => {
+      t.transBusy = false;
+      if (res && res.translation) { t.translation = res.translation; autoPending.delete(t); if (t.el) showTranslation(t, t.el); }
+      else { t.transTries = (t.transTries || 0) + 1; if (t.transTries >= 2) autoPending.delete(t); const b = t.el && t.el.querySelector('.xmc-translate'); if (b) b.textContent = 'Translate post'; }
+    });
   }
 
   // ---------- clicks on cards ----------
@@ -1341,6 +1430,8 @@
     if (e.target.closest('.xmc-replies')) return; // links inside comments open normally (new tab); clicking text doesn't open the post
     const tr = e.target.closest('.xmc-translate');
     if (tr) { e.preventDefault(); translatePost(t, cardEl, tr); return; }
+    const tl = e.target.closest('.xmc-translabel');
+    if (tl) { e.preventDefault(); toggleTranslation(cardEl, tl); return; }
     const reveal = e.target.closest('.xmc-reveal');
     if (reveal) { reveal.parentElement.classList.remove('sensitive'); reveal.remove(); return; }
     const more = e.target.closest('.xmc-more');
@@ -1363,6 +1454,7 @@
     if (!b) return;
     const card = b.closest('.xmc-card');
     const t = card && tweetOf.get(card);
+    if (Date.now() - lastScrollAt < 600) return; // content scrolling under a resting pointer fires "hover" too: not a real hover
     if (!t || !t.counts.reply || state.details.has(t.id) || prefetching.has(t.id) || state.peek || repliesWaiting || state.posting) return;
     prefetching.add(t.id);
     loadReplies(t).finally(() => prefetching.delete(t.id));
@@ -1551,6 +1643,13 @@
     resizeTimer = setTimeout(() => { if (!root.hidden) { guard('position', position); if (!settings.cols && colCount() !== columns.length) relayout(); } }, 120);
   });
 
+  // Is something we pinned still what you'd click? A probe that is off screen (or missing) says nothing, so it is not a
+  // failure: counting it as one made the sidebar fall back to X's own spot for 10s and jump.
+  function probeOk(b, container) {
+    if (!b || !b.width || b.top < 0 || b.bottom > innerHeight || b.left < 0 || b.right > innerWidth) return true;
+    const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+    return !hit || container.contains(hit) || !!hit.closest('#layers');
+  }
   function positionNav() {
     const p = pin.nav, nav = p.el();
     if (!nav) { root.style.left = '0px'; return; }
@@ -1569,8 +1668,7 @@
     } else {
       const link = nav.querySelector('a[href="/home"], a[href^="/notifications"]');
       const b = link && link.getBoundingClientRect();
-      const hit = b && b.width ? document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) : null;
-      const ok = !b || !b.width || (hit && (nav.contains(hit) || hit.closest('#layers')));
+      const ok = probeOk(b, nav);
       p.fails = ok ? 0 : p.fails + 1;
       if (p.fails >= 3) { p.fallback = true; p.retryAt = Date.now() + 10000; unpin('nav'); return; }
     }
@@ -1589,10 +1687,10 @@
       side.style.cssText += `;position:fixed !important;top:0 !important;right:8px !important;left:auto !important;height:100vh !important;` +
         `overflow-y:auto !important;scrollbar-width:none !important;margin:0 !important;z-index:6 !important;width:${p.width}px !important`;
     } else if (!p.fallback) {
-      const probe = side.querySelector('input, a[href]');
+      // probe whichever of its links is on screen right now (the sidebar scrolls, so the first one often isn't)
+      const probe = [...side.querySelectorAll('input, a[href]')].find((el) => { const r = el.getBoundingClientRect(); return r.width && r.top >= 0 && r.bottom <= innerHeight; });
       const b = probe && probe.getBoundingClientRect();
-      const hit = b && b.width ? document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) : null;
-      const ok = !b || !b.width || (hit && (side.contains(hit) || hit.closest('#layers')));
+      const ok = probeOk(b, side);
       p.fails = ok ? 0 : p.fails + 1;
       if (p.fails >= 3) { p.fallback = true; p.retryAt = Date.now() + 10000; unpin('side'); root.style.right = '0px'; return; }
     }
@@ -1669,8 +1767,14 @@
     const label = nav && ([...nav.querySelectorAll('span')].find((s) => s.textContent.trim() === 'Home') || nav.querySelector('span'));
     root.style.fontFamily = settings.systemFont ? 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
       : `${getComputedStyle(label || document.body).fontFamily}, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+    const clear = (c) => !c || c === 'transparent' || /,\s*0\)$/.test(c);
+    let bg = [document.body, document.documentElement].map((el) => getComputedStyle(el).backgroundColor).find((c) => !clear(c));
+    if (!bg) { // nothing opaque found: pick black or white from the text colour
+      const m = /(\d+)[, ]+(\d+)[, ]+(\d+)/.exec(cs.color || '');
+      bg = m && (0.299 * m[1] + 0.587 * m[2] + 0.114 * m[3]) > 140 ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)';
+    }
     for (const el of [root, toastEl, document.documentElement]) {
-      el.style.setProperty('--xmc-bg', cs.backgroundColor);
+      el.style.setProperty('--xmc-bg', bg);
       el.style.setProperty('--xmc-fg', cs.color);
     }
   }
@@ -1698,8 +1802,9 @@
     document.documentElement.classList.toggle('xmc-on', active);
     root.hidden = !active;
     root.classList.toggle('xmc-under', modal);
-    if (eligible()) placePill();
-    updatePill(eligible(), active);
+    const pillShown = eligible() || canTry();
+    if (pillShown) placePill();
+    updatePill(pillShown, active);
     document.documentElement.classList.toggle('xmc-onpost', onPostPage());
     if (!active) {
       if (tickN % 4 === 0) guard('native tools', decorateNative);
@@ -1713,6 +1818,7 @@
       state.route = route; state.routeSince = Date.now(); state.waitingPage = false; state.waitSince = 0;
       state.awaiting = null; state.refreshing = null; lastSig = ''; state.sub = {}; applyBar(); // X resets its dropdowns on a new page
     }
+    if (tickN % 5 === 2) { guard('auto translate', autoTranslateTick); guard('hidden videos', stopHiddenVideos); }
     if (tickN++ % 5 === 0) {
       guard('position', position);
       guard('tabs', syncTabs);
@@ -1732,7 +1838,7 @@
     guard('pump', pump);
   }
 
-  window.__xmc = { state, settings, view, diagnostics, downloads: () => savedDownloads }; // for debugging from the console
+  window.__xmc = { state, settings, view, diagnostics, autoPending, downloads: () => savedDownloads }; // for debugging from the console
 
   loadAll().then(() => {
     ready = true;

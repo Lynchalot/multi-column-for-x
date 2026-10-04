@@ -25,6 +25,19 @@
     }
   });
 
+  // While the columns cover X's page, X's own (hidden) timeline must not start videos: they'd stream and decode for nothing.
+  // Videos anywhere else (our own cards, X's media viewer, a post's own page) play normally.
+  const nativePlay = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function () {
+    try {
+      if (document.documentElement.classList.contains('xmc-on') && this.closest && this.closest('[data-testid="primaryColumn"]')) {
+        this.pause();
+        return Promise.resolve();
+      }
+    } catch { /* fall through to the real thing */ }
+    return nativePlay.apply(this, arguments);
+  };
+
   // While the extension's image viewer is open, take Escape and the arrow keys *before* X's own
   // handlers see them (X swallows them), and pass them on to the extension.
   window.addEventListener('keydown', (e) => {
