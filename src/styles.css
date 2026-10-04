@@ -311,3 +311,19 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
 /* waiting for more posts while a column has blank space on screen: keep the spinner where you can see it */
 .xmc-loader.xmc-sticky { position: sticky; bottom: 16px; margin: 0 auto; width: max-content; max-width: calc(100% - 24px); padding: 10px 18px;
   border-radius: 9999px; background: var(--xmc-bg); box-shadow: 0 0 0 1px var(--xmc-border), 0 6px 24px rgba(0, 0, 0, .35); z-index: 2; }
+
+/* automatic columns keep about one width (at most 20% wider); extra room is margin, and a narrower window drops columns */
+.xmc-cols.auto { justify-content: center; }
+.xmc-cols.auto .xmc-col { max-width: calc(var(--xmc-colw, 500px) * 1.2); }
+
+/* X's own pages: fewer buttons under replies on a post's page (the post itself keeps its buttons) */
+html.xmc-tidyReplies.xmc-onpost article[data-testid="tweet"][tabindex="0"] [role="group"] > div:has(> button[data-testid$="ookmark"]),
+html.xmc-tidyReplies.xmc-onpost article[data-testid="tweet"][tabindex="0"] button[aria-label*="Grok"] { display: none !important; }
+
+/* Download / Copy link under X's own posts */
+.xmc-nat { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; }
+.xmc-nat-btn { appearance: none; border: 0; background: none; color: rgb(113, 118, 123); cursor: pointer; width: 34px; height: 34px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 9999px; }
+.xmc-nat-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-nat-btn:hover { color: #1d9bf0; background: rgba(29, 155, 240, .1); }
+.xmc-nat-btn[hidden] { display: none !important; }

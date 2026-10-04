@@ -14,7 +14,7 @@ var XMCSettings = (function () {
       id: 'columns', title: 'Columns', items: [
         { key: 'cols', type: 'number', min: 0, max: 8, def: 0, label: 'Number of columns', help: '0 = automatic.' },
         { key: 'maxAutoCols', type: 'number', min: 1, max: 8, def: 5, label: 'Most columns when automatic' },
-        { key: 'minColWidth', type: 'number', min: 280, max: 900, def: 440, label: 'Narrowest automatic column (px)', help: 'Wider = fewer, roomier columns.' },
+        { key: 'minColWidth', type: 'number', min: 280, max: 900, def: 500, label: 'Column width when automatic (px)', help: 'Columns stay about this wide (never more than 20% wider): shrinking the window removes columns, down to one, instead of squeezing them.' },
       ],
     },
     {
@@ -56,6 +56,8 @@ var XMCSettings = (function () {
         { key: 'hideViews', type: 'bool', def: false, label: 'Hide view counts' },
         { key: 'hideBookmarkBtn', type: 'bool', def: false, label: 'Hide the bookmark button' },
         { key: 'hideShareBtn', type: 'bool', def: false, label: 'Hide the copy-link button' },
+        { key: 'tidyReplies', type: 'bool', def: true, label: 'Fewer buttons on replies', help: 'On a post\u2019s own page, hides the Bookmark and Grok buttons under every reply (the post itself keeps them).', native: true },
+        { key: 'nativeTools', type: 'bool', def: true, label: 'Download and Copy-link buttons on X\u2019s own pages', help: 'Adds them to the posts on a post\u2019s own page (and anywhere the columns aren\u2019t showing).', native: true },
         { key: 'reducedInteraction', type: 'bool', def: false, label: 'Reduced interaction mode', help: 'Hides the reply, repost and like buttons and all counts.' },
         { key: 'quotesLink', type: 'bool', def: false, label: 'Show a “Quotes” link under posts that have been quoted' },
         { key: 'showSource', type: 'bool', def: false, label: 'Show which app a post was sent from', help: 'When X includes it.' },
@@ -119,10 +121,10 @@ var XMCSettings = (function () {
 
   // Bump when a default changes: values saved by older versions for those keys were never a choice
   // (older versions saved everything), so they're dropped rather than allowed to pin the old default.
-  const VERSION = 4;
+  const VERSION = 5;
   const DEFAULT_CHANGED_IN = { 2: ['hideDmDrawer'] };
   // the old default of a setting, as older versions saved it: dropped (it was never a choice) so the new default applies
-  const OLD_DEFAULTS = { 3: { dlPattern: 'X/{account}/{tweetId}-{serial}' }, 4: { dlFolder: '' } };
+  const OLD_DEFAULTS = { 3: { dlPattern: 'X/{account}/{tweetId}-{serial}' }, 4: { dlFolder: '' }, 5: { minColWidth: 440 } };
 
   // What to store: only what differs from the defaults (so a future default change reaches everyone),
   // and the keys to clear because they're back at their default.

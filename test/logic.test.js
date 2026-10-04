@@ -303,3 +303,18 @@ test('a profile’s Media tab sorts into Photos and Videos (GIFs count as videos
   assert.deepEqual(mixed.map((t) => L.passes(t, c('videos'))), [false, true, true]);
   assert.deepEqual(mixed.map((t) => L.passes(t, c('all'))), [true, true, true]);
 });
+
+test('column width: old default is dropped, a chosen width is kept; narrower windows give fewer columns, never fewer than one', () => {
+  assert.equal(S.DEFAULTS.minColWidth, 500);
+  assert.equal(S.normalize({ v: 4, minColWidth: 440 }).minColWidth, 500, 'the old default was never a choice');
+  assert.equal(S.normalize({ v: 4, minColWidth: 600 }).minColWidth, 600);
+  const s = Object.assign({}, S.DEFAULTS);
+  const counts = [3300, 2600, 2000, 1500, 1000, 700, 300].map((w) => L.autoCols(w, s, 12));
+  assert.deepEqual(counts, [5, 5, 3, 2, 1, 1, 1]);
+  assert.ok(counts.every((n, i) => i === 0 || n <= counts[i - 1]), 'monotonic: shrinking the window never adds columns');
+});
+
+test('new settings exist with sensible defaults', () => {
+  assert.equal(S.DEFAULTS.tidyReplies, true);
+  assert.equal(S.DEFAULTS.nativeTools, true);
+});

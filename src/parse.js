@@ -273,6 +273,7 @@ var XMCParse = (function () {
     const replies = [];
     const seen = new Set();
     let more = false;
+    let focal = null;
     for (const entry of entriesOf(collectInstructions(json))) {
       if (!entry || typeof entry !== 'object') continue;
       const cur = cursorOf(entry);
@@ -281,13 +282,14 @@ var XMCParse = (function () {
       for (const item of tweetItems(entry)) {
         if (item.promotedMetadata || item.tweet_results.promotedMetadata) continue;
         const t = normalizeTweet(item.tweet_results.result);
+        if (t && t.id === focalId && !focal) focal = t; // the post itself (not listed among its replies)
         if (!t || t.id === focalId || seen.has(t.id)) continue;
         seen.add(t.id);
         t.depth = t.replyToId === focalId ? 0 : 1;
         replies.push(t);
       }
     }
-    return { focalId, replies, more };
+    return { focalId, focal, replies, more };
   }
 
   const api = { parseResponse, parseDetail, normalizeTweet, buildSegments, parseDate, opOf, varsOf, requestVars, feedKeyOf };

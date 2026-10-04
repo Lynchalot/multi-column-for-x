@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0
+- **Comments are much faster**, and they work when you're far down the feed: the post's page is opened the way X's own router
+  follows a link, instead of scrolling X's hidden list back to the post first (which could take ~10s or fail). If X ignores that, it falls
+  back to the old way, which now takes bigger steps when the post is far away. Hovering the comments button starts fetching them early.
+- **X's dropdown tabs work**: the profile **Videos / Photos** tab and Following's **Popular / Recent** open a menu of our own (X's was
+  drawn in the wrong place), pressing the real item for you. Each choice keeps its own feed, so Photos and Videos (or Popular and Recent)
+  no longer mix or show up as "N new". On a profile's Videos/Photos tab the second line has **Videos** and **Photos** buttons.
+- **Columns keep their width**: automatic columns stay about 500px (never more than 20% wider; set in options) and a narrower
+  window drops columns, down to one, instead of squeezing them. Spare room is a margin on both sides.
+- **A post's own page**: Download and Copy-link buttons under the post (and under replies; Download only where there is media),
+  and the Bookmark and Grok buttons under every reply are hidden (both can be switched off in Posts).
+
 ## 0.7.2
 - Blank space under a short column no longer waits for the tallest one: more posts are drawn as soon as ANY column runs out
   (a few screens ahead), catching up faster when blank space is on screen. Cards not yet drawn count as the estimated

@@ -102,7 +102,14 @@
     peek: null,               // {id, replies}: X's hidden page is on a post's page, fetching its comments
     posting: false,           // we are typing your comment into X's reply box (out of sight)
     homeInit: false, homeHold: false, lastKeep: 0, searchInit: '',
+    sub: {},                  // route|tab -> the item picked from that tab's dropdown (Videos/Photos, Popular/Recent...), lower case
+    byId: new Map(),          // post id -> post, for every post seen (so buttons on X's own pages know a post's media)
+    menuTabs: new Set(),      // route|tab that turned out to have a dropdown
   };
+  function remember(list) {
+    for (const t of list) { if (t && t.id) { state.byId.delete(t.id); state.byId.set(t.id, t); } }
+    while (state.byId.size > 4000) state.byId.delete(state.byId.keys().next().value);
+  }
 
   function onResponse(url, body, reqBody) {
     const op = XMCParse.opOf(url);
@@ -110,11 +117,22 @@
     const isConversation = op === 'TweetDetail' || !!(body && body.data && body.data.threaded_conversation_with_injections_v2);
     if (isConversation) {
       const d = XMCParse.parseDetail(body, url, reqBody, state.peek ? state.peek.id : idOfHref(location.pathname));
-      if (d) { state.details.set(d.focalId, d); if (state.peek && state.peek.id === d.focalId) state.peek.replies = d; }
+      if (d) {
+        state.details.set(d.focalId, d); if (state.peek && state.peek.id === d.focalId) state.peek.replies = d;
+        remember([d.focal].concat(d.replies));
+      }
       return;
     }
     const r = XMCParse.parseResponse(body, url, reqBody);
     if (!r) return;
+    remember(r.items);
+    // Which feed is this? A page asked for with a "next page" marker we handed out belongs to the feed that gave it
+    // out, whatever X put in the request. A first page belongs to the feed of the dropdown item picked on the tab
+    // (Videos / Photos, Popular / Recent): those share the same request name, so they'd otherwise be mixed up.
+    const base = r.feedKey, sub = subFor(state.sel), want = sub ? base + '#' + sub : base;
+    const cands = r.reqCursor ? [...state.feeds.values()].filter((x) => (x.key === base || x.key.startsWith(base + '#')) && x.cursors.has(r.reqCursor)) : [];
+    const owner = cands.find((x) => x.key === want) || cands[0];
+    r.feedKey = owner ? owner.key : want;
     const asked = Date.now() - state.lastJump < 20000; // we asked X for more a moment ago
     state.waitingPage = false; state.waitSince = 0;
     state.fail = null;
@@ -137,7 +155,7 @@
     const established = kind === 'establish' && r.items.length > 0; // the first data we have for this feed
     if (kind === 'establish') {
       addItems(f, r.items);
-      if (established) { state.latestByRoute.set(rk, f.key); state.feedByTab.set(rk + '|' + state.sel, f.key); }
+      if (established) { state.latestByRoute.set(rk, f.key); state.feedByTab.set(slotFor(state.sel), f.key); }
     } else if (kind === 'refresh') { // you asked for a refresh
       f.items = []; f.keys.clear(); f.index.clear(); f.pending = []; f.exhausted = false; f.empty = 0; f.version++;
       f.cursors = new Set(r.bottomCursor ? [r.bottomCursor] : []);
@@ -154,8 +172,8 @@
     }
     if ((first || established) && r.items.length) {
       state.latestByRoute.set(rk, state.latestByRoute.get(rk) || f.key);
-      if (state.feedByTab.get(rk + '|' + state.sel) === undefined) state.feedByTab.set(rk + '|' + state.sel, f.key);
-      if (state.awaiting) { state.cur = { route: rk, key: f.key }; state.feedByTab.set(rk + '|' + state.sel, f.key); state.awaiting = null; }
+      if (state.feedByTab.get(slotFor(state.sel)) === undefined) state.feedByTab.set(slotFor(state.sel), f.key);
+      if (state.awaiting) { state.cur = { route: rk, key: f.key }; state.feedByTab.set(slotFor(state.sel), f.key); state.awaiting = null; }
     }
   }
   function addItems(f, items) {
@@ -193,10 +211,20 @@
   });
   window.postMessage({ source: 'xmc-ready' }, location.origin); // ask the page hook to replay what it saw before we loaded
 
+  // The dropdown item chosen on tab i (X shows Videos/Photos on the tab itself; others we remember from what was picked)
+  function subFor(i) {
+    const own = state.sub[routeKey() + '|' + i];
+    if (own) return own;
+    const tab = realTabs()[i];
+    const label = tab ? tab.textContent.trim().toLowerCase() : '';
+    return label === 'videos' || label === 'photos' ? label : '';
+  }
+  const slotFor = (i) => { const sub = subFor(i); return routeKey() + '|' + i + (sub ? '#' + sub : ''); };
+
   function activeFeed() {
     const rk = routeKey();
     if (state.awaiting) { // you switched tabs: show the new feed as soon as we know which it is
-      const mapped = state.feedByTab.get(rk + '|' + state.sel);
+      const mapped = state.feedByTab.get(slotFor(state.sel));
       if (mapped && state.feeds.get(mapped) && state.feeds.get(mapped).items.length && state.awaiting.cached) {
         state.cur = { route: rk, key: mapped }; state.awaiting = null; return state.feeds.get(mapped);
       }
@@ -204,7 +232,7 @@
       state.awaiting = null;
     }
     if (state.cur.route === rk && state.cur.key && state.feeds.has(state.cur.key)) return state.feeds.get(state.cur.key);
-    const k = state.feedByTab.get(rk + '|' + state.sel) || state.latestByRoute.get(rk);
+    const k = state.feedByTab.get(slotFor(state.sel)) || state.latestByRoute.get(rk);
     if (k && state.feeds.get(k) && state.feeds.get(k).items.length) { state.cur = { route: rk, key: k }; return state.feeds.get(k); }
     return null;
   }
@@ -435,6 +463,12 @@
   const VIEW_LABELS = { all: () => 'All', posts: () => T('posts'), reposts: () => T('reposts'), quotes: () => T('quotes'), replies: () => 'Replies', media: () => 'Media', photos: () => 'Photos', videos: () => 'Videos' };
   const viewEls = {};
   for (const key of Object.keys(VIEW_LABELS)) viewEls[key] = btn('', '', () => setFilter(key), 'xmc-chip');
+  // X's profile Media tab is now split into Videos and Photos (a dropdown on the tab); these two press X's real choice
+  const kindEls = {
+    videos: btn('Videos', 'Show videos (X\u2019s own Videos view)', () => pickMediaKind('Videos'), 'xmc-chip'),
+    photos: btn('Photos', 'Show photos (X\u2019s own Photos view)', () => pickMediaKind('Photos'), 'xmc-chip'),
+  };
+  const mediaSplit = () => { const tb = realTabs()[state.sel]; return !!tb && /^(videos|photos)$/i.test(tb.textContent.trim()); };
   const gearBtn = h('button', { className: 'xmc-gear', title: 'Settings', type: 'button', onclick: () => openOptions() }, icon('gear'));
   const refreshBtn = h('button', { className: 'xmc-refresh', title: 'Refresh', type: 'button', onclick: () => refresh() }, icon('refresh'), h('span', { className: 'xmc-newn' }));
   const nsfwBtn = h('button', { className: 'xmc-nsfw', type: 'button', onclick: () => cycleNsfw() }, h('span', { className: 'xmc-nsfwi' }), h('span', { className: 'xmc-nsfwl', textContent: 'NSFW' }));
@@ -444,7 +478,7 @@
     btn('+', 'More columns', () => setCols(colCount() + 1)),
     btn('Auto', 'Fit columns to width', () => setCols(0)));
   const row1 = h('div', { className: 'xmc-bar1' }, tabsEl, h('span', { className: 'xmc-spacer' }), refreshBtn, colGroup, nsfwBtn, gearBtn);
-  const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
+  const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
   const bar = h('div', { className: 'xmc-bar' }, row1, row2);
   const statusEl = h('div', { className: 'xmc-status' });
   const colsEl = h('div', { className: 'xmc-cols' });
@@ -539,15 +573,18 @@
   }
   function applyBar() {
     const feed = activeFeed();
-    const views = XMCLogic.availableViews(where(), settings, feed ? feed.items : [], settings.filter, { mediaTab: XMCLogic.isMediaTab(location.pathname) });
+    const split = mediaSplit();
+    const views = split ? ['all'] : XMCLogic.availableViews(where(), settings, feed ? feed.items : [], settings.filter, { mediaTab: XMCLogic.isMediaTab(location.pathname) });
     if (!views.includes(settings.filter)) { settings.filter = 'all'; save(); }
     for (const key of Object.keys(viewEls)) {
       const el = viewEls[key];
-      el.hidden = !views.includes(key);
+      el.hidden = split || !views.includes(key);
       el.textContent = VIEW_LABELS[key]();
       el.classList.toggle('on', settings.filter === key);
     }
-    row2.hidden = views.length <= 1; // nothing to choose between yet
+    const kind = subFor(state.sel);
+    for (const key of Object.keys(kindEls)) { kindEls[key].hidden = !split; kindEls[key].classList.toggle('on', kind === key); }
+    row2.hidden = !split && views.length <= 1; // nothing to choose between yet
     const [ic, label] = NSFW[settings.nsfw] || NSFW.blur;
     nsfwBtn.title = label + ' — click to change';
     nsfwBtn.classList.toggle('shown', settings.nsfw === 'show');
@@ -609,6 +646,8 @@
     countEl.textContent = (settings.cols ? '' : 'auto · ') + n;
     const real = view.cards.map((t) => (t.el ? t.el.offsetHeight : 0));
     columns = Array.from({ length: n }, () => h('div', { className: 'xmc-col' }));
+    colsEl.classList.toggle('auto', !settings.cols); // automatic: columns keep about one width, the window shows more or fewer
+    root.style.setProperty('--xmc-colw', settings.minColWidth + 'px');
     colsEl.replaceChildren(...columns);
     placeBatch(view.cards.map((t, i) => ({ t, est: real[i] || undefined })));
   }
@@ -758,10 +797,10 @@
       layout: { columns: columns.length, shortestPx: Math.round(shortestBottom()), tallestPx: Math.round(Math.max(0, ...columns.map((c) => c.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top + scroller.scrollTop))), drawn: view.upto, loaded: (activeFeed() || { items: [] }).items.length },
       hiddenPage: { scrollY: Math.round(window.scrollY), height: d.scrollHeight, viewport: innerHeight, postsMountedByX: articles().length },
       requestsSeen: state.seenOps,
-      feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0], posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
+      feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0] + (f.key.includes('#') ? '#' + f.key.split('#').pop() : ''), posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
       commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size,
-      tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
+      tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, fastComments: state.fastPeek !== false, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       mode: { walkOnly: !!state.walkOnly, tickMsAverage: Math.round(tickTimes.reduce((a, b) => a + b, 0) / Math.max(1, tickTimes.length)), tickMsWorst: Math.round(Math.max(0, ...tickTimes)) },
     }, null, 2);
   }
@@ -807,11 +846,11 @@
     const f = activeFeed();
     const idx = f && f.index.get(t.id);
     if (idx === undefined) return null;
-    const hop = innerHeight * 1.5;
     for (let i = 0; i < 70 && !art; i++) {
       const here = articles().map((a) => f.index.get(articleId(a))).filter((n) => n !== undefined).sort((a, b) => a - b);
       let dy = here.length ? (idx - here[here.length >> 1]) * 520 : idx * 520 - window.scrollY;
       if (Math.abs(dy) < innerHeight * 0.5) dy = Math.sign(dy || 1) * innerHeight * 0.5;
+      const hop = Math.min(innerHeight * 6, Math.max(innerHeight * 1.5, Math.abs(dy) / 3)); // far away: bigger steps, small ones near the post
       window.scrollBy(0, Math.max(-hop, Math.min(hop, dy)));
       await sleep(150);
       art = findArticle(t.id);
@@ -908,6 +947,20 @@
     state.peek = { id: t.id, replies: null };
     state.proxyUntil = Date.now() + 40000;
     try {
+      // Fast way: go to the post's page the way X's own router follows the back button (no need to scroll X's hidden list
+      // to the post first, which is what made comments slow). If X doesn't react, undo it and do it the slow way.
+      if (state.fastPeek !== false) {
+        const was = location.pathname;
+        try {
+          window.history.pushState({ key: 'xmc' + Math.random().toString(36).slice(2, 8) }, '', t.url);
+          window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
+        } catch { /* fall through to the slow way */ }
+        const quick = await waitFor(() => state.peek && state.peek.replies, 3500);
+        if (quick) { state.fastFails = 0; return { data: quick }; }
+        state.fastFails = (state.fastFails || 0) + 1;
+        if (state.fastFails >= 2) state.fastPeek = false; // X ignores it: stop trying for this page load
+        if (location.pathname !== was) { window.history.back(); await waitFor(() => location.pathname === was, 3000); }
+      }
       const art = await realArticle(t);
       if (!art) return { why: 'Couldn\u2019t find this post on X\u2019s side (it may have scrolled out of X\u2019s list).' };
       const link = timeLinkOf(art, t.id);
@@ -1049,13 +1102,18 @@
 
   // ---------- popover menus ----------
   let menuEl = null;
-  function closeMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
-  function openMenu(anchor, items) {
+  let menuDismiss = null; // called when the menu is closed without choosing anything
+  function closeMenu() {
+    const d = menuDismiss; menuDismiss = null;
+    if (menuEl) { menuEl.remove(); menuEl = null; if (d) d(); }
+  }
+  function openMenu(anchor, items, onDismiss) {
     closeMenu();
     const r = anchor.getBoundingClientRect(), rr = root.getBoundingClientRect();
     menuEl = h('div', { className: 'xmc-menu' }, ...items.map(([label, fn]) => h('button', {
-      type: 'button', textContent: label, onclick: () => { closeMenu(); fn(); },
+      type: 'button', textContent: label, onclick: () => { menuDismiss = null; closeMenu(); fn(); },
     })));
+    menuDismiss = onDismiss || null;
     root.append(menuEl);
     const mh = menuEl.offsetHeight;
     const below = r.bottom - rr.top + 6;
@@ -1221,6 +1279,38 @@
   async function copyLink(t) {
     try { await navigator.clipboard.writeText('https://x.com' + t.url); toast('Link copied'); } catch { toast('Couldn\u2019t copy the link'); }
   }
+  // Download and Copy-link buttons on X's own posts (a post's own page, or anywhere the columns aren't showing)
+  function decorateNative() {
+    if (!settings.nativeTools) return;
+    const col = mainCol();
+    if (!col) return;
+    for (const art of col.querySelectorAll('article[data-testid="tweet"]')) {
+      const id = articleId(art);
+      if (!id) continue;
+      let wrap = art.querySelector('.xmc-nat');
+      const t = state.byId.get(id);
+      if (!wrap) {
+        const replyBtn = art.querySelector('[data-testid="reply"]');
+        const bar = replyBtn && replyBtn.closest('[role="group"]');
+        if (!bar) continue;
+        const stop = (e) => e.stopPropagation(); // pressing it must not also open the post
+        const mk = (cls, title, ico, fn) => {
+          const b = h('button', { type: 'button', className: 'xmc-nat-btn ' + cls, title, ariaLabel: title }, icon(ico));
+          b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fn(); });
+          for (const ev of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) b.addEventListener(ev, stop);
+          return b;
+        };
+        const live = () => state.byId.get(id);
+        wrap = h('div', { className: 'xmc-nat' },
+          mk('dl', 'Download the media in this post', 'download', () => { const p = live(); if (p) downloadMedia(p); else toast('Open the post once so the extension can see it'); }),
+          mk('lnk', 'Copy link to this post', 'link', () => copyLink(live() || { url: '/i/status/' + id })));
+        bar.append(wrap);
+      }
+      const dl = wrap.querySelector('.dl');
+      const has = !!(t && t.media && t.media.length);
+      if (dl.hidden === has) dl.hidden = !has;
+    }
+  }
   async function composeReply(t) {
     const ok = await withReal(t, (art) => { const b = art.querySelector('[data-testid="reply"]'); if (b) fire(b); });
     if (!ok) navigate(t.url, t);
@@ -1266,6 +1356,17 @@
     if (quote) { if (settings.openIn === 'newtab') window.open(new URL(quote.dataset.href, location.origin).href, '_blank', 'noopener'); else location.assign(quote.dataset.href); return; }
     navigate(t.url, t);
   });
+  // Hovering the comments button starts fetching them, so they are often there by the time you click
+  const prefetching = new Set();
+  colsEl.addEventListener('pointerover', (e) => {
+    const b = e.target.closest && e.target.closest('[data-act="reply"]');
+    if (!b) return;
+    const card = b.closest('.xmc-card');
+    const t = card && tweetOf.get(card);
+    if (!t || !t.counts.reply || state.details.has(t.id) || prefetching.has(t.id) || state.peek || repliesWaiting || state.posting) return;
+    prefetching.add(t.id);
+    loadReplies(t).finally(() => prefetching.delete(t.id));
+  });
   // only one (non-autoplaying) video plays at a time, and it is watched while it plays so it stops when scrolled away
   colsEl.addEventListener('play', (e) => {
     if (e.target.tagName !== 'VIDEO' || e.target.dataset.gif) return;
@@ -1293,17 +1394,81 @@
     return bold.length === 1 ? bold[0] : -1;
   }
   // user (or a rule below) picks tab i: wait for that feed, never guess
-  function switchTab(i) {
+  function switchTab(i, anchor) {
     const live = realTabs()[i];
     if (!live) return;
     const rk = routeKey();
-    const cached = state.feedByTab.has(rk + '|' + i);
+    const again = i === state.sel && live.getAttribute('aria-selected') === 'true'; // pressing the tab you are on may open X's dropdown
+    const before = { cur: state.cur, awaiting: state.awaiting };
+    const cached = state.feedByTab.has(slotFor(i));
     state.awaiting = { until: Date.now() + 2500, cached };
     state.cur = { route: rk, key: null };
     state.sel = i;
     state.switchTries = (state.switchTries || 0) + 1;
+    if (again) document.documentElement.classList.add('xmc-acting'); // keep X's menu from flashing while we look
     if (state.switchTries % 2 === 1) live.click(); else fire(live); // retries press it the way a mouse would
     lastSig = '';
+    if (again) tabMenu(i, anchor, before);
+  }
+
+  // Some of X's tabs open a dropdown when pressed again (the profile's Videos tab: Videos / Photos; Following:
+  // Popular / Recent). X draws it over the hidden page, in the wrong place, so read it and offer the same choices
+  // in a menu of our own, pressing the real item for you.
+  const findXMenu = () => [...document.querySelectorAll('[role="menu"]')].find((m) => m.querySelector('[role="menuitem"]'));
+  const menuText = (el) => el.textContent.trim().replace(/\s+/g, ' ');
+  const releaseLayers = () => setTimeout(() => document.documentElement.classList.remove('xmc-acting'), 600);
+  function closeXMenu() {
+    const m = findXMenu();
+    if (m) {
+      for (const t of [m, document.activeElement, document.body]) {
+        if (t) t.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+      }
+      setTimeout(() => { const still = findXMenu(); const mask = still && document.querySelector('#layers [data-testid="mask"]'); if (mask) fire(mask); }, 250);
+    }
+    releaseLayers();
+  }
+  async function tabMenu(i, anchor, before) {
+    const menu = await waitFor(findXMenu, 700);
+    if (!menu) { releaseLayers(); return; } // no dropdown: it was an ordinary second press
+    state.menuTabs.add(routeKey() + '|' + i);
+    state.awaiting = before.awaiting; state.cur = before.cur; // pressing it again does not change the feed
+    lastSig = '';
+    const items = [...menu.querySelectorAll('[role="menuitem"]')];
+    const svgs = items.map((el) => el.querySelectorAll('svg').length);
+    const base = Math.min(...svgs);
+    const picked = subFor(i);
+    const list = items.map((el, k) => {
+      const text = menuText(el);
+      const checked = picked ? text.toLowerCase() === picked : svgs[k] > base; // X marks the current one with a tick
+      return { text, checked };
+    });
+    const at = anchor && anchor.isConnected ? anchor : tabsEl.querySelector('.on') || tabsEl.firstElementChild || root;
+    openMenu(at, list.map(({ text, checked }) => [(checked ? '\u2713\u2002' : '\u2003\u2002') + text, () => pickTabItem(i, text, checked)]), closeXMenu);
+  }
+  function pickTabItem(i, text, alreadyCurrent) {
+    const rk = routeKey();
+    if (alreadyCurrent) { closeXMenu(); return; }
+    const el = [...(findXMenu() || document).querySelectorAll('[role="menuitem"]')].find((m) => menuText(m) === text);
+    if (!el) { toast('X\u2019s menu closed \u2014 press the tab again'); releaseLayers(); return; }
+    state.sub[rk + '|' + i] = text.toLowerCase();
+    state.cur = { route: rk, key: null };
+    state.awaiting = { until: Date.now() + 6000, cached: state.feedByTab.has(slotFor(i)) };
+    fire(el);
+    lastSig = '';
+    releaseLayers();
+  }
+  // X's own Videos / Photos switch (the profile Media tab), without opening anything on screen
+  async function pickMediaKind(kind) {
+    const tabs = realTabs();
+    const i = tabs.findIndex((tb) => /^(media|videos|photos)$/i.test(tb.textContent.trim()));
+    if (i < 0 || subFor(i) === kind.toLowerCase()) return;
+    document.documentElement.classList.add('xmc-acting');
+    const live = tabs[i];
+    if (i !== state.sel) { switchTab(i); await sleep(500); }
+    fire(live);
+    const menu = await waitFor(findXMenu, 1500);
+    if (!menu) { toast('X didn\u2019t offer that choice just now \u2014 try again'); releaseLayers(); return; }
+    pickTabItem(i, [...menu.querySelectorAll('[role="menuitem"]')].map(menuText).find((tx) => tx.toLowerCase() === kind.toLowerCase()) || kind, false);
   }
   function syncTabs() {
     const tabs = realTabs();
@@ -1312,12 +1477,14 @@
       if (sel >= 0) state.sel = sel;
     }
     const hideForYou = settings.hideForYou && where() === 'home';
-    const sig = tabs.map((tab) => tab.textContent).join('|') + '#' + state.sel + '#' + hideForYou;
+    const sig = tabs.map((tab) => tab.textContent).join('|') + '#' + state.sel + '#' + hideForYou + '#' + state.menuTabs.size;
     if (sig === lastSig) return;
     lastSig = sig;
     tabsEl.replaceChildren(...tabs.map((tab, i) => {
       if (hideForYou && i === 0) return null;
-      const b = btn(tab.textContent.trim(), '', () => switchTab(i));
+      const label = tab.textContent.trim();
+      const dropdown = /^(videos|photos)$/i.test(label) || state.menuTabs.has(routeKey() + '|' + i);
+      const b = btn(label + (dropdown ? ' \u25be' : ''), '', () => switchTab(i, b));
       b.classList.toggle('on', i === state.sel);
       return b;
     }).filter(Boolean));
@@ -1533,14 +1700,18 @@
     root.classList.toggle('xmc-under', modal);
     if (eligible()) placePill();
     updatePill(eligible(), active);
-    if (!active) { tickN++; if (!modal) { state.route = ''; state.homeInit = false; } return; }
+    document.documentElement.classList.toggle('xmc-onpost', onPostPage());
+    if (!active) {
+      if (tickN % 4 === 0) guard('native tools', decorateNative);
+      tickN++; if (!modal) { state.route = ''; state.homeInit = false; } return;
+    }
     if (!wasActive) { wasActive = true; setTimeout(focusScroller, 50); setTimeout(() => { if (view.memoTop) scroller.scrollTop = view.memoTop; }, 60); } // back to the exact spot
     if (scroller.scrollTop > 0) view.memoTop = scroller.scrollTop; // belt and braces: scroll events don't fire in every situation
     if (modal || peeking) { if (tickN++ % 5 === 0) guard('position', position); return; }
     // new page: reset per-page bookkeeping BEFORE the rules below can start waiting for a feed
     if (route !== state.route) {
       state.route = route; state.routeSince = Date.now(); state.waitingPage = false; state.waitSince = 0;
-      state.awaiting = null; state.refreshing = null; lastSig = ''; applyBar();
+      state.awaiting = null; state.refreshing = null; lastSig = ''; state.sub = {}; applyBar(); // X resets its dropdowns on a new page
     }
     if (tickN++ % 5 === 0) {
       guard('position', position);

@@ -5,7 +5,7 @@ Your X (Twitter) timeline in masonry columns — and the useful parts of **Contr
 and (best effort) Explore. To go back to the normal feed, press the **Columns** pill in X's left sidebar, or disable the extension.
 
 ## What you get
-- **Columns** — automatic (fits your screen: never more than 5 by default, never narrower than 440px) or fixed 1–8.
+- **Columns** — automatic (about 500px wide each, never more than 5 by default; a narrower window drops columns down to one instead of squeezing them) or fixed 1–8.
 - **Posts drawn by the extension**, from the data X already downloads. Nothing flickers when you like something, and
   switching views is instant however much is loaded (only what you can reach soon is drawn).
 - **Nothing refreshes behind your back.** If X sends new posts while you read, a **↻ N new** button appears; you decide.
@@ -14,6 +14,10 @@ and (best effort) Explore. To go back to the normal feed, press the **Columns** 
   *All / Tweets / Retweets / Quote Tweets / Replies / Media* views on a line below. A view only appears once the feed actually has
   something for it, so you never click an empty tab. A profile's **Media** tab sorts into **Photos / Videos** (GIFs count as videos). A **Columns** pill sits in X's left sidebar (styled like the Post button) and
   switches between columns and X's normal feed.
+- **Fast comments** — the post's page is opened out of sight the way X's own router does it, so they load quickly wherever you
+  are in the feed; hovering the button starts early.
+- **X's dropdown tabs work** — the profile Videos / Photos tab and Following's Popular / Recent show their choices in a menu of our
+  own (and Videos / Photos as buttons under the tabs); each choice keeps its own feed.
 - **Never lose your place** — posts and profiles open in a **new tab** by default. Prefer one tab? Pick "This tab" in settings and
   Back returns you to the exact spot in the feed.
 - **Comments** — the speech-bubble button opens a post's replies inside the card (X's own page is opened out of sight to
@@ -34,6 +38,10 @@ and (best effort) Explore. To go back to the normal feed, press the **Columns** 
   optional hand-off to aria2.
 - **One scrollbar** — X's own page scrollbar is hidden while columns are showing (the page itself still scrolls behind the scenes,
   which is how the extension makes X load more). The columns take keyboard focus, which helps Vimium-style scrolling.
+
+### On X's own pages
+On a post's own page the extension adds **Download** and **Copy link** buttons under the post and its replies, and hides the Bookmark
+and Grok buttons under every reply (both switchable in Posts).
 
 ### Algorithmic content
 One settings section for everything that chooses what you see: hide the **For you** tab, only posts from accounts you follow,
