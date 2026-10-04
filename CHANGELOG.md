@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0
+- **Chat and Grok are back, side by side**: Grok's button sits to the left of Chat's in the bottom-right corner instead of above it. When the chat
+  panel opens it is cut out of the columns (it used to open behind them) and Grok steps aside.
+- **Translate post works with X's wording.** Your diagnostics showed X's post page calls the control "Show translation", not "Translate post". It is
+  recognised now (and a post X already translated is read as it is).
+- **New posts are noticed again.** X only checks for new posts while its own page sits at the top, and the loader keeps that page deep. While you
+  are reading the top of the feed and nothing needs loading, the hidden page is now put back at the top; and X's own "See new posts" pill makes the
+  refresh button say "New".
+
 ## 0.8.9
 - **The floating Chat and Grok buttons are removed** (both are in the left menu). They are found by their place in the bottom-right corner as well as
   by name, so X renaming them doesn't bring them back. There is no setting for them any more.

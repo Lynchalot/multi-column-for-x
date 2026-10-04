@@ -770,9 +770,29 @@
   }
   function updateRefreshBtn(f) {
     const n = f ? f.pending.length : 0;
-    refreshBtn.classList.toggle('has-new', n > 0);
-    refreshBtn.querySelector('.xmc-newn').textContent = n ? n + ' new' : '';
-    refreshBtn.title = n ? `${n} new posts — click to show them` : 'Refresh';
+    const flag = n > 0 || !!state.xNewPill;
+    refreshBtn.classList.toggle('has-new', flag);
+    const text = n ? n + ' new' : state.xNewPill ? 'New' : '';
+    const label = refreshBtn.querySelector('.xmc-newn');
+    if (label.textContent !== text) label.textContent = text;
+    refreshBtn.title = n ? `${n} new posts \u2014 click to show them` : state.xNewPill ? 'There are new posts \u2014 click to load them' : 'Refresh';
+  }
+  // X shows its own "See new posts" pill (on its hidden page) when its check finds new posts; that counts too
+  function findNewPostsPill() {
+    const col = mainCol();
+    const el = col && col.querySelector(':scope > div > div:first-child > div[style^="transform"]');
+    const text = el ? el.textContent.trim() : '';
+    return text && text.length < 80 ? el : null;
+  }
+  // X only checks for new posts while its page sits at the top. The loader keeps the hidden page deep, so while you are reading
+  // the top of the feed and nothing needs loading, put it back at the top.
+  function parkAtTop(f) {
+    if (!f || where() !== 'home' || state.peek || state.posting || Date.now() < state.proxyUntil || state.waitingPage) return;
+    if (window.scrollY < 400 || Date.now() - lastScrollAt < 3000 || Date.now() - (state.parkedAt || 0) < 30000) return;
+    if (scroller.scrollTop > scroller.clientHeight * 1.5) return; // reading deeper down: the loader may need the page where it is
+    if (!f.exhausted && f.items.length - view.upto <= 30) return;
+    state.parkedAt = Date.now();
+    window.scrollTo(0, 0);
   }
   new ResizeObserver(() => { if (!root.hidden && !settings.cols && colCount() !== columns.length) relayout(); }).observe(scroller);
 
@@ -1017,12 +1037,14 @@
   const addTrace = (tr) => { state.trTrace = (state.trTrace || []).filter((x) => x.id === tr.id || Date.now() - (x.at || 0) < 60000).slice(-3); tr.at = Date.now(); state.trTrace.push(tr); };
   const tweetTexts = (art) => [...art.querySelectorAll('[data-testid="tweetText"]')];
   const textsOf = (art) => tweetTexts(art).map((n) => n.textContent.trim()).join('\n');
+  // X's own wording for the control: "Translate post", and "Show translation" (what a real post page offered)
+  const TRANSLATE_WORDS = /^(translate\b|show translation\b)/i;
   function findTranslateControl(art) {
     for (const el of art.querySelectorAll('div, span, button, a')) {
       if (el.closest('[data-testid="tweetText"]')) continue; // the post's own words may start with "Translate"
       const own = (el.textContent || '').trim();
-      if (own.length > 40 || !/^translate\b/i.test(own)) continue;
-      if ([...el.children].some((c) => /^translate\b/i.test((c.textContent || '').trim()))) continue; // the innermost one
+      if (own.length > 40 || !TRANSLATE_WORDS.test(own)) continue;
+      if ([...el.children].some((c) => TRANSLATE_WORDS.test((c.textContent || '').trim()))) continue; // the innermost one
       return el.closest('[role="button"], button, a') || el;
     }
     return null;
@@ -1033,6 +1055,8 @@
     .filter((x) => x && x.length <= 30 && !x.includes('@')).slice(0, 14);
   async function pressTranslate(art, trace, wait) {
     const before = textsOf(art);
+    const already = [...art.querySelectorAll('div, span, button, a')].find((el) => !el.closest('[data-testid="tweetText"]') && /^show original\b/i.test((el.textContent || '').trim()) && (el.textContent || '').trim().length <= 30);
+    if (already) { trace.step = 'ok'; trace.note = 'X had already translated it'; return before.split('\n')[0]; } // X translated it by itself: what is shown is the translation
     const link = await waitFor(() => findTranslateControl(art), wait || 6000);
     if (!link) { trace.step = 'no Translate link on the post'; trace.buttons = buttonLabels(art); trace.textLength = before.length; return ''; }
     fire(link);
@@ -1809,10 +1833,7 @@
     root.style.left = (p.width + 20) + 'px';
   }
   // X's floating Grok and Chat buttons sit bottom right, on top of the sidebar's lower part. Give them their own room under it.
-  const sideHeight = () => {
-    const room = (settings.hideGrokDrawer ? 0 : 72) + (settings.hideDmDrawer ? 0 : 72) + (settings.hideGrokDrawer && settings.hideDmDrawer ? 0 : 12);
-    return room ? `calc(100vh - ${room}px)` : '100vh';
-  };
+  const sideHeight = () => (settings.hideGrokDrawer && settings.hideDmDrawer ? '100vh' : 'calc(100vh - 84px)');
   // X moves its sidebar's contents as the page scrolls (sticky offsets); the hidden page scrolls all the time, so every
   // sticky element in the sidebar's first few levels is made to stay put
   function unstick(side) {
@@ -1870,6 +1891,7 @@
     while (n.parentElement && n.parentElement !== container && !(other && n.parentElement.contains(other))) n = n.parentElement;
     return n;
   }
+  const floatEls = new Set(); // X's floating elements we have found (so their size can be watched cheaply between scans)
   function scanFloaters() {
     if (document.hidden || Date.now() - lastScan < 1500) return;
     lastScan = Date.now();
@@ -1878,15 +1900,16 @@
     const nav = pin.nav.el();
     const side = pin.side.el();
     if (!rr) return;
-    const rects = [];
     for (const d of rr.querySelectorAll('div')) {
       if (main && (main.contains(d) || d.contains(main))) continue;
       if ((nav && nav.contains(d)) || (side && (side.contains(d) || d.contains(side)))) continue;
       if (getComputedStyle(d).position !== 'fixed') continue;
       const r = d.getBoundingClientRect();
-      if (!r.width || r.width > 450 || r.height > 450 || r.bottom < innerHeight * 0.4) continue;
+      if (!r.width || r.bottom < innerHeight * 0.4) continue;
       const g = d.matches(GROK_SEL) ? d : d.querySelector(GROK_SEL);
       let m = d.matches(DM_SEL) ? d : d.querySelector(DM_SEL);
+      // the open chat panel is bigger than any other floating thing; everything else big is part of X's layout
+      if ((r.width > 450 || r.height > 450) && !((g || m) && r.width <= 720 && r.height <= 820 && innerWidth - r.right <= 80)) continue;
       // X renames these buttons now and then: a small floating stack in the bottom-right corner is one of them whatever it is called
       // (not a compose button, and not a pop-up)
       if (!g && !m && r.width >= 36 && r.width <= 96 && r.height >= 36 && r.height <= 230 && innerWidth - r.right <= 56 && innerHeight - r.bottom <= 240
@@ -1896,19 +1919,60 @@
         if (m && m !== g) (m === d ? d : wrapperBelow(d, m, g)).dataset.xmcDm = '1';
         if ((!g || settings.hideGrokDrawer) && (!m || settings.hideDmDrawer)) continue; // all of it is being removed
       }
+      floatEls.add(d);
+    }
+    for (const el of floatEls) if (!el.isConnected) floatEls.delete(el);
+    updateFloaters();
+  }
+  // Every few ticks: cut a hole in the columns where one of X's floating things (the chat panel when it is open) overlaps them,
+  // and keep Grok beside Chat.
+  function updateFloaters() {
+    if (root.hidden) return;
+    const rb = root.getBoundingClientRect();
+    if (!rb.width) return;
+    const rects = [];
+    for (const el of floatEls) {
+      if (!el.isConnected || getComputedStyle(el).display === 'none') continue;
+      const r = el.getBoundingClientRect();
+      if (!r.width || r.right < rb.left || r.left > rb.right) continue;
       if (rects.some((o) => r.left >= o.left && r.right <= o.right && r.top >= o.top && r.bottom <= o.bottom)) continue;
       rects.push(r);
     }
     state.floaters = rects.length;
-    const rb = root.getBoundingClientRect();
-    if (root.hidden || !rb.width) return;
-    const keep = rects.filter((r) => r.right >= rb.left && r.left <= rb.right);
-    if (!keep.length) { root.style.clipPath = ''; return; }
-    const holes = keep.map((r) => {
-      const x = Math.round(r.left - rb.left - 4), y = Math.round(r.top - rb.top - 4);
-      return `M${x} ${y}h${Math.round(r.width) + 8}v${Math.round(r.height) + 8}h-${Math.round(r.width) + 8}Z`;
-    }).join('');
-    root.style.clipPath = `path(evenodd, 'M0 0H${Math.round(rb.width)}V${Math.round(rb.height)}H0Z${holes}')`;
+    const sig = rects.map((r) => [r.left, r.top, r.width, r.height].map(Math.round).join(',')).join(';') + '|' + Math.round(rb.width) + ',' + Math.round(rb.height);
+    if (sig !== state.holeSig) {
+      state.holeSig = sig;
+      if (!rects.length) root.style.clipPath = '';
+      else {
+        const holes = rects.map((r) => {
+          const x = Math.round(r.left - rb.left - 4), y = Math.round(r.top - rb.top - 4);
+          return `M${x} ${y}h${Math.round(r.width) + 8}v${Math.round(r.height) + 8}h-${Math.round(r.width) + 8}Z`;
+        }).join('');
+        root.style.clipPath = `path(evenodd, 'M0 0H${Math.round(rb.width)}V${Math.round(rb.height)}H0Z${holes}')`;
+      }
+    }
+    dockGrok();
+  }
+  // Grok's button sits above Chat's; put it beside it (to the left) so the pair is one row in the corner. While the chat panel is
+  // open Grok steps out of the way.
+  const DOCK_PROPS = ['position', 'right', 'bottom', 'top', 'left', 'margin', 'visibility'];
+  function undockGrok(grok) {
+    if (!grok.dataset.xmcDocked) return;
+    for (const p of DOCK_PROPS) grok.style.removeProperty(p);
+    delete grok.dataset.xmcDocked;
+  }
+  function dockGrok() {
+    const chat = document.querySelector('[data-xmc-dm]'), grok = document.querySelector('[data-xmc-grok]');
+    if (!grok) return;
+    if (settings.hideGrokDrawer || settings.hideDmDrawer || !chat || chat === grok || chat.contains(grok) || grok.contains(chat)) { undockGrok(grok); return; }
+    const c = chat.getBoundingClientRect();
+    if (!c.width || !c.height) return;
+    const set = (k, v) => grok.style.setProperty(k, v, 'important');
+    grok.dataset.xmcDocked = '1';
+    if (c.width > 120 || c.height > 120) { set('visibility', 'hidden'); return; } // the chat panel is open
+    set('visibility', 'visible'); set('position', 'fixed'); set('margin', '0'); set('top', 'auto'); set('left', 'auto');
+    set('right', Math.round(innerWidth - c.right + c.width + 12) + 'px');
+    set('bottom', Math.round(innerHeight - c.bottom) + 'px');
   }
 
   // ---------- main loop ----------
@@ -1947,7 +2011,7 @@
     }
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
-    if (tickN % 15 === 0) guard('floaters', scanFloaters);
+    if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);
     const quiet = state.posting && isModalRoute(); // our own reply automation: X's reply box is open, out of sight
     const modal = isModalRoute() && state.shown && !state.posting;
     const peeking = (!!state.peek && onPostPage()) || quiet; // X's hidden page is busy for us; our columns stay
@@ -2003,6 +2067,7 @@
     }
     guard('render', renderFeed);
     guard('pump', pump);
+    if (tickN % 5 === 1) { state.xNewPill = where() === 'home' && !!findNewPostsPill(); guard('park', () => parkAtTop(f)); }
   }
 
   window.__xmc = { state, settings, view, diagnostics, autoPending, downloads: () => savedDownloads }; // for debugging from the console
