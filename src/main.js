@@ -62,14 +62,15 @@
   const T = (k) => STR[settings.branding === 'twitter' ? 'twitter' : 'x'][k];
 
   // ---------- routes ----------
-  // Explore's other tabs (Trending, News, Sports, Entertainment) are lists of trends and stories rather than posts, so
-  // the columns have little to show there: X's page is left alone, with a pill to try columns anyway.
-  const isExploreSub = (p) => /^\/explore\/tabs\/(?!for-you(\/|$))/.test(p);
-  const canTry = () => isExploreSub(location.pathname.replace(/\/+$/, ''));
+  // Explore (and its Trending, News, Sports, Entertainment tabs) is mostly Today's News, trends and "Who to follow", with
+  // posts only at the bottom: columns of posts would hide most of what's there. X's page is left alone, with a pill to
+  // try columns anyway.
+  const isExploreSub = (p) => p === '/explore' || p.startsWith('/explore/');
+  const canTry = () => isExploreSub(location.pathname.replace(/\/+$/, '') || '/');
   function eligible() {
     const p = location.pathname.replace(/\/+$/, '') || '/';
-    if (p === '/home' || p === '/search' || p === '/i/bookmarks' || p.startsWith('/i/lists/') || p === '/explore' || p === '/explore/tabs/for-you') return true;
-    if (isExploreSub(p)) return state.trial === routeKey(); // Trending, News, Sports...: X's own page unless you press the Columns pill
+    if (p === '/home' || p === '/search' || p === '/i/bookmarks' || p.startsWith('/i/lists/')) return true;
+    if (isExploreSub(p)) return state.trial === routeKey(); // Explore: X's own page unless you press the Columns pill
     const seg = p.split('/').filter(Boolean);
     if (seg.length === 1) return !RESERVED.has(seg[0].toLowerCase());
     if (seg.length === 2 && !RESERVED.has(seg[0].toLowerCase())) {

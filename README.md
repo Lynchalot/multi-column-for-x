@@ -2,7 +2,7 @@
 
 Your X (Twitter) timeline in masonry columns — and the useful parts of **Control Panel for Twitter** and
 **Media Harvest**, built in, so it's one extension instead of three. Works on Home, Search, Lists, Bookmarks, profiles
-and (best effort) Explore. To go back to the normal feed, press the **Columns** pill in X's left sidebar, or disable the extension.
+and, if you ask for it with the **Try columns** pill, Explore (which is left as X's own page, since it is mostly news and trends). To go back to the normal feed, press the **Columns** pill in X's left sidebar, or disable the extension.
 
 ## What you get
 - **Columns** — automatic (about 500px wide each, never more than 5 by default; a narrower window drops columns down to one instead of squeezing them) or fixed 1–8.
