@@ -36,7 +36,7 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
 .xmc-status { padding: 40px 12px; text-align: center; color: var(--xmc-muted); }
 
 /* ---- cards ---- */
-.xmc-card { position: relative; border: 1px solid var(--xmc-border); border-radius: 16px; padding: 12px 14px 4px; cursor: pointer;
+.xmc-card { position: relative; border: 1px solid transparent; border-radius: 16px; padding: 12px 14px 4px; cursor: pointer;
   content-visibility: auto; contain-intrinsic-size: auto 420px; font-size: 15px; line-height: 1.35; }
 .xmc-card:hover { background: var(--xmc-hover); }
 .xmc-card a { color: inherit; text-decoration: none; }
@@ -351,3 +351,12 @@ html.xmc-on [data-testid="sidebarColumn"] [style*="sticky"] { position: static !
   .xmc-menu, #xmc-toast { animation: none; }
   .xmc-spin { animation-duration: 2.4s; }
 }
+
+/* optional outline round every post (Look > Outline around each post) */
+html.xmc-cardOutline .xmc-card { border-color: color-mix(in srgb, var(--xmc-fg) 28%, transparent); }
+
+/* While X's page is being driven (or rebuilds its sidebars), a sidebar that isn't ours yet must not show where X put it */
+html.xmc-on.xmc-pinside [data-testid="sidebarColumn"]:not([data-xmc-style]) { visibility: hidden !important; }
+html.xmc-on.xmc-pinnav header[role="banner"]:not([data-xmc-style]) { visibility: hidden !important; }
+/* the still copy of the sidebar is showing: no real sidebar (including one X has just built) may show through */
+html.xmc-frozen [data-testid="sidebarColumn"] { visibility: hidden !important; }

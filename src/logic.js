@@ -29,7 +29,7 @@ var XMCLogic = (function () {
     const out = ['all', 'posts'];
     if (modeFor('repost', where, s) !== 'hide') out.push('reposts');
     if (modeFor('quote', where, s) !== 'hide') out.push('quotes');
-    if (modeFor('reply', where, s) !== 'hide') out.push('replies');
+    if (modeFor('reply', where, s) === 'tab') out.push('replies'); // shelved otherwise: a timeline holds a handful of replies and finding them is slow
     out.push('media');
     return out;
   }

@@ -153,8 +153,8 @@ test('settings: old saved values are migrated and list values are sanitised', ()
   assert.equal(S.normalize({ autoReveal: true }).nsfw, 'show');
   assert.equal(S.normalize({ nsfw: 'bogus' }).nsfw, 'blur');
   assert.equal(S.normalize({ grok: 'show' }).hideGrokDrawer, false);
-  assert.equal(S.normalize({}).hideGrokDrawer, true);
-  assert.equal(S.normalize({}).hideDmDrawer, true);
+  assert.equal(S.normalize({}).hideGrokDrawer, false, 'the floating Grok and Chat buttons are shown, as on X');
+  assert.equal(S.normalize({}).hideDmDrawer, false);
   assert.deepEqual(S.normalize({ hiddenNav: ['/i/grok', 5, null, '/explore'] }).hiddenNav, ['/i/grok', '/explore']);
   assert.deepEqual(S.normalize({ navItems: [{ key: '/a', label: 'A' }, { key: 5 }, 'x'] }).navItems, [{ key: '/a', label: 'A' }]);
   assert.ok(!('enabled' in S.normalize({ enabled: false })), 'there is no on/off switch any more');
@@ -171,9 +171,10 @@ test('settings: only non-default values are stored, so a changed default reaches
 });
 
 test('settings: values an older version baked in for a key whose default changed are dropped', () => {
-  // v1 saved everything, so "hideDmDrawer: false" was never the person's choice
-  assert.equal(S.normalize({ hideDmDrawer: false }).hideDmDrawer, true);
-  assert.equal(S.normalize({ v: 2, hideDmDrawer: false }).hideDmDrawer, false, 'but a choice made on v2 is kept');
+  // the floating Grok / Chat buttons became shown-by-default in settings v6: an older "hide" was never a choice about that
+  assert.equal(S.normalize({ v: 5, hideGrokDrawer: true }).hideGrokDrawer, false);
+  assert.equal(S.normalize({ hideDmDrawer: true }).hideDmDrawer, false);
+  assert.equal(S.normalize({ v: 6, hideGrokDrawer: true }).hideGrokDrawer, true, 'but a choice made on v6 is kept');
   assert.equal(S.normalize({ cols: 4 }).cols, 4, 'unrelated saved values survive the migration');
   assert.equal(S.normalize({}).v, undefined);
 });
@@ -249,8 +250,9 @@ test('view buttons: a kind of post only gets a button once the feed has some', (
   const s = Object.assign({}, S.DEFAULTS, { repostsHome: 'show' });
   assert.deepEqual(L.availableViews('home', s, onlyPosts, 'all'), ['all', 'posts']);
   const mixed = [mk({}), mk({ repostedBy: { handle: 'x' } }), mk({ media: [{}] }), mk({ replyTo: 'z' })];
-  assert.deepEqual(L.availableViews('home', s, mixed, 'all'), ['all', 'posts', 'reposts', 'replies', 'media']);
-  assert.ok(L.availableViews('home', s, onlyPosts, 'replies').includes('replies'), 'the one you are on never vanishes under you');
+  assert.deepEqual(L.availableViews('home', s, mixed, 'all'), ['all', 'posts', 'reposts', 'media'], 'no Replies button unless replies have their own tab (shelved)');
+  assert.ok(L.availableViews('home', Object.assign({}, s, { repliesHome: 'tab' }), mixed, 'all').includes('replies'), 'asked for a Replies tab: it is there');
+  assert.ok(L.availableViews('home', s, onlyPosts, 'posts').includes('posts'), 'the one you are on never vanishes under you');
   assert.deepEqual(L.availableViews('home', s, [], 'all'), ['all']);
   assert.ok(!L.availableViews('home', Object.assign({}, s, { repostsHome: 'hide' }), mixed, 'all').includes('reposts'), 'a hidden kind stays hidden');
 });

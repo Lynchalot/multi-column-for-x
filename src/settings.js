@@ -73,8 +73,8 @@ var XMCSettings = (function () {
       id: 'sidebar', title: 'Navigation & sidebar', blurb: 'These restyle X\u2019s own pages, so they depend on X\u2019s current layout.', custom: 'nav', items: [
         { key: 'hideSidebar', type: 'bool', def: false, label: 'Hide X\u2019s right-hand sidebar (search, trends, who to follow)', native: true },
         { key: 'hideTweetButton', type: 'bool', def: false, label: 'Hide the big \u201cPost\u201d button', native: true },
-        { key: 'hideGrokDrawer', type: 'bool', def: true, label: 'Hide the floating Grok button', native: true, help: 'Grok is still in the sidebar.' },
-        { key: 'hideDmDrawer', type: 'bool', def: true, label: 'Hide the floating Messages button', native: true, help: 'Messages are still in the sidebar.' },
+        { key: 'hideGrokDrawer', type: 'bool', def: false, label: 'Hide the floating Grok button', native: true, help: 'Shown by default, as on X (bottom right, with Chat). Grok is also in the left sidebar.' },
+        { key: 'hideDmDrawer', type: 'bool', def: false, label: 'Hide the floating Chat / Messages button', native: true, help: 'Shown by default, as on X. Messages are also in the left sidebar.' },
         { key: 'navFont', type: 'select', def: 'default', label: 'Sidebar font weight', native: true, options: [['default', 'X\u2019s default (bold)'], ['normal', 'Normal']] },
         { key: 'navDensity', type: 'select', def: 'default', label: 'Sidebar spacing', native: true, options: [['compact', 'Compact'], ['default', 'X\u2019s default'], ['comfortable', 'Roomy']] },
         nav('hideVerifiedTabs', 'Hide the \u201cVerified\u201d tabs in Notifications and Followers'),
@@ -83,6 +83,7 @@ var XMCSettings = (function () {
     {
       id: 'look', title: 'Look', items: [
         { key: 'branding', type: 'select', def: 'twitter', label: 'Name and logo', native: true, options: [['twitter', 'Twitter (bird logo, “Tweet”, “Retweet”)'], ['x', 'X (as X ships it)']] },
+        { key: 'cardOutline', type: 'bool', def: false, label: 'Outline around each post in the columns', help: 'Off by default. Makes the edges of each post clearer, especially on busy backgrounds.' },
         { key: 'customCss', type: 'textarea', def: '', label: 'Custom CSS', help: 'Added to every x.com page.', native: true },
       ],
     },
@@ -122,8 +123,8 @@ var XMCSettings = (function () {
 
   // Bump when a default changes: values saved by older versions for those keys were never a choice
   // (older versions saved everything), so they're dropped rather than allowed to pin the old default.
-  const VERSION = 5;
-  const DEFAULT_CHANGED_IN = { 2: ['hideDmDrawer'] };
+  const VERSION = 6;
+  const DEFAULT_CHANGED_IN = { 2: ['hideDmDrawer'], 6: ['hideDmDrawer', 'hideGrokDrawer'] };
   // the old default of a setting, as older versions saved it: dropped (it was never a choice) so the new default applies
   const OLD_DEFAULTS = { 3: { dlPattern: 'X/{account}/{tweetId}-{serial}' }, 4: { dlFolder: '' }, 5: { minColWidth: 440 } };
 

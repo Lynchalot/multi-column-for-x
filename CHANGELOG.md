@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.6
+- **No more of X's own page showing through** while comments or a translation are loading: any right sidebar (or left menu) X builds
+  while it is being driven stays invisible until the extension has pinned it, and the real sidebar stays hidden behind the still copy for the whole visit.
+- **Loading keeps up better.** Found a real stall: after any like, bookmark, repost or similar, loading more posts was blocked for 20 seconds. Now it's
+  800ms. While you are scrolling, about six pages are kept waiting (two or three when reading), and the next page is requested the moment one arrives.
+- **Translate post** looks for X's Translate control by what it is (not just where), reads the result by what changed, and if the post's own page
+  gives nothing it tries X's copy of the post in the timeline. If it still fails the message says where it stopped, and Copy diagnostics (now also in the post's ⋯ menu) includes it.
+- **The Columns button says what it does**: "Turn Columns On" / "Turn Columns Off".
+- **Floating Grok and Chat buttons are shown by default**, as on X (hide either in settings).
+- **Optional outline around each post** (Look > Outline around each post; off by default). Posts have no outline otherwise.
+- **Replies button shelved**: a timeline holds a handful of replies and finding them was slow. It only appears if you set replies to their own tab.
+
 ## 0.8.5
 Audit pass.
 - A failure while loading comments or a translation now ends in a message instead of a panel stuck on "Loading comments...".

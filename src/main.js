@@ -177,6 +177,7 @@
       const p = XMCLogic.nextPaging(f, { added: f.items.length - before, bottomCursor: r.bottomCursor, repeated: repeatedBottom });
       f.empty = p.empty; f.exhausted = p.exhausted;
     }
+    queueMicrotask(() => { if (state.shown && !state.peek && !state.posting && !onPostPage()) guard('pump', pump); }); // ask for the next page now, not at the next tick
     if ((first || established) && r.items.length) {
       state.latestByRoute.set(rk, state.latestByRoute.get(rk) || f.key);
       if (state.feedByTab.get(slotFor(state.sel)) === undefined) state.feedByTab.set(slotFor(state.sel), f.key);
@@ -550,12 +551,13 @@
   function updatePill(show, on) {
     pill.hidden = !show;
     pill.classList.toggle('off', !on);
-    const text = on ? 'Columns' : canTry() && state.trial !== routeKey() ? 'Try columns' : state.failedBy === 'user' ? 'Columns off \u2014 turn on' : 'Retry columns';
+    const text = on ? 'Turn Columns Off' : 'Turn Columns On';
     if (pill.dataset.text !== text) { // only touch the DOM when it changes
       pill.dataset.text = text;
       pill.replaceChildren(icon('columns'), h('span', { className: 'xmc-pill-label', textContent: text }));
     }
-    const title = on ? 'Columns are on for this page. Click to see X\u2019s normal feed instead.' : 'Click to show this page in columns';
+    const title = on ? 'Columns are on for this page. Click to see X\u2019s normal feed instead.'
+      : state.failedBy === 'error' && state.failed === routeKey() ? 'Columns couldn\u2019t load here, so X\u2019s own page is showing. Click to try again.' : 'Click to show this page in columns';
     if (pill.title !== title) { pill.title = title; pill.setAttribute('aria-label', text); }
   }
 
@@ -785,7 +787,8 @@
     if (settings.disableHome && where() === 'home') return;
     const f = activeFeed();
     if (!f || f.exhausted) return;
-    if (f.items.length - view.upto > 40) return; // plenty already waiting to be drawn; stay about two pages ahead, not more
+    const ahead = Date.now() - lastScrollAt < 4000 ? 120 : 50; // scrolling: keep about six pages waiting; reading: two or three
+    if (f.items.length - view.upto > ahead) return; // plenty already waiting to be drawn
     const need = scroller.scrollTop + scroller.clientHeight > shortestBottom() - innerHeight * 8;
     if (!need) return;
     const now = Date.now();
@@ -832,7 +835,7 @@
       requestsSeen: state.seenOps,
       feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0] + (f.key.includes('#') ? '#' + f.key.split('#').pop() : ''), posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
-      commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size,
+      commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, lastTranslation: state.trTrace || null,
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, fastComments: state.fastPeek !== false, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       mode: { walkOnly: !!state.walkOnly, tickMsAverage: Math.round(tickTimes.reduce((a, b) => a + b, 0) / Math.max(1, tickTimes.length)), tickMsWorst: Math.round(Math.max(0, ...tickTimes)) },
     }, null, 2);
@@ -899,11 +902,16 @@
     if (art) await sleep(120);
     return art;
   }
+  // realArticle keeps the loader away from X's page for up to 20s while it works; the moment the job is done, give it back
+  // (this window used to stay shut for 20s after every like or bookmark, which is what made loading stall)
+  const settleProxy = () => { state.proxyUntil = Date.now() + 800; };
   async function withReal(t, fn) {
-    const art = await realArticle(t);
-    if (!art) return false;
-    await fn(art);
-    return true;
+    try {
+      const art = await realArticle(t);
+      if (!art) return false;
+      await fn(art);
+      return true;
+    } finally { settleProxy(); }
   }
   const normHref = (s) => String(s || '').split('?')[0].toLowerCase();
   // the link on a post's time stamp, found by the post's number (exact), not by how X spells the handle
@@ -914,6 +922,7 @@
       const art = await realArticle(t);
       const a = art && ([...art.querySelectorAll('a[href]')].find((x) => normHref(x.getAttribute('href')) === normHref(href))
         || (normHref(href) === normHref(t.url) ? timeLinkOf(art, t.id) : null));
+      settleProxy();
       if (a) { fire(a); return; }
     }
     location.assign(href); // fallback: a normal page load
@@ -987,16 +996,45 @@
     replyQueue = run.catch(() => {});
     return run;
   }
-  // On the post's own page (X's copy of the post is the one marked tabindex -1), press "Translate post" and read the result
-  async function translateOnPage() {
-    const art = await waitFor(() => document.querySelector('article[data-testid="tweet"][tabindex="-1"]'), 3000);
-    if (!art) return '';
-    const textEl = () => art.querySelector('[data-testid="tweetText"]');
-    const before = textEl() ? textEl().textContent : '';
-    const link = await waitFor(() => [...art.querySelectorAll('[role="button"], button, a')].find((el) => /^\s*translate\b/i.test(el.textContent || '')), 2500);
-    if (!link) return '';
+  // Press X's "Translate post" on its own copy of a post and read what it turns the text into. Used on the post's own page
+  // (where the post is the one with our post number, or the one marked tabindex -1) and, as a second try, in X's timeline.
+  // Every step is noted in state.trTrace so a failure says where it stopped.
+  const tweetTexts = (art) => [...art.querySelectorAll('[data-testid="tweetText"]')];
+  const textsOf = (art) => tweetTexts(art).map((n) => n.textContent.trim()).join('\n');
+  function findTranslateControl(art) {
+    for (const el of art.querySelectorAll('div, span, button, a')) {
+      if (el.closest('[data-testid="tweetText"]')) continue; // the post's own words may start with "Translate"
+      const own = (el.textContent || '').trim();
+      if (own.length > 40 || !/^translate\b/i.test(own)) continue;
+      if ([...el.children].some((c) => /^translate\b/i.test((c.textContent || '').trim()))) continue; // the innermost one
+      return el.closest('[role="button"], button, a') || el;
+    }
+    return null;
+  }
+  async function pressTranslate(art, trace) {
+    const before = textsOf(art);
+    const link = await waitFor(() => findTranslateControl(art), 4000);
+    if (!link) { trace.step = 'no Translate link on the post'; return ''; }
     fire(link);
-    return (await waitFor(() => { const now = textEl() ? textEl().textContent : ''; return now && now !== before ? now : ''; }, 6000)) || '';
+    let changed = await waitFor(() => { const now = textsOf(art); return now && now !== before ? now : ''; }, 2500);
+    if (!changed) { link.click(); changed = await waitFor(() => { const now = textsOf(art); return now && now !== before ? now : ''; }, 4500); } // a plain click as a second try
+    if (!changed) { trace.step = 'pressed Translate but the text never changed'; return ''; }
+    trace.step = 'ok';
+    // the translation replaces the text (or sits beside it): take the text that is not what we started with
+    const fresh = tweetTexts(art).map((n) => n.textContent.trim()).filter((x) => x && !before.split('\n').includes(x));
+    return (fresh[0] || changed.split('\n')[0] || '').trim();
+  }
+  async function translateOnPage(t) {
+    const trace = state.trTrace = { id: t.id, via: 'post page', step: 'no post on the page' };
+    const art = await waitFor(() => articles().find((a) => articleId(a) === t.id) || document.querySelector('article[data-testid="tweet"][tabindex="-1"]'), 4000);
+    return art ? pressTranslate(art, trace) : '';
+  }
+  async function translateInTimeline(t) {
+    const trace = state.trTrace = { id: t.id, via: 'timeline', step: 'could not bring the post up' };
+    try {
+      const art = await realArticle(t);
+      return art ? await pressTranslate(art, trace) : '';
+    } finally { settleProxy(); }
   }
   async function fetchReplies(t, opts) {
     opts = opts || {};
@@ -1013,7 +1051,7 @@
           window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
         } catch { /* fall through to the slow way */ }
         const quick = await waitFor(() => state.peek && state.peek.replies, 3500);
-        if (quick) { state.fastFails = 0; return { data: quick, translation: opts.translate ? await translateOnPage() : '' }; }
+        if (quick) { state.fastFails = 0; return { data: quick, translation: opts.translate ? await translateOnPage(t) : '' }; }
         state.fastFails = (state.fastFails || 0) + 1;
         if (state.fastFails >= 2) state.fastPeek = false; // X ignores it: stop trying for this page load
         if (location.pathname !== was) { window.history.back(); await waitFor(() => location.pathname === was, 3000); }
@@ -1027,7 +1065,7 @@
       await waitFor(() => location.pathname !== before || state.peek.replies, 3000);
       if (!state.peek.replies && location.pathname === before) { link.click(); await waitFor(() => location.pathname !== before || state.peek.replies, 2500); } // a plain click as a second try
       const got = await waitFor(() => state.peek && state.peek.replies, 9000);
-      if (got) return { data: got, translation: opts.translate ? await translateOnPage() : '' };
+      if (got) return { data: got, translation: opts.translate ? await translateOnPage(t) : '' };
       return { why: location.pathname === before
         ? 'X didn\u2019t open the post when asked to.'
         : 'X opened the post but sent no comments. Requests seen: ' + Object.keys(state.seenOps).join(', ') };
@@ -1110,6 +1148,7 @@
     } finally {
       state.posting = false;
       state.lastPeekEnd = Date.now();
+      settleProxy();
       if (res.ok) setTimeout(() => doc.classList.remove('xmc-acting'), 500);
       else { doc.classList.remove('xmc-acting'); toast(res.why + ' Finish it in X’s reply box.'); }
     }
@@ -1210,6 +1249,7 @@
         try { await navigator.clipboard.writeText(plain); toast('Copied'); } catch { toast('Couldn’t copy'); }
       }],
       ['Open in a new tab', () => window.open('https://' + location.host + t.url, '_blank', 'noopener')],
+      ['Copy diagnostics', () => copyDiagnostics()],
     ]);
   }
 
@@ -1339,8 +1379,19 @@
     button.disabled = true; button.textContent = 'Translating...';
     t.transBusy = true;
     let res = null;
-    try { res = t.translation ? { translation: t.translation } : await loadReplies(t, { translate: true }); } finally { t.transBusy = false; button.disabled = false; }
-    if (!res || !res.translation) { button.textContent = 'Translate post'; toast('X didn\u2019t offer a translation for this post.'); return; }
+    try {
+      res = t.translation ? { translation: t.translation } : await loadReplies(t, { translate: true });
+      if (!res || !res.translation) { // the post's own page gave nothing: try X's copy of the post in its timeline
+        const tx = await translateInTimeline(t);
+        if (tx) res = { translation: tx };
+      }
+    } finally { t.transBusy = false; button.disabled = false; }
+    if (!res || !res.translation) {
+      button.textContent = 'Translate post';
+      const why = state.trTrace && state.trTrace.step !== 'ok' ? ' (' + state.trTrace.step + ')' : '';
+      toast('X didn\u2019t translate this post' + why + '. (\u22ef menu \u2192 Copy diagnostics, if you want to report it.)');
+      return;
+    }
     t.translation = res.translation;
     showTranslation(t, cardEl);
   }
@@ -1675,6 +1726,7 @@
     document.body.append(clone);
     clone.scrollTop = side.scrollTop;
     side.style.setProperty('visibility', 'hidden', 'important');
+    document.documentElement.classList.add('xmc-frozen'); // also hides a sidebar X builds from scratch meanwhile
     sideFreeze = { clone, side, hardStop: Date.now() + 15000 };
   }
   function thawSidebar() {
@@ -1683,6 +1735,7 @@
     sideFreeze = null;
     side.style.removeProperty('visibility');
     positionSide(); // if X rebuilt the sidebar meanwhile, pin the new one before anyone sees it
+    document.documentElement.classList.remove('xmc-frozen');
     clone.remove();
   }
   const navRestore = () => { thawSidebar(); unpin('nav'); unpin('side'); };
@@ -1727,8 +1780,8 @@
     root.style.left = (p.width + 20) + 'px';
   }
   function positionSide() {
-    if (sideFreeze) return; // a still copy is showing; leave the real one alone
     const p = pin.side, side = p.el();
+    if (sideFreeze && side && side.dataset.xmcStyle !== undefined) return; // a still copy is showing; leave a pinned one alone (a new one still gets pinned, hidden)
     if (!side || settings.hideSidebar) { root.style.right = '0px'; unpin('side'); return; }
     if (p.fallback && Date.now() > p.retryAt) { p.fallback = false; p.fails = 0; }
     if (side.dataset.xmcStyle === undefined) {
@@ -1839,7 +1892,7 @@
   const tickTimes = []; // how long our own work took recently (to tell our slowness from X's)
   function tick() {
     if (!ready) return;
-    if (state.shown && !sideFreeze) { // a sidebar X has just rebuilt must be pinned at once, not at the next slow pass
+    if (state.shown) { // a sidebar X has just rebuilt must be pinned at once, not at the next slow pass
       const sd = pin.side.el(), nv = pin.nav.el();
       if (sd && sd.dataset.xmcStyle === undefined && !pin.side.fallback) guard('pin side', positionSide);
       if (nv && nv.dataset.xmcStyle === undefined && !pin.nav.fallback) guard('pin nav', positionNav);
@@ -1866,6 +1919,8 @@
     if (pillShown && (tickN % 10 === 0 || !pill.isConnected)) placePill();
     updatePill(pillShown, active);
     document.documentElement.classList.toggle('xmc-onpost', onPostPage());
+    document.documentElement.classList.toggle('xmc-pinside', !pin.side.fallback && !settings.hideSidebar);
+    document.documentElement.classList.toggle('xmc-pinnav', !pin.nav.fallback);
     if (document.documentElement.classList.contains('xmc-acting')) { // never leave X's menus invisible for good
       if (!state.actingSince) state.actingSince = Date.now();
       else if (Date.now() - state.actingSince > 20000 && !state.posting && !state.peek) { document.documentElement.classList.remove('xmc-acting'); state.actingSince = 0; }
