@@ -28,7 +28,7 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
   Posts in other languages get a **Translate post** button (X's own translation); automatic translation is an option in Posts. **NSFW** button in the top bar:
   blur → show → hide those posts.
 - **X's own sidebars are kept** (left nav, right search/trends), or hide the right one in settings. The floating Grok and
-  Messages buttons are removed (the sidebar already has both). Hide any sidebar item (Creator Studio, Chat, Grok…) —
+  Chat buttons stay, side by side in the corner. Hide any sidebar item (Creator Studio, Chat, Grok…) —
   the settings page lists whatever your sidebar actually shows.
 - **Downloads** — original-size photos and the best video quality, saved into an **`X` folder inside Downloads** as
   `account-postnumber-1-twitter.jpg`, so you can always tell where a file came from. A browser extension can't write outside the
