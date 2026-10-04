@@ -11,7 +11,7 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
 - **Nothing refreshes behind your back.** If X sends new posts while you read, a **↻ N new** button appears; you decide.
 - **Endless scrolling that keeps going** — a spinner while X is slow, a note at the real end.
 - **A clear top bar** — your tabs and the column controls on one line (it wraps on small windows instead of being cut off), and the
-  *All / Tweets / Retweets / Quote Tweets / Replies / Media* views on a line below. A view only appears once the feed actually has
+  *All / Tweets / Retweets / Quote Tweets / Media* views on a line below. A view only appears once the feed actually has
   something for it, so you never click an empty tab. A profile's **Media** tab sorts into **Photos / Videos** (GIFs count as videos). A **Columns** pill sits in X's left sidebar (styled like the Post button) and
   switches between columns and X's normal feed.
 - **Fast comments** — the post's page is opened out of sight the way X's own router does it, so they load quickly wherever you
