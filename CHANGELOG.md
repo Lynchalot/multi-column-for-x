@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.9
+- **The floating Chat and Grok buttons are removed** (both are in the left menu). They are found by their place in the bottom-right corner as well as
+  by name, so X renaming them doesn't bring them back. There is no setting for them any more.
+- **Following's Popular / Recent (and Videos / Photos) switching is sturdier:** X closes its menu when it sees a click outside it, which could
+  happen when you clicked ours. Our menu no longer lets X see the click, and if X closed its menu anyway it is opened again out of sight. Going back to
+  the sort X started on is instant (it used to wait several seconds). Copy diagnostics now includes what X showed when you pressed a tab.
+
 ## 0.8.8
 - Settings page cleaned up: shorter descriptions, no section intros except Navigation & sidebar, no footer line.
 - Removed: the post-outline option, the aria2 download hand-off (and the localhost permission it needed), and the file-name tag box

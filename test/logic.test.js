@@ -152,9 +152,8 @@ test('sensitive posts: shown, or hidden when the NSFW setting says so (including
 test('settings: old saved values are migrated and list values are sanitised', () => {
   assert.equal(S.normalize({ autoReveal: true }).nsfw, 'show');
   assert.equal(S.normalize({ nsfw: 'bogus' }).nsfw, 'blur');
-  assert.equal(S.normalize({ grok: 'show' }).hideGrokDrawer, false);
-  assert.equal(S.normalize({}).hideGrokDrawer, false, 'the floating Grok and Chat buttons are shown, as on X');
-  assert.equal(S.normalize({}).hideDmDrawer, false);
+  assert.equal(S.normalize({}).hideGrokDrawer, true, 'the floating Grok and Chat buttons are always removed');
+  assert.equal(S.normalize({}).hideDmDrawer, true);
   assert.deepEqual(S.normalize({ hiddenNav: ['/i/grok', 5, null, '/explore'] }).hiddenNav, ['/i/grok', '/explore']);
   assert.deepEqual(S.normalize({ navItems: [{ key: '/a', label: 'A' }, { key: 5 }, 'x'] }).navItems, [{ key: '/a', label: 'A' }]);
   assert.ok(!('enabled' in S.normalize({ enabled: false })), 'there is no on/off switch any more');
@@ -171,10 +170,10 @@ test('settings: only non-default values are stored, so a changed default reaches
 });
 
 test('settings: values an older version baked in for a key whose default changed are dropped', () => {
-  // the floating Grok / Chat buttons became shown-by-default in settings v6: an older "hide" was never a choice about that
-  assert.equal(S.normalize({ v: 5, hideGrokDrawer: true }).hideGrokDrawer, false);
-  assert.equal(S.normalize({ hideDmDrawer: true }).hideDmDrawer, false);
-  assert.equal(S.normalize({ v: 6, hideGrokDrawer: true }).hideGrokDrawer, true, 'but a choice made on v6 is kept');
+  // the floating Grok / Chat buttons are removed for everyone from settings v7: whatever an older version stored is dropped
+  assert.equal(S.normalize({ v: 6, hideGrokDrawer: false }).hideGrokDrawer, true);
+  assert.equal(S.normalize({ hideDmDrawer: false }).hideDmDrawer, true);
+  assert.equal(S.normalize({ v: 7, hideDmDrawer: false }).hideDmDrawer, false, 'but a value written by v7 is kept');
   assert.equal(S.normalize({ cols: 4 }).cols, 4, 'unrelated saved values survive the migration');
   assert.equal(S.normalize({}).v, undefined);
 });

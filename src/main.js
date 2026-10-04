@@ -108,6 +108,8 @@
     peek: null,               // {id, replies}: X's hidden page is on a post's page, fetching its comments
     posting: false,           // we are typing your comment into X's reply box (out of sight)
     homeInit: false, homeHold: false, lastKeep: 0, searchInit: '',
+    subDefault: {},           // route|tab -> the dropdown item X was on before the first pick (its feed is the one with no suffix)
+    loadedAt: Date.now(),
     sub: {},                  // route|tab -> the item picked from that tab's dropdown (Videos/Photos, Popular/Recent...), lower case
     byId: new Map(),          // post id -> post, for every post seen (so buttons on X's own pages know a post's media)
     menuTabs: new Set(),      // route|tab that turned out to have a dropdown
@@ -848,7 +850,7 @@
       requestsSeen: state.seenOps,
       feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0] + (f.key.includes('#') ? '#' + f.key.split('#').pop() : ''), posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
-      commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, lastTranslation: state.trTrace || null,
+      commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, lastTranslation: state.trTrace || null, tabMenuTrace: state.tabTrace || [],
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       mode: { walkOnly: !!state.walkOnly, tickMsAverage: Math.round(tickTimes.reduce((a, b) => a + b, 0) / Math.max(1, tickTimes.length)), tickMsWorst: Math.round(Math.max(0, ...tickTimes)) },
     }, null, 2);
@@ -1221,6 +1223,7 @@
       type: 'button', textContent: label, onclick: () => { menuDismiss = null; closeMenu(); fn(); },
     })));
     menuDismiss = onDismiss || null;
+    for (const ev of ['pointerdown', 'mousedown']) menuEl.addEventListener(ev, (e) => e.stopPropagation());
     root.append(menuEl);
     const mh = menuEl.offsetHeight;
     const below = r.bottom - rr.top + 6;
@@ -1586,7 +1589,9 @@
   // Some of X's tabs open a dropdown when pressed again (the profile's Videos tab: Videos / Photos; Following:
   // Popular / Recent). X draws it over the hidden page, in the wrong place, so read it and offer the same choices
   // in a menu of our own, pressing the real item for you.
-  const findXMenu = () => [...document.querySelectorAll('[role="menu"]')].find((m) => m.querySelector('[role="menuitem"]'));
+  const ITEM_SEL = '[role="menuitem"], [role="menuitemradio"], [role="option"]';
+  const findXMenu = () => [...document.querySelectorAll('[role="menu"], [role="listbox"], [data-testid="Dropdown"]')].find((m) => m.querySelector(ITEM_SEL));
+  const traceTab = (o) => { (state.tabTrace = state.tabTrace || []).push(Object.assign({ at: Math.round((Date.now() - state.loadedAt) / 1000) }, o)); if (state.tabTrace.length > 6) state.tabTrace.shift(); };
   const menuText = (el) => el.textContent.trim().replace(/\s+/g, ' ');
   const releaseLayers = () => setTimeout(() => document.documentElement.classList.remove('xmc-acting'), 600);
   function closeXMenu() {
@@ -1600,7 +1605,10 @@
     releaseLayers();
   }
   async function tabMenu(i, anchor, before) {
-    const menu = await waitFor(findXMenu, 700);
+    const menu = await waitFor(findXMenu, 1200);
+    const tabLabel = ((realTabs()[i] || {}).textContent || '').trim().slice(0, 20);
+    traceTab({ pressed: tabLabel, menu: menu ? menu.getAttribute('role') || menu.getAttribute('data-testid') : null,
+      items: menu ? [...menu.querySelectorAll(ITEM_SEL)].map(menuText).filter((x) => x.length <= 30).slice(0, 8) : [], popups: document.querySelectorAll('#layers > div > *').length });
     if (!menu) { // no dropdown: an ordinary second press. Keep what is on screen; go back to the top, as X does
       releaseLayers();
       state.awaiting = before.awaiting; state.cur = before.cur; lastSig = '';
@@ -1610,26 +1618,37 @@
     state.menuTabs.add(routeKey() + '|' + i);
     state.awaiting = before.awaiting; state.cur = before.cur; // pressing it again does not change the feed
     lastSig = '';
-    const items = [...menu.querySelectorAll('[role="menuitem"]')];
+    const items = [...menu.querySelectorAll(ITEM_SEL)];
     const svgs = items.map((el) => el.querySelectorAll('svg').length);
     const base = Math.min(...svgs);
     const picked = subFor(i);
+    const ticked = svgs.some((n) => n !== base); // X marks the current one with a tick
     const list = items.map((el, k) => {
       const text = menuText(el);
-      const checked = picked ? text.toLowerCase() === picked : svgs[k] > base; // X marks the current one with a tick
+      const checked = ticked ? svgs[k] > base : !!picked && text.toLowerCase() === picked;
       return { text, checked };
     });
+    const first = list.find((x) => x.checked);
+    if (first && !state.subDefault[routeKey() + '|' + i] && !state.sub[routeKey() + '|' + i]) state.subDefault[routeKey() + '|' + i] = first.text.toLowerCase(); // what X was showing before we touched it
     const at = anchor && anchor.isConnected ? anchor : tabsEl.querySelector('.on') || tabsEl.firstElementChild || root;
     openMenu(at, list.map(({ text, checked }) => [(checked ? '\u2713\u2002' : '\u2003\u2002') + text, () => pickTabItem(i, text, checked)]), closeXMenu);
   }
-  function pickTabItem(i, text, alreadyCurrent) {
-    const rk = routeKey();
+  const findXItem = (text) => [...(findXMenu() || document).querySelectorAll(ITEM_SEL)].find((m) => menuText(m) === text);
+  async function pickTabItem(i, text, alreadyCurrent) {
+    const rk = routeKey(), key = rk + '|' + i;
     if (alreadyCurrent) { closeXMenu(); return; }
-    const el = [...(findXMenu() || document).querySelectorAll('[role="menuitem"]')].find((m) => menuText(m) === text);
+    document.documentElement.classList.add('xmc-acting');
+    let el = findXItem(text);
+    if (!el) { // X closed its menu when we took the click: press the tab again to open it, out of sight
+      const live = realTabs()[i];
+      if (live) { fire(live); await waitFor(findXMenu, 1500); el = findXItem(text); }
+    }
+    traceTab({ picked: text, found: !!el });
     if (!el) { toast('X\u2019s menu closed \u2014 press the tab again'); releaseLayers(); return; }
-    state.sub[rk + '|' + i] = text.toLowerCase();
+    const name = text.toLowerCase();
+    state.sub[key] = name === state.subDefault[key] ? '' : name; // back to what X started on: that feed has no suffix
     state.cur = { route: rk, key: null };
-    state.awaiting = { until: Date.now() + 6000, cached: state.feedByTab.has(slotFor(i)) };
+    state.awaiting = { until: Date.now() + 12000, cached: state.feedByTab.has(slotFor(i)) };
     fire(el);
     lastSig = '';
     releaseLayers();
@@ -1645,7 +1664,7 @@
     fire(live);
     const menu = await waitFor(findXMenu, 1500);
     if (!menu) { toast('X didn\u2019t offer that choice just now \u2014 try again'); releaseLayers(); return; }
-    pickTabItem(i, [...menu.querySelectorAll('[role="menuitem"]')].map(menuText).find((tx) => tx.toLowerCase() === kind.toLowerCase()) || kind, false);
+    pickTabItem(i, [...menu.querySelectorAll(ITEM_SEL)].map(menuText).find((tx) => tx.toLowerCase() === kind.toLowerCase()) || kind, false);
   }
   function syncTabs() {
     const tabs = realTabs();
@@ -1867,7 +1886,11 @@
       const r = d.getBoundingClientRect();
       if (!r.width || r.width > 450 || r.height > 450 || r.bottom < innerHeight * 0.4) continue;
       const g = d.matches(GROK_SEL) ? d : d.querySelector(GROK_SEL);
-      const m = d.matches(DM_SEL) ? d : d.querySelector(DM_SEL);
+      let m = d.matches(DM_SEL) ? d : d.querySelector(DM_SEL);
+      // X renames these buttons now and then: a small floating stack in the bottom-right corner is one of them whatever it is called
+      // (not a compose button, and not a pop-up)
+      if (!g && !m && r.width >= 36 && r.width <= 96 && r.height >= 36 && r.height <= 230 && innerWidth - r.right <= 56 && innerHeight - r.bottom <= 240
+          && !d.querySelector('[href="/compose/post"], [data-testid*="FloatingActionButton"]') && !d.closest('[role="dialog"], [role="menu"], [aria-modal="true"]')) m = d;
       if (g || m) {
         if (g) (g === d ? d : wrapperBelow(d, g, m)).dataset.xmcGrok = '1';
         if (m && m !== g) (m === d ? d : wrapperBelow(d, m, g)).dataset.xmcDm = '1';
