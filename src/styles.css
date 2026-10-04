@@ -360,3 +360,10 @@ html.xmc-on.xmc-pinside [data-testid="sidebarColumn"]:not([data-xmc-style]) { vi
 html.xmc-on.xmc-pinnav header[role="banner"]:not([data-xmc-style]) { visibility: hidden !important; }
 /* the still copy of the sidebar is showing: no real sidebar (including one X has just built) may show through */
 html.xmc-frozen [data-testid="sidebarColumn"] { visibility: hidden !important; }
+
+/* a note that stays on the post when a translation fails */
+.xmc-transnote { font-size: 12px; padding: 0 0 8px; }
+.xmc-linkbtn { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: var(--xmc-accent); cursor: pointer; }
+.xmc-linkbtn:hover { text-decoration: underline; }
+html.xmc-on [data-testid="sidebarColumn"] [style*="translate"] { transform: none !important; }
+html.xmc-on [data-testid="sidebarColumn"] { overscroll-behavior: contain; }

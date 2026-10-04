@@ -111,6 +111,7 @@
     sub: {},                  // route|tab -> the item picked from that tab's dropdown (Videos/Photos, Popular/Recent...), lower case
     byId: new Map(),          // post id -> post, for every post seen (so buttons on X's own pages know a post's media)
     menuTabs: new Set(),      // route|tab that turned out to have a dropdown
+    fastPeek: false,          // pushState+popstate straight to a post: X's router ignored it on a real page (set true in the console to experiment)
   };
   function remember(list) {
     for (const t of list) { if (t && t.id) { state.byId.delete(t.id); state.byId.set(t.id, t); } }
@@ -504,6 +505,19 @@
   const root = h('div', { id: 'xmc-root', hidden: true }, bar, scroller);
   const toastEl = h('div', { id: 'xmc-toast', hidden: true });
   document.body.append(root, toastEl);
+
+  // Scrolling with the pointer over X's own sidebars: scroll the columns, as X does (the page scrolls wherever the pointer is).
+  // Left alone if the sidebar itself has more to show in that direction.
+  document.addEventListener('wheel', (e) => {
+    if (root.hidden || e.ctrlKey || e.defaultPrevented) return;
+    const bar = e.target.closest && e.target.closest('[data-testid="sidebarColumn"], header[role="banner"]');
+    if (!bar || bar.id === 'xmc-sidefreeze') return;
+    const down = e.deltaY > 0;
+    const room = bar.scrollHeight > bar.clientHeight + 2 && (down ? bar.scrollTop + bar.clientHeight < bar.scrollHeight - 1 : bar.scrollTop > 0);
+    if (room && getComputedStyle(bar).overflowY !== 'visible') return;
+    e.preventDefault();
+    scroller.scrollBy({ top: e.deltaMode === 1 ? e.deltaY * 40 : e.deltaMode === 2 ? e.deltaY * scroller.clientHeight : e.deltaY });
+  }, { passive: false, capture: true });
 
   // Vimium and friends scroll "the element you last clicked in", so make that our columns
   const focusScroller = () => { if (!root.hidden && !/^(input|textarea|select)$/i.test((document.activeElement || {}).tagName || '')) scroller.focus({ preventScroll: true }); };
@@ -999,6 +1013,7 @@
   // Press X's "Translate post" on its own copy of a post and read what it turns the text into. Used on the post's own page
   // (where the post is the one with our post number, or the one marked tabindex -1) and, as a second try, in X's timeline.
   // Every step is noted in state.trTrace so a failure says where it stopped.
+  const addTrace = (tr) => { state.trTrace = (state.trTrace || []).filter((x) => x.id === tr.id || Date.now() - (x.at || 0) < 60000).slice(-3); tr.at = Date.now(); state.trTrace.push(tr); };
   const tweetTexts = (art) => [...art.querySelectorAll('[data-testid="tweetText"]')];
   const textsOf = (art) => tweetTexts(art).map((n) => n.textContent.trim()).join('\n');
   function findTranslateControl(art) {
@@ -1011,10 +1026,14 @@
     }
     return null;
   }
-  async function pressTranslate(art, trace) {
+  // the labels of the post's buttons (interface words only, nothing from people), so a failure can say what X did offer
+  const buttonLabels = (art) => [...art.querySelectorAll('button, [role="button"]')]
+    .map((b) => (b.getAttribute('aria-label') || b.textContent || '').trim().replace(/\s+/g, ' '))
+    .filter((x) => x && x.length <= 30 && !x.includes('@')).slice(0, 14);
+  async function pressTranslate(art, trace, wait) {
     const before = textsOf(art);
-    const link = await waitFor(() => findTranslateControl(art), 4000);
-    if (!link) { trace.step = 'no Translate link on the post'; return ''; }
+    const link = await waitFor(() => findTranslateControl(art), wait || 6000);
+    if (!link) { trace.step = 'no Translate link on the post'; trace.buttons = buttonLabels(art); trace.textLength = before.length; return ''; }
     fire(link);
     let changed = await waitFor(() => { const now = textsOf(art); return now && now !== before ? now : ''; }, 2500);
     if (!changed) { link.click(); changed = await waitFor(() => { const now = textsOf(art); return now && now !== before ? now : ''; }, 4500); } // a plain click as a second try
@@ -1025,15 +1044,19 @@
     return (fresh[0] || changed.split('\n')[0] || '').trim();
   }
   async function translateOnPage(t) {
-    const trace = state.trTrace = { id: t.id, via: 'post page', step: 'no post on the page' };
-    const art = await waitFor(() => articles().find((a) => articleId(a) === t.id) || document.querySelector('article[data-testid="tweet"][tabindex="-1"]'), 4000);
-    return art ? pressTranslate(art, trace) : '';
+    const trace = { id: t.id, via: 'post page', step: 'no post on the page', lang: t.lang };
+    addTrace(trace);
+    const art = await waitFor(() => articles().find((a) => articleId(a) === t.id) || document.querySelector('article[data-testid="tweet"][tabindex="-1"]')
+      || (onPostPage() ? document.querySelector('[data-testid="primaryColumn"] article[data-testid="tweet"]') : null), 8000);
+    return art ? pressTranslate(art, trace, 6000) : '';
   }
   async function translateInTimeline(t) {
-    const trace = state.trTrace = { id: t.id, via: 'timeline', step: 'could not bring the post up' };
+    const trace = { id: t.id, via: 'timeline', step: 'could not bring the post up', lang: t.lang };
+    addTrace(trace);
     try {
       const art = await realArticle(t);
-      return art ? await pressTranslate(art, trace) : '';
+      if (!art) { const f = activeFeed(); Object.assign(trace, { indexed: !!(f && f.index.has(t.id)), mountedByX: articles().length, hiddenScrollY: Math.round(window.scrollY) }); return ''; }
+      return await pressTranslate(art, trace, 4000);
     } finally { settleProxy(); }
   }
   async function fetchReplies(t, opts) {
@@ -1042,9 +1065,9 @@
     state.proxyUntil = Date.now() + 40000;
     freezeSidebar();
     try {
-      // Fast way: go to the post's page the way X's own router follows the back button (no need to scroll X's hidden list
-      // to the post first, which is what made comments slow). If X doesn't react, undo it and do it the slow way.
-      if (state.fastPeek !== false) {
+      // Fast way (off by default, see state.fastPeek): go to the post's page the way X's own router follows the back button.
+      // If X doesn't react, undo it and do it the slow way.
+      if (state.fastPeek === true) {
         const was = location.pathname;
         try {
           window.history.pushState({ key: 'xmc' + Math.random().toString(36).slice(2, 8) }, '', t.url);
@@ -1386,10 +1409,13 @@
         if (tx) res = { translation: tx };
       }
     } finally { t.transBusy = false; button.disabled = false; }
+    cardEl.querySelector('.xmc-transnote')?.remove();
     if (!res || !res.translation) {
       button.textContent = 'Translate post';
-      const why = state.trTrace && state.trTrace.step !== 'ok' ? ' (' + state.trTrace.step + ')' : '';
-      toast('X didn\u2019t translate this post' + why + '. (\u22ef menu \u2192 Copy diagnostics, if you want to report it.)');
+      const last = (state.trTrace || []).filter((x) => x.id === t.id).map((x) => x.via + ': ' + x.step).join('; ');
+      // a note that stays on the card (a toast was gone before it could be read)
+      button.after(h('div', { className: 'xmc-dim xmc-transnote' }, 'X didn\u2019t translate this post' + (last ? ' (' + last + ')' : '') + '. ',
+        h('button', { className: 'xmc-linkbtn', type: 'button', textContent: 'Copy diagnostics', onclick: () => copyDiagnostics() })));
       return;
     }
     t.translation = res.translation;
@@ -1779,6 +1805,18 @@
     }
     root.style.left = (p.width + 20) + 'px';
   }
+  // X's floating Grok and Chat buttons sit bottom right, on top of the sidebar's lower part. Give them their own room under it.
+  const sideHeight = () => {
+    const room = (settings.hideGrokDrawer ? 0 : 72) + (settings.hideDmDrawer ? 0 : 72) + (settings.hideGrokDrawer && settings.hideDmDrawer ? 0 : 12);
+    return room ? `calc(100vh - ${room}px)` : '100vh';
+  };
+  // X moves its sidebar's contents as the page scrolls (sticky offsets); the hidden page scrolls all the time, so every
+  // sticky element in the sidebar's first few levels is made to stay put
+  function unstick(side) {
+    for (const el of side.querySelectorAll(':scope > div, :scope > div > div, :scope > div > div > div, :scope > div > div > div > div')) {
+      if (el.style.position !== 'static' && getComputedStyle(el).position === 'sticky') el.style.setProperty('position', 'static', 'important');
+    }
+  }
   function positionSide() {
     const p = pin.side, side = p.el();
     if (sideFreeze && side && side.dataset.xmcStyle !== undefined) return; // a still copy is showing; leave a pinned one alone (a new one still gets pinned, hidden)
@@ -1790,9 +1828,12 @@
       if (p.fallback) { root.style.right = Math.max(0, innerWidth - r.left + 12) + 'px'; return; }
       side.dataset.xmcStyle = side.getAttribute('style') || '';
       p.width = Math.round(r.width);
-      side.style.cssText += `;position:fixed !important;top:0 !important;right:8px !important;left:auto !important;height:100vh !important;` +
+      side.style.cssText += `;position:fixed !important;top:0 !important;right:8px !important;left:auto !important;height:${sideHeight()} !important;` +
         `overflow-y:auto !important;scrollbar-width:none !important;margin:0 !important;transform:none !important;z-index:6 !important;width:${p.width}px !important`;
     } else if (!p.fallback) {
+      const hh = sideHeight();
+      if (side.style.getPropertyValue('height') !== hh) side.style.setProperty('height', hh, 'important');
+      unstick(side);
       // probe whichever of its links is on screen right now (the sidebar scrolls, so the first one often isn't)
       const probe = [...side.querySelectorAll('input, a[href]')].find((el) => { const r = el.getBoundingClientRect(); return r.width && r.top >= 0 && r.bottom <= innerHeight; });
       const b = probe && probe.getBoundingClientRect();
