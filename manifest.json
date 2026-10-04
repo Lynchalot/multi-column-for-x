@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Multi-Column for X",
-  "version": "0.8.7",
+  "version": "0.8.8",
   "description": "Your X (Twitter) timeline in multiple columns, with in-card video, filters and media download button.",
   "icons": {
     "48": "icons/icon.svg",
@@ -70,10 +70,6 @@
     "page": "options.html",
     "open_in_tab": true
   },
-  "optional_host_permissions": [
-    "http://localhost/*",
-    "http://127.0.0.1/*"
-  ],
   "author": "The Multi-Column for X authors",
   "homepage_url": "https://github.com/Lynchalot/multi-column-for-x"
 }

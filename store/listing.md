@@ -24,7 +24,7 @@ Timeline controls
 
 Media downloads
 - Original-size photos and best-quality video in one click, also from a post's own page.
-- Choose the folder, file-name pattern and source tag; ask where to save each file; download history; optional aria2.
+- Choose the folder and file-name pattern; ask where to save each file; download history.
 
 Privacy
 No data collected. No analytics, no accounts, no remote code. Everything stays in your browser. Open source (MIT).
@@ -47,11 +47,11 @@ There is no build step, no minification and no obfuscation: the uploaded files a
 What it does, and why each piece exists:
 - `src/hook.js` (content script, world MAIN, document_start): wraps `fetch`/`XMLHttpRequest` on x.com only to receive a copy of the timeline JSON that x.com's own code already downloads (posted to the extension with `window.postMessage`). It never changes a request or a response. It also stops videos in x.com's own hidden timeline from playing while the extension's columns are covering it (`HTMLMediaElement.prototype.play` is wrapped for videos inside x.com's primary column only), and forwards Escape/arrow keys to the extension's image viewer.
 - `src/main.js` and `src/parse.js`: turn that JSON into cards drawn by the extension. Like, repost, bookmark and reply are performed by dispatching clicks on x.com's own (hidden) buttons; the extension does not call x.com's API itself.
-- To show a post's comments the extension briefly navigates x.com's own page to that post (`history.pushState` plus a `popstate` event, as x.com's router follows a link) so that x.com fetches the conversation, reads it from the same JSON, and navigates back. Falls back to clicking x.com's own link to the post.
+- To show a post's comments the extension clicks x.com's own link to that post (on x.com's hidden copy of the timeline), so that x.com fetches the conversation; it reads it from the same JSON and goes back.
 - While that happens a static copy of x.com's right sidebar is shown (cloned DOM, inert) so the sidebar doesn't flicker.
-- `background.js`: saves media with the `downloads` API (only URLs on https://pbs.twimg.com and https://video.twimg.com are accepted) or, if the user turns it on, hands the file addresses to the user's own aria2 on localhost.
+- `background.js`: saves media with the `downloads` API (only URLs on https://pbs.twimg.com and https://video.twimg.com are accepted).
 
-Permissions: `storage` (settings and download history, local only), `downloads` (the Download button), host access to x.com / twitter.com (the site it enhances) and pbs.twimg.com / video.twimg.com (the media files). `optional_host_permissions` for localhost/127.0.0.1 are requested only when the user switches on the aria2 hand-off. `data_collection_permissions`: none.
+Permissions: `storage` (settings and download history, local only), `downloads` (the Download button), host access to x.com / twitter.com (the site it enhances) and pbs.twimg.com / video.twimg.com (the media files).
 
 Everything user-visible in the options page is generated from `src/settings.js`.
 

@@ -14,7 +14,7 @@ var XMCSettings = (function () {
       id: 'columns', title: 'Columns', items: [
         { key: 'cols', type: 'number', min: 0, max: 8, def: 0, label: 'Number of columns', help: '0 = automatic.' },
         { key: 'maxAutoCols', type: 'number', min: 1, max: 8, def: 5, label: 'Most columns when automatic' },
-        { key: 'minColWidth', type: 'number', min: 280, max: 900, def: 500, label: 'Column width when automatic (px)', help: 'Columns stay about this wide (never more than 20% wider): shrinking the window removes columns, down to one, instead of squeezing them.' },
+        { key: 'minColWidth', type: 'number', min: 280, max: 900, def: 500, label: 'Column width when automatic (px)' },
       ],
     },
     {
@@ -31,19 +31,19 @@ var XMCSettings = (function () {
       ],
     },
     {
-      id: 'algorithm', title: 'Algorithmic content', blurb: 'Turn off the parts of X that choose what you see for you. Each one is separate.', items: [
-        { key: 'hideForYou', type: 'bool', def: true, label: 'Hide the \u201cFor you\u201d tab (the algorithmic feed)' },
-        { key: 'onlyFollowed', type: 'bool', def: false, label: 'Only show posts from accounts I follow', help: 'Hides suggested posts. Uses X\u2019s own follow flag, so it only works when X includes it.' },
+      id: 'algorithm', title: 'Algorithmic content', items: [
+        { key: 'hideForYou', type: 'bool', def: true, label: 'Hide the \u201cFor you\u201d tab' },
+        { key: 'onlyFollowed', type: 'bool', def: false, label: 'Only show posts from accounts I follow', help: 'Hides suggested posts.' },
         nav('hideTrending', 'Hide \u201cWhat\u2019s happening\u201d / Trending in the sidebar'),
         nav('hideWhoToFollow', 'Hide \u201cWho to follow\u201d suggestions'),
         nav('hideTopics', 'Hide \u201cTopics to follow\u201d suggestions'),
         nav('hideDiscoverMore', 'Hide \u201cDiscover more\u201d and similar suggested posts'),
-        nav('hidePremiumPromo', 'Hide Premium upsells (the subscribe box)'),
+        nav('hidePremiumPromo', 'Hide Premium (the subscribe box)'),
       ],
     },
     {
       id: 'muting', title: 'Muting & filtering', items: [
-        { key: 'mutedWords', type: 'text', def: '', label: 'Muted words and phrases', help: 'Comma separated. Matches post text and names. Kept on this device only.' },
+        { key: 'mutedWords', type: 'text', def: '', label: 'Muted words and phrases', help: 'Separate with comma.' },
         { key: 'mutedAccounts', type: 'text', def: '', label: 'Muted accounts', help: 'Comma separated @handles. Hides their posts, their reposts and quotes of them.' },
         { key: 'hideMutedQuotes', type: 'bool', def: true, label: 'Hide quotes of accounts I’ve blocked or muted on X' },
         { key: 'hideBlueReplies', type: 'bool', def: false, label: 'Hide replies from paid-verified accounts' },
@@ -56,16 +56,16 @@ var XMCSettings = (function () {
         { key: 'hideViews', type: 'bool', def: false, label: 'Hide view counts' },
         { key: 'hideBookmarkBtn', type: 'bool', def: false, label: 'Hide the bookmark button' },
         { key: 'hideShareBtn', type: 'bool', def: false, label: 'Hide the copy-link button' },
-        { key: 'tidyReplies', type: 'bool', def: true, label: 'Fewer buttons on replies', help: 'On a post\u2019s own page, hides the Bookmark and Grok buttons under every reply (the post itself keeps them).', native: true },
-        { key: 'nativeTools', type: 'bool', def: true, label: 'Download and Copy-link buttons on X\u2019s own pages', help: 'Adds them to the posts on a post\u2019s own page (and anywhere the columns aren\u2019t showing).', native: true },
+        { key: 'tidyReplies', type: 'bool', def: true, label: 'Fewer buttons on replies', help: 'On a post\u2019s own page, hides the Bookmark and Grok buttons under every reply.', native: true },
+        { key: 'nativeTools', type: 'bool', def: true, label: 'Download and Copy-link buttons on X\u2019s own pages', native: true },
         { key: 'reducedInteraction', type: 'bool', def: false, label: 'Reduced interaction mode', help: 'Hides the reply, repost and like buttons and all counts.' },
         { key: 'quotesLink', type: 'bool', def: false, label: 'Show a “Quotes” link under posts that have been quoted' },
-        { key: 'showSource', type: 'bool', def: false, label: 'Show which app a post was sent from', help: 'When X includes it.' },
-        { key: 'nsfw', type: 'select', def: 'blur', label: 'Sensitive media', options: [['blur', 'Blur until I click'], ['show', 'Show'], ['hide', 'Hide those posts']], help: 'Also on the NSFW button in the top bar.' },
+        { key: 'showSource', type: 'bool', def: false, label: 'Show which app a post was sent from' },
+        { key: 'nsfw', type: 'select', def: 'blur', label: 'Sensitive media', options: [['blur', 'Blur until I click'], ['show', 'Show'], ['hide', 'Hide those posts']] },
         { key: 'autoplayVideo', type: 'select', def: 'off', label: 'Videos', options: [['off', 'Play when I click'], ['muted', 'Autoplay muted while on screen']] },
-        { key: 'autoTranslate', type: 'bool', def: false, label: 'Translate posts in other languages automatically', help: 'Like X: posts you can see are translated one at a time while you read (each costs a quick visit to the post on X\u2019s hidden side). Off (the default) = a \u201cTranslate post\u201d button on each post instead; automatic translation is the one thing that keeps visiting posts on X\u2019s hidden side while you read.' },
+        { key: 'autoTranslate', type: 'bool', def: false, label: 'Translate posts in other languages automatically' },
         { key: 'openIn', type: 'select', def: 'newtab', label: 'Open posts and profiles', options: [['newtab', 'In a new tab (you keep your place here)'], ['sametab', 'In this tab']] },
-        { key: 'commentSort', type: 'select', def: 'relevant', label: 'Order comments by', options: [['relevant', 'Relevant (as X ranks them)'], ['recent', 'Most recent'], ['likes', 'Most liked']], help: 'Sorts the comments that have loaded.' },
+        { key: 'commentSort', type: 'select', def: 'relevant', label: 'Order comments by', options: [['relevant', 'Relevant (as X ranks them)'], ['recent', 'Most recent'], ['likes', 'Most liked']] },
         { key: 'systemFont', type: 'bool', def: false, label: 'Use my system font instead of X’s Chirp font' },
       ],
     },
@@ -73,8 +73,8 @@ var XMCSettings = (function () {
       id: 'sidebar', title: 'Navigation & sidebar', blurb: 'These restyle X\u2019s own pages, so they depend on X\u2019s current layout.', custom: 'nav', items: [
         { key: 'hideSidebar', type: 'bool', def: false, label: 'Hide X\u2019s right-hand sidebar (search, trends, who to follow)', native: true },
         { key: 'hideTweetButton', type: 'bool', def: false, label: 'Hide the big \u201cPost\u201d button', native: true },
-        { key: 'hideGrokDrawer', type: 'bool', def: false, label: 'Hide the floating Grok button', native: true, help: 'Shown by default, as on X (bottom right, with Chat). Grok is also in the left sidebar.' },
-        { key: 'hideDmDrawer', type: 'bool', def: false, label: 'Hide the floating Chat / Messages button', native: true, help: 'Shown by default, as on X. Messages are also in the left sidebar.' },
+        { key: 'hideGrokDrawer', type: 'bool', def: false, label: 'Hide the floating Grok button', native: true },
+        { key: 'hideDmDrawer', type: 'bool', def: false, label: 'Hide the floating Chat / Messages button', native: true },
         { key: 'navFont', type: 'select', def: 'default', label: 'Sidebar font weight', native: true, options: [['default', 'X\u2019s default (bold)'], ['normal', 'Normal']] },
         { key: 'navDensity', type: 'select', def: 'default', label: 'Sidebar spacing', native: true, options: [['compact', 'Compact'], ['default', 'X\u2019s default'], ['comfortable', 'Roomy']] },
         nav('hideVerifiedTabs', 'Hide the \u201cVerified\u201d tabs in Notifications and Followers'),
@@ -83,7 +83,6 @@ var XMCSettings = (function () {
     {
       id: 'look', title: 'Look', items: [
         { key: 'branding', type: 'select', def: 'twitter', label: 'Name and logo', native: true, options: [['twitter', 'Twitter (bird logo, “Tweet”, “Retweet”)'], ['x', 'X (as X ships it)']] },
-        { key: 'cardOutline', type: 'bool', def: false, label: 'Outline around each post in the columns', help: 'Off by default. Makes the edges of each post clearer, especially on busy backgrounds.' },
         { key: 'customCss', type: 'textarea', def: '', label: 'Custom CSS', help: 'Added to every x.com page.', native: true },
       ],
     },
@@ -93,13 +92,9 @@ var XMCSettings = (function () {
         { key: 'dlAsk', type: 'bool', def: false, label: 'Ask me where to save each file', help: 'Opens your computer\u2019s save dialog every time, so you can choose Pictures, Videos, Documents\u2026 anywhere.' },
         { key: 'dlByAccount', type: 'bool', def: false, label: 'Also put each account’s media in its own folder' },
         { key: 'dlPattern', type: 'text', def: '{account}-{tweetId}-{serial}', label: 'File name pattern',
-          help: 'Tokens: {account} {name} {tweetId} {serial} {hash} {date} {time} {datetime}. The ending (.jpg, .mp4…) is added for you.' },
-        { key: 'dlSuffix', type: 'text', def: 'twitter', label: 'Add this to the end of every file name', help: 'So you can tell where a file came from, e.g. user-123-1-twitter.jpg. Leave empty for nothing.' },
+          help: 'Tokens: {account} {name} {tweetId} {serial} {hash} {date} {time} {datetime}.' },
+        { key: 'dlSuffix', type: 'text', def: 'twitter', label: 'Add this to the end of every file name', hidden: true }, // kept ("-twitter" at the end of file names), not shown
         { key: 'dlHistory', type: 'bool', def: true, label: 'Remember what I’ve downloaded', help: 'Marks the button on posts you have already saved.' },
-        { key: 'aria2Enabled', type: 'bool', def: false, label: 'Send downloads to aria2 instead of the browser' },
-        { key: 'aria2Url', type: 'text', def: 'http://localhost:6800/jsonrpc', label: 'aria2 RPC address' },
-        { key: 'aria2Token', type: 'text', def: '', label: 'aria2 RPC secret (optional)' },
-        { key: 'aria2Dir', type: 'text', def: '', label: 'aria2: save into this folder (full path)', help: 'aria2 can save anywhere on your computer, e.g. /home/me/Pictures/X or C:\\Users\\me\\Pictures\\X. Empty = aria2\u2019s own folder.' },
       ],
     },
   ];

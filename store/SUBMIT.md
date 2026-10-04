@@ -48,6 +48,6 @@ Note: an unlisted add-on does not update itself. After the public listing is app
 
 ## 6. Questions reviewers tend to ask (answers are already in the notes to reviewer)
 - Why a script in the page's own world (`world: "MAIN"`)? To receive a copy of the JSON x.com already downloads. It changes nothing.
-- Why `history.pushState` / `popstate`? To show a post's comments: x.com's own page is taken to the post and straight back.
-- Why `downloads`? The Download button (only X's media hosts are accepted). Why localhost? Optional aria2 hand-off, asked only when switched on.
+- How are comments loaded? x.com's own link to the post is clicked on its hidden copy of the timeline, the conversation is read from the JSON x.com downloads, and the page goes straight back.
+- Why `downloads`? The Download button (only X's media hosts are accepted).
 - Any remote code, analytics, obfuscation? None.

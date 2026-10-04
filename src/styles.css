@@ -352,9 +352,6 @@ html.xmc-on [data-testid="sidebarColumn"] [style*="sticky"] { position: static !
   .xmc-spin { animation-duration: 2.4s; }
 }
 
-/* optional outline round every post (Look > Outline around each post) */
-html.xmc-cardOutline .xmc-card { border-color: color-mix(in srgb, var(--xmc-fg) 28%, transparent); }
-
 /* While X's page is being driven (or rebuilds its sidebars), a sidebar that isn't ours yet must not show where X put it */
 html.xmc-on.xmc-pinside [data-testid="sidebarColumn"]:not([data-xmc-style]) { visibility: hidden !important; }
 html.xmc-on.xmc-pinnav header[role="banner"]:not([data-xmc-style]) { visibility: hidden !important; }

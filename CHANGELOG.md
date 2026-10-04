@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.8
+- Settings page cleaned up: shorter descriptions, no section intros except Navigation & sidebar, no footer line.
+- Removed: the post-outline option, the aria2 download hand-off (and the localhost permission it needed), and the file-name tag box
+  (files still end in `-twitter`).
+- Removed the unused shortcut to a post's page for comments (X ignored it).
+
 ## 0.8.7
 - **Right sidebar and the floating Grok / Chat buttons no longer collide.** The sidebar now stops above the buttons (room is kept only for the ones
   that are switched on), so they sit under it like a footer. Anything inside X's sidebar that X shifts as the page scrolls is held still,

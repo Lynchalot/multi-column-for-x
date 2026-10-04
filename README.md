@@ -33,9 +33,8 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
 - **Downloads** — original-size photos and the best video quality, saved into an **`X` folder inside Downloads** as
   `account-postnumber-1-twitter.jpg`, so you can always tell where a file came from. A browser extension can't write outside the
   browser's download folder, so for Pictures / Videos / Documents tick **Ask me where to save each file** (Firefox's own dialog,
-  which remembers the last place), or use aria2 with a full folder path. Settings: the folder, "own folder per account", the file-name pattern (`{account} {name} {tweetId} {serial} {hash} {date} {time} {datetime}`),
-  the source tag (change it or leave it empty), a live example of the result, a history that marks what you've saved, and
-  optional hand-off to aria2.
+  which remembers the last place). Settings: the folder, "own folder per account", the file-name pattern
+  (`{account} {name} {tweetId} {serial} {hash} {date} {time} {datetime}`), a live example of the result, and a history that marks what you've saved.
 - **One scrollbar** — X's own page scrollbar is hidden while columns are showing (the page itself still scrolls behind the scenes,
   which is how the extension makes X load more). The columns take keyboard focus, which helps Vimium-style scrolling.
 

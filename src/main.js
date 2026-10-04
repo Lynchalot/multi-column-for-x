@@ -111,7 +111,6 @@
     sub: {},                  // route|tab -> the item picked from that tab's dropdown (Videos/Photos, Popular/Recent...), lower case
     byId: new Map(),          // post id -> post, for every post seen (so buttons on X's own pages know a post's media)
     menuTabs: new Set(),      // route|tab that turned out to have a dropdown
-    fastPeek: false,          // pushState+popstate straight to a post: X's router ignored it on a real page (set true in the console to experiment)
   };
   function remember(list) {
     for (const t of list) { if (t && t.id) { state.byId.delete(t.id); state.byId.set(t.id, t); } }
@@ -850,7 +849,7 @@
       feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0] + (f.key.includes('#') ? '#' + f.key.split('#').pop() : ''), posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
       commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, lastTranslation: state.trTrace || null,
-      tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, fastComments: state.fastPeek !== false, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
+      tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       mode: { walkOnly: !!state.walkOnly, tickMsAverage: Math.round(tickTimes.reduce((a, b) => a + b, 0) / Math.max(1, tickTimes.length)), tickMsWorst: Math.round(Math.max(0, ...tickTimes)) },
     }, null, 2);
   }
@@ -1065,20 +1064,6 @@
     state.proxyUntil = Date.now() + 40000;
     freezeSidebar();
     try {
-      // Fast way (off by default, see state.fastPeek): go to the post's page the way X's own router follows the back button.
-      // If X doesn't react, undo it and do it the slow way.
-      if (state.fastPeek === true) {
-        const was = location.pathname;
-        try {
-          window.history.pushState({ key: 'xmc' + Math.random().toString(36).slice(2, 8) }, '', t.url);
-          window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
-        } catch { /* fall through to the slow way */ }
-        const quick = await waitFor(() => state.peek && state.peek.replies, 3500);
-        if (quick) { state.fastFails = 0; return { data: quick, translation: opts.translate ? await translateOnPage(t) : '' }; }
-        state.fastFails = (state.fastFails || 0) + 1;
-        if (state.fastFails >= 2) state.fastPeek = false; // X ignores it: stop trying for this page load
-        if (location.pathname !== was) { window.history.back(); await waitFor(() => location.pathname === was, 3000); }
-      }
       const art = await realArticle(t);
       if (!art) return { why: 'Couldn\u2019t find this post on X\u2019s side (it may have scrolled out of X\u2019s list).' };
       const link = timeLinkOf(art, t.id);
@@ -1314,8 +1299,7 @@
     try {
       if (ext && ext.runtime && ext.runtime.sendMessage) {
         const res = await ext.runtime.sendMessage({
-          type: 'xmc-download', files, via: settings.aria2Enabled ? 'aria2' : 'browser', saveAs: !!settings.dlAsk,
-          aria2: { url: settings.aria2Url, token: settings.aria2Token, dir: settings.aria2Dir },
+          type: 'xmc-download', files, saveAs: !!settings.dlAsk,
         });
         if (!res || !res.ok) throw new Error((res && res.error) || 'download failed');
       } else { // plain-page fallback (tests)

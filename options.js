@@ -28,12 +28,7 @@
     let el;
     if (it.type === 'bool') {
       el = h('input', { type: 'checkbox', id, checked: !!settings[it.key] });
-      el.addEventListener('change', async () => {
-        if (it.key === 'aria2Enabled' && el.checked && ext && ext.permissions) { // needs access to localhost
-          let ok = false;
-          try { ok = await ext.permissions.request({ origins: ['http://localhost/*', 'http://127.0.0.1/*'] }); } catch { /* denied */ }
-          if (!ok) { el.checked = false; say('aria2 needs permission to talk to localhost.'); return; }
-        }
+      el.addEventListener('change', () => {
         persist({ [it.key]: el.checked });
       });
     } else if (it.type === 'select') {
@@ -115,6 +110,7 @@
       section.append(h('h2', { textContent: sec.title }));
       if (sec.blurb) section.append(h('p', { className: 'blurb', textContent: sec.blurb }));
       for (const it of sec.items) {
+        if (it.hidden) continue; // kept as a setting, not offered
         const c = control(it);
         const label = h('label', { className: 'name', htmlFor: 'opt-' + it.key, textContent: it.label },
           it.native ? h('span', { className: 'native-tag', title: 'Restyles X’s own pages, so it depends on X’s current layout', textContent: 'X page' }) : null);
