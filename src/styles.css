@@ -304,10 +304,6 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
 /* translation */
 .xmc-translate { appearance: none; border: 0; background: none; color: var(--xmc-accent); font: inherit; font-size: 14px; padding: 0 0 8px; cursor: pointer; display: block; }
 .xmc-translate:hover { text-decoration: underline; }
-.xmc-trans { margin: 0 0 6px; }
-.xmc-trans[hidden], .xmc-text[hidden] { display: none; }
-.xmc-translabel { appearance: none; border: 0; background: none; padding: 4px 0 0; font: inherit; font-size: 13px; color: var(--xmc-muted); cursor: pointer; display: block; }
-.xmc-translabel:hover { text-decoration: underline; }
 
 /* waiting for more posts while a column has blank space on screen: keep the spinner where you can see it */
 .xmc-loader.xmc-sticky { position: sticky; bottom: 16px; margin: 0 auto; width: max-content; max-width: calc(100% - 24px); padding: 11px 20px; gap: 10px;
@@ -358,9 +354,5 @@ html.xmc-on.xmc-pinnav header[role="banner"]:not([data-xmc-style]) { visibility:
 /* the still copy of the sidebar is showing: no real sidebar (including one X has just built) may show through */
 html.xmc-frozen [data-testid="sidebarColumn"] { visibility: hidden !important; }
 
-/* a note that stays on the post when a translation fails */
-.xmc-transnote { font-size: 12px; padding: 0 0 8px; }
-.xmc-linkbtn { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: var(--xmc-accent); cursor: pointer; }
-.xmc-linkbtn:hover { text-decoration: underline; }
 html.xmc-on [data-testid="sidebarColumn"] [style*="translate"] { transform: none !important; }
 html.xmc-on [data-testid="sidebarColumn"] { overscroll-behavior: contain; }

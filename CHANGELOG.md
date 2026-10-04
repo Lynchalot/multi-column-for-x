@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.2
+- **Translate post now opens the post** (in a new tab by default, or in place if you chose that), where X translates it itself. Translating inside the columns
+  was unreliable, so it is gone, along with the "translate automatically" option. Less running on X's hidden side as well.
+
 ## 0.9.1
 - **Right sidebar stays put.** Your recordings showed its contents vanishing for seconds and jumping down while you scroll fast: X moves the
   sidebar's wrappers (sticky, fixed, offsets, transforms) in step with the hidden page's scroll. They are now held still the moment X touches them.

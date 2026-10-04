@@ -417,12 +417,7 @@
       const long = textLength(t.segs) > 420;
       card.append(h('div', { className: 'xmc-text' + (long ? ' clamp' : '') }, renderSegs(t.segs)));
       if (long) card.append(h('button', { className: 'xmc-more', type: 'button', textContent: 'Show more' }));
-      if (needsTranslation(t)) {
-        const tb = h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post' });
-        card.append(tb);
-        if (t.translation) queueMicrotask(() => showTranslation(t, card));
-        else if (settings.autoTranslate) translateObserver.observe(tb);
-      }
+      if (needsTranslation(t)) card.append(h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Opens the post, where X can translate it' }));
     }
     if (t.media.length) card.append(renderMedia(t));
     if (t.card) card.append(renderLinkCard(t.card));
@@ -877,7 +872,7 @@
       requestsSeen: state.seenOps,
       feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0] + (f.key.includes('#') ? '#' + f.key.split('#').pop() : ''), posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
-      commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, lastTranslation: state.trTrace || null, tabMenuTrace: state.tabTrace || [],
+      commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [],
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       mode: { walkOnly: !!state.walkOnly, tickMsAverage: Math.round(tickTimes.reduce((a, b) => a + b, 0) / Math.max(1, tickTimes.length)), tickMsWorst: Math.round(Math.max(0, ...tickTimes)) },
     }, null, 2);
@@ -1021,12 +1016,12 @@
   function loadReplies(t, opts) {
     opts = opts || {};
     const cached = state.details.get(t.id);
-    if (cached && !opts.translate) return Promise.resolve({ data: cached });
+    if (cached) return Promise.resolve({ data: cached });
     repliesWaiting++;
     const run = replyQueue.then(async () => {
       repliesWaiting--;
       const again = state.details.get(t.id); // an earlier request for the same post may have fetched it meanwhile
-      if (again && !opts.translate) return { data: again };
+      if (again) return { data: again };
       if (opts.wanted && !opts.wanted()) return { why: 'Closed before it loaded.' };
       if (opts.onStart) opts.onStart();
       await waitFor(() => !state.posting, 15000);
@@ -1037,59 +1032,6 @@
     });
     replyQueue = run.catch(() => {});
     return run;
-  }
-  // Press X's "Translate post" on its own copy of a post and read what it turns the text into. Used on the post's own page
-  // (where the post is the one with our post number, or the one marked tabindex -1) and, as a second try, in X's timeline.
-  // Every step is noted in state.trTrace so a failure says where it stopped.
-  const addTrace = (tr) => { state.trTrace = (state.trTrace || []).filter((x) => x.id === tr.id || Date.now() - (x.at || 0) < 60000).slice(-3); tr.at = Date.now(); state.trTrace.push(tr); };
-  const tweetTexts = (art) => [...art.querySelectorAll('[data-testid="tweetText"]')];
-  const textsOf = (art) => tweetTexts(art).map((n) => n.textContent.trim()).join('\n');
-  // X's own wording for the control: "Translate post", and "Show translation" (what a real post page offered)
-  const TRANSLATE_WORDS = /^(translate\b|show translation\b)/i;
-  function findTranslateControl(art) {
-    for (const el of art.querySelectorAll('div, span, button, a')) {
-      if (el.closest('[data-testid="tweetText"]')) continue; // the post's own words may start with "Translate"
-      const own = (el.textContent || '').trim();
-      if (own.length > 40 || !TRANSLATE_WORDS.test(own)) continue;
-      if ([...el.children].some((c) => TRANSLATE_WORDS.test((c.textContent || '').trim()))) continue; // the innermost one
-      return el.closest('[role="button"], button, a') || el;
-    }
-    return null;
-  }
-  // the labels of the post's buttons (interface words only, nothing from people), so a failure can say what X did offer
-  const buttonLabels = (art) => [...art.querySelectorAll('button, [role="button"]')]
-    .map((b) => (b.getAttribute('aria-label') || b.textContent || '').trim().replace(/\s+/g, ' '))
-    .filter((x) => x && x.length <= 30 && !x.includes('@')).slice(0, 14);
-  async function pressTranslate(art, trace, wait) {
-    const before = textsOf(art);
-    const already = [...art.querySelectorAll('div, span, button, a')].find((el) => !el.closest('[data-testid="tweetText"]') && /^show original\b/i.test((el.textContent || '').trim()) && (el.textContent || '').trim().length <= 30);
-    if (already) { trace.step = 'ok'; trace.note = 'X had already translated it'; return before.split('\n')[0]; } // X translated it by itself: what is shown is the translation
-    const link = await waitFor(() => findTranslateControl(art), wait || 6000);
-    if (!link) { trace.step = 'no Translate link on the post'; trace.buttons = buttonLabels(art); trace.textLength = before.length; return ''; }
-    fire(link);
-    let changed = await waitFor(() => { const now = textsOf(art); return now && now !== before ? now : ''; }, 2500);
-    if (!changed) { link.click(); changed = await waitFor(() => { const now = textsOf(art); return now && now !== before ? now : ''; }, 4500); } // a plain click as a second try
-    if (!changed) { trace.step = 'pressed Translate but the text never changed'; return ''; }
-    trace.step = 'ok';
-    // the translation replaces the text (or sits beside it): take the text that is not what we started with
-    const fresh = tweetTexts(art).map((n) => n.textContent.trim()).filter((x) => x && !before.split('\n').includes(x));
-    return (fresh[0] || changed.split('\n')[0] || '').trim();
-  }
-  async function translateOnPage(t) {
-    const trace = { id: t.id, via: 'post page', step: 'no post on the page', lang: t.lang };
-    addTrace(trace);
-    const art = await waitFor(() => articles().find((a) => articleId(a) === t.id) || document.querySelector('article[data-testid="tweet"][tabindex="-1"]')
-      || (onPostPage() ? document.querySelector('[data-testid="primaryColumn"] article[data-testid="tweet"]') : null), 8000);
-    return art ? pressTranslate(art, trace, 6000) : '';
-  }
-  async function translateInTimeline(t) {
-    const trace = { id: t.id, via: 'timeline', step: 'could not bring the post up', lang: t.lang };
-    addTrace(trace);
-    try {
-      const art = await realArticle(t);
-      if (!art) { const f = activeFeed(); Object.assign(trace, { indexed: !!(f && f.index.has(t.id)), mountedByX: articles().length, hiddenScrollY: Math.round(window.scrollY) }); return ''; }
-      return await pressTranslate(art, trace, 4000);
-    } finally { settleProxy(); }
   }
   async function fetchReplies(t, opts) {
     opts = opts || {};
@@ -1106,7 +1048,7 @@
       await waitFor(() => location.pathname !== before || state.peek.replies, 3000);
       if (!state.peek.replies && location.pathname === before) { link.click(); await waitFor(() => location.pathname !== before || state.peek.replies, 2500); } // a plain click as a second try
       const got = await waitFor(() => state.peek && state.peek.replies, 9000);
-      if (got) return { data: got, translation: opts.translate ? await translateOnPage(t) : '' };
+      if (got) return { data: got };
       return { why: location.pathname === before
         ? 'X didn\u2019t open the post when asked to.'
         : 'X opened the post but sent no comments. Requests seen: ' + Object.keys(state.seenOps).join(', ') };
@@ -1389,88 +1331,10 @@
   }
 
   // ---------- translation ----------
-  // X translates a post when you press its "Translate post" link. We press it on X's own copy of the post, out of sight,
-  // and show the result under the original. (Only works when X offers it, and the link is matched by its English wording.)
+  // Posts in another language get a "Translate post" button. It opens the post, where X translates it itself
+  // (translating inside the columns kept failing: X offers the control only on the post's own page).
   const uiLang = () => String(document.documentElement.lang || navigator.language || 'en').slice(0, 2).toLowerCase();
   const needsTranslation = (t) => !!t.lang && !/^(und|qme|qht|qam|qst|zxx|art)$/.test(t.lang) && t.lang.slice(0, 2).toLowerCase() !== uiLang();
-  const langName = (code) => { try { return new Intl.DisplayNames([uiLang()], { type: 'language' }).of(code) || code; } catch { return code.toUpperCase(); } };
-  // The translation replaces the post's text, as on X, with a line to get the original back.
-  function showTranslation(t, cardEl) {
-    const textEl = cardEl.querySelector(':scope > .xmc-text');
-    const button = cardEl.querySelector('.xmc-translate');
-    if (button) button.remove();
-    if (!textEl || cardEl.querySelector('.xmc-trans')) return;
-    const box = h('div', { className: 'xmc-trans' },
-      h('div', { className: 'xmc-text', textContent: t.translation }),
-      h('button', { className: 'xmc-translabel', type: 'button', textContent: 'Translated from ' + langName(t.lang) + ' \u00b7 Show original' }));
-    textEl.before(box);
-    textEl.hidden = true;
-    const more = cardEl.querySelector('.xmc-more'); if (more) more.hidden = true;
-  }
-  function toggleTranslation(cardEl, label) {
-    const textEl = cardEl.querySelector(':scope > .xmc-text'), box = cardEl.querySelector('.xmc-trans');
-    const t = tweetOf.get(cardEl);
-    if (!textEl || !box || !t) return;
-    const wasOriginal = !textEl.hidden;
-    textEl.hidden = wasOriginal;               // original shown -> hide it and show the translation
-    box.firstChild.hidden = !wasOriginal;
-    label.textContent = wasOriginal ? 'Translated from ' + langName(t.lang) + ' \u00b7 Show original' : 'Show translation';
-  }
-  async function translatePost(t, cardEl, button) {
-    button.disabled = true; button.textContent = 'Translating...';
-    t.transBusy = true;
-    let res = null;
-    try {
-      res = t.translation ? { translation: t.translation } : await loadReplies(t, { translate: true });
-      if (!res || !res.translation) { // the post's own page gave nothing: try X's copy of the post in its timeline
-        const tx = await translateInTimeline(t);
-        if (tx) res = { translation: tx };
-      }
-    } finally { t.transBusy = false; button.disabled = false; }
-    cardEl.querySelector('.xmc-transnote')?.remove();
-    if (!res || !res.translation) {
-      button.textContent = 'Translate post';
-      const last = (state.trTrace || []).filter((x) => x.id === t.id).map((x) => x.via + ': ' + x.step).join('; ');
-      // a note that stays on the card (a toast was gone before it could be read)
-      button.after(h('div', { className: 'xmc-dim xmc-transnote' }, 'X didn\u2019t translate this post' + (last ? ' (' + last + ')' : '') + '. ',
-        h('button', { className: 'xmc-linkbtn', type: 'button', textContent: 'Copy diagnostics', onclick: () => copyDiagnostics() })));
-      return;
-    }
-    t.translation = res.translation;
-    showTranslation(t, cardEl);
-  }
-
-  // Automatically, like X: translate posts in other languages once they've been on screen for a moment, one at a time
-  // and not while comments are loading (each one is two quick requests on X's hidden side, so it is paced).
-  const autoPending = new Set();
-  const autoLog = [];
-  let autoLast = 0;
-  const translateObserver = new IntersectionObserver((entries) => {
-    for (const en of entries) {
-      const card = en.target.closest('.xmc-card'), t = card && tweetOf.get(card);
-      if (!t) continue;
-      if (en.intersectionRatio >= 0.5) { if (!t.visibleSince) t.visibleSince = Date.now(); autoPending.add(t); }
-      else { t.visibleSince = 0; autoPending.delete(t); }
-    }
-  }, { threshold: [0, 0.5] });
-  function autoTranslateTick() {
-    if (!settings.autoTranslate || !autoPending.size) return;
-    const now = Date.now();
-    if (state.peek || repliesWaiting || state.posting || state.fail || now < state.proxyUntil || now - autoLast < 3500 || now - lastScrollAt < 1200) return; // reading, not scrolling
-    while (autoLog.length && now - autoLog[0] > 60000) autoLog.shift();
-    if (autoLog.length >= 8) return; // at most eight a minute
-    const t = [...autoPending].find((x) => x.visibleSince && now - x.visibleSince > 700 && !x.translation && !x.transBusy && (x.transTries || 0) < 2 && x.el && x.el.isConnected);
-    if (!t) return;
-    autoLast = now; autoLog.push(now);
-    t.transBusy = true;
-    const btn = t.el.querySelector('.xmc-translate');
-    if (btn) btn.textContent = 'Translating...';
-    loadReplies(t, { translate: true, wanted: () => !!(t.el && t.el.isConnected) }).then((res) => {
-      t.transBusy = false;
-      if (res && res.translation) { t.translation = res.translation; autoPending.delete(t); if (t.el) showTranslation(t, t.el); }
-      else { t.transTries = (t.transTries || 0) + 1; if (t.transTries >= 2) autoPending.delete(t); const b = t.el && t.el.querySelector('.xmc-translate'); if (b) b.textContent = 'Translate post'; }
-    });
-  }
 
   // ---------- clicks on cards ----------
   async function copyLink(t) {
@@ -1536,10 +1400,7 @@
     if (actBtn) { e.preventDefault(); e.stopPropagation(); act(t, actBtn.dataset.act, actBtn); return; }
     if (e.target.closest('.xmc-rclose')) { const p = cardEl.querySelector('.xmc-replies'); if (p) p.remove(); updateActions(t); return; }
     if (e.target.closest('.xmc-replies')) return; // links inside comments open normally (new tab); clicking text doesn't open the post
-    const tr = e.target.closest('.xmc-translate');
-    if (tr) { e.preventDefault(); translatePost(t, cardEl, tr); return; }
-    const tl = e.target.closest('.xmc-translabel');
-    if (tl) { e.preventDefault(); toggleTranslation(cardEl, tl); return; }
+    if (e.target.closest('.xmc-translate')) { e.preventDefault(); navigate(t.url, t); return; }
     const reveal = e.target.closest('.xmc-reveal');
     if (reveal) { reveal.parentElement.classList.remove('sensitive'); reveal.remove(); return; }
     const more = e.target.closest('.xmc-more');
@@ -2077,7 +1938,7 @@
       state.route = route; state.routeSince = Date.now(); state.waitingPage = false; state.waitSince = 0;
       state.awaiting = null; state.refreshing = null; lastSig = ''; state.sub = {}; applyBar(); // X resets its dropdowns on a new page
     }
-    if (tickN % 5 === 2) { guard('auto translate', autoTranslateTick); guard('hidden videos', stopHiddenVideos); }
+    if (tickN % 5 === 2) guard('hidden videos', stopHiddenVideos);
     if (tickN++ % 5 === 0) {
       guard('position', position);
       guard('tabs', syncTabs);
@@ -2098,7 +1959,7 @@
     if (tickN % 5 === 1) { state.xNewPill = where() === 'home' && !!findNewPostsPill(); guard('park', () => parkAtTop(f)); }
   }
 
-  window.__xmc = { state, settings, view, diagnostics, autoPending, downloads: () => savedDownloads }; // for debugging from the console
+  window.__xmc = { state, settings, view, diagnostics, downloads: () => savedDownloads }; // for debugging from the console
 
   loadAll().then(() => {
     ready = true;

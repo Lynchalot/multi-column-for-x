@@ -25,7 +25,7 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
   thread**: the extension types it into X's own reply box out of sight and presses Send, exactly as you would. If any step fails,
   X's reply box is left open with your text for you to finish.
 - **Video and GIFs play in the card.** Photos open in a viewer (arrows, **Esc** closes it) with **Download** and **Copy link** buttons.
-  Posts in other languages get a **Translate post** button (X's own translation); automatic translation is an option in Posts. **NSFW** button in the top bar:
+  Posts in other languages get a **Translate post** button that opens the post, where X translates it. **NSFW** button in the top bar:
   blur → show → hide those posts.
 - **X's own sidebars are kept** (left nav, right search/trends), or hide the right one in settings. The floating Grok and
   Chat buttons stay, side by side in the corner. Hide any sidebar item (Creator Studio, Chat, Grok…) —

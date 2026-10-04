@@ -63,7 +63,6 @@ var XMCSettings = (function () {
         { key: 'showSource', type: 'bool', def: false, label: 'Show which app a post was sent from' },
         { key: 'nsfw', type: 'select', def: 'blur', label: 'Sensitive media', options: [['blur', 'Blur until I click'], ['show', 'Show'], ['hide', 'Hide those posts']] },
         { key: 'autoplayVideo', type: 'select', def: 'off', label: 'Videos', options: [['off', 'Play when I click'], ['muted', 'Autoplay muted while on screen']] },
-        { key: 'autoTranslate', type: 'bool', def: false, label: 'Translate posts in other languages automatically' },
         { key: 'openIn', type: 'select', def: 'newtab', label: 'Open posts and profiles', options: [['newtab', 'In a new tab (you keep your place here)'], ['sametab', 'In this tab']] },
         { key: 'commentSort', type: 'select', def: 'relevant', label: 'Order comments by', options: [['relevant', 'Relevant (as X ranks them)'], ['recent', 'Most recent'], ['likes', 'Most liked']] },
         { key: 'systemFont', type: 'bool', def: false, label: 'Use my system font instead of X’s Chirp font' },
