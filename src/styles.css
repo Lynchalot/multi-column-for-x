@@ -1,0 +1,302 @@
+/* Multi-Column for X */
+html.xmc-on [data-testid="primaryColumn"] { opacity: 0 !important; pointer-events: none !important; }
+/* while we click X's repost menu for you, keep it from flashing on screen */
+html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important; }
+
+#xmc-root {
+  --xmc-muted: color-mix(in srgb, var(--xmc-fg) 58%, transparent);
+  --xmc-border: color-mix(in srgb, var(--xmc-fg) 16%, transparent);
+  --xmc-hover: color-mix(in srgb, var(--xmc-fg) 7%, transparent);
+  --xmc-accent: #1d9bf0;
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column;
+  background: var(--xmc-bg); color: var(--xmc-fg);
+}
+#xmc-root[hidden], #xmc-fab[hidden], #xmc-toast[hidden], #xmc-root [hidden] { display: none !important; }
+/* photo viewer / compose modal open: get out of its way, keeping scroll position and cards */
+
+/* ---- top bar ---- */
+.xmc-bar { display: flex; align-items: center; gap: 2px; padding: 6px 12px; flex: none;
+  border-bottom: 1px solid var(--xmc-border); overflow-x: auto; scrollbar-width: none; }
+.xmc-bar button { appearance: none; border: 0; background: none; color: inherit; font: inherit; font-size: 16px;
+  font-weight: 500; cursor: pointer; padding: 8px 14px; border-radius: 999px; white-space: nowrap; }
+.xmc-bar button:hover { background: var(--xmc-hover); }
+.xmc-bar button.on { font-weight: 700; background: var(--xmc-hover); }
+.xmc-bar .xmc-chip { font-size: 14px; padding: 6px 11px; }
+.xmc-bar .xmc-chip.on { background: var(--xmc-accent); color: #fff; }
+.xmc-gear { display: inline-flex; align-items: center; padding: 8px 10px !important; }
+.xmc-gear svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-spacer { flex: 1; min-width: 12px; }
+.xmc-count { font-size: 13px; color: var(--xmc-muted); min-width: 44px; text-align: center; white-space: nowrap; }
+
+
+/* ---- columns ---- */
+.xmc-scroller { flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.xmc-cols { display: flex; gap: 12px; align-items: flex-start; padding: 12px; }
+.xmc-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.xmc-status { padding: 40px 12px; text-align: center; color: var(--xmc-muted); }
+
+/* ---- cards ---- */
+.xmc-card { position: relative; border: 1px solid var(--xmc-border); border-radius: 16px; padding: 12px 14px 4px; cursor: pointer;
+  content-visibility: auto; contain-intrinsic-size: auto 420px; font-size: 15px; line-height: 1.35; }
+.xmc-card:hover { background: var(--xmc-hover); }
+.xmc-card a { color: inherit; text-decoration: none; }
+.xmc-ctx { display: flex; align-items: center; gap: 6px; margin: -2px 0 6px 50px; font-size: 13px; font-weight: 700; color: var(--xmc-muted); }
+.xmc-ctx svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-head { display: flex; align-items: center; gap: 10px; }
+.xmc-avatar img { display: block; width: 40px; height: 40px; border-radius: 50%; background: var(--xmc-hover); object-fit: cover; }
+.xmc-who { min-width: 0; line-height: 1.25; }
+.xmc-name { display: flex; align-items: center; gap: 4px; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.xmc-name:hover { text-decoration: underline; }
+.xmc-sub, .xmc-dim { color: var(--xmc-muted); }
+.xmc-sub { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.xmc-time:hover { text-decoration: underline !important; }
+.xmc-badge { display: inline-flex; width: 16px; height: 16px; border-radius: 50%; background: var(--xmc-accent); color: #fff; align-items: center; justify-content: center; flex: none; }
+.xmc-badge svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-reply { font-size: 13px; margin-top: 8px; }
+.xmc-text { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.xmc-text a { color: var(--xmc-accent); }
+.xmc-text a:hover { text-decoration: underline; }
+.xmc-text.clamp { max-height: 14em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 75%, transparent); mask-image: linear-gradient(#000 75%, transparent); }
+.xmc-more { appearance: none; border: 0; background: none; color: var(--xmc-accent); font: inherit; padding: 0 0 6px; cursor: pointer; }
+
+/* ---- media ---- */
+.xmc-media { margin: 8px 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--xmc-border); background: #000; }
+.xmc-media.single > img, .xmc-media.single > .xmc-video { display: block; width: 100%; height: 100%; }
+.xmc-media.single > img, .xmc-media.single video { object-fit: cover; }
+.xmc-media.grid { display: grid; gap: 2px; aspect-ratio: 16 / 9; }
+.xmc-media.n2 { grid-template-columns: 1fr 1fr; }
+.xmc-media.n3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.xmc-media.n3 > :first-child { grid-row: span 2; }
+.xmc-media.n4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.xmc-media.grid > img, .xmc-media.grid video, .xmc-media.grid .xmc-video { width: 100%; height: 100%; min-height: 0; object-fit: cover; display: block; }
+.xmc-media img[data-lb] { cursor: zoom-in; }
+.xmc-video { position: relative; background: #000; }
+.xmc-video video { display: block; width: 100%; height: 100%; background: #000; }
+.xmc-gif { position: absolute; left: 8px; bottom: 8px; padding: 1px 6px; font-size: 11px; font-weight: 700; border-radius: 4px; background: rgba(0, 0, 0, .7); color: #fff; pointer-events: none; }
+.xmc-novideo { position: relative; display: block; }
+.xmc-novideo img { display: block; width: 100%; opacity: .6; }
+.xmc-novideo span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; }
+
+/* ---- link card / quote ---- */
+.xmc-link, .xmc-quote { display: block; margin: 8px 0; border: 1px solid var(--xmc-border); border-radius: 14px; overflow: hidden; }
+.xmc-link:hover, .xmc-quote:hover { background: var(--xmc-hover); }
+.xmc-link img { display: block; width: 100%; aspect-ratio: 1.91 / 1; object-fit: cover; background: var(--xmc-hover); }
+.xmc-linkmeta { padding: 8px 12px 10px; font-size: 14px; }
+.xmc-linktitle { font-weight: 600; }
+.xmc-quote { padding: 10px 12px; }
+.xmc-qhead { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.xmc-qava { width: 20px; height: 20px; border-radius: 50%; }
+.xmc-qtext { font-size: 14px; max-height: 8.4em; overflow: hidden; margin: 6px 0 0; }
+.xmc-qmedia { display: block; width: 100%; margin-top: 8px; border-radius: 10px; max-height: 220px; object-fit: cover; }
+
+/* ---- action row ---- */
+.xmc-actions { display: flex; align-items: center; justify-content: space-between; margin: 2px -8px 0; }
+.xmc-act { appearance: none; border: 0; background: none; color: var(--xmc-muted); display: inline-flex; align-items: center; gap: 5px;
+  padding: 8px; border-radius: 999px; font: inherit; font-size: 13px; cursor: pointer; }
+.xmc-act svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-act:hover { background: color-mix(in srgb, var(--xmc-accent) 14%, transparent); color: var(--xmc-accent); }
+.xmc-act[data-act=repost]:hover, .xmc-act[data-act=repost].on { color: #00ba7c; }
+.xmc-act[data-act=repost]:hover { background: rgba(0, 186, 124, .12); }
+.xmc-act[data-act=like]:hover, .xmc-act[data-act=like].on { color: #f91880; }
+.xmc-act[data-act=like]:hover { background: rgba(249, 24, 128, .12); }
+.xmc-act[data-act=like].on svg, .xmc-act[data-act=bookmark].on svg { fill: currentColor; }
+.xmc-act[data-act=bookmark].on { color: var(--xmc-accent); }
+.xmc-views { color: var(--xmc-muted); font-size: 13px; padding-right: 8px; }
+.xmc-nocounts .xmc-n { display: none; }
+
+/* ---- repost menu, toast, viewer ---- */
+.xmc-menu { position: absolute; z-index: 4; width: 180px; padding: 6px; display: flex; flex-direction: column;
+  background: var(--xmc-bg); border: 1px solid var(--xmc-border); border-radius: 12px; box-shadow: 0 8px 28px rgba(0, 0, 0, .4); }
+.xmc-menu button { appearance: none; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: left; padding: 10px 12px; border-radius: 8px; cursor: pointer; }
+.xmc-menu button:hover { background: var(--xmc-hover); }
+#xmc-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 50; padding: 10px 16px; border-radius: 10px;
+  background: var(--xmc-accent, #1d9bf0); color: #fff; font: 600 14px system-ui, sans-serif; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
+#xmc-fab { position: fixed; right: 16px; bottom: 16px; z-index: 5; padding: 10px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(127, 127, 127, .4); background: var(--xmc-bg); color: var(--xmc-fg); font: 500 14px system-ui, sans-serif; }
+#xmc-lightbox { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .92); cursor: zoom-out; }
+#xmc-lightbox img { max-width: 94vw; max-height: 94vh; object-fit: contain; cursor: default; }
+#xmc-lightbox button { appearance: none; border: 0; cursor: pointer; color: #fff; background: rgba(255, 255, 255, .14); width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; position: absolute; }
+#xmc-lightbox button:hover { background: rgba(255, 255, 255, .28); }
+#xmc-lightbox svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-lb-close { top: 16px; right: 16px; }
+.xmc-lb-nav { top: 50%; margin-top: -22px; }
+.xmc-lb-nav.prev { left: 16px; } .xmc-lb-nav.next { right: 16px; }
+#xmc-lightbox [hidden] { display: none !important; }
+
+/* =====================================================================
+   Settings-driven tweaks. Each html.xmc-<name> class is switched by site.js.
+   Rules marked (X) restyle X's own pages and depend on X's current markup.
+   ===================================================================== */
+
+
+/* ---- (X) sidebar look ---- */
+html.xmc-navfont-normal header[role="banner"] nav a span { font-weight: 400 !important; }
+html.xmc-navdens-compact header[role="banner"] nav a > div { padding-top: 5px !important; padding-bottom: 5px !important; }
+html.xmc-navdens-comfortable header[role="banner"] nav a > div { padding-top: 16px !important; padding-bottom: 16px !important; }
+
+/* ---- (X) side boxes and drawers ---- */
+html.xmc-hideTrending [data-testid="sidebarColumn"] :is([aria-label="Trending"], [aria-label="Timeline: Trending now"], [aria-label*="What\2019s happening"], [aria-label="What's happening"]),
+html.xmc-hideWhoToFollow [data-testid="sidebarColumn"] :is([aria-label="Who to follow"], [aria-label="Who to Follow"]),
+html.xmc-hidePremiumPromo [data-testid="sidebarColumn"] :is([aria-label="Subscribe to Premium"], [data-testid="premium-signup-tab"]),
+html.xmc-hideDmDrawer [data-testid="DMDrawer"],
+html.xmc-hideVerifiedTabs :is(a[href="/notifications/verified"], a[href$="/verified_followers"]) { display: none !important; }
+
+
+/* ---- branding / fonts ---- */
+html.xmc-systemFont #xmc-root, html.xmc-systemFont .xmc-card { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important; }
+
+/* ---- paid-verified checkmark: show / hide / the bird ---- */
+.xmc-badge .bird { display: none; fill: currentColor; stroke: none; }
+html.xmc-blue-hide .xmc-badge.blue { display: none; }
+html.xmc-blue-logo .xmc-badge.blue { background: none; color: var(--xmc-accent); width: 18px; height: 18px; }
+html.xmc-blue-logo .xmc-badge.blue .chk { display: none; }
+html.xmc-blue-logo .xmc-badge.blue .bird { display: block; width: 16px; height: 16px; }
+
+/* ---- what a post shows ---- */
+html.xmc-hideViews .xmc-views { display: none; }
+html.xmc-hideBookmarkBtn .xmc-act[data-act="bookmark"] { display: none; }
+html.xmc-hideShareBtn .xmc-act[data-act="share"] { display: none; }
+html.xmc-reducedInteraction :is(.xmc-act[data-act="reply"], .xmc-act[data-act="repost"], .xmc-act[data-act="like"], .xmc-views, .xmc-qlink) { display: none !important; }
+html.xmc-reducedInteraction .xmc-n { display: none !important; }
+.xmc-qlink { color: var(--xmc-muted) !important; font-size: 13px; padding: 8px; }
+.xmc-qlink:hover { text-decoration: underline !important; color: var(--xmc-accent) !important; }
+.xmc-src { color: var(--xmc-muted); }
+.xmc-act.done { color: #00ba7c; }
+.xmc-moreBtn { margin-left: auto; padding: 6px !important; }
+.xmc-moreBtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; }
+.xmc-head { position: relative; }
+
+/* ---- sensitive media ---- */
+.xmc-media { position: relative; }
+.xmc-media.sensitive img, .xmc-media.sensitive video { filter: blur(32px); transform: scale(1.1); }
+.xmc-media.sensitive { overflow: hidden; }
+.xmc-reveal { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; appearance: none; border: 0; cursor: pointer;
+  padding: 9px 14px; border-radius: 999px; background: rgba(0, 0, 0, .75); color: #fff; font: 600 13px/1 system-ui, sans-serif; }
+.xmc-reveal:hover { background: rgba(0, 0, 0, .9); }
+
+/* ---- refresh button with the "N new" count ---- */
+.xmc-refresh { display: inline-flex !important; align-items: center; gap: 6px; padding: 8px 10px !important; }
+.xmc-refresh.has-new { background: var(--xmc-accent) !important; color: #fff !important; font-weight: 700; }
+.xmc-newn { font-size: 13px; }
+.xmc-newn:empty { display: none; }
+
+/* ---- (X) tidy: hide X's own tab bar copy when columns are on is handled by the overlay ---- */
+
+/* =====================================================================
+   v0.5
+   ===================================================================== */
+
+/* X's own (hidden) page must stay scrollable: the extension scrolls it to make X load more and to find posts. Never set
+   overflow:hidden on html/body (X sizes both to the window, so that clamps the page and freezes it). Just hide its scrollbar,
+   so the only scrollbar you see is the one for our columns. */
+html.xmc-on, html.xmc-on body { scrollbar-width: none; }
+html.xmc-on::-webkit-scrollbar, html.xmc-on body::-webkit-scrollbar { display: none; }
+.xmc-scroller { scrollbar-width: thin; outline: none; }
+#xmc-root.xmc-under { visibility: hidden; pointer-events: none; }
+
+/* X's right-hand sidebar is kept (pinned by the extension); this setting hides it */
+html.xmc-on.xmc-hideSidebar [data-testid="sidebarColumn"] { display: none !important; }
+html.xmc-hideTweetButton [data-testid="SideNav_NewTweet_Button"] { display: none !important; }
+
+/* X's floating Grok / Messages buttons (the sidebar already has both) */
+html.xmc-hideGrokDrawer [data-xmc-grok], html.xmc-hideGrokDrawer [data-testid="GrokDrawer"],
+html.xmc-hideDmDrawer [data-xmc-dm], html.xmc-hideDmDrawer [data-testid="DMDrawer"] { display: none !important; }
+
+/* ---- sensitive media: blurred (default), shown, or hidden (those posts are left out entirely) ---- */
+html.xmc-nsfw-show .xmc-media.sensitive img, html.xmc-nsfw-show .xmc-media.sensitive video { filter: none !important; transform: none !important; }
+html.xmc-nsfw-show .xmc-reveal { display: none !important; }
+.xmc-qmedia.sens { filter: blur(24px); }
+html.xmc-nsfw-show .xmc-qmedia.sens { filter: none; }
+.xmc-nsfw { display: inline-flex !important; align-items: center; gap: 6px; padding: 8px 12px !important; }
+.xmc-nsfw svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-nsfwi { display: inline-flex; }
+.xmc-nsfwl { font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+.xmc-nsfw.shown { color: #f4212e !important; }
+.xmc-nsfw.hidden-mode { opacity: .6; text-decoration: line-through; }
+.xmc-refresh svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---- loading ---- */
+.xmc-spin { display: inline-block; width: 22px; height: 22px; border: 3px solid color-mix(in srgb, var(--xmc-fg) 18%, transparent);
+  border-top-color: var(--xmc-accent); border-radius: 50%; animation: xmc-spin .8s linear infinite; flex: none; }
+@keyframes xmc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .xmc-spin { animation-duration: 2.4s; } }
+.xmc-status, .xmc-loader, .xmc-end { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 28px 12px; color: var(--xmc-muted); }
+.xmc-loader[hidden], .xmc-end[hidden], .xmc-status[hidden] { display: none !important; }
+.xmc-end { flex-direction: column; gap: 10px; }
+.xmc-end button { appearance: none; border: 1px solid var(--xmc-border); background: none; color: inherit; font: inherit; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+.xmc-end button:hover { border-color: var(--xmc-accent); }
+
+/* ---- comments under a post ---- */
+.xmc-replies { margin: 4px -14px 0; padding: 4px 14px 10px; border-top: 1px solid var(--xmc-border); cursor: default; }
+.xmc-rhead { display: flex; align-items: center; gap: 8px; padding: 10px 0 4px; color: var(--xmc-muted); font-size: 14px; }
+.xmc-rhead b { color: var(--xmc-fg); flex: 1; }
+.xmc-rclose { appearance: none; border: 0; background: none; color: inherit; cursor: pointer; padding: 4px; border-radius: 999px; display: inline-flex; }
+.xmc-rclose:hover { background: var(--xmc-hover); }
+.xmc-rclose svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.xmc-ritem { display: flex; gap: 10px; padding: 8px 0; }
+.xmc-ritem.d1 { padding-left: 22px; }
+.xmc-ravatar img { display: block; width: 28px; height: 28px; border-radius: 50%; background: var(--xmc-hover); object-fit: cover; }
+.xmc-rbody { min-width: 0; flex: 1; font-size: 14px; }
+.xmc-rtop { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; line-height: 1.3; }
+.xmc-rtop .xmc-name { display: inline; font-weight: 700; }
+.xmc-ritem .xmc-text { margin: 2px 0 4px; }
+.xmc-rmedias { display: flex; gap: 6px; margin-top: 4px; }
+.xmc-rmedia { display: block; max-height: 140px; max-width: 100%; border-radius: 10px; border: 1px solid var(--xmc-border); }
+.xmc-rlikes { font-size: 12px; margin-top: 2px; }
+.xmc-rempty { padding: 6px 0; font-size: 13px; }
+.xmc-rfoot { display: flex; gap: 8px; padding-top: 8px; }
+.xmc-rbtn { appearance: none; border: 1px solid var(--xmc-border); background: none; color: inherit; font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.xmc-rbtn:hover { border-color: var(--xmc-accent); color: var(--xmc-accent); }
+
+.xmc-diagbtn { appearance: none; border: 1px solid var(--xmc-border); background: none; color: inherit; font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+.xmc-diagbtn:hover { border-color: var(--xmc-accent); }
+.xmc-diagbtn[hidden] { display: none; }
+
+/* ---- comment order + writing a comment under the thread ---- */
+.xmc-rsort { font: inherit; font-size: 12px; color: var(--xmc-fg); background: var(--xmc-bg); border: 1px solid var(--xmc-border); border-radius: 999px; padding: 3px 8px; cursor: pointer; }
+.xmc-compose { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--xmc-border); }
+.xmc-cbox { display: block; width: 100%; box-sizing: border-box; resize: none; font: inherit; font-size: 14px; color: var(--xmc-fg); background: transparent;
+  border: 1px solid var(--xmc-border); border-radius: 12px; padding: 8px 10px; }
+.xmc-cbox:focus { outline: none; border-color: var(--xmc-accent); }
+.xmc-crow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; min-height: 30px; }
+.xmc-cnote { font-size: 12px; }
+.xmc-csend { background: var(--xmc-accent) !important; color: #fff !important; border-color: transparent !important; }
+.xmc-csend:disabled { opacity: .45; cursor: default; }
+
+/* ---- (X) more suggestions you can turn off ---- */
+html.xmc-hideTopics :is([aria-label*="Topics to follow" i], [data-testid="TopicsToFollow"]),
+html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discover more" i]) { display: none !important; }
+
+/* =====================================================================
+   v0.7
+   ===================================================================== */
+/* top bar: tabs + controls on one line (wrapping on narrow windows), the "All / Tweets / ..." views on a second line */
+.xmc-bar { display: block; padding: 0; overflow: visible; gap: 0; }
+.xmc-bar1 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 8px 12px 4px; }
+.xmc-bar2 { display: flex; gap: 6px; padding: 2px 12px 8px; overflow-x: auto; scrollbar-width: none; }
+.xmc-bar2[hidden] { display: none; }
+.xmc-bar2 .xmc-chip { flex: none; }
+.xmc-colgroup { display: inline-flex; align-items: center; border: 1px solid var(--xmc-border); border-radius: 999px; padding: 0 2px; }
+.xmc-colgroup button { padding: 6px 10px !important; font-size: 14px !important; }
+.xmc-colgroup .xmc-count { min-width: 40px; }
+
+/* the columns on/off + retry pill, in X's left sidebar under its Post/Tweet button */
+#xmc-pill { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; min-height: 44px; margin-top: 12px; padding: 0 18px;
+  border: 0; border-radius: 9999px; background: #1d9bf0; color: #fff; font: 700 16px/1 inherit; font-family: inherit; white-space: nowrap; cursor: pointer; }
+#xmc-pill:hover { filter: brightness(.92); }
+#xmc-pill.off { background: transparent; color: #1d9bf0; box-shadow: inset 0 0 0 2px #1d9bf0; }
+#xmc-pill[hidden] { display: none !important; }
+
+/* the comment order menu is the same size as the comments */
+.xmc-rsort { font-size: 14px; padding: 4px 12px; }
+
+/* image viewer: download + copy link */
+.xmc-lb-tools { position: absolute; top: 16px; left: 16px; display: flex; gap: 10px; }
+#xmc-lightbox .xmc-lb-btn { position: static; }
+
+/* translation */
+.xmc-translate { appearance: none; border: 0; background: none; color: var(--xmc-accent); font: inherit; font-size: 14px; padding: 0 0 8px; cursor: pointer; display: block; }
+.xmc-translate:hover { text-decoration: underline; }
+.xmc-trans { margin: 0 0 6px; padding: 8px 10px; border-left: 3px solid var(--xmc-accent); background: var(--xmc-hover); border-radius: 0 10px 10px 0; }
+.xmc-trans[hidden] { display: none; }
+.xmc-translabel { font-size: 12px; margin-bottom: 2px; }

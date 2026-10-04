@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multi-Column for X — Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="shell">
+    <nav id="nav"></nav>
+    <main>
+      <header>
+        <h1>Multi-Column for X</h1>
+        <p class="muted">Changes save as you make them and apply to open x.com tabs straight away.</p>
+        <p id="support" class="support" hidden></p>
+      </header>
+      <div id="sections"></div>
+      <section id="history-section" data-nav="Download history">
+        <h2>Download history</h2>
+        <p class="muted" id="history-summary"></p>
+        <div class="row"><button id="history-clear" type="button">Clear history</button></div>
+        <ul id="history-list"></ul>
+      </section>
+      <section id="data-section" data-nav="Backup & reset">
+        <h2>Backup &amp; reset</h2>
+        <div class="row">
+          <button id="export" type="button">Export settings</button>
+          <label class="button">Import settings<input id="import" type="file" accept="application/json" hidden></label>
+          <button id="reset" type="button" class="danger">Reset all settings</button>
+        </div>
+        <p class="muted" id="status" role="status"></p>
+      </section>
+      <p class="muted foot">Nothing you do here, and nothing this extension reads, leaves your browser.</p>
+    </main>
+  </div>
+  <script src="src/settings.js"></script>
+  <script src="src/meta.js"></script>
+  <script src="src/logic.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
