@@ -12,7 +12,7 @@ and (best effort) Explore. To go back to the normal feed, press the **Columns** 
 - **Endless scrolling that keeps going** — a spinner while X is slow, a note at the real end.
 - **A clear top bar** — your tabs and the column controls on one line (it wraps on small windows instead of being cut off), and the
   *All / Tweets / Retweets / Quote Tweets / Replies / Media* views on a line below. A view only appears once the feed actually has
-  something for it, so you never click an empty tab. A **Columns** pill sits in X's left sidebar (styled like the Post button) and
+  something for it, so you never click an empty tab. A profile's **Media** tab sorts into **Photos / Videos** (GIFs count as videos). A **Columns** pill sits in X's left sidebar (styled like the Post button) and
   switches between columns and X's normal feed.
 - **Never lose your place** — posts and profiles open in a **new tab** by default. Prefer one tab? Pick "This tab" in settings and
   Back returns you to the exact spot in the feed.

@@ -34,11 +34,24 @@ var XMCLogic = (function () {
     return out;
   }
 
+  // A profile's Media tab (/name/media), where the views are by kind of media instead of kind of post.
+  const isMediaTab = (pathname) => /^\/(?!i\/)[^/]+\/media\/?$/.test(pathname || '');
+  const isVideo = (m) => m.type === 'video' || m.type === 'gif'; // a GIF is a short silent video
+
   // Which view buttons are worth showing: one for a kind of post only appears once the feed actually has some
-  // (a Replies button on a timeline that never contains replies just shows an empty page).
-  function availableViews(where, s, items, current) {
+  // (a Replies button on a timeline that never contains replies just shows an empty page). On the Media tab:
+  // All / Photos / Videos, as in X's app.
+  function availableViews(where, s, items, current, opts) {
     const have = new Set();
-    for (const t of items) { have.add(kindOf(t)); if (t.media && t.media.length) have.add('media'); }
+    for (const t of items) {
+      have.add(kindOf(t));
+      if (t.media && t.media.length) have.add('media');
+      for (const m of t.media || []) have.add(isVideo(m) ? 'video' : 'photo');
+    }
+    if (opts && opts.mediaTab) {
+      const kinds = { photos: 'photo', videos: 'video' };
+      return ['all', 'photos', 'videos'].filter((v) => v === 'all' || v === current || have.has(kinds[v]));
+    }
     const kindOfView = { posts: 'post', reposts: 'repost', quotes: 'quote', replies: 'reply', media: 'media' };
     return viewsFor(where, s).filter((v) => v === 'all' || v === current || have.has(kindOfView[v]));
   }
@@ -74,6 +87,8 @@ var XMCLogic = (function () {
       case 'quotes': return kind === 'quote';
       case 'replies': return kind === 'reply';
       case 'media': return t.media.length > 0;
+      case 'photos': return t.media.some((m) => !isVideo(m));
+      case 'videos': return t.media.some(isVideo);
       default: return mode !== 'tab'; // "all" leaves out anything that lives on its own tab
     }
   }
@@ -182,7 +197,7 @@ var XMCLogic = (function () {
     return !seen && !v.paused ? 'pause' : null;
   }
 
-  const api = { videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  const api = { isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

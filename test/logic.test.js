@@ -288,3 +288,18 @@ test('videos pause when scrolled half away; GIFs also resume when back', () => {
   assert.equal(L.videoAction({ gif: true, ratio: 0.9, paused: true }), 'play');
   assert.equal(L.videoAction({ gif: true, ratio: 0.4, paused: false }), 'pause');
 });
+
+test('a profile’s Media tab sorts into Photos and Videos (GIFs count as videos)', () => {
+  assert.ok(L.isMediaTab('/jack/media') && L.isMediaTab('/jack/media/'));
+  assert.ok(!L.isMediaTab('/jack') && !L.isMediaTab('/jack/with_replies') && !L.isMediaTab('/i/media') && !L.isMediaTab('/home'));
+  const mk = (type) => ({ author: { handle: 'a' }, segs: [], media: [{ type }], counts: {} });
+  const s = Object.assign({}, S.DEFAULTS);
+  const mixed = [mk('photo'), mk('video'), mk('gif')];
+  assert.deepEqual(L.availableViews('profile', s, mixed, 'all', { mediaTab: true }), ['all', 'photos', 'videos']);
+  assert.deepEqual(L.availableViews('profile', s, [mk('photo')], 'all', { mediaTab: true }), ['all', 'photos'], 'no Videos button until there is a video');
+  assert.deepEqual(L.availableViews('profile', s, mixed, 'all'), ['all', 'posts', 'media'], 'elsewhere it is the usual views');
+  const c = (view) => ctx({ view, where: 'profile' });
+  assert.deepEqual(mixed.map((t) => L.passes(t, c('photos'))), [true, false, false]);
+  assert.deepEqual(mixed.map((t) => L.passes(t, c('videos'))), [false, true, true]);
+  assert.deepEqual(mixed.map((t) => L.passes(t, c('all'))), [true, true, true]);
+});

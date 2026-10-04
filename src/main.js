@@ -432,7 +432,7 @@
   tabsEl.style.display = 'contents';
   const countEl = h('span', { className: 'xmc-count' });
   const btn = (text, title, onclick, cls) => h('button', { textContent: text, title, onclick, type: 'button', className: cls || '' });
-  const VIEW_LABELS = { all: () => 'All', posts: () => T('posts'), reposts: () => T('reposts'), quotes: () => T('quotes'), replies: () => 'Replies', media: () => 'Media' };
+  const VIEW_LABELS = { all: () => 'All', posts: () => T('posts'), reposts: () => T('reposts'), quotes: () => T('quotes'), replies: () => 'Replies', media: () => 'Media', photos: () => 'Photos', videos: () => 'Videos' };
   const viewEls = {};
   for (const key of Object.keys(VIEW_LABELS)) viewEls[key] = btn('', '', () => setFilter(key), 'xmc-chip');
   const gearBtn = h('button', { className: 'xmc-gear', title: 'Settings', type: 'button', onclick: () => openOptions() }, icon('gear'));
@@ -461,7 +461,12 @@
   // Vimium and friends scroll "the element you last clicked in", so make that our columns
   const focusScroller = () => { if (!root.hidden && !/^(input|textarea|select)$/i.test((document.activeElement || {}).tagName || '')) scroller.focus({ preventScroll: true }); };
   root.addEventListener('pointerdown', (e) => { if (!e.target.closest('input, textarea, select')) setTimeout(focusScroller, 0); });
-  scroller.addEventListener('scroll', () => { if (!root.hidden) view.memoTop = scroller.scrollTop; }, { passive: true });
+  let drawSoon = 0;
+  scroller.addEventListener('scroll', () => {
+    if (root.hidden) return;
+    view.memoTop = scroller.scrollTop;
+    if (!drawSoon) drawSoon = setTimeout(() => { drawSoon = 0; if (!root.hidden) guard('render', renderFeed); }, 40); // fill blank space as it appears, not on the next tick
+  }, { passive: true });
 
   // A permanent pill in X's left sidebar, shaped like its Post/Tweet button: columns on/off for this page, and the way back
   // if they ever fall back to X's normal feed. (It used to float bottom-right, where it covered X's chat button.)
@@ -534,7 +539,7 @@
   }
   function applyBar() {
     const feed = activeFeed();
-    const views = XMCLogic.availableViews(where(), settings, feed ? feed.items : [], settings.filter);
+    const views = XMCLogic.availableViews(where(), settings, feed ? feed.items : [], settings.filter, { mediaTab: XMCLogic.isMediaTab(location.pathname) });
     if (!views.includes(settings.filter)) { settings.filter = 'all'; save(); }
     for (const key of Object.keys(viewEls)) {
       const el = viewEls[key];
@@ -582,9 +587,22 @@
     for (const { t, est } of items) {
       let i = 0;
       for (let j = 1; j < heights.length; j++) if (heights[j] < heights[i]) i = j;
-      columns[i].append(t.el || (t.el = renderCard(t)));
-      heights[i] += (est || estimate(t, w)) + GAP;
+      const guess = est || estimate(t, w);
+      const el = t.el || (t.el = renderCard(t));
+      // a card that hasn't been drawn yet counts as our estimate (not a flat 420px), so the columns stay level
+      if (!el.dataset.sized) { el.style.containIntrinsicSize = 'auto ' + guess + 'px'; el.dataset.sized = '1'; }
+      columns[i].append(el);
+      heights[i] += guess + GAP;
     }
+  }
+  // Where the SHORTEST column ends, in scroller coordinates. That is what decides when to draw more: the tallest
+  // column says nothing about the blank space under a short one.
+  function shortestBottom() {
+    if (!columns.length) return 0;
+    const base = scroller.getBoundingClientRect().top - scroller.scrollTop;
+    let m = Infinity;
+    for (const c of columns) m = Math.min(m, c.getBoundingClientRect().bottom - base);
+    return m;
   }
   function relayout() {
     const n = colCount();
@@ -634,8 +652,13 @@
     if (view.renderSig !== sigOf(RENDER_KEYS)) for (const feed of state.feeds.values()) for (const t of feed.items) t.el = null; // rebuild the cards themselves
     if (view.feedKey !== f.key || view.version !== f.version || view.sig !== sigOf(FILTER_KEYS) || view.renderSig !== sigOf(RENDER_KEYS)) resetView(f);
     if (!columns.length) relayout();
-    if (view.cards.length < 8 || scroller.scrollHeight < scroller.scrollTop + scroller.clientHeight * 4) {
-      const c = passCtx();
+    // Draw while ANY column has room: its end is within about three screens below where you are. If there is blank
+    // space on screen right now, catch up faster (up to four batches in one go).
+    const c = passCtx();
+    for (let batch = 0; batch < 4 && view.upto < f.items.length; batch++) {
+      const bottom = shortestBottom(), seen = scroller.scrollTop + scroller.clientHeight;
+      if (view.cards.length >= 8 && bottom >= seen + scroller.clientHeight * 2) break; // every column has two screens to go
+      if (batch > 0 && bottom >= seen) break; // only the first batch of a tick unless there is blank space on screen
       const fresh = [];
       let scanned = 0;
       while (view.upto < f.items.length && fresh.length < CHUNK && scanned < 400) {
@@ -644,6 +667,7 @@
         if (XMCLogic.passes(t, c)) { fresh.push({ t }); view.cards.push(t); }
       }
       placeBatch(fresh);
+      if (!fresh.length) break;
     }
     updateRefreshBtn(f);
     const drawn = view.upto >= f.items.length;
@@ -651,6 +675,7 @@
     // spinner while we're fetching more; a note when X has no more to give
     const waiting = state.waitingPage && !f.exhausted;
     loaderEl.hidden = !waiting;
+    loaderEl.classList.toggle('xmc-sticky', waiting && shortestBottom() < scroller.scrollTop + scroller.clientHeight); // blank space on screen: keep the spinner in view
     const fl = state.fail && Date.now() - state.fail.at < 90000 ? state.fail : null;
     loaderText.textContent = waiting && fl
       ? (fl.status === 429 ? 'X says slow down (rate limit) - retrying shortly...' : 'X returned an error (' + fl.status + ') - retrying...')
@@ -693,7 +718,7 @@
     const f = activeFeed();
     if (!f || f.exhausted) return;
     if (f.items.length - view.upto > 40) return; // plenty already waiting to be drawn; stay about two pages ahead, not more
-    const need = scroller.scrollTop + scroller.clientHeight > scroller.scrollHeight - innerHeight * 8;
+    const need = scroller.scrollTop + scroller.clientHeight > shortestBottom() - innerHeight * 8;
     if (!need) return;
     const now = Date.now();
     const doc = document.documentElement;
@@ -730,6 +755,7 @@
     return JSON.stringify({
       version: ext && ext.runtime.getManifest ? ext.runtime.getManifest().version : 'dev',
       page: location.pathname,
+      layout: { columns: columns.length, shortestPx: Math.round(shortestBottom()), tallestPx: Math.round(Math.max(0, ...columns.map((c) => c.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top + scroller.scrollTop))), drawn: view.upto, loaded: (activeFeed() || { items: [] }).items.length },
       hiddenPage: { scrollY: Math.round(window.scrollY), height: d.scrollHeight, viewport: innerHeight, postsMountedByX: articles().length },
       requestsSeen: state.seenOps,
       feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0], posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),

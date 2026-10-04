@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Multi-Column for X",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Your X (Twitter) timeline in multiple columns, with in-card video, downloads, filters and the best of Control Panel and Media Harvest built in.",
   "icons": {
     "48": "icons/icon.svg",

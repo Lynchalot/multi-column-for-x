@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2
+- Blank space under a short column no longer waits for the tallest one: more posts are drawn as soon as ANY column runs out
+  (a few screens ahead), catching up faster when blank space is on screen. Cards not yet drawn count as the estimated
+  height, not a flat 420px, so the columns stay more level. While waiting for X, the spinner stays on screen if there is blank space.
+- A profile's **Media** tab now has **All / Photos / Videos** (GIFs count as videos), like X's app.
+
 ## 0.7.1
 - A video you started now pauses when it is scrolled half out of view (GIFs still play only while visible).
 - Several posts' comments can be opened at once: they queue and fill in one after another instead of refusing the second.
