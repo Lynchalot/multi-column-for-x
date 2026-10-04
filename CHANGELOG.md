@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.3
+- **Right sidebar no longer spasms.** Whenever the extension visited a post on X's hidden side (comments, translation, replying), X swapped
+  its sidebar for the post page's version ("Relevant people"...) and back. A still copy of the sidebar now shows during the visit, and a sidebar X
+  rebuilds is pinned at once instead of up to half a second later.
+- **Automatic translation is off by default** (it was the only thing that kept visiting posts on X's hidden side while you read): the
+  "Translate post" button is there instead; switch automatic back on in Posts. When on, it now only runs while you've stopped scrolling.
+- Hovering for comments needs a real pause (about a third of a second) before it fetches anything.
+
 ## 0.8.2
 - Fixed: the area between the sidebars turned solid black on a themed or wallpaper background (0.8.1 filled in a solid colour so the loading pill
   would be readable). The columns' background is X's own again, see-through where X's is; only the loading pill, menus and toast are solid.

@@ -992,6 +992,7 @@
     opts = opts || {};
     state.peek = { id: t.id, replies: null };
     state.proxyUntil = Date.now() + 40000;
+    freezeSidebar();
     try {
       // Fast way: go to the post's page the way X's own router follows the back button (no need to scroll X's hidden list
       // to the post first, which is what made comments slow). If X doesn't react, undo it and do it the slow way.
@@ -1026,6 +1027,7 @@
         await waitFor(() => !onPostPage(), 3500);
       }
       state.peek = null;
+      state.lastPeekEnd = Date.now();
       state.proxyUntil = Date.now() + 1500;
     }
   }
@@ -1072,6 +1074,7 @@
   async function postReply(t, text) {
     await replyQueue; // comment loads borrow the same hidden page
     state.posting = true;
+    freezeSidebar();
     const doc = document.documentElement;
     doc.classList.add('xmc-acting');
     let res = { ok: false, why: 'Something went wrong.' };
@@ -1096,6 +1099,7 @@
       return res;
     } finally {
       state.posting = false;
+      state.lastPeekEnd = Date.now();
       if (res.ok) setTimeout(() => doc.classList.remove('xmc-acting'), 500);
       else { doc.classList.remove('xmc-acting'); toast(res.why + ' Finish it in X’s reply box.'); }
     }
@@ -1348,9 +1352,9 @@
   function autoTranslateTick() {
     if (!settings.autoTranslate || !autoPending.size) return;
     const now = Date.now();
-    if (state.peek || repliesWaiting || state.posting || state.fail || now < state.proxyUntil || now - autoLast < 2200) return;
+    if (state.peek || repliesWaiting || state.posting || state.fail || now < state.proxyUntil || now - autoLast < 3500 || now - lastScrollAt < 1200) return; // reading, not scrolling
     while (autoLog.length && now - autoLog[0] > 60000) autoLog.shift();
-    if (autoLog.length >= 10) return; // at most ten a minute
+    if (autoLog.length >= 8) return; // at most eight a minute
     const t = [...autoPending].find((x) => x.visibleSince && now - x.visibleSince > 700 && !x.translation && !x.transBusy && (x.transTries || 0) < 2 && x.el && x.el.isConnected);
     if (!t) return;
     autoLast = now; autoLog.push(now);
@@ -1447,18 +1451,24 @@
     if (quote) { if (settings.openIn === 'newtab') window.open(new URL(quote.dataset.href, location.origin).href, '_blank', 'noopener'); else location.assign(quote.dataset.href); return; }
     navigate(t.url, t);
   });
-  // Hovering the comments button starts fetching them, so they are often there by the time you click
+  // Resting on the comments button for a moment starts fetching them, so they're often there by the time you click
+  // (a pass over it, or the page scrolling under the pointer, doesn't count)
   const prefetching = new Set();
+  let hoverTimer = 0;
   colsEl.addEventListener('pointerover', (e) => {
     const b = e.target.closest && e.target.closest('[data-act="reply"]');
     if (!b) return;
-    const card = b.closest('.xmc-card');
-    const t = card && tweetOf.get(card);
-    if (Date.now() - lastScrollAt < 600) return; // content scrolling under a resting pointer fires "hover" too: not a real hover
-    if (!t || !t.counts.reply || state.details.has(t.id) || prefetching.has(t.id) || state.peek || repliesWaiting || state.posting) return;
-    prefetching.add(t.id);
-    loadReplies(t).finally(() => prefetching.delete(t.id));
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => {
+      if (Date.now() - lastScrollAt < 600 || !b.isConnected || !b.matches(':hover')) return;
+      const card = b.closest('.xmc-card');
+      const t = card && tweetOf.get(card);
+      if (!t || !t.counts.reply || state.details.has(t.id) || prefetching.has(t.id) || state.peek || repliesWaiting || state.posting) return;
+      prefetching.add(t.id);
+      loadReplies(t).finally(() => prefetching.delete(t.id));
+    }, 350);
   });
+  colsEl.addEventListener('pointerout', (e) => { if (e.target.closest && e.target.closest('[data-act="reply"]')) clearTimeout(hoverTimer); });
   // only one (non-autoplaying) video plays at a time, and it is watched while it plays so it stops when scrolled away
   colsEl.addEventListener('play', (e) => {
     if (e.target.tagName !== 'VIDEO' || e.target.dataset.gif) return;
@@ -1635,7 +1645,33 @@
       if (acct) { acct.style.maxWidth = ''; acct.style.overflow = ''; }
     }
   }
-  const navRestore = () => { unpin('nav'); unpin('side'); };
+  // While X's hidden side visits a post's page (comments, translation, replying), X swaps the contents of its right
+  // sidebar for the post page's version ("Relevant people"...) and back, which showed as the sidebar spasming. Show a
+  // still copy of it for the duration, and put the real one back once it has settled.
+  let sideFreeze = null;
+  function freezeSidebar() {
+    if (sideFreeze || settings.hideSidebar) return;
+    const side = pin.side.el();
+    if (!side || side.dataset.xmcStyle === undefined || !side.getBoundingClientRect().width) return;
+    const clone = side.cloneNode(true);
+    for (const el of [clone, ...clone.querySelectorAll('[data-testid], [id]')]) { el.removeAttribute('data-testid'); el.removeAttribute('id'); }
+    clone.id = 'xmc-sidefreeze';
+    clone.setAttribute('inert', ''); clone.setAttribute('aria-hidden', 'true');
+    clone.style.setProperty('pointer-events', 'none', 'important');
+    document.body.append(clone);
+    clone.scrollTop = side.scrollTop;
+    side.style.setProperty('visibility', 'hidden', 'important');
+    sideFreeze = { clone, side, hardStop: Date.now() + 15000 };
+  }
+  function thawSidebar() {
+    if (!sideFreeze) return;
+    const { clone, side } = sideFreeze;
+    sideFreeze = null;
+    side.style.removeProperty('visibility');
+    positionSide(); // if X rebuilt the sidebar meanwhile, pin the new one before anyone sees it
+    clone.remove();
+  }
+  const navRestore = () => { thawSidebar(); unpin('nav'); unpin('side'); };
   let resizeTimer = 0;
   window.addEventListener('resize', () => {
     navRestore(); // X may swap layouts; re-measure
@@ -1675,6 +1711,7 @@
     root.style.left = (p.width + 20) + 'px';
   }
   function positionSide() {
+    if (sideFreeze) return; // a still copy is showing; leave the real one alone
     const p = pin.side, side = p.el();
     if (!side || settings.hideSidebar) { root.style.right = '0px'; unpin('side'); return; }
     if (p.fallback && Date.now() > p.retryAt) { p.fallback = false; p.fails = 0; }
@@ -1685,7 +1722,7 @@
       side.dataset.xmcStyle = side.getAttribute('style') || '';
       p.width = Math.round(r.width);
       side.style.cssText += `;position:fixed !important;top:0 !important;right:8px !important;left:auto !important;height:100vh !important;` +
-        `overflow-y:auto !important;scrollbar-width:none !important;margin:0 !important;z-index:6 !important;width:${p.width}px !important`;
+        `overflow-y:auto !important;scrollbar-width:none !important;margin:0 !important;transform:none !important;z-index:6 !important;width:${p.width}px !important`;
     } else if (!p.fallback) {
       // probe whichever of its links is on screen right now (the sidebar scrolls, so the first one often isn't)
       const probe = [...side.querySelectorAll('input, a[href]')].find((el) => { const r = el.getBoundingClientRect(); return r.width && r.top >= 0 && r.bottom <= innerHeight; });
@@ -1786,6 +1823,12 @@
   const tickTimes = []; // how long our own work took recently (to tell our slowness from X's)
   function tick() {
     if (!ready) return;
+    if (state.shown && !sideFreeze) { // a sidebar X has just rebuilt must be pinned at once, not at the next slow pass
+      const sd = pin.side.el(), nv = pin.nav.el();
+      if (sd && sd.dataset.xmcStyle === undefined && !pin.side.fallback) guard('pin side', positionSide);
+      if (nv && nv.dataset.xmcStyle === undefined && !pin.nav.fallback) guard('pin nav', positionNav);
+    }
+    if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
     if (tickN % 15 === 0) guard('floaters', scanFloaters);
     const quiet = state.posting && isModalRoute(); // our own reply automation: X's reply box is open, out of sight
