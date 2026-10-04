@@ -1774,7 +1774,8 @@
       bg = m && (0.299 * m[1] + 0.587 * m[2] + 0.114 * m[3]) > 140 ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)';
     }
     for (const el of [root, toastEl, document.documentElement]) {
-      el.style.setProperty('--xmc-bg', bg);
+      el.style.setProperty('--xmc-bg', cs.backgroundColor); // exactly what X's page has: may be see-through (a themed or wallpaper background shows through the columns)
+      el.style.setProperty('--xmc-solid', bg);              // for things that must stay readable over anything: menus, toast, the loading pill
       el.style.setProperty('--xmc-fg', cs.color);
     }
   }

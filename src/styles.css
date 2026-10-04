@@ -106,13 +106,13 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
 
 /* ---- repost menu, toast, viewer ---- */
 .xmc-menu { position: absolute; z-index: 4; width: 180px; padding: 6px; display: flex; flex-direction: column;
-  background: var(--xmc-bg); border: 1px solid var(--xmc-border); border-radius: 12px; box-shadow: 0 8px 28px rgba(0, 0, 0, .4); }
+  background: var(--xmc-solid, var(--xmc-bg)); border: 1px solid var(--xmc-border); border-radius: 12px; box-shadow: 0 8px 28px rgba(0, 0, 0, .4); }
 .xmc-menu button { appearance: none; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: left; padding: 10px 12px; border-radius: 8px; cursor: pointer; }
 .xmc-menu button:hover { background: var(--xmc-hover); }
 #xmc-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 50; padding: 10px 16px; border-radius: 10px;
   background: var(--xmc-accent, #1d9bf0); color: #fff; font: 600 14px system-ui, sans-serif; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
 #xmc-fab { position: fixed; right: 16px; bottom: 16px; z-index: 5; padding: 10px 14px; border-radius: 999px; cursor: pointer;
-  border: 1px solid rgba(127, 127, 127, .4); background: var(--xmc-bg); color: var(--xmc-fg); font: 500 14px system-ui, sans-serif; }
+  border: 1px solid rgba(127, 127, 127, .4); background: var(--xmc-solid, var(--xmc-bg)); color: var(--xmc-fg); font: 500 14px system-ui, sans-serif; }
 #xmc-lightbox { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .92); cursor: zoom-out; }
 #xmc-lightbox img { max-width: 94vw; max-height: 94vh; object-fit: contain; cursor: default; }
 #xmc-lightbox button { appearance: none; border: 0; cursor: pointer; color: #fff; background: rgba(255, 255, 255, .14); width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; position: absolute; }
@@ -253,7 +253,7 @@ html.xmc-nsfw-show .xmc-qmedia.sens { filter: none; }
 .xmc-diagbtn[hidden] { display: none; }
 
 /* ---- comment order + writing a comment under the thread ---- */
-.xmc-rsort { font: inherit; font-size: 12px; color: var(--xmc-fg); background: var(--xmc-bg); border: 1px solid var(--xmc-border); border-radius: 999px; padding: 3px 8px; cursor: pointer; }
+.xmc-rsort { font: inherit; font-size: 12px; color: var(--xmc-fg); background: var(--xmc-solid, var(--xmc-bg)); border: 1px solid var(--xmc-border); border-radius: 999px; padding: 3px 8px; cursor: pointer; }
 .xmc-compose { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--xmc-border); }
 .xmc-cbox { display: block; width: 100%; box-sizing: border-box; resize: none; font: inherit; font-size: 14px; color: var(--xmc-fg); background: transparent;
   border: 1px solid var(--xmc-border); border-radius: 12px; padding: 8px 10px; }
@@ -311,7 +311,7 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
 
 /* waiting for more posts while a column has blank space on screen: keep the spinner where you can see it */
 .xmc-loader.xmc-sticky { position: sticky; bottom: 16px; margin: 0 auto; width: max-content; max-width: calc(100% - 24px); padding: 11px 20px; gap: 10px;
-  border-radius: 9999px; background: var(--xmc-bg); color: var(--xmc-fg); font-weight: 600;
+  border-radius: 9999px; background: var(--xmc-solid, var(--xmc-bg)); color: var(--xmc-fg); font-weight: 600;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--xmc-fg) 35%, transparent), 0 8px 28px rgba(0, 0, 0, .55); z-index: 2; }
 .xmc-loader.xmc-sticky .xmc-spin { width: 18px; height: 18px; }
 

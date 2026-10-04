@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.2
+- Fixed: the area between the sidebars turned solid black on a themed or wallpaper background (0.8.1 filled in a solid colour so the loading pill
+  would be readable). The columns' background is X's own again, see-through where X's is; only the loading pill, menus and toast are solid.
+
 ## 0.8.1
 - **No more jumping back to the top**: the columns could be wiped (and the scroll position lost) while X's hidden side was on a
   post's page fetching comments or translations. Fixed, and hovering only starts fetching comments for a real hover, not when the page scrolls under the pointer.
