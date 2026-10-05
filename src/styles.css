@@ -387,3 +387,6 @@ html.xmc-on [data-testid="sidebarColumn"] { overscroll-behavior: contain; }
 #xmc-root.xmc-compact .xmc-qmedia { max-height: 120px; }
 #xmc-root.xmc-textonly .xmc-card { padding: 8px 12px 2px; }
 #xmc-root.xmc-textonly .xmc-link > img, #xmc-root.xmc-textonly .xmc-qmedia { display: none; }
+
+/* a tab was pressed and its feed has not arrived: the old posts stay, dimmed and not clickable */
+#xmc-root.xmc-switching .xmc-cols { opacity: .35; pointer-events: none; transition: opacity .15s; }

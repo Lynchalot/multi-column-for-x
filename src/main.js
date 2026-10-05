@@ -906,6 +906,12 @@
       return;
     }
     const f = activeFeed();
+    if (!f && state.awaiting && view.cards.length) { // you switched tab and the new feed is on its way: keep what is on screen, dimmed, instead of going blank
+      root.classList.add('xmc-switching');
+      loaderText.textContent = 'Loading\u2026'; loaderEl.hidden = false; loaderEl.classList.add('xmc-sticky');
+      return;
+    }
+    root.classList.remove('xmc-switching');
     if (!f || !f.items.length || state.homeHold) {
       if (view.feedKey) resetView(null);
       setStatus('Loading…', true);
@@ -1781,6 +1787,7 @@
     const before = { cur: state.cur, awaiting: state.awaiting };
     const cached = state.feedByTab.has(slotFor(i));
     state.awaiting = { until: Date.now() + 2500, cached };
+    state.routeSince = Date.now(); // the "no data for 10s" clock starts again from this switch
     state.cur = { route: rk, key: null };
     state.sel = i;
     state.switchTries = (state.switchTries || 0) + 1;
@@ -1853,6 +1860,7 @@
     state.sub[key] = name === state.subDefault[key] ? '' : name; // back to what X started on: that feed has no suffix
     state.cur = { route: rk, key: null };
     state.awaiting = { until: Date.now() + 12000, cached: state.feedByTab.has(slotFor(i)) };
+    state.routeSince = Date.now();
     fire(el);
     lastSig = '';
     releaseLayers();
@@ -2387,7 +2395,7 @@
     }
     const f = activeFeed();
     if (document.hidden) state.routeSince = Date.now(); // don't count time spent in a background tab
-    if (!(f && f.items.length) && !(settings.disableHome && where() === 'home') && Date.now() - state.routeSince > 10000) {
+    if (!(f && f.items.length) && !state.awaiting && !(settings.disableHome && where() === 'home') && Date.now() - state.routeSince > 10000) {
       // No timeline data arrived (X changed its format, or the feed really is empty): show the normal feed.
       console.warn('[xmc] no timeline data after 10s; showing the normal feed. Seen:', JSON.stringify(state.seenOps),
         'feeds:', [...state.feeds.keys()]);

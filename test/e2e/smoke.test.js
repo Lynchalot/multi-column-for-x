@@ -622,3 +622,21 @@ browserTest('a big page wrapper in the corner is never mistaken for a button (th
     assert.equal(await page.evaluate(() => document.getElementById('wrapall').hasAttribute('data-xmc-dm')), false);
   });
 });
+
+browserTest('switching to a tab not seen yet keeps the old posts (dimmed) until the new feed arrives, and never falls back to X\'s page', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 8, hideForYou: false, keepFollowing: false } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(11000); // longer than the "no data" clock, which used to count from the page load
+    await page.evaluate(() => { window.__delay = 2500; });
+    const before = await page.evaluate(() => window.__xmc.view.feedKey);
+    await page.locator('.xmc-bar button', { hasText: 'For you' }).first().click();
+    await page.waitForTimeout(800);
+    const mid = await page.evaluate(() => ({ cards: window.__xmc.view.cards.length, dim: document.getElementById('xmc-root').classList.contains('xmc-switching'), on: document.documentElement.classList.contains('xmc-on') }));
+    assert.ok(mid.cards > 0 && mid.dim, 'the old posts stay on screen, dimmed, while the new feed loads');
+    assert.ok(mid.on, 'columns are still showing');
+    await page.waitForFunction((k) => window.__xmc.view.feedKey && window.__xmc.view.feedKey !== k && !document.getElementById('xmc-root').classList.contains('xmc-switching'), before, { timeout: 15000 });
+    assert.ok(await page.evaluate(() => document.documentElement.classList.contains('xmc-on')), 'still columns, not X\'s page');
+  });
+}, 90000);
