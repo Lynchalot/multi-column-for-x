@@ -607,3 +607,18 @@ browserTest('with X\'s right sidebar hidden, the floating Grok and Chat buttons 
     assert.equal(await off.page.evaluate(() => innerWidth - document.getElementById('xmc-root').getBoundingClientRect().right), 0, 'no strip when both are hidden');
   });
 });
+
+browserTest('a big page wrapper in the corner is never mistaken for a button (the columns stay whole)', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => {
+      document.getElementById('drawer').remove();
+      document.getElementById('react-root').insertAdjacentHTML('beforeend', '<div id="wrapall" style="position:fixed;inset:0;z-index:1"></div>');
+    });
+    await page.waitForTimeout(3500);
+    assert.equal(await page.evaluate(() => document.getElementById('xmc-root').style.clipPath), '', 'no hole cut in the columns');
+    assert.equal(await page.evaluate(() => document.getElementById('wrapall').hasAttribute('data-xmc-dm')), false);
+  });
+});

@@ -2178,7 +2178,8 @@
         n = n.parentElement;
       }
       const r = n.getBoundingClientRect();
-      if (r.width < 24 || r.height < 24 || innerWidth - r.right > 140 || innerHeight - r.bottom > 320) return null;
+      if (r.width < 24 || r.height < 24 || r.width > 120 || r.height > 120 || innerWidth - r.right > 140 || innerHeight - r.bottom > 320) return null; // a button, not a page wrapper
+      if (n.querySelector(PAGE)) return null;
       for (let a = n.parentElement; a && a !== document.body; a = a.parentElement) { // an open chat panel's insides are not buttons
         const b = a.getBoundingClientRect();
         if (b.width > 200 && b.width <= 760 && b.height > 150 && b.height <= 900 && getComputedStyle(a).position === 'fixed') return null;
@@ -2240,6 +2241,7 @@
       if (!el.isConnected || getComputedStyle(el).display === 'none') continue;
       const r = el.getBoundingClientRect();
       if (!r.width || r.right < rb.left || r.left > rb.right) continue;
+      if (r.width > innerWidth * 0.6 && r.height > innerHeight * 0.6) continue; // never cut the whole screen out of the columns
       if (rects.some((o) => r.left >= o.left && r.right <= o.right && r.top >= o.top && r.bottom <= o.bottom)) continue;
       rects.push(r);
     }
