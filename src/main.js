@@ -113,6 +113,9 @@
     sub: {},                  // route|tab -> the item picked from that tab's dropdown (Videos/Photos, Popular/Recent...), lower case
     byId: new Map(),          // post id -> post, for every post seen (so buttons on X's own pages know a post's media)
     menuTabs: new Set(),      // route|tab that turned out to have a dropdown
+    actionFails: [],          // when a like / repost / bookmark couldn't reach X's button (for the health check)
+    commentFails: [],         // when comments couldn't be loaded
+    health: [],               // what the health check currently sees wrong
   };
   function remember(list) {
     for (const t of list) { if (t && t.id) { state.byId.delete(t.id); state.byId.set(t.id, t); } }
@@ -480,6 +483,7 @@
   };
   const mediaSplit = () => { const tb = realTabs()[state.sel]; return !!tb && /^(videos|photos)$/i.test(tb.textContent.trim()); };
   const gearBtn = h('button', { className: 'xmc-gear', title: 'Settings', type: 'button', onclick: () => openOptions() }, icon('gear'));
+  const healthBtn = h('button', { className: 'xmc-health', type: 'button', hidden: true, textContent: '\u26a0', onclick: () => copyDiagnostics() });
   const refreshBtn = h('button', { className: 'xmc-refresh', title: 'Refresh', type: 'button', onclick: () => refresh() }, icon('refresh'), h('span', { className: 'xmc-newn' }));
   const nsfwBtn = h('button', { className: 'xmc-nsfw', type: 'button', onclick: () => cycleNsfw() }, h('span', { className: 'xmc-nsfwi' }), h('span', { className: 'xmc-nsfwl', textContent: 'NSFW' }));
 
@@ -488,7 +492,7 @@
     btn('\u2212', 'Fewer columns', () => setCols((settings.cols || colCount()) - 1)), countEl,
     btn('+', 'More columns', () => setCols((settings.cols || colCount()) + 1)),
     autoBtn);
-  const row1 = h('div', { className: 'xmc-bar1' }, tabsEl, h('span', { className: 'xmc-spacer' }), refreshBtn, colGroup, nsfwBtn, gearBtn);
+  const row1 = h('div', { className: 'xmc-bar1' }, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, refreshBtn, colGroup, nsfwBtn, gearBtn);
   const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
   const bar = h('div', { className: 'xmc-bar' }, row1, row2);
   const statusEl = h('div', { className: 'xmc-status' });
@@ -525,7 +529,7 @@
     if (root.hidden) return;
     lastScrollAt = Date.now();
     view.memoTop = scroller.scrollTop;
-    if (!drawSoon) drawSoon = setTimeout(() => { drawSoon = 0; if (!root.hidden) guard('render', renderFeed); }, 40); // fill blank space as it appears, not on the next tick
+    if (!drawSoon) drawSoon = setTimeout(() => { drawSoon = 0; if (!root.hidden) { guard('restore', () => recycleCards(true)); guard('render', renderFeed); } }, 40); // fill blank space as it appears, not on the next tick
   }, { passive: true });
 
   // A permanent pill in X's left sidebar, shaped like its Post/Tweet button: columns on/off for this page, and the way back
@@ -631,6 +635,7 @@
   // ---------- columns ----------
   let columns = [];
   const view = { feedKey: null, version: -1, sig: '', renderSig: '', upto: 0, cards: [] };
+  let recycled = 0; // posts that have given their contents back (see recycleCards)
   // Automatic: as many as fit at the chosen width. A fixed number you picked is honoured only while columns stay at least
   // MIN_COL wide; on a narrower window it gives way (down to one) instead of squeezing them to slivers.
   const MIN_COL = 320;
@@ -693,6 +698,7 @@
     view.renderSig = sigOf(RENDER_KEYS);
     view.upto = 0;
     view.cards = [];
+    recycled = 0;
     view.memoTop = 0;
     scroller.scrollTop = 0;
     relayout();
@@ -706,6 +712,50 @@
     }
     statusEl.hidden = !msg;
   }
+  // ---------- recycling ----------
+  // After hours of scrolling the page would hold thousands of posts. A post far above or below you gives its contents back
+  // (keeping its exact height, so nothing shifts) and gets them again when you scroll towards it.
+  const RECYCLE_AFTER = 150; // only once this many posts are on the page
+  function recycleCards(restoreOnly) {
+    if (root.hidden || (!recycled && (restoreOnly || view.cards.length < RECYCLE_AFTER))) return;
+    const vh = scroller.clientHeight, top = scroller.scrollTop, bottom = top + vh;
+    const base = scroller.getBoundingClientRect().top - top;
+    const t0 = performance.now();
+    let made = 0;
+    for (const t of view.cards) {
+      const el = t.el;
+      if (!el || !el.isConnected) continue;
+      const gone = el.dataset.recycled === '1';
+      if (!gone && restoreOnly) continue;
+      const r = el.getBoundingClientRect();
+      const y = r.top - base, y2 = r.bottom - base;
+      if (gone) {
+        if (y2 > top - 4 * vh && y < bottom + 8 * vh) { restoreCard(t, el); made++; recycled--; }
+      } else if (!restoreOnly && (y2 < top - 6 * vh || y > bottom + 10 * vh) && !cardBusy(el)) {
+        for (const v of el.querySelectorAll('video')) playObserver.unobserve(v);
+        el.style.boxSizing = 'border-box'; el.style.height = r.height + 'px'; // exact, fractions of a pixel included: hundreds of them add up
+        el.dataset.recycled = '1';
+        el.replaceChildren();
+        made++; recycled++;
+      }
+      if (made >= 40 || performance.now() - t0 > 8) break; // a little at a time
+    }
+  }
+  function restoreCard(t, el) {
+    const fresh = renderCard(t);
+    el.replaceChildren(...fresh.childNodes);
+    el.style.height = ''; el.style.boxSizing = '';
+    delete el.dataset.recycled;
+    updateActions(t, el);
+  }
+  // not while you're using it: open comments, a playing video, something selected or focused in it
+  function cardBusy(el) {
+    if (el.querySelector('.xmc-replies') || el.matches(':focus-within')) return true;
+    for (const v of el.querySelectorAll('video')) if (!v.paused) return true;
+    const sel = getSelection();
+    return !!(sel && sel.rangeCount && !sel.isCollapsed && el.contains(sel.anchorNode));
+  }
+
   function dropCards(pred) { // remove cards in place (e.g. after muting) without rebuilding or losing your place
     view.cards = view.cards.filter((t) => {
       if (!pred(t)) return true;
@@ -867,12 +917,12 @@
     return JSON.stringify({
       version: ext && ext.runtime.getManifest ? ext.runtime.getManifest().version : 'dev',
       page: location.pathname,
-      layout: { columns: columns.length, shortestPx: Math.round(shortestBottom()), tallestPx: Math.round(Math.max(0, ...columns.map((c) => c.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top + scroller.scrollTop))), drawn: view.upto, loaded: (activeFeed() || { items: [] }).items.length },
+      layout: { recycledPosts: recycled, domNodes: document.getElementsByTagName('*').length, columns: columns.length, shortestPx: Math.round(shortestBottom()), tallestPx: Math.round(Math.max(0, ...columns.map((c) => c.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top + scroller.scrollTop))), drawn: view.upto, loaded: (activeFeed() || { items: [] }).items.length },
       hiddenPage: { scrollY: Math.round(window.scrollY), height: d.scrollHeight, viewport: innerHeight, postsMountedByX: articles().length },
       requestsSeen: state.seenOps,
       feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0] + (f.key.includes('#') ? '#' + f.key.split('#').pop() : ''), posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
-      commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [],
+      commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       mode: { walkOnly: !!state.walkOnly, tickMsAverage: Math.round(tickTimes.reduce((a, b) => a + b, 0) / Math.max(1, tickTimes.length)), tickMsWorst: Math.round(Math.max(0, ...tickTimes)) },
     }, null, 2);
@@ -972,6 +1022,7 @@
     updateActions(t);
     const ok = await withReal(t, (art) => { const b = art.querySelector(want ? onSel : offSel); if (b) fire(b); });
     if (!ok) {
+      state.actionFails.push(Date.now());
       t.state[key] = !want;
       if (countKey) t.counts[countKey] = Math.max(0, t.counts[countKey] + (want ? -1 : 1));
       updateActions(t);
@@ -1000,7 +1051,7 @@
           }
         }
       });
-      if (!ok) toast('Couldn’t reach that post just now — try again in a moment');
+      if (!ok) { state.actionFails.push(Date.now()); toast('Couldn’t reach that post just now — try again in a moment'); }
     } finally { setTimeout(() => doc.classList.remove('xmc-acting'), 500); }
   }
 
@@ -1179,6 +1230,7 @@
     updateActions(t);
     const res = await loadReplies(t, { wanted: () => panel.isConnected, onStart: () => { label.textContent = ' Loading comments…'; } });
     if (!panel.isConnected) return; // closed while loading
+    if (!res || !res.data) state.commentFails.push(Date.now());
     fillReplies(panel, t, res);
   }
 
@@ -1864,6 +1916,25 @@
     set('bottom', Math.round(innerHeight - c.bottom) + 'px');
   }
 
+  // ---------- health ----------
+  // Notice when something the extension relies on has stopped working (X changed its page), and say so.
+  function healthSnapshot() {
+    const now = Date.now();
+    state.actionFails = state.actionFails.filter((x) => now - x < 120000);
+    state.commentFails = state.commentFails.filter((x) => now - x < 300000);
+    return {
+      active: state.shown, isHome: where() === 'home', sinceRoute: (now - state.routeSince) / 1000, opsSeen: Object.keys(state.seenOps).length, tabCount: realTabs().length,
+      waitingSeconds: state.waitingPage && state.waitSince ? (now - state.waitSince) / 1000 : 0,
+      actionFails: state.actionFails.length, commentFails: state.commentFails.length, navFallback: pin.nav.fallback, sideFallback: pin.side.fallback,
+    };
+  }
+  function updateHealth() {
+    state.health = XMCLogic.healthIssues(healthSnapshot());
+    const bad = state.health.length > 0;
+    if (healthBtn.hidden === bad) healthBtn.hidden = !bad;
+    if (bad) healthBtn.title = state.health.map((i) => i.text).join('\n') + '\nClick to copy a report you can paste into a bug report.';
+  }
+
   // ---------- main loop ----------
   function position() {
     positionNav();
@@ -1900,6 +1971,7 @@
     }
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
+    if (tickN % 10 === 5 && Date.now() - lastScrollAt > 500) guard('recycle', () => recycleCards(false));
     if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);
     const quiet = state.posting && isModalRoute(); // our own reply automation: X's reply box is open, out of sight
     const modal = isModalRoute() && state.shown && !state.posting;
@@ -1944,6 +2016,7 @@
       guard('tabs', syncTabs);
       guard('tab rules', tabRules);
       guard('bar', applyBar);
+      guard('health', updateHealth);
     }
     const f = activeFeed();
     if (document.hidden) state.routeSince = Date.now(); // don't count time spent in a background tab
@@ -1952,6 +2025,7 @@
       console.warn('[xmc] no timeline data after 10s; showing the normal feed. Seen:', JSON.stringify(state.seenOps),
         'feeds:', [...state.feeds.keys()]);
       state.failed = route; state.failedBy = 'error';
+      toast('Columns couldn’t read this page, so X’s own page is showing. “Turn Columns On” tries again.');
       return;
     }
     guard('render', renderFeed);
@@ -1959,7 +2033,7 @@
     if (tickN % 5 === 1) { state.xNewPill = where() === 'home' && !!findNewPostsPill(); guard('park', () => parkAtTop(f)); }
   }
 
-  window.__xmc = { state, settings, view, diagnostics, downloads: () => savedDownloads }; // for debugging from the console
+  window.__xmc = { state, settings, view, diagnostics, recycle: recycleCards, downloads: () => savedDownloads }; // for debugging from the console
 
   loadAll().then(() => {
     ready = true;

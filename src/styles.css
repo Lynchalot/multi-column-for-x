@@ -356,3 +356,6 @@ html.xmc-frozen [data-testid="sidebarColumn"] { visibility: hidden !important; }
 
 html.xmc-on [data-testid="sidebarColumn"] [style*="translate"] { transform: none !important; }
 html.xmc-on [data-testid="sidebarColumn"] { overscroll-behavior: contain; }
+
+/* the health check found something wrong: a small amber warning in the top bar */
+.xmc-bar .xmc-health { color: #f5a623; font-size: 16px; padding: 6px 10px; }

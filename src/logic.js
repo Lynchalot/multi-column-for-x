@@ -197,7 +197,21 @@ var XMCLogic = (function () {
     return !seen && !v.paused ? 'pause' : null;
   }
 
-  const api = { isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  // Is something the extension relies on missing? h is a snapshot of what it can see (see healthSnapshot in main.js).
+  // Each issue is a plain sentence for the person plus a key for diagnostics. Nothing here guesses: every rule is a thing that was seen failing.
+  function healthIssues(h) {
+    const out = [];
+    const add = (key, text) => out.push({ key, text });
+    if (h.active && h.sinceRoute > 12 && !h.opsSeen) add('no-data', 'The extension can\u2019t see the data X sends on this page.');
+    if (h.active && h.isHome && h.sinceRoute > 12 && !h.tabCount) add('no-tabs', 'The extension can\u2019t find X\u2019s tab bar.');
+    if (h.active && h.waitingSeconds > 45) add('stalled', 'X isn\u2019t sending more posts.');
+    if (h.actionFails >= 3) add('actions', 'Likes, reposts and bookmarks can\u2019t reach X\u2019s buttons.');
+    if (h.commentFails >= 3) add('comments', 'Comments aren\u2019t loading.');
+    if (h.active && h.sinceRoute > 12 && h.navFallback && h.sideFallback) add('pinning', 'X\u2019s menus can\u2019t be placed beside the columns.');
+    return out;
+  }
+
+  const api = { healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

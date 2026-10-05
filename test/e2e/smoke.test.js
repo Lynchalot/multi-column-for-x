@@ -242,3 +242,59 @@ browserTest('the settings page has no leftovers', async (e) => {
     assert.equal((await h.page.locator('#support a').first().innerText()).trim(), 'Support');
   });
 });
+
+browserTest('a long session: far-off posts give their nodes back, and nothing moves when they return', async (e) => {
+  const h = await e.open('/home/', { height: 800 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    // scroll a long way down
+    await page.evaluate(async () => {
+      const sleep = (ms) => new Promise((x) => setTimeout(x, ms));
+      const sc = document.querySelector('.xmc-scroller');
+      for (let k = 0; k < 90 && window.__xmc.view.cards.length < 420; k++) { sc.scrollTop = sc.scrollHeight; await sleep(300); }
+    });
+    await page.waitForTimeout(1500);
+    const r = await page.evaluate(async () => {
+      const sleep = (ms) => new Promise((x) => setTimeout(x, ms));
+      const sc = document.querySelector('.xmc-scroller');
+      const far = window.__xmc.view.cards.slice(0, 80).map((t) => t.el);
+      const heights0 = far.map((el) => el.getBoundingClientRect().height);
+      const nodes0 = document.getElementsByTagName('*').length;
+      for (let i = 0; i < 12; i++) { window.__xmc.recycle(false); await sleep(30); }
+      const nodes1 = document.getElementsByTagName('*').length;
+      const drift = Math.max(...far.map((el, i) => Math.abs(el.getBoundingClientRect().height - heights0[i])));
+      const gone = document.querySelectorAll('.xmc-card[data-recycled="1"]').length;
+      const first = window.__xmc.view.cards[0].el;
+      const firstGone = first.dataset.recycled === '1', firstEmpty = first.childNodes.length === 0;
+      // back to the top: the first posts come back with their contents, and the page height is what it was
+      sc.scrollTop = 0; await sleep(900);
+      for (let i = 0; i < 12; i++) { window.__xmc.recycle(true); await sleep(30); }
+      const back = far.slice(0, 10).map((el, i) => Math.abs(el.getBoundingClientRect().height - heights0[i]));
+      return { cards: window.__xmc.view.cards.length, nodes0, nodes1, drift, gone, firstGone, firstEmpty,
+        firstBack: first.dataset.recycled !== '1' && !!first.querySelector('.xmc-text'), backDrift: Math.max(...back) };
+    });
+    assert.ok(r.cards >= 300, `only ${r.cards} posts`);
+    assert.ok(r.gone > 100, `only ${r.gone} posts were recycled`);
+    assert.ok(r.nodes1 < r.nodes0 * 0.7, `nodes ${r.nodes0} -> ${r.nodes1}`);
+    assert.ok(r.drift < 0.05, `a recycled post changed height by ${r.drift}px`);
+    assert.ok(r.firstGone && r.firstEmpty, 'the first post, far above, was not recycled');
+    assert.ok(r.firstBack, 'the first post did not come back');
+    assert.ok(r.backDrift < 30, `a returned post is ${r.backDrift}px off its old height`);
+  }, 120000);
+}, 150000);
+
+browserTest('the health check shows a warning in the top bar when things keep failing', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    assert.equal(await page.locator('.xmc-health').isVisible(), false, 'nothing to warn about yet');
+    await page.evaluate(() => { for (let i = 0; i < 3; i++) window.__xmc.state.actionFails.push(Date.now()); });
+    await page.waitForSelector('.xmc-health:not([hidden])', { timeout: 5000 });
+    assert.match(await page.locator('.xmc-health').getAttribute('title'), /reach X.s buttons/);
+    assert.deepEqual(await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).health), ['actions']);
+    await page.evaluate(() => { window.__xmc.state.actionFails.length = 0; });
+    await page.waitForSelector('.xmc-health', { state: 'hidden', timeout: 5000 });
+  });
+});

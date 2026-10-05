@@ -1,0 +1,34 @@
+name: Something is wrong
+description: Columns, loading, comments, downloads... anything that doesn't work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. X changes its page often, so most problems are a small piece that needs an update, and a report is how it gets fixed.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what did you see instead? A screenshot or short screen recording helps a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        Click the amber warning sign in the top bar if you see one, or open a post's "..." menu and choose "Copy diagnostics", then paste here.
+        It holds request names, counts and layout numbers: no post text, names or cookies.
+      render: json
+  - type: input
+    id: version
+    attributes:
+      label: Extension version
+      description: "about:addons, then Multi-Column for X"
+      placeholder: "0.9.3"
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: "Zen 1.x / Firefox 14x on Linux"

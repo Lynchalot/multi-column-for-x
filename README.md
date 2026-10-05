@@ -77,13 +77,14 @@ npm run build     # zip for addons.mozilla.org
 Try it in Zen/Firefox: `about:debugging#/runtime/this-firefox` → Load Temporary Add-on → `manifest.json`.
 Permanent: submit the zip to addons.mozilla.org, or `npx web-ext sign --channel=unlisted` for a signed `.xpi` of your own.
 
-## If it shows the normal feed instead of columns
-Open the browser console on x.com and look for `[xmc]`. It lists which timeline requests it saw: `Seen: {}` means the page hook
-didn't run; `Seen: {HomeTimeline: n}` with no posts means X changed its data format (fix `src/parse.js`; add a fixture to
-`test/fixtures.js` first). Press **Turn Columns On** in X's left sidebar to try again. `window.__xmc` shows the live state.
-
-If **Loading more** never finishes, or comments say they couldn't load, press **Copy diagnostics** (it appears on the spinner after
-20 seconds, and in the comments panel). It copies a private snapshot — request names and counts, no post text — to paste when asking for help.
+## If something is wrong
+- **A small amber warning** appears in the top bar when the extension notices something it relies on has stopped working (usually after X
+  changes its page). Hover it to see what; click it to copy a report.
+- **It shows X's normal feed instead of columns:** press **Turn Columns On** in X's left sidebar to try again. Open the browser console and look
+  for `[xmc]`: it lists which timeline requests it saw (`Seen: {}` means the page hook didn't run; `Seen: {HomeTimeline: n}` with no posts means
+  X changed its data format: fix `src/parse.js`, adding a fixture to `test/fixtures.js` first). `window.__xmc` shows the live state.
+- **Loading never finishes, or comments won't load:** open a post's **...** menu, choose **Copy diagnostics**, and paste it into a
+  [bug report](https://github.com/Lynchalot/multi-column-for-x/issues/new/choose). It holds request names and counts, no post text, names or cookies.
 
 ## Support
 Free and open source (MIT). If it saves you time, you can [buy me a coffee on Ko-fi](https://ko-fi.com/falsehamartia). Bugs and ideas: [GitHub issues](https://github.com/Lynchalot/multi-column-for-x/issues).

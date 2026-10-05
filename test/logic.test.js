@@ -319,3 +319,19 @@ test('new settings exist with sensible defaults', () => {
   assert.equal(S.DEFAULTS.tidyReplies, true);
   assert.equal(S.DEFAULTS.nativeTools, true);
 });
+
+test('health: each rule fires on what was seen failing, and a healthy page reports nothing', () => {
+  const ok = { active: true, isHome: true, sinceRoute: 60, opsSeen: 4, tabCount: 2, waitingSeconds: 0, actionFails: 0, commentFails: 0, navFallback: false, sideFallback: false };
+  assert.deepEqual(L.healthIssues(ok), []);
+  const keys = (o) => L.healthIssues(Object.assign({}, ok, o)).map((i) => i.key);
+  assert.deepEqual(keys({ opsSeen: 0 }), ['no-data']);
+  assert.deepEqual(keys({ opsSeen: 0, sinceRoute: 5 }), [], 'give it a few seconds first');
+  assert.deepEqual(keys({ tabCount: 0 }), ['no-tabs']);
+  assert.deepEqual(keys({ tabCount: 0, isHome: false }), [], 'only Home needs its tab bar');
+  assert.deepEqual(keys({ waitingSeconds: 50 }), ['stalled']);
+  assert.deepEqual(keys({ actionFails: 3 }), ['actions']);
+  assert.deepEqual(keys({ commentFails: 3 }), ['comments']);
+  assert.deepEqual(keys({ navFallback: true }), [], 'one sidebar falling back is fine');
+  assert.deepEqual(keys({ navFallback: true, sideFallback: true }), ['pinning']);
+  assert.deepEqual(L.healthIssues({ active: false, sinceRoute: 99, opsSeen: 0, tabCount: 0, waitingSeconds: 99 }), [], 'columns off: nothing to report');
+});

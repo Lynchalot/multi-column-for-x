@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.3
+- **Long sessions stay light:** posts far above or below you give their contents back (keeping their exact height, so nothing shifts) and get them again
+  as you scroll towards them. It starts once 150 posts are on the page.
+- **A health check:** a small amber warning in the top bar when the extension notices something it relies on has stopped working (it can't see X's data,
+  can't find the tab bar, X stopped sending posts, likes or comments keep failing). Hover for what, click to copy a report. When columns give up on a page, a message says so.
+- **Browser tests:** a stand-in x.com now lives in the repo (`npm run mock`) and 15 tests drive the real extension in headless Chrome, locally and on GitHub.
+- GitHub issue forms (a bug report asks for the diagnostics).
+
 ## 0.9.2
 - **Translate post now opens the post** (in a new tab by default, or in place if you chose that), where X translates it itself. Translating inside the columns
   was unreliable, so it is gone, along with the "translate automatically" option. Less running on X's hidden side as well.
