@@ -4,9 +4,9 @@ What is already done: `web-ext lint` is clean (0 errors, 0 warnings), the zip bu
 listing text / reviewer notes / icon are in `store/`, privacy policy is `PRIVACY.md`, licence is MIT.
 
 ## 1. Decide three things before the first upload
-1. **Add-on ID** (in `manifest.json`, `browser_specific_settings.gecko.id`): currently `x-multicolumn@lynchalot.local`. It can never change
-   after the first upload. It is invisible to users, so leaving it is fine; if you want something cleaner (e.g. `multi-column-for-x@lynchalot`),
-   change it now. (Changing it also resets the settings saved in a copy you already have installed.)
+1. **Add-on ID** (in `manifest.json`, `browser_specific_settings.gecko.id`): `multi-column-for-x@lynchalot.github.io`. It can never change after the first
+   upload, and Mozilla keeps the ID of a deleted add-on reserved for good: if you ever delete the add-on, the next one needs a new ID.
+   (The first ID, `x-multicolumn@lynchalot.local`, was burned by a deleted unfinished upload.)
 2. **Name.** "Multi-Column for X" follows the pattern of other "for X/Twitter" add-ons. If a reviewer objects to the trademark, the fallback
    is "Multi-Column for X (unofficial)". The listing already says "Not affiliated with X Corp."
 3. **Version.** Use 1.0.0 for the first public upload, once you have used the current build on real X for a day or two.
