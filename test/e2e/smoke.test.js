@@ -808,16 +808,27 @@ browserTest('on a profile\'s Replies tab a reply shows the post it answers, in i
     const card = page.locator('.xmc-card', { has: page.locator('.xmc-pctx') }).first();
     assert.match(await card.locator('.xmc-pctx').innerText(), /tweet 789998/);
     assert.equal(await card.locator('.xmc-reply').count(), 0, 'no separate "Replying to" line');
+    assert.equal(await card.locator('.xmc-pctx .xmc-media img').count(), 1, 'its picture is shown too, as on X');
   });
 });
 
-browserTest('if X sent no profile data, the header is read from X\'s own header instead', async (e) => {
+browserTest('a profile\'s header is a copy of X\'s own: its links open, and its buttons press the real ones', async (e) => {
   const h = await e.open('/user7/');
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
-    await page.waitForSelector('.xmc-profile:not([hidden]) .xmc-pname', { timeout: 8000 });
+    await page.waitForSelector('.xmc-profile.xmc-native [data-testid="UserName"]', { timeout: 8000 });
     const text = await page.locator('.xmc-profile').innerText();
-    for (const part of ['Seven Name', '@user7', 'Bio seven', 'Somewhere', 'Joined May 2010', '12 Following', '34 Followers']) assert.ok(text.includes(part), part + ' in: ' + text);
+    for (const part of ['Seven Name', '@user7', 'Bio seven', 'example.org', 'Somewhere', 'Joined May 2010', '12 Following', '34 Followers', 'Following']) assert.ok(text.includes(part), part + ' in: ' + text);
+    assert.equal(await page.locator('.xmc-profile img').count(), 2, 'the banner and the picture came along');
+    assert.equal(await page.locator('.xmc-profile [id]').count(), 0, 'no duplicate ids');
+    assert.equal((await page.locator('.xmc-pagetitle').innerText()).trim(), 'Seven Name');
+    // a link inside X's own pages opens as it does elsewhere here (a new tab)
+    const opened = h.page.context().waitForEvent('page');
+    await page.locator('.xmc-profile a', { hasText: '34 Followers' }).click();
+    assert.match((await opened).url(), /\/user7\/verified_followers$/);
+    // a button presses X's real one
+    await page.locator('.xmc-profile button').click();
+    await page.waitForFunction(() => window.__follow === 1, null, { timeout: 8000 });
   });
 });

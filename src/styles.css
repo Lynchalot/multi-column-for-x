@@ -427,3 +427,6 @@ html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
 .xmc-pbio { margin-top: 10px; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 70ch; }
 .xmc-pmeta { margin-top: 6px; font-size: 14px; }
 .xmc-pcounts { margin-top: 6px; font-size: 14px; font-weight: 600; white-space: pre-wrap; }
+
+/* X's own profile header, copied: kept to the width of X's column */
+.xmc-profile.xmc-native { max-width: 600px; margin: 0 auto 8px; padding: 0; border-bottom: 0; }

@@ -78,6 +78,7 @@ function openDrop(){ const d=CFG.dropdown, l=document.getElementById('layers'); 
 // X closes its menu when it sees a press outside it (set window.__strict to do it before anything else can react)
 window.addEventListener('pointerdown',(e)=>{ if(window.__strict && !e.target.closest('[role=menu]')){ document.getElementById('layers').innerHTML=''; window.__strictClosed=(window.__strictClosed||0)+1; } },true);
 CFG.tabs.forEach((t,i)=>{ document.getElementById('t'+i).onclick=()=>{ const sel=document.getElementById('t'+i).getAttribute('aria-selected')==='true'; if(CFG.dropdown && CFG.dropdown.tab===i && sel) openDrop(); else select(i); }; });
+{ const fb=document.querySelector('[data-testid$="-follow"]'); if(fb) fb.addEventListener('click',()=>{ window.__follow=(window.__follow||0)+1; }); }
 if(CFG.meta) fetch('/i/api/graphql/abc/'+CFG.meta+'?variables='+encodeURIComponent(JSON.stringify({listId:'123'})));
 if(CFG.load!==false) load(true);
 </script>`;
@@ -113,7 +114,7 @@ function pageFor(path) {
   if (p === '/threads') return timelinePage({ title: 'threads / X', tabs: [{ label: 'Posts', feed: 'ThreadsTimeline' }], selected: 0 });
   if (p === '/i/lists/123') return timelinePage({ title: 'List / X', tabs: [{ label: 'Posts', feed: 'ListLatestTimeline' }], selected: 0, meta: 'ListByRestId' });
   if (p === '/user5') return timelinePage({ title: 'User Five (@user5) / X', tabs: [{ label: 'Posts', feed: 'UserTweets' }], selected: 0, meta: 'UserByScreenName' });
-  if (p === '/user7') return timelinePage({ title: 'user7 / X', tabs: [{ label: 'Posts', feed: 'UserTweets' }], selected: 0, header: '<div data-testid="UserName"><span>Seven Name</span><span>@user7</span></div><div data-testid="UserDescription">Bio seven</div><div data-testid="UserProfileHeader_Items"><span>Somewhere</span><span>Joined May 2010</span></div><a href="/user7/following">12 Following</a><a href="/user7/verified_followers">34 Followers</a>' });
+  if (p === '/user7') return timelinePage({ title: 'user7 / X', tabs: [{ label: 'Posts', feed: 'UserTweets' }], selected: 0, header: '<div><a href="/user7/header_photo"><img alt="" src="/img/b7.svg" width="600" height="200"></a><div data-testid="UserAvatar-Container-user7"><img alt="" src="/img/a7_normal.svg" width="60" height="60"></div><button data-testid="user7-follow">Following</button><div data-testid="UserName"><span>Seven Name</span><span>@user7</span></div><div data-testid="UserDescription">Bio seven <a href="https://example.org/" target="_blank" rel="noopener">example.org</a></div><div data-testid="UserProfileHeader_Items"><span>Somewhere</span><span>Joined May 2010</span></div><a href="/user7/following">12 Following</a> <a href="/user7/verified_followers">34 Followers</a></div>' });
   if (p === '/user6/with_replies') return timelinePage({ title: 'user6 / X', tabs: [{ label: 'Posts', feed: 'UserTweets' }, { label: 'Replies', feed: 'UserTweetsAndReplies' }], selected: 1 });
   if (p === '/dupes') return timelinePage({ title: 'dupes / X', tabs: [{ label: 'Posts', feed: 'DupesTimeline' }], selected: 0 });
   if (p === '/nofeed') return timelinePage({ ...HOME, title: 'No feed / X', load: false });

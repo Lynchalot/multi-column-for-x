@@ -506,15 +506,16 @@
     if (clips) bits.push(t.media.some((m) => m.type === 'gif') && clips === 1 ? 'GIF' : clips === 1 ? 'video' : clips + ' videos');
     return h('button', { className: 'xmc-mediachip', type: 'button', title: 'Show the pictures and video', textContent: '\u25b6 ' + bits.join(' + ') });
   }
-  // the post a reply is answering, small, above the reply
+  // the post a reply is answering, above the reply: its words, pictures and what it quotes, as X shows it
   function renderParentContext(p) {
-    const photos = p.media.filter((m) => m.type === 'photo').length, clips = p.media.length - photos;
-    const bits = [photos ? photos + (photos === 1 ? ' photo' : ' photos') : '', clips ? (clips === 1 ? 'video' : clips + ' videos') : ''].filter(Boolean).join(', ');
     const box = h('div', { className: 'xmc-pctx' },
-      h('div', {}, h('b', { textContent: p.author.name }), h('span', { className: 'xmc-dim', textContent: ' @' + p.author.handle + ' \u00b7 ' + relTime(p.createdAt) })),
+      h('div', {}, h('b', { textContent: p.author.name }), h('span', { className: 'xmc-dim', textContent: ' @' + p.author.handle + ' · ' + relTime(p.createdAt) })),
       p.segs.length ? h('div', { className: 'xmc-pctx-text' }, renderSegs(p.segs)) : null,
-      bits ? h('div', { className: 'xmc-dim' }, bits) : null);
+      p.media.length ? renderMedia(p) : null,
+      p.card ? renderLinkCard(p.card) : null,
+      p.quoted ? renderQuote(p.quoted) : null);
     box.dataset.href = p.url;
+    for (const img of box.querySelectorAll('[data-lb]')) delete img.dataset.lb; // the viewer would show the reply's pictures, not these
     return box;
   }
   // the rest of a person's thread, folded behind one line
@@ -1574,8 +1575,9 @@
     fillReplies(panel, t, res);
   }
 
-  // A profile page: who it is. X's own header is under our columns, so a compact one is drawn above the posts, and the name is
-  // kept in the top bar. The details come from what X sends when the profile opens (or, failing that, from X's own header).
+  // A profile page: who it is. X's own header (banner, picture, name, bio with its links, counts, "followed by", buttons) is under our
+  // columns, so a copy of it is shown above the posts: the same look, because it is X's own markup. Links in it open as links do
+  // elsewhere here; its buttons press the real ones. If X's header can't be found, a plainer one is drawn from what X sent.
   const PROFILE_TABS = ['with_replies', 'media', 'likes', 'highlights', 'articles'];
   function profileHandle() {
     const seg = location.pathname.split('/').filter(Boolean);
@@ -1583,54 +1585,102 @@
     return seg.length === 1 || (seg.length === 2 && PROFILE_TABS.includes(seg[1])) ? seg[0] : '';
   }
   const plural = (n, one) => fmt(n) + ' ' + one;
-  function profileFromDom(handle) {
+  // X's own header block: the smallest element that holds the banner, the picture and the name, and stops short of the tab bar
+  function nativeHeader(handle) {
     const col = mainCol(), nameEl = col && col.querySelector('[data-testid="UserName"]');
-    if (!nameEl) return null;
-    const m = /^(.*?)@(\w+)/.exec((nameEl.textContent || '').replace(/\s+/g, ' ').trim());
-    if (!m || m[2].toLowerCase() !== handle.toLowerCase()) return null;
-    const src = (sel) => { const i = col.querySelector(sel); return i && i.src ? i.src : ''; };
-    const items = col.querySelector('[data-testid="UserProfileHeader_Items"]');
-    const count = (suffix) => { const a = col.querySelector('a[href$="' + suffix + '"]'); return a ? (a.textContent || '').trim().replace(/\s+/g, ' ') : ''; };
-    return {
-      name: m[1].trim() || m[2], handle: m[2],
-      avatar: src('[data-testid^="UserAvatar-Container-"] img').replace(/_(normal|bigger|200x200)\./, '_400x400.'), banner: src('a[href$="/header_photo"] img'),
-      bio: ((col.querySelector('[data-testid="UserDescription"]') || {}).textContent || '').trim(),
-      meta: items ? [...items.children].map((c) => (c.textContent || '').trim()).filter(Boolean).join(' \u00b7 ') : '',
-      counts: [count('/following'), count('/verified_followers') || count('/followers')].filter(Boolean).join('   '),
-    };
+    if (!nameEl || !(nameEl.textContent || '').toLowerCase().includes('@' + handle.toLowerCase())) return null;
+    const need = [col.querySelector('a[href$="/header_photo"]'), col.querySelector('[data-testid^="UserAvatar-Container-"]')].filter(Boolean);
+    let box = nameEl;
+    while (box.parentElement && box.parentElement !== col && !need.every((n) => box.contains(n))) {
+      if (box.parentElement.querySelector('[role="tablist"]')) break; // any higher and the tabs come too
+      box = box.parentElement;
+    }
+    return box.querySelector('[role="tablist"]') ? null : box;
   }
+  let headerCopy = null; // { handle, html, index: Map(copy element -> its position) }
+  function copyHeader(handle) {
+    const orig = nativeHeader(handle);
+    if (!orig) return !!(headerCopy && headerCopy.handle === handle.toLowerCase());
+    const html = orig.innerHTML;
+    if (headerCopy && headerCopy.handle === handle.toLowerCase() && headerCopy.html === html) return true;
+    const clone = orig.cloneNode(true);
+    const copies = [clone, ...clone.querySelectorAll('*')];
+    const index = new Map(copies.map((el, i) => [el, i]));
+    for (const el of copies) el.removeAttribute('id');
+    headerCopy = { handle: handle.toLowerCase(), html, index };
+    profileEl.className = 'xmc-profile xmc-native';
+    profileEl.replaceChildren(clone);
+    return true;
+  }
+  // a click in the copy: a link opens as links do here; a button presses X's real one (X's header has to be mounted for that: it is
+  // brought back to view first if the loader has moved X's page on)
+  async function pressHeaderButton(position) {
+    state.proxyUntil = Date.now() + 8000;
+    try {
+      let orig = nativeHeader(headerCopy.handle);
+      if (!orig) { window.scrollTo(0, 0); orig = await waitFor(() => nativeHeader(headerCopy.handle), 2500); }
+      if (!orig || orig.innerHTML !== headerCopy.html) { toast('Couldn’t reach that button just now. Try again in a moment.'); return; }
+      const target = [orig, ...orig.querySelectorAll('*')][position];
+      if (target) fire(target);
+    } finally { settleProxy(); }
+  }
+  profileEl.addEventListener('click', (e) => {
+    if (!headerCopy || !profileEl.classList.contains('xmc-native') || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const hit = e.target.closest('a[href], button, [role="button"]');
+    if (!hit || !profileEl.contains(hit)) return;
+    if (hit.matches('a[href]')) {
+      const url = new URL(hit.getAttribute('href'), location.origin);
+      if (url.origin !== location.origin) return; // a link out (the bio's): the browser opens it
+      e.preventDefault(); navigate(url.pathname + url.search, null);
+      return;
+    }
+    e.preventDefault(); e.stopPropagation();
+    const position = headerCopy.index.get(hit);
+    if (position !== undefined) pressHeaderButton(position);
+  });
+  // the plainer header, from what X sent when the profile opened
   function profileCard(handle) {
     const p = state.profiles.get(handle.toLowerCase());
-    if (p) {
-      const joined = p.joined ? 'Joined ' + new Date(p.joined).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '';
-      return {
-        name: p.name, handle: p.handle, blue: p.blue, verified: p.verified, avatar: p.avatar, banner: p.banner, bio: p.bio,
-        meta: [p.location, p.site, joined].filter(Boolean).join(' \u00b7 '),
-        counts: [p.following !== undefined ? plural(p.following, 'Following') : '', p.followers !== undefined ? plural(p.followers, 'Followers') : ''].filter(Boolean).join('   '),
-      };
-    }
-    return profileFromDom(handle);
+    if (!p) return null;
+    const joined = p.joined ? 'Joined ' + new Date(p.joined).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '';
+    return {
+      name: p.name, handle: p.handle, blue: p.blue, verified: p.verified, avatar: p.avatar, banner: p.banner, bio: p.bio,
+      meta: [p.location, p.site, joined].filter(Boolean).join(' · '),
+      counts: [p.following !== undefined ? plural(p.following, 'Following') : '', p.followers !== undefined ? plural(p.followers, 'Followers') : ''].filter(Boolean).join('   '),
+    };
   }
   let profileSig = '';
   function updateProfile() {
     const handle = settings.profileHeader && state.shown && !root.hidden ? profileHandle() : '';
-    const c = handle ? profileCard(handle) : null;
-    profileEl.hidden = !c;
-    if (!c) { profileSig = ''; if (!listNameOnBar) pageTitleEl.hidden = true; return; }
-    pageTitleEl.hidden = false; pageTitleEl.textContent = c.name;
-    const sig = JSON.stringify(c);
+    if (!handle) { profileEl.hidden = true; profileSig = ''; headerCopy = null; if (!listNameOnBar) pageTitleEl.hidden = true; return; }
+    if (headerCopy && headerCopy.handle !== handle.toLowerCase()) { headerCopy = null; profileSig = ''; profileEl.replaceChildren(); profileEl.className = 'xmc-profile'; }
+    const api = profileCard(handle);
+    if (copyHeader(handle)) {
+      profileEl.hidden = false;
+      const nm = profileEl.querySelector('[data-testid="UserName"]');
+      const name = (api && api.name) || (nm && nm.querySelector('span') ? nm.querySelector('span').textContent.trim() : '');
+      pageTitleEl.hidden = !name; if (name && pageTitleEl.textContent !== name) pageTitleEl.textContent = name;
+      return;
+    }
+    // X's own header is not there (yet): after a moment, the plainer one
+    if (!api || Date.now() - state.routeSince < 2500) { profileEl.hidden = true; pageTitleEl.hidden = !(api || listNameOnBar); if (api) pageTitleEl.textContent = api.name; return; }
+    profileEl.hidden = false;
+    pageTitleEl.hidden = false; pageTitleEl.textContent = api.name;
+    const sig = JSON.stringify(api);
     if (sig === profileSig) return;
     profileSig = sig;
-    profileEl.replaceChildren(
-      c.banner ? h('div', { className: 'xmc-pbanner', style: 'background-image:url("' + c.banner.replace(/"/g, '%22') + '")' }) : null,
+    profileEl.className = 'xmc-profile';
+    profileEl.replaceChildren(...[
+      api.banner ? h('div', { className: 'xmc-pbanner', style: 'background-image:url("' + api.banner.replace(/"/g, '%22') + '")' }) : null,
       h('div', { className: 'xmc-pmain' },
-        c.avatar ? h('img', { className: 'xmc-pavatar', src: c.avatar, alt: '' }) : null,
+        api.avatar ? h('img', { className: 'xmc-pavatar', src: api.avatar, alt: '' }) : null,
         h('div', { className: 'xmc-pwho' },
-          h('div', { className: 'xmc-pname' }, c.name, badge(c)),
-          h('div', { className: 'xmc-dim' }, '@' + c.handle))),
-      c.bio ? h('div', { className: 'xmc-pbio', textContent: c.bio }) : null,
-      c.meta ? h('div', { className: 'xmc-dim xmc-pmeta', textContent: c.meta }) : null,
-      c.counts ? h('div', { className: 'xmc-pcounts', textContent: c.counts }) : null);
+          h('div', { className: 'xmc-pname' }, api.name, badge(api)),
+          h('div', { className: 'xmc-dim' }, '@' + api.handle))),
+      api.bio ? h('div', { className: 'xmc-pbio', textContent: api.bio }) : null,
+      api.meta ? h('div', { className: 'xmc-dim xmc-pmeta', textContent: api.meta }) : null,
+      api.counts ? h('div', { className: 'xmc-pcounts', textContent: api.counts }) : null,
+    ].filter(Boolean));
   }
 
   // A list page: its name in the tab title (X leaves it as "List") and at the left of the top bar

@@ -44,7 +44,7 @@ function makeApi(origin, pages) {
     for (let k = 0; k < 20; k++) {
       const i = 90000 + (newer || 0) * 5 - p * 20 - k;
       if (feed === 'UserTweetsAndReplies' && k === 2) { // a reply, sent together with the post it answers (as X's Replies tab does)
-        const parent = tweet(i + 700000, 31, 0, feed), reply = tweet(i, 6, 0, feed);
+        const parent = tweet(i + 700000, 31, 1, feed), reply = tweet(i, 6, 0, feed);
         reply.legacy.in_reply_to_status_id_str = String(i + 700000); reply.legacy.in_reply_to_screen_name = 'user31';
         const wrap = (t) => ({ entryId: `conversation-${i}-tweet-${t.rest_id}`, item: { itemContent: { itemType: 'TimelineTweet', tweet_results: { result: t } } } });
         ents.push({ entryId: `conversation-${i}`, sortIndex: String(i), content: { entryType: 'TimelineTimelineModule', items: [wrap(parent), wrap(reply)] } });
