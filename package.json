@@ -4,7 +4,7 @@
   "private": true,
   "description": "Your X (Twitter) timeline in multiple columns, with in-card video, filters and media download button.",
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test \"test/*.test.js\"",
     "lint": "npx --yes web-ext lint --config web-ext-config.cjs",
     "build": "npx --yes web-ext build --config web-ext-config.cjs --overwrite-dest",
     "start": "npx --yes web-ext run"
