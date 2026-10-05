@@ -69,6 +69,8 @@ and x.com / twitter.com / X's media servers.
 ## Develop
 ```bash
 npm test          # parser, filter, file-name and settings tests (node:test, no dependencies)
+npm run test:e2e  # the extension in headless Chrome against a stand-in x.com (needs Chrome; `npm install` first)
+npm run mock      # serve that stand-in x.com to look at by hand: http://127.0.0.1:8766/home/
 npm run lint      # web-ext lint
 npm run build     # zip for addons.mozilla.org
 ```

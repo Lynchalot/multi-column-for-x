@@ -7,7 +7,9 @@
     "test": "node --test \"test/*.test.js\"",
     "lint": "npx --yes web-ext lint --config web-ext-config.cjs",
     "build": "npx --yes web-ext build --config web-ext-config.cjs --overwrite-dest",
-    "start": "npx --yes web-ext run"
+    "start": "npx --yes web-ext run",
+    "test:e2e": "node --test --test-concurrency=1 \"test/e2e/*.test.js\"",
+    "mock": "node test/e2e/mock/server.js"
   },
   "license": "MIT",
   "repository": {
@@ -17,5 +19,8 @@
   "homepage": "https://github.com/Lynchalot/multi-column-for-x",
   "bugs": {
     "url": "https://github.com/Lynchalot/multi-column-for-x/issues"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
   }
 }

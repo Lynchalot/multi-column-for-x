@@ -1,0 +1,104 @@
+// Stand-in pages shaped like the parts of x.com the extension drives: the left nav, a primary column with a tab bar and a
+// virtualised list (only posts near the scroll position exist, as on X), the right sidebar, the floating drawer, #layers.
+'use strict';
+
+const SCRIPTS = ['settings', 'logic', 'parse', 'site', 'main'].map((n) => `<script src="/ext/src/${n}.js"></script>`).join('');
+
+function shell(title, body, script) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>
+<script src="/ext/src/hook.js"></script>
+<link rel="stylesheet" href="/ext/src/styles.css"><style>html,body{height:100%} body{overflow-y:scroll} #react-root{min-height:100%;display:flex;flex-direction:column}</style></head>
+<body style="margin:0;background:#000;color:#e7e9ea;font-family:sans-serif">
+<div id="react-root">
+<header role="banner" style="position:fixed;left:200px;top:0;bottom:0;width:260px"><nav><h1><a href="/home"><svg viewBox="0 0 24 24"><g><path d="M14.258 10.152L23.176 0h-2.113l-7.747 8.813L7.133 0H0l9.352 13.328L0 23.973h2.113l8.176-9.309 6.531 9.309h7.133z"></path></g></svg></a></h1>
+ <a href="/home" data-testid="AppTabBar_Home_Link"><span>Home</span></a><br><a href="/explore"><span>Explore</span></a><br><a href="/notifications"><span>Notifications</span></a><br><a href="/i/grok"><span>Grok</span></a><br><a href="/i/bookmarks"><span>History</span></a><br><a href="/i/jf/creators/studio"><span>Creator Studio</span></a>
+ <a href="/compose/post" data-testid="SideNav_NewTweet_Button" style="display:block;width:230px;height:52px;border-radius:9999px;background:#eee;color:#000;text-align:center;line-height:52px;font-size:17px;font-weight:700"><span><span>Post</span></span></a></nav>
+ <div data-testid="SideNav_AccountSwitcher_Button" style="position:absolute;bottom:10px;width:250px">account</div></header>
+${body}
+<div data-testid="sidebarColumn" style="position:fixed;right:200px;top:0;width:300px"><input data-testid="SearchBox_Search_Input" placeholder="Search"><br><a href="/explore">Trending</a><div aria-label="Who to follow">Who to follow</div></div>
+<div id="drawer" style="position:fixed;right:16px;bottom:16px;width:60px;display:flex;flex-direction:column;gap:8px"><div><button aria-label="Grok" id="grokb" style="width:50px;height:50px">G</button></div><div><button aria-label="Messages" id="dmb" style="width:50px;height:50px">M</button></div></div>
+</div><div id="layers"></div>
+${script}
+${SCRIPTS}
+</body></html>`;
+}
+
+// cfg: { title, tabs:[{label, feed}], selected, load (default true), dropdown:{tab, items, kind:'sort'|'media'} }
+function timelinePage(cfg) {
+  const tabs = cfg.tabs.map((t, i) => `<a role="tab" aria-selected="${i === cfg.selected}" id="t${i}"><span style="font-weight:${i === cfg.selected ? 700 : 500}">${t.label}</span></a>`).join('');
+  const body = `<div style="margin-left:480px;width:600px"><div data-testid="primaryColumn"><div role="tablist">${tabs}</div><div id="list" style="position:relative"></div></div></div>`;
+  const script = `<script>
+const CFG = ${JSON.stringify(cfg)};
+const H=320; let items=[], feed=CFG.tabs[CFG.selected].feed, cursor=null, loading=false, done=false; const list=document.getElementById('list');
+window.__actions=[]; const state={liked:new Set(),bm:new Set()};
+const newer=()=> window.__pick==='popular'?1000: window.__pick==='photos'?2000:0;
+async function load(first){ if(loading) return; loading=true;
+  const v={count:20}; if(!first&&cursor) v.cursor=cursor; if(newer()) v.newer=newer();
+  if(window.__delay) await new Promise(r=>setTimeout(r,window.__delay));
+  const r=await fetch('/i/api/graphql/abc/'+feed,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({variables:v,queryId:'abc'})}); const j=await r.json();
+  const ents=j.data.home.home_timeline_urt.instructions[0].entries; if(first){items=[];done=false}
+  cursor=null; for(const e of ents){ if(e.entryId.startsWith('cursor-bottom')) cursor=e.content.value; else if(!e.entryId.startsWith('promoted')) items.push(e.entryId.replace('tweet-','')); else items.push('ad'); }
+  if(!cursor) done=true; loading=false; render(); }
+function mk(id,i){ const c=document.createElement('div'); c.setAttribute('data-testid','cellInnerDiv'); c.dataset.i=i; c.style.cssText='position:absolute;width:100%;transform:translateY('+(i*H)+'px);height:'+H+'px';
+  c.innerHTML='<article data-testid="tweet"><a href="/user/status/'+id+'"><time>t</time></a><div data-testid="tweetText">Original text '+id+'</div><div role="group">'
+   +'<button data-testid="reply" onclick="openComposer(\\''+id+'\\')">r</button><button data-testid="retweet">rt</button>'
+   +'<button data-testid="'+(state.liked.has(id)?'unlike':'like')+'" onclick="tog(\\'liked\\',\\''+id+'\\',this,\\'like\\',\\'unlike\\')">l</button>'
+   +'<button data-testid="'+(state.bm.has(id)?'removeBookmark':'bookmark')+'" onclick="tog(\\'bm\\',\\''+id+'\\',this,\\'bookmark\\',\\'removeBookmark\\')">b</button></div><a href="/user'+(id%9)+'">profile</a></article>'; return c; }
+function tog(set,id,btn,on,off){ const s=state[set]; if(s.has(id)){s.delete(id);btn.dataset.testid=on}else{s.add(id);btn.dataset.testid=off} __actions.push(set+':'+id); }
+function openComposer(id){ __actions.push('reply:'+id); history.pushState({}, '', '/compose/post'); const l=document.getElementById('layers');
+  l.innerHTML='<div role="dialog"><div data-testid="tweetTextarea_0" role="textbox" contenteditable="true" style="min-height:40px;border:1px solid #888"></div><button data-testid="tweetButton" aria-disabled="true">Reply</button></div>';
+  const ed=l.querySelector('[data-testid=tweetTextarea_0]'), b=l.querySelector('[data-testid=tweetButton]');
+  ed.addEventListener('input',()=>{ b.setAttribute('aria-disabled', ed.textContent.trim()?'false':'true'); });
+  b.addEventListener('click',()=>{ if(b.getAttribute('aria-disabled')==='true') return; (window.__replies=window.__replies||[]).push({to:id,text:ed.textContent}); l.innerHTML=''; history.back(); }); }
+let lastY=0, okSteps=0;
+function render(){ const d=Math.abs(scrollY-lastY); lastY=scrollY; if(d>innerHeight*2) okSteps=0; else if(d>0) okSteps++;
+  list.style.minHeight=(items.length*H)+'px';
+  const first=Math.max(0,Math.floor((scrollY-600)/H)), last=Math.min(items.length-1,Math.ceil((scrollY+innerHeight+600)/H));
+  const want=new Set(); for(let i=first;i<=last;i++) if(items[i]!=='ad') want.add(i);
+  [...list.children].forEach(c=>{ if(!want.has(+c.dataset.i)) c.remove() });
+  const have=new Set([...list.children].map(c=>+c.dataset.i));
+  for(const i of want) if(!have.has(i)) list.append(mk(items[i],i));
+  if(!done && okSteps>=2 && scrollY+innerHeight>=items.length*H-1500) load(false); }
+// a post link opens its page (the page keeps showing the list, like a router that has not repainted yet) and fetches the conversation
+list.addEventListener('click',e=>{ const a=e.target.closest('a[href^="/user/status/"]'); if(!a) return; e.preventDefault(); const id=a.getAttribute('href').split('/').pop(); history.pushState({}, '', '/home/user/status/'+id); window.peeked=(window.peeked||[]).concat(id); fetch('/i/api/graphql/x/TweetDetail?variables='+encodeURIComponent(JSON.stringify({focalTweetId:id}))); });
+window.addEventListener('popstate',()=>{ window.backs=(window.backs||0)+1; });
+addEventListener('scroll',render); setInterval(render,150);
+function select(i){ loading=false; cursor=null; done=false; CFG.tabs.forEach((t,k)=>{ const el=document.getElementById('t'+k); el.setAttribute('aria-selected', k===i?'true':'false'); el.firstChild.style.fontWeight = k===i?'700':'500'; }); feed=CFG.tabs[i].feed; window.scrollTo(0,0); load(true); }
+function openDrop(){ const d=CFG.dropdown, l=document.getElementById('layers'); l.innerHTML=''; const m=document.createElement('div'); m.setAttribute('role','menu'); m.style.cssText='position:fixed;left:50%;bottom:40px;background:#000;border:1px solid #333;padding:8px'; window.__menuOpened=(window.__menuOpened||0)+1;
+  const cur=(window.__pick||d.items[0]).toLowerCase();
+  for(const it of d.items){ const e=document.createElement('div'); e.setAttribute('role','menuitem'); e.style.cssText='padding:8px 16px;cursor:pointer'; e.textContent=it; if(it.toLowerCase()===cur) e.insertAdjacentHTML('beforeend',' <svg width=14 height=14><path d="M1 7l4 4 8-8"/></svg>');
+    e.addEventListener('click',()=>{ l.innerHTML=''; window.__pick=it.toLowerCase(); if(d.kind==='media') document.getElementById('t'+d.tab).firstChild.textContent=it; window.__picks=(window.__picks||0)+1; loading=false; cursor=null; done=false; window.scrollTo(0,0); load(true); }); m.append(e); }
+  l.append(m); }
+// X closes its menu when it sees a press outside it (set window.__strict to do it before anything else can react)
+window.addEventListener('pointerdown',(e)=>{ if(window.__strict && !e.target.closest('[role=menu]')){ document.getElementById('layers').innerHTML=''; window.__strictClosed=(window.__strictClosed||0)+1; } },true);
+CFG.tabs.forEach((t,i)=>{ document.getElementById('t'+i).onclick=()=>{ const sel=document.getElementById('t'+i).getAttribute('aria-selected')==='true'; if(CFG.dropdown && CFG.dropdown.tab===i && sel) openDrop(); else select(i); }; });
+if(CFG.load!==false) load(true);
+</script>`;
+  return shell(cfg.title || 'Home / X', body, script);
+}
+
+// a post's own page: the post itself (tabindex -1) with its action row, and three replies
+function postPage(id) {
+  const art = (i, tab) => `<article data-testid="tweet" tabindex="${tab}" style="border-bottom:1px solid #333;padding:12px"><a href="/user/status/${i}"><time>t</time></a><div data-testid="tweetText">Post ${i}</div>
+ <button aria-label="Grok actions" style="float:right">G</button>
+ <div role="group" id="id__${i}" style="display:flex;justify-content:space-between;margin-top:30px"><div><button data-testid="reply">r</button></div><div><button data-testid="retweet">rt</button></div><div><button data-testid="like">l</button></div><div><button data-testid="bookmark">b</button></div><div style=""><button aria-label="Share post">s</button></div></div></article>`;
+  const body = `<div style="margin-left:480px;width:600px"><div data-testid="primaryColumn">${art(id, -1)}${[1, 2, 3].map((k) => art(Number(id) * 10 + k, 0)).join('')}</div></div>`;
+  const script = `<script>fetch('/i/api/graphql/x/TweetDetail?variables='+encodeURIComponent(JSON.stringify({focalTweetId:'${id}'})));</script>`;
+  return shell('Post / X', body, script);
+}
+
+const HOME = { title: 'Home / X', tabs: [{ label: 'For you', feed: 'HomeTimeline' }, { label: 'Following', feed: 'HomeLatestTimeline' }], selected: 0 };
+
+function pageFor(path) {
+  const p = path.replace(/\/+$/, '') || '/';
+  if (p === '/home') return timelinePage(HOME);
+  if (p === '/menu') return timelinePage({ ...HOME, title: 'Menu / X', dropdown: { tab: 1, items: ['Recent', 'Popular'], kind: 'sort' } });
+  if (p === '/user/media') return timelinePage({ title: 'user / Media / X', tabs: [{ label: 'Posts' }, { label: 'Replies' }, { label: 'Reposts' }, { label: 'Videos', feed: 'UserMedia' }], selected: 3, dropdown: { tab: 3, items: ['Videos', 'Photos'], kind: 'media' } });
+  if (p === '/explore') return timelinePage({ title: 'Explore / X', tabs: [{ label: 'For you', feed: 'ExplorePage' }, { label: 'Trending', feed: 'ExplorePage' }], selected: 0 });
+  if (p === '/nofeed') return timelinePage({ ...HOME, title: 'No feed / X', load: false });
+  const m = /^\/user\/status\/(\d+)$/.exec(p);
+  if (m) return postPage(m[1]);
+  return null;
+}
+
+module.exports = { pageFor };
