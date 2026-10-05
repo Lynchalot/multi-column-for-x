@@ -18,3 +18,8 @@ api.runtime.onMessage.addListener((msg, sender) => {
   const job = viaBrowser(files, msg.saveAs);
   return job.then(() => ({ ok: true }), (e) => ({ ok: false, error: String((e && e.message) || e) }));
 });
+
+// on first install, open the settings page at the presets
+api.runtime.onInstalled.addListener((info) => {
+  if (info && info.reason === 'install') api.tabs.create({ url: api.runtime.getURL('options.html#sec-presets') });
+});

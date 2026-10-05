@@ -118,6 +118,24 @@
     show();
   }
 
+  // starting points: each sets a handful of settings and leaves the rest alone
+  let presetNote = '';
+  function presetsBlock() {
+    const wrap = h('div', { className: 'presets' });
+    wrap.append(h('p', { className: 'muted', textContent: 'A place to start. Everything below can still be changed.' }));
+    for (const p of S.PRESETS) {
+      const on = S.presetApplies(p, settings);
+      const b = h('button', { type: 'button', className: 'preset', id: 'preset-' + p.id },
+        h('span', { className: 'preset-name', textContent: p.label }),
+        h('span', { className: 'muted', textContent: on ? 'In use' : '' }),
+        h('span', { className: 'muted preset-blurb', textContent: p.blurb }));
+      b.addEventListener('click', () => { persist(p.set); presetNote = p.label + ' applied.'; build(); });
+      wrap.append(b);
+    }
+    wrap.append(h('p', { className: 'muted', role: 'status', textContent: presetNote }));
+    return wrap;
+  }
+
   function build() {
     const host = $('#sections');
     host.replaceChildren();
@@ -134,6 +152,7 @@
         const text = h('div', {}, label, it.help ? h('div', { className: 'help', textContent: it.help }) : null);
         section.append(it.type === 'bool' ? h('div', { className: 'item bool' }, c, text) : h('div', { className: 'item' }, text, c));
       }
+      if (sec.custom === 'presets') section.append(presetsBlock());
       if (sec.custom === 'nav') section.append(navBlock());
       if (sec.custom === 'reading') section.append(readingBlock());
       if (sec.id === 'downloads') section.append(downloadExample(section));

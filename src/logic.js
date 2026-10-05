@@ -193,6 +193,29 @@ var XMCLogic = (function () {
     };
   }
 
+  // A person's thread: replies to themselves that sit in the same feed as the post they answer. Returns
+  //   kids:   root id -> the thread's other posts, oldest first
+  //   rootOf: child id -> the root post (a tweet object)
+  // Only posts that are not reposts are folded; the root may be anything. A reply whose parent is not in the feed stays on its own.
+  function threadPlan(items) {
+    const byId = new Map();
+    for (const t of items) if (!byId.has(t.id)) byId.set(t.id, t);
+    const selfReply = (t) => !t.repostedBy && t.replyToId && t.replyTo && t.author && t.replyTo.toLowerCase() === String(t.author.handle).toLowerCase() && byId.has(t.replyToId) && t.replyToId !== t.id;
+    const kids = new Map(), rootOf = new Map();
+    for (const t of items) {
+      if (!selfReply(t) || rootOf.has(t.id)) continue;
+      let root = byId.get(t.replyToId), hops = 0;
+      while (selfReply(root) && hops++ < 50) root = byId.get(root.replyToId);
+      if (selfReply(root)) continue; // a loop: leave it alone
+      rootOf.set(t.id, root);
+      if (!kids.has(root.id)) kids.set(root.id, []);
+      if (!kids.get(root.id).some((k) => k.id === t.id)) kids.get(root.id).push(t);
+    }
+    const order = (a, b) => (a.createdAt - b.createdAt) || (a.id.length - b.id.length) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    for (const list of kids.values()) list.sort(order);
+    return { kids, rootOf };
+  }
+
   // new first-page posts go in front of what's already loaded, without duplicates
   function mergeNew(items, fresh) {
     const have = new Set(items.map((t) => t.key));
@@ -246,7 +269,7 @@ var XMCLogic = (function () {
     return out;
   }
 
-  const api = { DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  const api = { threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

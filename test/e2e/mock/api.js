@@ -43,7 +43,10 @@ function makeApi(origin, pages) {
     const ents = [];
     for (let k = 0; k < 20; k++) {
       const i = 90000 + (newer || 0) * 5 - p * 20 - k;
-      ents.push({ entryId: `tweet-${i}`, sortIndex: String(i), content: { entryType: 'TimelineTimelineItem', itemContent: { itemType: 'TimelineTweet', tweet_results: { result: tweet(i, (i % 9) + 1, k % 8, feed) } } } });
+      const thread = feed === 'ThreadsTimeline' && k >= 3 && k <= 5; // three posts by user5, each answering the one before (newest first, as the feed lists them)
+      const t = tweet(i, thread ? 5 : (i % 9) + 1, thread ? 0 : k % 8, feed);
+      if (thread && k < 5) { t.legacy.in_reply_to_status_id_str = String(i - 1); t.legacy.in_reply_to_screen_name = 'user5'; }
+      ents.push({ entryId: `tweet-${i}`, sortIndex: String(i), content: { entryType: 'TimelineTimelineItem', itemContent: { itemType: 'TimelineTweet', tweet_results: { result: t } } } });
     }
     ents.splice(3, 0, { entryId: 'promoted-tweet-1', content: { entryType: 'TimelineTimelineItem', itemContent: { itemType: 'TimelineTweet', promotedMetadata: {}, tweet_results: { result: tweet(777000 + p, 9, 0, 'AD') } } } });
     if (p < pages) ents.push({ entryId: 'cursor-bottom-1', content: { entryType: 'TimelineTimelineCursor', value: `c${p + 1}`, cursorType: 'Bottom' } });

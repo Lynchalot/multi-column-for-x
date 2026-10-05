@@ -25,6 +25,9 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
   fetch them; your columns don't move). Order them **Relevant / Recent / Most liked** (the order you pick is remembered), and **write a comment right under the
   thread**: the extension types it into X's own reply box out of sight and presses Send, exactly as you would. If any step fails,
   X's reply box is left open with your text for you to finish.
+- **Threads fold into one card.** A person's replies to themselves sit under their first post behind one line ("2 more posts in this thread").
+  Tall single pictures are trimmed to a sensible shape (click for the whole picture). The volume you set on a video is kept for the next one.
+- **Presets** at the top of the settings page (Just columns, Calm, Media wall); it opens there when the extension is first installed.
 - **Video and GIFs play in the card.** Photos open in a viewer (arrows, **Esc** closes it) with **Download** and **Copy link** buttons.
   Posts in other languages get a **Translate post** button that opens the post, where X translates it. **NSFW** button in the top bar:
   blur → show → hide those posts.

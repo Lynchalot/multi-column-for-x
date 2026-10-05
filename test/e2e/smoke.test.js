@@ -640,3 +640,76 @@ browserTest('switching to a tab not seen yet keeps the old posts (dimmed) until 
     assert.ok(await page.evaluate(() => document.documentElement.classList.contains('xmc-on')), 'still columns, not X\'s page');
   });
 }, 90000);
+
+browserTest('a person\'s thread is one card with the rest folded under it (and ordinary cards when that is off)', async (e) => {
+  const h = await e.open('/threads/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const ids = await page.evaluate(() => window.__xmc.view.cards.map((t) => t.id));
+    assert.ok(ids.includes('89995'), 'the first post of the thread has a card');
+    assert.ok(!ids.includes('89996') && !ids.includes('89997'), 'its replies to themselves do not have cards of their own');
+    const toggle = page.locator('.xmc-thread-toggle').first();
+    assert.equal((await toggle.innerText()).trim(), '2 more posts in this thread');
+    assert.equal(await page.locator('.xmc-thread-list').first().isVisible(), false);
+    await toggle.click();
+    assert.equal(await page.locator('.xmc-thread-list').first().locator('.xmc-tpost').count(), 2);
+    assert.equal(await page.evaluate(() => location.pathname), '/threads/', 'opening the thread does not leave the page');
+    await toggle.click();
+    assert.equal(await page.locator('.xmc-thread-list').first().isVisible(), false);
+  });
+  const off = await e.open('/threads/', { settings: { v: 8, foldThreads: false } });
+  await checked(off, async () => {
+    await e.ready(off.page);
+    const ids = await off.page.evaluate(() => window.__xmc.view.cards.map((t) => t.id));
+    assert.ok(ids.includes('89996') && ids.includes('89997'), 'ordinary cards');
+    assert.equal(await off.page.locator('.xmc-thread-toggle').count(), 0);
+  });
+});
+
+browserTest('a single picture is trimmed to a sensible shape unless you ask for it in full', async (e) => {
+  const cap = await e.open('/home/');
+  await checked(cap, async () => {
+    await e.ready(cap.page);
+    const r = await cap.page.evaluate(() => { const b = document.querySelector('.xmc-media.single:has(img)'); return b ? { cls: b.classList.contains('xmc-cap'), max: getComputedStyle(b).maxHeight } : null; });
+    assert.ok(r && r.cls && r.max !== 'none', 'trimmed by default');
+  });
+  const full = await e.open('/home/', { settings: { v: 8, tallPhotos: 'full' } });
+  await checked(full, async () => {
+    await e.ready(full.page);
+    assert.equal(await full.page.evaluate(() => !!document.querySelector('.xmc-media.xmc-cap')), false);
+  });
+});
+
+browserTest('the volume you set on a video is remembered for the next one', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 8, volume: 0.4, videoMuted: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const start = await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return v ? { volume: v.volume, muted: v.muted } : null; });
+    assert.deepEqual(start, { volume: 0.4, muted: true }, 'starts the way it was left');
+    const stored = () => page.evaluate(() => { try { return JSON.parse(localStorage.getItem('xmc.settings')).volume; } catch { return null; } });
+    await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); v.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); v.volume = 0.7; v.muted = false; });
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('xmc.settings')).volume === 0.7; } catch { return false; } }, null, { timeout: 5000 });
+    await page.waitForTimeout(2200); // the pointer is long gone: changes we make ourselves must not be saved
+    await page.evaluate(() => { document.querySelector('.xmc-card video:not([data-gif])').volume = 0.2; });
+    await page.waitForTimeout(500);
+    assert.equal(await stored(), 0.7);
+  });
+});
+
+browserTest('the settings page offers starting points, and one applies', async (e) => {
+  const h = await e.open('/ext/options.html');
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#sec-presets #preset-calm');
+    assert.equal(await page.locator('#sec-presets .preset').count(), 3);
+    await page.locator('#preset-calm').click();
+    await page.waitForSelector('#preset-calm >> text=In use');
+    assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), true);
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('xmc.settings')));
+    assert.equal(saved.onlyFollowed, true);
+    await page.locator('#preset-plain').click();
+    assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), false);
+  });
+});

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0
+- **Threads fold into one card.** A person's replies to themselves (when both are in the feed) sit under their first post, behind "N more posts in this thread". Option: Reading, "Fold a person's thread into one card" (on by default).
+- **Tall single pictures are trimmed** to a sensible shape instead of running the full height of the column; click for the whole picture. Option: Posts, "Tall pictures".
+- **Volume is remembered.** The volume and mute you set on a video apply to the next one (videos that autoplay muted stay muted).
+- **Presets** at the top of the settings page: Just columns, Calm, Media wall. The settings page opens there on first install.
+
 ## 0.11.7
 - **Smoother tab switching.** Pressing a tab whose posts haven't been loaded yet no longer blanks the columns: the old posts stay, dimmed, with a "Loading" pill, until the new ones arrive.
 - **No more flash of X's page after a tab switch.** The "no posts arrived in 10 seconds" check counted from when you opened the page, so a slow tab could trip it at once. It now starts when you press the tab and waits while a switch is under way.

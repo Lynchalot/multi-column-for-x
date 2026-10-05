@@ -395,7 +395,9 @@
   const textLength = (segs) => segs.reduce((n, s) => n + (s.v ? s.v.length : (s.label || s.handle || s.tag || '').length + 1), 0);
 
   const photoUrl = (u, size) => u + (u.includes('?') ? '&' : '?') + 'name=' + size;
-  const clampRatio = (w, hh) => Math.max(0.6, Math.min(3, w / hh));
+  const clampRatio = (w, hh, floor) => Math.max(floor || 0.6, Math.min(3, w / hh));
+  // a single picture taller than this shape is cropped (the lightbox still shows all of it)
+  const photoFloor = (m) => (m && m.type === 'photo' && settings.tallPhotos === 'cap' ? 0.8 : 0.6);
 
   function pickMp4(m) {
     // cards are small: prefer the best rendition up to ~1.3 Mbps, else the smallest available
@@ -410,14 +412,15 @@
     }
     const auto = gif || settings.autoplayVideo === 'muted';
     const v = h('video', { poster: m.thumb, preload: auto ? 'metadata' : 'none', playsInline: true, controls: !gif, loop: gif, src: src.url });
-    v.muted = auto;
+    v.volume = settings.volume;
+    v.muted = auto || settings.videoMuted; // videos that autoplay always start muted; the rest start the way you last left the volume
     if (auto) { v.dataset.gif = '1'; playObserver.observe(v); }
     return h('div', { className: 'xmc-video' }, v, gif ? h('span', { className: 'xmc-gif', textContent: 'GIF' }) : null);
   }
   function renderMedia(t) {
     const list = t.media.slice(0, 4);
     const n = list.length;
-    const box = h('div', { className: 'xmc-media ' + (n === 1 ? 'single' : 'grid n' + n) });
+    const box = h('div', { className: 'xmc-media ' + (n === 1 ? 'single' : 'grid n' + n) + (n === 1 && photoFloor(list[0]) > 0.6 ? ' xmc-cap' : '') });
     let photoIdx = 0;
     for (const m of list) {
       let node;
@@ -425,7 +428,7 @@
         node = h('img', { src: photoUrl(m.thumb, n === 1 ? 'large' : 'medium'), alt: m.alt, loading: 'eager', decoding: 'async' }); // the card is only drawn a few screens ahead, so loading now keeps photos from sitting black while you scroll
         node.dataset.lb = String(photoIdx++);
       } else node = renderVideo(m, t);
-      if (n === 1) box.style.aspectRatio = String(clampRatio(m.w, m.h));
+      if (n === 1) box.style.aspectRatio = String(clampRatio(m.w, m.h, photoFloor(m)));
       box.append(node);
     }
     if (t.sensitive) { // blurred or not is decided by the NSFW setting (CSS), so the top-bar button works instantly
@@ -483,6 +486,23 @@
     if (clips) bits.push(t.media.some((m) => m.type === 'gif') && clips === 1 ? 'GIF' : clips === 1 ? 'video' : clips + ' videos');
     return h('button', { className: 'xmc-mediachip', type: 'button', title: 'Show the pictures and video', textContent: '\u25b6 ' + bits.join(' + ') });
   }
+  // the rest of a person's thread, folded behind one line
+  function renderThread(t) {
+    const n = t.thread.length;
+    const closed = n === 1 ? '1 more post in this thread' : n + ' more posts in this thread';
+    const toggle = h('button', { className: 'xmc-thread-toggle', type: 'button', textContent: closed });
+    const list = h('div', { className: 'xmc-thread-list', hidden: true }, ...t.thread.map((k) => {
+      const post = h('div', { className: 'xmc-tpost' },
+        h('a', { className: 'xmc-time xmc-nav', href: k.url, textContent: relTime(k.createdAt) }),
+        k.segs.length ? h('div', { className: 'xmc-text' }, renderSegs(k.segs)) : null,
+        k.media.length ? renderMedia(k) : null);
+      post.dataset.href = k.url;
+      for (const img of post.querySelectorAll('[data-lb]')) delete img.dataset.lb; // opening a picture here would show the first post's pictures
+      return post;
+    }));
+    toggle.addEventListener('click', () => { list.hidden = !list.hidden; toggle.textContent = list.hidden ? closed : 'Hide thread'; });
+    return h('div', { className: 'xmc-thread' }, toggle, list);
+  }
   function renderCard(t) {
     const card = h('article', { className: 'xmc-card' });
     tweetOf.set(card, t);
@@ -505,6 +525,8 @@
     if (t.media.length) card.append(pageLayout().density === 'text' && !t.revealed ? mediaChip(t) : renderMedia(t));
     if (t.card) card.append(renderLinkCard(t.card));
     if (t.quoted) card.append(renderQuote(t.quoted));
+    card.dataset.thr = t.thread && t.thread.length ? t.thread.map((k) => k.id).join(',') : '';
+    if (t.thread && t.thread.length) card.append(renderThread(t));
     const actions = h('div', { className: 'xmc-actions' });
     actions.append(actionBtn('reply', 'Show comments'), actionBtn('repost', T('repost')), actionBtn('like', 'Like'), actionBtn('bookmark', 'Bookmark'));
     if (hasMedia(t)) actions.append(actionBtn('download', 'Download media', 'download'));
@@ -543,7 +565,7 @@
     const density = pageLayout().density;
     let hh = (density === 'normal' ? 100 : 84) + (t.repostedBy ? 22 : 0);
     hh += Math.ceil(textLength(t.segs) / Math.max(20, w / 7.4)) * 21 + 8;
-    if (t.media.length) hh += density === 'text' && !t.revealed ? 36 : (t.media.length === 1 ? w * Math.min(1 / clampRatio(t.media[0].w, t.media[0].h), 1.67) : w * 0.5625) * (density === 'compact' ? 0.7 : 1);
+    if (t.media.length) hh += density === 'text' && !t.revealed ? 36 : (t.media.length === 1 ? w * Math.min(1 / clampRatio(t.media[0].w, t.media[0].h, photoFloor(t.media[0])), 1.67) : w * 0.5625) * (density === 'compact' ? 0.7 : 1);
     if (t.card) hh += density === 'normal' ? 200 : density === 'compact' ? 150 : 70;
     if (t.quoted) hh += density === 'text' ? 100 : 130;
     return Math.round(hh);
@@ -749,7 +771,7 @@
 
   // ---------- columns ----------
   let columns = [];
-  const view = { feedKey: null, version: -1, sig: '', renderSig: '', upto: 0, cards: [] };
+  const view = { feedKey: null, version: -1, sig: '', renderSig: '', upto: 0, cards: [], drawnIds: new Set() };
   let recycled = 0; // posts that have given their contents back (see recycleCards)
   // Automatic: as many as fit at the chosen width. A fixed number you picked is honoured only while columns stay at least
   // MIN_COL wide; on a narrower window it gives way (down to one) instead of squeezing them to slivers.
@@ -763,9 +785,9 @@
   const layoutSig = () => { const l = pageLayout(); return l.cols + '|' + l.density + '|' + XMCLogic.minColFor(settings, l.density) + '|' + settings.maxAutoCols; };
   // everything that changes which posts pass; when it changes the view is rebuilt
   const FILTER_KEYS = ['filter', 'repostsHome', 'quotesHome', 'repliesHome', 'repostsProfile', 'repostsLists', 'onlyFollowed',
-    'hideBlueReplies', 'hideMutedQuotes', 'mutedWords', 'mutedAccounts', 'nsfw', 'seen', 'collapseReposts'];
+    'hideBlueReplies', 'hideMutedQuotes', 'mutedWords', 'mutedAccounts', 'nsfw', 'seen', 'collapseReposts', 'foldThreads'];
   // everything that changes how a card is built
-  const RENDER_KEYS = ['branding', 'showSource', 'autoplayVideo'];
+  const RENDER_KEYS = ['branding', 'showSource', 'autoplayVideo', 'tallPhotos'];
   const sigOf = (keys) => keys.map((k) => String(settings[k])).join('|') + '|' + where() + '|' + settings.mutedQuoteIds.length;
   const filterSig = () => sigOf(FILTER_KEYS) + '|' + (state.showSeen ? 1 : 0) + '|' + seenEpoch;
   const renderSig = () => RENDER_KEYS.map((k) => String(settings[k])).join('|') + '|' + pageLayout().density;
@@ -824,6 +846,7 @@
     view.renderSig = renderSig();
     view.upto = 0;
     view.cards = [];
+    view.drawnIds = new Set();
     view.fold = settings.collapseReposts ? XMCLogic.collapser() : null; // reposts of the same post share one card
     view.seenRun = 0; view.hiddenSeen = 0; view.caughtUp = false; view.keepGoing = false;
     recycled = 0;
@@ -895,6 +918,12 @@
   // Draw only what you can reach soon (about four screens ahead) instead of every loaded post at once:
   // switching views stays instant however much is loaded, and more is drawn as you scroll.
   const CHUNK = 14;
+  // which posts of this feed belong to a thread (worked out again only when the feed has changed)
+  function threadsFor(f) {
+    if (!settings.foldThreads) return null;
+    if (!f.thr || f.thr.n !== f.items.length || f.thr.v !== f.version) f.thr = { n: f.items.length, v: f.version, plan: XMCLogic.threadPlan(f.items) };
+    return f.thr.plan;
+  }
   function renderFeed() {
     // Never while X's hidden side is on a post's page or the compose box (comments, translation, replying): there is no
     // feed for that page, and "no feed" would wipe the columns and throw you back to the top.
@@ -933,10 +962,14 @@
       const fresh = [];
       let scanned = 0;
       const readMode = seenApplies() && !state.showSeen ? settings.seen : 'off';
+      const plan = threadsFor(f);
+      const showing = (r) => XMCLogic.passes(r, c) && !(readMode === 'hide' && seenBefore.has(r.id)); // will this post get a card of its own?
       while (view.upto < f.items.length && fresh.length < CHUNK && scanned < 400) {
         if (view.caughtUp) break;
         const t = f.items[view.upto++];
         scanned++;
+        const root = plan && plan.rootOf.get(t.id);
+        if (root && showing(root)) continue; // a reply to themselves: it is shown under the first post of the thread
         if (!XMCLogic.passes(t, c)) continue;
         const read = readMode !== 'off' && seenBefore.has(t.id);
         if (read && readMode === 'hide') {
@@ -949,7 +982,11 @@
           if (host) { const ctx = host.el && !host.el.dataset.recycled && host.el.querySelector(':scope > .xmc-ctx span'); if (ctx) ctx.textContent = ctxText(host); continue; }
         }
         view.seenRun = 0;
-        fresh.push({ t, read }); view.cards.push(t);
+        const kids = plan && plan.kids.get(t.id);
+        t.thread = kids ? kids.filter((k) => !view.drawnIds.has(k.id) && XMCLogic.passes(k, c)) : null;
+        const thr = t.thread ? t.thread.map((k) => k.id).join(',') : '';
+        if (t.el && (t.el.dataset.thr || '') !== thr) t.el = null; // its thread changed: build the card again
+        fresh.push({ t, read }); view.cards.push(t); view.drawnIds.add(t.id);
       }
       placeBatch(fresh);
       for (const { t, read } of fresh) {
@@ -1707,6 +1744,21 @@
       default: return undefined;
     }
   }
+  // The volume you set on a video is kept for the next one (only changes you make with the player's own controls count,
+  // not the muting we do for autoplay)
+  let adjusting = false, adjustTimer = 0;
+  const startAdjust = (e) => { if (e.target && e.target.tagName === 'VIDEO') { adjusting = true; clearTimeout(adjustTimer); adjustTimer = setTimeout(() => { adjusting = false; }, 1500); } };
+  colsEl.addEventListener('pointerdown', startAdjust, true);
+  colsEl.addEventListener('keydown', startAdjust, true);
+  colsEl.addEventListener('pointerup', () => { clearTimeout(adjustTimer); adjustTimer = setTimeout(() => { adjusting = false; }, 400); }, true);
+  colsEl.addEventListener('volumechange', (e) => {
+    const v = e.target;
+    if (!adjusting || !v || v.tagName !== 'VIDEO' || v.dataset.gif) return;
+    if (settings.volume === v.volume && settings.videoMuted === v.muted) return;
+    settings.volume = v.volume; settings.videoMuted = v.muted;
+    for (const other of colsEl.querySelectorAll('video')) if (other !== v && !other.dataset.gif) { other.volume = v.volume; other.muted = v.muted; } // the videos already on screen follow
+    save();
+  }, true);
   colsEl.addEventListener('click', (e) => {
     const cardEl = e.target.closest('.xmc-card');
     const t = cardEl && tweetOf.get(cardEl);
@@ -1714,6 +1766,9 @@
     if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return; // let the browser open links in a new tab/window
     const actBtn = e.target.closest('[data-act]');
     if (actBtn) { e.preventDefault(); e.stopPropagation(); act(t, actBtn.dataset.act, actBtn); return; }
+    if (e.target.closest('.xmc-thread-toggle')) return;
+    const tpost = e.target.closest('.xmc-tpost');
+    if (tpost && !e.target.closest('a[href], video, .xmc-reveal')) { e.preventDefault(); navigate(tpost.dataset.href, null); return; }
     if (e.target.closest('.xmc-rclose')) { const p = cardEl.querySelector('.xmc-replies'); if (p) p.remove(); updateActions(t); return; }
     if (e.target.closest('.xmc-replies')) return; // links inside comments open normally (new tab); clicking text doesn't open the post
     if (e.target.closest('.xmc-translate')) { e.preventDefault(); navigate(t.url, t); return; }

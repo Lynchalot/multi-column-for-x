@@ -395,3 +395,37 @@ test('new reading and layout settings exist, off by default, and pageLayouts is 
   for (const k of ['seen', 'collapseReposts', 'density', 'perPageLayout', 'commentSort']) assert.ok(keys.includes(k), k);
   assert.ok(!keys.includes('pageLayouts'));
 });
+
+// ---- a person's thread folded under its first post ----
+const post = (id, over = {}) => Object.assign({ id, key: id, author: { handle: 'Ann' }, replyTo: '', replyToId: '', createdAt: Number(id), repostedBy: null }, over);
+const answer = (id, to, over = {}) => post(id, Object.assign({ replyTo: 'ann', replyToId: to }, over));
+
+test('a thread: replies to themselves fold under the first post, oldest first', () => {
+  const plan = L.threadPlan([answer('3', '2'), answer('2', '1'), post('x', { author: { handle: 'bob' } }), post('1')]);
+  assert.deepEqual([...plan.kids.keys()], ['1']);
+  assert.deepEqual(plan.kids.get('1').map((t) => t.id), ['2', '3']);
+  assert.equal(plan.rootOf.get('3').id, '1', 'the root of the whole chain, not of the parent');
+});
+test('a thread: a reply whose parent is not in the feed, a reply to someone else, and a repost stay as they are', () => {
+  const plan = L.threadPlan([answer('9', '8'), post('5'), post('6', { replyTo: 'bob', replyToId: '5' }), answer('7', '5', { repostedBy: { name: 'c', handle: 'c' } })]);
+  assert.equal(plan.kids.size, 0);
+  assert.equal(plan.rootOf.size, 0);
+});
+test('a thread: a loop of replies does not hang', () => {
+  const plan = L.threadPlan([answer('1', '2'), answer('2', '1')]);
+  assert.equal(plan.rootOf.size, 0);
+});
+test('settings: volume is kept as a number between 0 and 1, and the presets only name real settings', () => {
+  assert.equal(S.normalize({ volume: 0.4, videoMuted: true }).volume, 0.4);
+  assert.equal(S.normalize({ volume: 7 }).volume, 1);
+  assert.equal(S.normalize({ volume: 'loud' }).volume, 1);
+  assert.equal(S.normalize({}).foldThreads, true);
+  assert.equal(S.normalize({}).tallPhotos, 'cap');
+  const keys = new Set(S.SCHEMA.flatMap((sec) => sec.items.map((i) => i.key)));
+  for (const p of S.PRESETS) {
+    const n = S.normalize(p.set);
+    for (const [k, v] of Object.entries(p.set)) { assert.ok(keys.has(k), p.id + ': ' + k); assert.deepEqual(n[k], v, p.id + ': ' + k + ' is not a valid value'); }
+  }
+  assert.ok(S.presetApplies(S.PRESETS[1], Object.assign({}, S.DEFAULTS, S.PRESETS[1].set)));
+  assert.ok(!S.presetApplies(S.PRESETS[1], S.DEFAULTS));
+});

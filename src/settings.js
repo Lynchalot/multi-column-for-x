@@ -10,6 +10,7 @@ var XMCSettings = (function () {
   // native: true  => restyles X's own interface with CSS, so it depends on X's current markup and may
   //                  need a tweak when X redesigns.
   const SCHEMA = [
+    { id: 'presets', title: 'Presets', custom: 'presets', items: [] },
     {
       id: 'columns', title: 'Columns', items: [
         { key: 'cols', type: 'number', min: 0, max: 8, def: 0, label: 'Number of columns', help: '0 = automatic.' },
@@ -24,6 +25,7 @@ var XMCSettings = (function () {
         { key: 'seen', type: 'select', def: 'off', label: 'Posts I\u2019ve already read', options: [['off', 'Leave them alone'], ['dim', 'Fade them'], ['hide', 'Hide them']],
           help: 'On Home and Lists. A post counts as read after you\u2019ve looked at it for a second. Remembered on this device only.' },
         { key: 'collapseReposts', type: 'bool', def: false, label: 'Show a post once when several people repost it', help: 'Folded into one card: \u201cA, B and 2 others reposted\u201d.' },
+        { key: 'foldThreads', type: 'bool', def: true, label: 'Fold a person\u2019s thread into one card', help: 'Their replies to themselves sit under the first post, behind one line.' },
       ],
     },
     {
@@ -61,6 +63,7 @@ var XMCSettings = (function () {
     },
     {
       id: 'posts', title: 'Posts', items: [
+        { key: 'tallPhotos', type: 'select', def: 'cap', label: 'Tall pictures', options: [['cap', 'Trim to fit (click to see all of it)'], ['full', 'Show in full']] },
         { key: 'counts', type: 'bool', def: true, label: 'Show reply, repost and like counts' },
         { key: 'hideViews', type: 'bool', def: false, label: 'Hide view counts' },
         { key: 'hideBookmarkBtn', type: 'bool', def: false, label: 'Hide the bookmark button' },
@@ -108,7 +111,7 @@ var XMCSettings = (function () {
   ];
 
   // saved state that isn't edited on the options page
-  const INTERNAL = { filter: 'all', mutedQuoteIds: [], hiddenNav: [], navItems: [], pageLayouts: {} };
+  const INTERNAL = { filter: 'all', mutedQuoteIds: [], hiddenNav: [], navItems: [], pageLayouts: {}, volume: 1, videoMuted: false };
 
   const DEFAULTS = Object.assign({}, INTERNAL);
   const ITEMS = {};
@@ -132,6 +135,8 @@ var XMCSettings = (function () {
       }
       return out;
     }
+    if (key === 'volume') return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : fallback;
+    if (key === 'videoMuted') return typeof v === 'boolean' ? v : fallback;
     if (key === 'navItems') {
       return Array.isArray(v) ? v.filter((i) => i && typeof i.key === 'string' && typeof i.label === 'string')
         .slice(0, 60).map((i) => ({ key: i.key.slice(0, 200), label: i.label.slice(0, 60) })) : fallback;
@@ -181,10 +186,23 @@ var XMCSettings = (function () {
     return out;
   }
 
+  // Starting points offered on the settings page (and on first install). Each only sets the keys it names.
+  const PRESETS = [
+    { id: 'plain', label: 'Just columns', blurb: 'X as it is, laid out in columns.',
+      set: { hideForYou: false, homeDefault: 'remember', keepFollowing: false, onlyFollowed: false, hideTrending: false, hideWhoToFollow: false, hideTopics: false,
+        hideDiscoverMore: false, hidePremiumPromo: false, seen: 'off', collapseReposts: false, foldThreads: false } },
+    { id: 'calm', label: 'Calm', blurb: 'Only people you follow. No trends or suggestions. Threads and reposts folded, posts you have read faded.',
+      set: { hideForYou: true, homeDefault: 'following', keepFollowing: true, onlyFollowed: true, hideTrending: true, hideWhoToFollow: true, hideTopics: true,
+        hideDiscoverMore: true, hidePremiumPromo: true, seen: 'dim', collapseReposts: true, foldThreads: true } },
+    { id: 'media', label: 'Media wall', blurb: 'Narrower, more columns. Videos play muted as you scroll.',
+      set: { autoplayVideo: 'muted', minColWidth: 380, maxAutoCols: 8, tallPhotos: 'cap', hideViews: true } },
+  ];
+  const presetApplies = (preset, settings) => Object.keys(preset.set).every((k) => JSON.stringify(settings[k]) === JSON.stringify(preset.set[k]));
+
   const words = (s) => String(s || '').split(/[,\n]/).map((w) => w.trim().toLowerCase()).filter(Boolean);
   const handles = (s) => words(s).map((w) => w.replace(/^@/, ''));
 
-  const api = { SCHEMA, DEFAULTS, INTERNAL, VERSION, normalize, diff, words, handles };
+  const api = { SCHEMA, DEFAULTS, INTERNAL, VERSION, PRESETS, presetApplies, normalize, diff, words, handles };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

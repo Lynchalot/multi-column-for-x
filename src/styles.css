@@ -390,3 +390,16 @@ html.xmc-on [data-testid="sidebarColumn"] { overscroll-behavior: contain; }
 
 /* a tab was pressed and its feed has not arrived: the old posts stay, dimmed and not clickable */
 #xmc-root.xmc-switching .xmc-cols { opacity: .35; pointer-events: none; transition: opacity .15s; }
+
+/* a person's thread, folded under their first post */
+.xmc-thread { margin: 6px 0 2px; }
+.xmc-thread-toggle { appearance: none; border: 0; background: none; color: var(--xmc-accent); font: inherit; font-size: 13px; padding: 2px 0; cursor: pointer; }
+.xmc-thread-toggle:hover { text-decoration: underline; }
+.xmc-thread-list { margin-top: 6px; padding-left: 12px; border-left: 2px solid var(--xmc-border); }
+.xmc-tpost { padding: 6px 0; cursor: pointer; }
+.xmc-tpost .xmc-time { font-size: 12px; color: var(--xmc-muted); text-decoration: none; }
+.xmc-tpost .xmc-text { margin: 2px 0 4px; }
+.xmc-tpost .xmc-media { margin: 4px 0; }
+/* a single picture trimmed to a sensible height (the whole of it opens on click) */
+.xmc-media.single.xmc-cap { max-height: 75vh; }
+.xmc-media.single.xmc-cap > img { object-position: 50% 20%; }
