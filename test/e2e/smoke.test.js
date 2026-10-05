@@ -585,3 +585,25 @@ browserTest('the floating Chat button is found by where it sits, even when nothi
     assert.ok(JSON.parse(await page.evaluate(() => window.__xmc.diagnostics())).corner, 'diagnostics list what is in the corner');
   });
 });
+
+browserTest('with X\'s right sidebar hidden, the floating Grok and Chat buttons get a strip of their own', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 8, hideSidebar: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.querySelector('[data-xmc-grok]') && document.querySelector('[data-xmc-dm]'), null, { timeout: 8000 });
+    await page.waitForFunction(() => { const r = document.getElementById('xmc-root').getBoundingClientRect(); return innerWidth - r.right > 40; }, null, { timeout: 8000 });
+    const r = await page.evaluate(() => {
+      const root = document.getElementById('xmc-root').getBoundingClientRect();
+      const btn = ['grokb', 'dmb'].map((id) => document.getElementById(id).getBoundingClientRect());
+      return { clear: btn.every((b) => b.left >= root.right), stacked: Math.abs(btn[0].left - btn[1].left) < 5 };
+    });
+    assert.deepEqual(r, { clear: true, stacked: true }, 'the columns stop short of the buttons, which stay stacked');
+  });
+  const off = await e.open('/home/', { settings: { v: 8, hideSidebar: true, hideGrokDrawer: true, hideDmDrawer: true } });
+  await checked(off, async () => {
+    await e.ready(off.page);
+    await off.page.waitForTimeout(1500);
+    assert.equal(await off.page.evaluate(() => innerWidth - document.getElementById('xmc-root').getBoundingClientRect().right), 0, 'no strip when both are hidden');
+  });
+});

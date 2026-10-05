@@ -2041,10 +2041,25 @@
     });
     sideWatch.obs.observe(side, { attributes: true, attributeFilter: ['style', 'class'], subtree: true });
   }
+  // With X's right-hand sidebar hidden, the floating Grok and Chat buttons would sit on top of the columns: give them a narrow
+  // strip of their own down the right edge instead (kept while the chat panel is open, so the columns don't jump)
+  let lastStrip = 0;
+  function floatStrip() {
+    if (!settings.hideSidebar || (settings.hideGrokDrawer && settings.hideDmDrawer)) return (lastStrip = 0);
+    let w = 0, found = false;
+    for (const el of document.querySelectorAll('[data-xmc-grok], [data-xmc-dm]')) {
+      if (el.hasAttribute('data-xmc-grok') ? settings.hideGrokDrawer : settings.hideDmDrawer) continue;
+      found = true;
+      if (getComputedStyle(el).display === 'none') continue;
+      const r = el.getBoundingClientRect();
+      if (r.width && r.width <= 120 && r.height <= 120) w = Math.max(w, innerWidth - r.left + 8);
+    }
+    return (lastStrip = w ? Math.min(160, Math.round(w)) : found ? lastStrip : 0);
+  }
   function positionSide() {
     const p = pin.side, side = p.el();
     if (sideFreeze && side && side.dataset.xmcStyle !== undefined) return; // a still copy is showing; leave a pinned one alone (a new one still gets pinned, hidden)
-    if (!side || settings.hideSidebar) { root.style.right = '0px'; unpin('side'); return; }
+    if (!side || settings.hideSidebar) { root.style.right = floatStrip() + 'px'; unpin('side'); return; }
     if (p.fallback && Date.now() > p.retryAt) { p.fallback = false; p.fails = 0; }
     if (side.dataset.xmcStyle === undefined) {
       const r = side.getBoundingClientRect();
@@ -2254,7 +2269,7 @@
   function dockGrok() {
     const chat = document.querySelector('[data-xmc-dm]'), grok = document.querySelector('[data-xmc-grok]');
     if (!grok) return;
-    if (settings.hideGrokDrawer || settings.hideDmDrawer || !chat || chat === grok || chat.contains(grok) || grok.contains(chat)) { undockGrok(grok); return; }
+    if (settings.hideGrokDrawer || settings.hideDmDrawer || settings.hideSidebar || !chat || chat === grok || chat.contains(grok) || grok.contains(chat)) { undockGrok(grok); return; }
     const c = chat.getBoundingClientRect();
     if (!c.width || !c.height) return;
     const set = (k, v) => grok.style.setProperty(k, v, 'important');
