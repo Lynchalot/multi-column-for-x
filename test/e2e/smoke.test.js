@@ -543,3 +543,16 @@ browserTest('the floating Grok and Chat buttons can be hidden', async (e) => {
     assert.deepEqual(shown, [false, false]);
   });
 });
+
+browserTest('the floating Chat button is hidden even when X gives it a name we do not know', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 8, hideGrokDrawer: true, hideDmDrawer: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => {
+      document.getElementById('dmb').setAttribute('aria-label', 'Open');
+      for (const el of document.querySelectorAll('[data-xmc-dm]')) delete el.dataset.xmcDm;
+    });
+    await page.waitForFunction(() => document.getElementById('dmb').getBoundingClientRect().width === 0, null, { timeout: 8000 });
+  });
+});

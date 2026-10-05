@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.11.2
+- **Hiding the floating Chat button works** when X has renamed it: whatever else sits in Grok's corner stack is treated as Chat. The two help lines under those settings are gone.
+
 ## 0.11.1
 - **Hide the floating Grok and Chat buttons** (settings, Navigation & sidebar). Both are in the left menu already.
 

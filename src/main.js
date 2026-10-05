@@ -2090,6 +2090,21 @@
     while (n.parentElement && n.parentElement !== container && !(other && n.parentElement.contains(other))) n = n.parentElement;
     return n;
   }
+  // The other small button in the same floating stack as `el` (X has renamed its Chat button before, so it can't be found by name
+  // once Grok has been: whatever else sits beside or under Grok in that stack is Chat)
+  function stackMate(container, el) {
+    for (let n = el; n.parentElement;) {
+      const p = n.parentElement;
+      for (const s of p.children) {
+        if (s === n || s.contains(el)) continue;
+        const r = s.getBoundingClientRect();
+        if (r.width >= 30 && r.width <= 120 && r.height >= 30 && r.height <= 120) return s;
+      }
+      if (p === container) return null;
+      n = p;
+    }
+    return null;
+  }
   const floatEls = new Set(); // X's floating elements we have found (so their size can be watched cheaply between scans)
   function scanFloaters() {
     if (document.hidden || Date.now() - lastScan < 1500) return;
@@ -2113,6 +2128,7 @@
       // (not a compose button, and not a pop-up)
       if (!g && !m && r.width >= 36 && r.width <= 96 && r.height >= 36 && r.height <= 230 && innerWidth - r.right <= 56 && innerHeight - r.bottom <= 240
           && !d.querySelector('[href="/compose/post"], [data-testid*="FloatingActionButton"]') && !d.closest('[role="dialog"], [role="menu"], [aria-modal="true"]')) m = d;
+      if (g && !m && r.width <= 450 && r.height <= 450) m = stackMate(d, g);
       if (g || m) {
         if (g) (g === d ? d : wrapperBelow(d, g, m)).dataset.xmcGrok = '1';
         if (m && m !== g) (m === d ? d : wrapperBelow(d, m, g)).dataset.xmcDm = '1';
