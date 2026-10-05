@@ -60,8 +60,14 @@ function render(){ const d=Math.abs(scrollY-lastY); lastY=scrollY; if(d>innerHei
   for(const i of want) if(!have.has(i)) list.append(mk(items[i],i));
   if(!done && okSteps>=2 && scrollY+innerHeight>=items.length*H-1500) load(false); }
 // a post link opens its page (the page keeps showing the list, like a router that has not repainted yet) and fetches the conversation
-list.addEventListener('click',e=>{ const a=e.target.closest('a[href^="/user/status/"]'); if(!a) return; e.preventDefault(); const id=a.getAttribute('href').split('/').pop(); history.pushState({}, '', '/home/user/status/'+id); window.peeked=(window.peeked||[]).concat(id); fetch('/i/api/graphql/x/TweetDetail?variables='+encodeURIComponent(JSON.stringify({focalTweetId:id}))); });
-window.addEventListener('popstate',()=>{ window.backs=(window.backs||0)+1; });
+const pv=document.createElement('div'); pv.id='postview'; pv.style.display='none'; list.after(pv);
+function showPost(id){ list.style.display='none'; pv.style.display=''; pv.innerHTML=[0,1,2,3,4,5,6].map(k=>{ const i=k?Number(id)*10+k:id; return '<article data-testid="tweet" tabindex="'+(k?0:-1)+'" style="border-bottom:1px solid #333;padding:12px"><a href="/user/status/'+i+'"><time>t</time></a><div data-testid="tweetText">Post '+i+'</div><div role="group">'
+  +'<button data-testid="reply" onclick="openComposer(\\''+i+'\\')">r</button><button data-testid="retweet">rt</button>'
+  +'<button data-testid="'+(state.liked.has(String(i))?'unlike':'like')+'" onclick="tog(\\'liked\\',\\''+i+'\\',this,\\'like\\',\\'unlike\\')">l</button>'
+  +'<button data-testid="bookmark">b</button></div></article>'; }).join(''); }
+function showRoute(){ const m=/\\/status\\/(\\d+)$/.exec(location.pathname); if(m) showPost(m[1]); else if(!/compose/.test(location.pathname)){ pv.style.display='none'; list.style.display=''; } }
+list.addEventListener('click',e=>{ const a=e.target.closest('a[href^="/user/status/"]'); if(!a) return; e.preventDefault(); const id=a.getAttribute('href').split('/').pop(); history.pushState({}, '', '/home/user/status/'+id); window.peeked=(window.peeked||[]).concat(id); showPost(id); fetch('/i/api/graphql/x/TweetDetail?variables='+encodeURIComponent(JSON.stringify({focalTweetId:id}))); });
+window.addEventListener('popstate',()=>{ window.backs=(window.backs||0)+1; showRoute(); });
 addEventListener('scroll',render); setInterval(render,150);
 function select(i){ loading=false; cursor=null; done=false; CFG.tabs.forEach((t,k)=>{ const el=document.getElementById('t'+k); el.setAttribute('aria-selected', k===i?'true':'false'); el.firstChild.style.fontWeight = k===i?'700':'500'; }); feed=CFG.tabs[i].feed; window.scrollTo(0,0); load(true); }
 function openDrop(){ const d=CFG.dropdown, l=document.getElementById('layers'); l.innerHTML=''; const m=document.createElement('div'); m.setAttribute('role','menu'); m.style.cssText='position:fixed;left:50%;bottom:40px;background:#000;border:1px solid #333;padding:8px'; window.__menuOpened=(window.__menuOpened||0)+1;
@@ -77,13 +83,21 @@ if(CFG.load!==false) load(true);
   return shell(cfg.title || 'Home / X', body, script);
 }
 
-// a post's own page: the post itself (tabindex -1) with its action row, and three replies
+// a post's own page: the post itself (tabindex -1) with its action row, and six replies whose like and reply buttons work
 function postPage(id) {
   const art = (i, tab) => `<article data-testid="tweet" tabindex="${tab}" style="border-bottom:1px solid #333;padding:12px"><a href="/user/status/${i}"><time>t</time></a><div data-testid="tweetText">Post ${i}</div>
  <button aria-label="Grok actions" style="float:right">G</button>
- <div role="group" id="id__${i}" style="display:flex;justify-content:space-between;margin-top:30px"><div><button data-testid="reply">r</button></div><div><button data-testid="retweet">rt</button></div><div><button data-testid="like">l</button></div><div><button data-testid="bookmark">b</button></div><div style=""><button aria-label="Share post">s</button></div></div></article>`;
-  const body = `<div style="margin-left:480px;width:600px"><div data-testid="primaryColumn">${art(id, -1)}${[1, 2, 3].map((k) => art(Number(id) * 10 + k, 0)).join('')}</div></div>`;
-  const script = `<script>fetch('/i/api/graphql/x/TweetDetail?variables='+encodeURIComponent(JSON.stringify({focalTweetId:'${id}'})));</script>`;
+ <div role="group" id="id__${i}" style="display:flex;justify-content:space-between;margin-top:30px"><div><button data-testid="reply" onclick="openComposer('${i}')">r</button></div><div><button data-testid="retweet">rt</button></div><div><button data-testid="like" onclick="tog('${i}',this)">l</button></div><div><button data-testid="bookmark">b</button></div><div style=""><button aria-label="Share post">s</button></div></div></article>`;
+  const body = `<div style="margin-left:480px;width:600px"><div data-testid="primaryColumn">${art(id, -1)}${[1, 2, 3, 4, 5, 6].map((k) => art(Number(id) * 10 + k, 0)).join('')}</div></div>`;
+  const script = `<script>
+window.__actions=[]; const liked=new Set();
+function tog(id,btn){ if(liked.has(id)){liked.delete(id);btn.dataset.testid='like'}else{liked.add(id);btn.dataset.testid='unlike'} btn.setAttribute('data-testid',btn.dataset.testid); __actions.push('like:'+id); }
+function openComposer(id){ __actions.push('reply:'+id); const back=location.pathname; history.pushState({}, '', '/compose/post'); const l=document.getElementById('layers');
+  l.innerHTML='<div role="dialog"><div data-testid="tweetTextarea_0" role="textbox" contenteditable="true" style="min-height:40px;border:1px solid #888"></div><button data-testid="tweetButton" aria-disabled="true">Reply</button></div>';
+  const ed=l.querySelector('[data-testid=tweetTextarea_0]'), b=l.querySelector('[data-testid=tweetButton]');
+  ed.addEventListener('input',()=>{ b.setAttribute('aria-disabled', ed.textContent.trim()?'false':'true'); });
+  b.addEventListener('click',()=>{ if(b.getAttribute('aria-disabled')==='true') return; (window.__replies=window.__replies||[]).push({to:id,text:ed.textContent}); l.innerHTML=''; history.back(); }); }
+fetch('/i/api/graphql/x/TweetDetail?variables='+encodeURIComponent(JSON.stringify({focalTweetId:'${id}'})));</script>`;
   return shell('Post / X', body, script);
 }
 

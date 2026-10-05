@@ -181,7 +181,7 @@ browserTest('a post\'s own page: Download and Copy link buttons, and fewer butto
   const h = await e.open('/user/status/90001/');
   await checked(h, async () => {
     const { page } = h;
-    await page.waitForFunction(() => document.querySelectorAll('.xmc-nat').length === 4, null, { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-nat').length === 7, null, { timeout: 15000 });
     const r = await page.evaluate(() => {
       const vis = (el) => !!el && el.getBoundingClientRect().width > 0;
       return [...document.querySelectorAll('article')].map((a) => ({ tab: a.getAttribute('tabindex'), dl: vis(a.querySelector('.xmc-nat .dl')), bookmark: vis(a.querySelector('[data-testid="bookmark"]')), grok: vis(a.querySelector('[aria-label*="Grok"]')) }));
@@ -496,5 +496,38 @@ browserTest('a second copy of the script (after an extension update) replaces th
     assert.equal(await page.locator('#xmc-root').count(), 1, 'two column overlays');
     assert.equal(await page.locator('#xmc-pill').count(), 1, 'two Columns buttons');
     assert.ok((await page.locator('.xmc-col').count()) >= 2, 'the newer copy draws the columns');
+  });
+});
+
+browserTest('comments: the reply box is at the top, and a single comment can be liked and replied to', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.locator('.xmc-card [data-act="reply"]').first().click();
+    await page.waitForSelector('.xmc-replies .xmc-ritem');
+    const order = await page.evaluate(() => {
+      const p = document.querySelector('.xmc-replies');
+      return [...p.children].findIndex((c) => c.classList.contains('xmc-compose')) < [...p.children].findIndex((c) => c.classList.contains('xmc-ritem'));
+    });
+    assert.ok(order, 'the reply box comes before the comments');
+    const ids = await page.evaluate(() => { const d = [...window.__xmc.state.details.values()][0]; return d.replies.map((r) => r.id); });
+
+    // like
+    const firstId = ids[0];
+    await page.locator('.xmc-replies .xmc-rlike').first().click();
+    await page.waitForFunction((id) => (window.__actions || []).includes('liked:' + id), firstId, { timeout: 15000 });
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-acting') && location.pathname === '/home/', null, { timeout: 8000 });
+    assert.ok(await page.locator('.xmc-replies .xmc-rlike').first().evaluate((b) => b.classList.contains('on')), 'the heart is filled');
+
+    // reply to the second comment
+    await page.locator('.xmc-replies .xmc-rreply').nth(1).click();
+    const box = page.locator('.xmc-replies .xmc-inline textarea');
+    await box.fill('hello there');
+    await page.locator('.xmc-replies .xmc-inline .xmc-csend').click();
+    await page.waitForFunction(() => (window.__replies || []).length === 1, null, { timeout: 20000 });
+    const sent = await page.evaluate(() => window.__replies[0]);
+    assert.deepEqual(sent, { to: ids[1], text: 'hello there' });
+    await page.waitForFunction(() => location.pathname === '/home/', null, { timeout: 8000 });
   });
 });

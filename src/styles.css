@@ -243,6 +243,15 @@ html.xmc-nsfw-show .xmc-qmedia.sens { filter: none; }
 .xmc-rmedias { display: flex; gap: 6px; margin-top: 4px; }
 .xmc-rmedia { display: block; max-height: 140px; max-width: 100%; border-radius: 10px; border: 1px solid var(--xmc-border); }
 .xmc-rlikes { font-size: 12px; margin-top: 2px; }
+.xmc-ractions { display: flex; align-items: center; gap: 14px; margin: 0 0 0 -6px; }
+.xmc-ract { appearance: none; border: 0; background: none; color: var(--xmc-muted); display: inline-flex; align-items: center; gap: 5px; font: inherit; font-size: 12px;
+  padding: 3px 6px; border-radius: 999px; cursor: pointer; }
+.xmc-ract svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-ract:hover { color: var(--xmc-accent); background: color-mix(in srgb, var(--xmc-accent) 14%, transparent); }
+.xmc-rlike:hover, .xmc-rlike.on { color: #f91880; }
+.xmc-rlike:hover { background: rgba(249, 24, 128, .12); }
+.xmc-rlike.on svg { fill: currentColor; }
+.xmc-compose.xmc-inline { margin-top: 4px; padding-top: 4px; border-top: 0; }
 .xmc-rempty { padding: 6px 0; font-size: 13px; }
 .xmc-rfoot { display: flex; gap: 8px; padding-top: 8px; }
 .xmc-rbtn { appearance: none; border: 1px solid var(--xmc-border); background: none; color: inherit; font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; cursor: pointer; }

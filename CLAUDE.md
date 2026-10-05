@@ -28,5 +28,6 @@ Debug in the console with `window.__xmc`.
 - **Post size (Compact / Text only):** built and tested but switched off because the Compact layout is wrong. `DENSITY_SHELVED` in `src/main.js`, `density` is `hidden: true` in `src/settings.js`, one e2e test is skipped (`POST_SIZE_SHELVED`). Bring it back only when asked, and fix the Compact layout first.
 - In-column translation was deleted (the Translate button opens the post). Keyboard browsing (J/K/L) was declined.
 
-## Next up (asked for, not started)
-Comments: like and reply to individual comments, and the reply box at the TOP of the comments instead of the bottom. Ideas to suggest: the post author's own replies marked, "show more replies" (only ~60 are listed), collapsing long threads, jump to a reply's parent.
+## Next up
+Done in 0.11.0: like and reply on individual comments (`actOnComment` opens the post on X's hidden side, finds the comment by id, presses X's own button, goes back), reply box at the top. Not verified on real X: if a comment's like or reply fails there, ask for "Copy diagnostics".
+Ideas to suggest: the post author's own replies marked, "show more replies" (only ~60 are listed), collapsing long threads, jump to a reply's parent.

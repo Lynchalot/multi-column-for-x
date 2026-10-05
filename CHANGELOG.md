@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0
+- **Like and reply to a single comment.** Each comment has a heart and a Reply button. Both work the way posts do: X's hidden side opens the post, presses the real button on that comment and goes back, so the columns don't move.
+- **The reply box is at the top of the comments**, above the first comment.
+
 ## 0.10.1
 - **No more doubled columns after an update.** A tab left open while the extension updated or reloaded kept the old copy running beside the new one, and both drew columns on top of each other (ghost posts, doubled tabs, two Columns buttons). The newest copy now takes over and the old one stands down.
 

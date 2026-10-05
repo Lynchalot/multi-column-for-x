@@ -1276,20 +1276,33 @@
       state.proxyUntil = Date.now() + 1500;
     }
   }
-  function renderReply(r) {
+  function renderReply(r, t, panel) {
     const text = h('div', { className: 'xmc-text' }, renderSegs(r.segs));
     for (const a of text.querySelectorAll('a.xmc-nav')) { a.classList.remove('xmc-nav'); a.target = '_blank'; a.rel = 'noopener'; }
     const photos = r.media.slice(0, 2).map((m) => h('a', { href: photoUrl(m.thumb, 'large'), target: '_blank', rel: 'noopener' },
       h('img', { className: 'xmc-rmedia', src: photoUrl(m.thumb, 'small'), alt: '', loading: 'lazy' })));
+    const likeBtn = h('button', { className: 'xmc-ract xmc-rlike', type: 'button', title: 'Like' }, icon('like'), h('span', { className: 'xmc-n' }));
+    const replyBtn = h('button', { className: 'xmc-ract xmc-rreply', type: 'button', title: 'Reply to this comment' }, icon('reply'), h('span', { textContent: 'Reply' }));
+    const slot = h('div', { className: 'xmc-rslot' });
+    const paintLike = () => { likeBtn.classList.toggle('on', !!r.state.liked); likeBtn.querySelector('.xmc-n').textContent = r.counts.like ? fmt(r.counts.like) : ''; };
+    paintLike();
+    likeBtn.addEventListener('click', () => likeComment(t, r, paintLike));
+    replyBtn.addEventListener('click', () => {
+      if (slot.firstChild) { slot.replaceChildren(); return; }
+      const c = renderComposer(panel, t, r);
+      slot.append(c);
+      c.querySelector('textarea').focus();
+    });
     return h('div', { className: 'xmc-ritem d' + (r.depth || 0) },
       h('a', { className: 'xmc-ravatar', href: '/' + r.author.handle, target: '_blank', rel: 'noopener' }, h('img', { src: r.author.avatar, alt: '', loading: 'lazy' })),
       h('div', { className: 'xmc-rbody' },
         h('div', { className: 'xmc-rtop' },
           h('a', { className: 'xmc-name', href: '/' + r.author.handle, target: '_blank', rel: 'noopener', textContent: r.author.name }), badge(r.author),
-          h('span', { className: 'xmc-dim', textContent: ' @' + r.author.handle + ' · ' + relTime(r.createdAt) })),
+          h('span', { className: 'xmc-dim', textContent: ' @' + r.author.handle + ' \u00b7 ' + relTime(r.createdAt) })),
         text,
         photos.length ? h('div', { className: 'xmc-rmedias' }, ...photos) : null,
-        r.counts.like ? h('div', { className: 'xmc-dim xmc-rlikes', textContent: fmt(r.counts.like) + ' likes' }) : null));
+        h('div', { className: 'xmc-ractions' }, likeBtn, replyBtn),
+        slot));
   }
   const SORTS = [['relevant', 'Relevant'], ['recent', 'Recent'], ['likes', 'Most liked']];
   function fillReplies(panel, t, res) {
@@ -1303,12 +1316,12 @@
       h('b', { textContent: list.length ? 'Comments' : d ? 'No comments yet' : 'Couldn’t load comments' }),
       list.length > 1 ? sortSel : null,
       h('button', { className: 'xmc-rclose', type: 'button', title: 'Close comments' }, icon('close'))));
-    for (const r of list) panel.append(renderReply(r));
+    panel.append(renderComposer(panel, t));
+    for (const r of list) panel.append(renderReply(r, t, panel));
     if (!d) {
       panel.append(h('div', { className: 'xmc-dim xmc-rempty', textContent: (res && res.why) || 'Try again in a moment.' }));
       panel.append(btn('Copy diagnostics', '', () => copyDiagnostics(), 'xmc-rbtn'));
     }
-    panel.append(renderComposer(panel, t));
     const more = h('button', { className: 'xmc-rbtn', type: 'button', textContent: d && d.more ? 'See all comments' : 'Open conversation' });
     more.dataset.act = 'conversation';
     panel.append(h('div', { className: 'xmc-rfoot' }, more));
@@ -1316,6 +1329,25 @@
 
   // Posting a comment from here: X's own reply box is opened out of sight, the text is typed into it and Send
   // is pressed, exactly as you would. If any step fails, X's reply box is left open for you to finish.
+  // the part both kinds of reply share: press Reply on a (real) post, type, press Send
+  async function typeAndSend(art, text) {
+    const rb = art.querySelector('[data-testid="reply"]');
+    if (!rb) return { ok: false, why: 'Couldn’t find this post on X’s side.' };
+    fire(rb);
+    const editor = await waitFor(() => document.querySelector('[data-testid="tweetTextarea_0"]'), 5000);
+    if (!editor) return { ok: false, why: 'X’s reply box didn’t open.' };
+    editor.focus();
+    document.execCommand('selectAll', false);
+    document.execCommand('insertText', false, text);
+    const sendBtn = await waitFor(() => {
+      const b = document.querySelector('[data-testid="tweetButton"]');
+      return b && b.getAttribute('aria-disabled') !== 'true' && !b.disabled ? b : null;
+    }, 4000);
+    if (!sendBtn) return { ok: false, why: 'X wouldn’t accept the text.' };
+    fire(sendBtn);
+    const closed = await waitFor(() => !document.querySelector('[data-testid="tweetTextarea_0"]'), 10000);
+    return closed ? { ok: true } : { ok: false, why: 'X didn’t confirm it was sent.' };
+  }
   async function postReply(t, text) {
     await replyQueue; // comment loads borrow the same hidden page
     state.posting = true;
@@ -1325,22 +1357,8 @@
     let res = { ok: false, why: 'Something went wrong.' };
     try {
       const art = await realArticle(t);
-      const rb = art && art.querySelector('[data-testid="reply"]');
-      if (!rb) { res = { ok: false, why: 'Couldn’t find this post on X’s side.' }; return res; }
-      fire(rb);
-      const editor = await waitFor(() => document.querySelector('[data-testid="tweetTextarea_0"]'), 5000);
-      if (!editor) { res = { ok: false, why: 'X’s reply box didn’t open.' }; return res; }
-      editor.focus();
-      document.execCommand('selectAll', false);
-      document.execCommand('insertText', false, text);
-      const sendBtn = await waitFor(() => {
-        const b = document.querySelector('[data-testid="tweetButton"]');
-        return b && b.getAttribute('aria-disabled') !== 'true' && !b.disabled ? b : null;
-      }, 4000);
-      if (!sendBtn) { res = { ok: false, why: 'X wouldn’t accept the text.' }; return res; }
-      fire(sendBtn);
-      const closed = await waitFor(() => !document.querySelector('[data-testid="tweetTextarea_0"]'), 10000);
-      res = closed ? { ok: true } : { ok: false, why: 'X didn’t confirm it was sent.' };
+      if (!art) { res = { ok: false, why: 'Couldn’t find this post on X’s side.' }; return res; }
+      res = await typeAndSend(art, text);
       return res;
     } finally {
       state.posting = false;
@@ -1350,8 +1368,8 @@
       else { doc.classList.remove('xmc-acting'); toast(res.why + ' Finish it in X’s reply box.'); }
     }
   }
-  function renderComposer(panel, t) {
-    const box = h('textarea', { className: 'xmc-cbox', placeholder: 'Write a comment…', rows: 2, maxLength: 1000 });
+  function renderComposer(panel, t, r) {
+    const box = h('textarea', { className: 'xmc-cbox', placeholder: r ? 'Reply to @' + r.author.handle + '…' : 'Write a comment…', rows: 2, maxLength: 1000 });
     const send = h('button', { className: 'xmc-rbtn xmc-csend', type: 'button', textContent: 'Reply', disabled: true });
     const note = h('span', { className: 'xmc-dim xmc-cnote' });
     box.addEventListener('input', () => {
@@ -1363,7 +1381,7 @@
       const text = box.value.trim();
       if (!text || send.disabled) return;
       send.disabled = true; box.disabled = true; note.textContent = 'Sending…';
-      const res = await postReply(t, text);
+      const res = r ? await postCommentReply(t, r, text) : await postReply(t, text);
       box.disabled = false;
       if (res.ok) {
         box.value = ''; box.style.height = 'auto'; note.textContent = 'Sent ✓';
@@ -1373,7 +1391,82 @@
     };
     send.addEventListener('click', go);
     box.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); go(); } });
-    return h('div', { className: 'xmc-compose' }, box, h('div', { className: 'xmc-crow' }, note, send));
+    return h('div', { className: 'xmc-compose' + (r ? ' xmc-inline' : '') }, box, h('div', { className: 'xmc-crow' }, note, send));
+  }
+
+  // ---- acting on one comment: X only has the comment's own buttons while it shows that post's page ----
+  function inQueue(job) {
+    const run = replyQueue.then(async () => { await waitFor(() => !state.posting, 15000); return job(); });
+    replyQueue = run.catch(() => {});
+    return run;
+  }
+  // get X to mount a comment on the post page (its list is virtual too): wait for the page, then walk down
+  async function mountComment(id) {
+    for (let i = 0; i < 40; i++) {
+      const a = findArticle(id);
+      if (a) { await sleep(100); return findArticle(id) || a; }
+      if (i >= 8) window.scrollBy(0, innerHeight * 0.7);
+      await sleep(150);
+    }
+    return null;
+  }
+  // Opens the post on X's hidden side, finds the comment, runs fn(its article), and goes back. fn may return {ok:false, why, stay:true}
+  // (X's reply box is left open for you to finish, so the page is not left). Resolves to {ok} or {ok:false, why}.
+  function actOnComment(t, commentId, fn, opts) {
+    opts = opts || {};
+    return inQueue(async () => {
+      const doc = document.documentElement;
+      state.peek = { id: t.id, replies: null };
+      state.proxyUntil = Date.now() + 40000;
+      freezeSidebar();
+      if (opts.posting) doc.classList.add('xmc-acting');
+      let stay = false, out = { ok: false, why: 'Something went wrong.' };
+      try {
+        const art = await realArticle(t);
+        const link = art && timeLinkOf(art, t.id);
+        if (!link) { out = { ok: false, why: 'Couldn’t find this post on X’s side.' }; return out; }
+        const before = location.pathname;
+        fire(link);
+        await waitFor(() => location.pathname !== before, 3000);
+        if (location.pathname === before) { link.click(); await waitFor(() => location.pathname !== before, 2500); }
+        if (!onPostPage()) { out = { ok: false, why: 'X didn’t open the post.' }; return out; }
+        const cart = await mountComment(commentId);
+        if (!cart) { out = { ok: false, why: 'Couldn’t find that comment on X’s side.' }; return out; }
+        if (opts.posting) state.posting = true;
+        try { const r = await fn(cart); if (r && r.stay) stay = true; out = r && r.ok === false ? r : { ok: true }; } finally { state.posting = false; }
+        if (opts.posting && !stay) await waitFor(() => !isModalRoute(), 4000); // X's reply box is still stepping back to the post
+        return out;
+      } catch (err) {
+        console.warn('[xmc] comment action failed', err);
+        out = { ok: false, why: 'Something went wrong (' + ((err && err.message) || err) + ').' };
+        return out;
+      } finally {
+        if (!stay && onPostPage() && idOfHref(location.pathname) === t.id) { window.history.back(); await waitFor(() => !onPostPage(), 3500); }
+        state.peek = null;
+        state.lastPeekEnd = Date.now();
+        state.proxyUntil = Date.now() + 1500;
+        if (opts.posting) { if (stay) doc.classList.remove('xmc-acting'); else setTimeout(() => doc.classList.remove('xmc-acting'), 500); }
+        if (stay) toast(out.why + ' Finish it in X’s reply box.');
+      }
+    });
+  }
+  async function likeComment(t, r, paint) {
+    const want = !r.state.liked;
+    const flip = (on) => { r.state.liked = on; r.counts.like = Math.max(0, r.counts.like + (on ? 1 : -1)); paint(); };
+    flip(want);
+    const res = await actOnComment(t, r.id, (art) => {
+      const b = art.querySelector(want ? '[data-testid="like"]' : '[data-testid="unlike"]');
+      if (!b) return { ok: false, why: 'Couldn’t find that comment’s like button.' };
+      fire(b);
+      return { ok: true };
+    });
+    if (!res.ok) { state.actionFails.push(Date.now()); flip(!want); toast(res.why || 'Couldn’t reach that comment just now. Try again in a moment'); }
+  }
+  async function postCommentReply(t, r, text) {
+    return actOnComment(t, r.id, async (art) => {
+      const sent = await typeAndSend(art, text);
+      return sent.ok ? sent : { ok: false, why: sent.why, stay: true };
+    }, { posting: true });
   }
   async function reloadComments(panel, t) {
     state.details.delete(t.id);
