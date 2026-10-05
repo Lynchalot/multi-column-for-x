@@ -698,19 +698,22 @@ browserTest('the volume you set on a video is remembered for the next one', asyn
   });
 });
 
-browserTest('the settings page offers starting points, and one applies', async (e) => {
+browserTest('the settings page offers starting points as ticked boxes, and one applies', async (e) => {
   const h = await e.open('/ext/options.html');
   await checked(h, async () => {
     const { page } = h;
     await page.waitForSelector('#sec-presets #preset-calm');
-    assert.equal(await page.locator('#sec-presets .preset').count(), 3);
-    await page.locator('#preset-calm').click();
-    await page.waitForSelector('#preset-calm >> text=In use');
+    assert.equal(await page.locator('#sec-presets input[type=checkbox]').count(), 4, 'three presets and Custom');
+    await page.locator('#preset-calm').check();
+    await page.waitForFunction(() => document.getElementById('preset-calm').checked && !document.getElementById('preset-custom').checked);
     assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), true);
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('xmc.settings')));
     assert.equal(saved.onlyFollowed, true);
-    await page.locator('#preset-plain').click();
+    await page.locator('#preset-plain').check();
+    await page.waitForFunction(() => document.getElementById('preset-plain').checked && !document.getElementById('preset-calm').checked);
     assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), false);
+    await page.locator('#opt-hideTrending').check(); // now it matches none of them
+    await page.waitForFunction(() => document.getElementById('preset-custom').checked && !document.getElementById('preset-plain').checked);
   });
 });
 
@@ -759,5 +762,19 @@ browserTest('on X\'s own post page, "Sensitive media: Show" presses X\'s notice 
     await show.page.waitForFunction(() => window.__gate === 1, null, { timeout: 8000 });
     await show.page.waitForTimeout(2500);
     assert.equal(await gate(show), 1, 'pressed once, not over and over');
+  });
+});
+
+browserTest('Grok\'s floating button lines up beside Chat\'s even when its wrapper is bigger than the button', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { const w = document.getElementById('grokb').parentElement; w.style.cssText = 'padding:0 0 34px 22px;'; });
+    await page.waitForFunction(() => document.querySelector('[data-xmc-docked]'), null, { timeout: 8000 });
+    await page.waitForFunction(() => {
+      const g = document.getElementById('grokb').getBoundingClientRect(), c = document.getElementById('dmb').getBoundingClientRect();
+      return Math.abs(g.bottom - c.bottom) <= 2 && Math.abs(g.right - (c.left - 12)) <= 2;
+    }, null, { timeout: 8000 });
   });
 });

@@ -21,6 +21,7 @@
   }
   function persist(partial) {
     Object.assign(settings, partial);
+    setTimeout(refreshPresets, 0);
     if (storage) storage.set(Object.assign({ v: S.VERSION }, partial)).catch((e) => say('Could not save: ' + e));
     else { try { localStorage.setItem('xmc.settings', JSON.stringify(S.diff(settings).set)); } catch { /* ignore */ } }
   }
@@ -118,22 +119,24 @@
     show();
   }
 
-  // starting points: each sets a handful of settings and leaves the rest alone
-  let presetNote = '';
+  // starting points: each sets a handful of settings and leaves the rest alone. The box ticked is the one that matches what is
+  // set now; "Custom" is ticked when none does.
   function presetsBlock() {
     const wrap = h('div', { className: 'presets' });
-    wrap.append(h('p', { className: 'muted', textContent: 'A place to start. Everything below can still be changed.' }));
-    for (const p of S.PRESETS) {
-      const on = S.presetApplies(p, settings);
-      const b = h('button', { type: 'button', className: 'preset', id: 'preset-' + p.id },
-        h('span', { className: 'preset-name', textContent: p.label }),
-        h('span', { className: 'muted', textContent: on ? 'In use' : '' }),
-        h('span', { className: 'muted preset-blurb', textContent: p.blurb }));
-      b.addEventListener('click', () => { persist(p.set); presetNote = p.label + ' applied.'; build(); });
-      wrap.append(b);
-    }
-    wrap.append(h('p', { className: 'muted', role: 'status', textContent: presetNote }));
+    const current = S.PRESETS.find((p) => S.presetApplies(p, settings));
+    const row = (id, label, blurb, on, apply) => {
+      const box = h('input', { type: 'checkbox', id: 'preset-' + id, checked: on });
+      box.addEventListener('change', () => { if (apply) apply(); else refreshPresets(); });
+      return h('div', { className: 'item bool' }, box,
+        h('div', {}, h('label', { className: 'name', htmlFor: 'preset-' + id, textContent: label }), blurb ? h('div', { className: 'help', textContent: blurb }) : null));
+    };
+    for (const p of S.PRESETS) wrap.append(row(p.id, p.label, p.blurb, current === p, () => { persist(p.set); build(); }));
+    wrap.append(row('custom', 'Custom', '', !current, null));
     return wrap;
+  }
+  function refreshPresets() {
+    const old = document.querySelector('.presets');
+    if (old) old.replaceWith(presetsBlock());
   }
 
   function build() {

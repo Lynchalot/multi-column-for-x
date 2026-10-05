@@ -188,13 +188,13 @@ var XMCSettings = (function () {
 
   // Starting points offered on the settings page (and on first install). Each only sets the keys it names.
   const PRESETS = [
-    { id: 'plain', label: 'Just columns', blurb: 'X as it is, laid out in columns.',
+    { id: 'plain', label: 'Just columns', blurb: 'Default X but laid out in columns.',
       set: { hideForYou: false, homeDefault: 'remember', keepFollowing: false, onlyFollowed: false, hideTrending: false, hideWhoToFollow: false, hideTopics: false,
         hideDiscoverMore: false, hidePremiumPromo: false, seen: 'off', collapseReposts: false, foldThreads: false } },
-    { id: 'calm', label: 'Calm', blurb: 'Only people you follow. No trends or suggestions. Threads and reposts folded, posts you have read faded.',
+    { id: 'calm', label: 'Calm', blurb: 'All algorithmic content disabled (only people you follow, no trends or suggestions.) Threads and reposts are folded and posts you have read are visibly faded.',
       set: { hideForYou: true, homeDefault: 'following', keepFollowing: true, onlyFollowed: true, hideTrending: true, hideWhoToFollow: true, hideTopics: true,
         hideDiscoverMore: true, hidePremiumPromo: true, seen: 'dim', collapseReposts: true, foldThreads: true } },
-    { id: 'media', label: 'Media wall', blurb: 'Narrower, more columns. Videos play muted as you scroll.',
+    { id: 'media', label: 'Media wall', blurb: 'Narrower layout with more columns. Videos play muted as you scroll.',
       set: { autoplayVideo: 'muted', minColWidth: 380, maxAutoCols: 8, tallPhotos: 'cap', hideViews: true } },
   ];
   const presetApplies = (preset, settings) => Object.keys(preset.set).every((k) => JSON.stringify(settings[k]) === JSON.stringify(preset.set[k]));

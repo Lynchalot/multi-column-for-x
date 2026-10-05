@@ -2384,6 +2384,8 @@
     for (const p of DOCK_PROPS) grok.style.removeProperty(p);
     delete grok.dataset.xmcDocked;
   }
+  // the visible button inside one of X's wrappers (the wrapper can be bigger than the button, with the button off to one side)
+  const buttonRect = (el) => { const b = el.querySelector('button, [role="button"], a'); const r = b && b.getBoundingClientRect(); return r && r.width ? r : el.getBoundingClientRect(); };
   function dockGrok() {
     const chat = document.querySelector('[data-xmc-dm]'), grok = document.querySelector('[data-xmc-grok]');
     if (!grok) return;
@@ -2394,8 +2396,15 @@
     grok.dataset.xmcDocked = '1';
     if (c.width > 120 || c.height > 120) { set('visibility', 'hidden'); return; } // the chat panel is open
     set('visibility', 'visible'); set('position', 'fixed'); set('margin', '0'); set('top', 'auto'); set('left', 'auto');
-    set('right', Math.round(innerWidth - c.right + c.width + 12) + 'px');
-    set('bottom', Math.round(innerHeight - c.bottom) + 'px');
+    // Grok's button goes to the left of Chat's, bottoms level, a small gap between: place its wrapper, then look at where the
+    // buttons themselves ended up and move it by the difference
+    const cb = buttonRect(chat);
+    let right = Math.round(innerWidth - cb.right + cb.width + 12), bottom = Math.round(innerHeight - cb.bottom);
+    set('right', right + 'px'); set('bottom', bottom + 'px');
+    const gb = buttonRect(grok);
+    right += Math.round(gb.right - (cb.left - 12));
+    bottom += Math.round(gb.bottom - cb.bottom);
+    set('right', right + 'px'); set('bottom', bottom + 'px');
   }
 
   // ---------- health ----------

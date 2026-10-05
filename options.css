@@ -44,10 +44,3 @@ ul#history-list a { color: var(--accent); text-decoration: none; }
 .support a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .support[hidden] { display: none; }
 
-.presets { margin-top: 6px; }
-.preset { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; width: 100%; text-align: left; padding: 12px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; font-weight: 400; }
-.preset:hover { border-color: var(--line); }
-.preset:hover .preset-name { color: var(--accent); }
-.preset-name { font-weight: 600; }
-.preset-blurb { grid-column: 1 / -1; margin: 0; }
-.preset .muted { margin: 0; }
