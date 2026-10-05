@@ -20,9 +20,11 @@ async function setup(opts = {}) {
   const api = {
     server,
     // path: where to go. settings: saved extension settings (e.g. { cols: 5 }). width/height: window size.
-    async open(path, { settings, width = 1700, height = 900 } = {}) {
+    // seen: post ids already "read" in an earlier visit (what the extension keeps in its read-posts memory)
+    async open(path, { settings, seen, width = 1700, height = 900 } = {}) {
       const context = await browser.newContext({ viewport: { width, height } });
       if (settings) await context.addInitScript((s) => { try { localStorage.setItem('xmc.settings', JSON.stringify(s)); } catch { /* ignore */ } }, settings);
+      if (seen) await context.addInitScript((ids) => { try { if (!localStorage.getItem('xmc.seen')) localStorage.setItem('xmc.seen', JSON.stringify(ids)); } catch { /* ignore */ } }, seen);
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));

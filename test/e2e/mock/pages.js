@@ -95,6 +95,7 @@ function pageFor(path) {
   if (p === '/menu') return timelinePage({ ...HOME, title: 'Menu / X', dropdown: { tab: 1, items: ['Recent', 'Popular'], kind: 'sort' } });
   if (p === '/user/media') return timelinePage({ title: 'user / Media / X', tabs: [{ label: 'Posts' }, { label: 'Replies' }, { label: 'Reposts' }, { label: 'Videos', feed: 'UserMedia' }], selected: 3, dropdown: { tab: 3, items: ['Videos', 'Photos'], kind: 'media' } });
   if (p === '/explore') return timelinePage({ title: 'Explore / X', tabs: [{ label: 'For you', feed: 'ExplorePage' }, { label: 'Trending', feed: 'ExplorePage' }], selected: 0 });
+  if (p === '/dupes') return timelinePage({ title: 'dupes / X', tabs: [{ label: 'Posts', feed: 'DupesTimeline' }], selected: 0 });
   if (p === '/nofeed') return timelinePage({ ...HOME, title: 'No feed / X', load: false });
   const m = /^\/user\/status\/(\d+)$/.exec(p);
   if (m) return postPage(m[1]);

@@ -15,6 +15,15 @@ var XMCSettings = (function () {
         { key: 'cols', type: 'number', min: 0, max: 8, def: 0, label: 'Number of columns', help: '0 = automatic.' },
         { key: 'maxAutoCols', type: 'number', min: 1, max: 8, def: 5, label: 'Most columns when automatic' },
         { key: 'minColWidth', type: 'number', min: 280, max: 900, def: 500, label: 'Column width when automatic (px)' },
+        { key: 'density', type: 'select', def: 'normal', label: 'Post size', options: [['normal', 'Normal'], ['compact', 'Compact (tighter, smaller pictures)'], ['text', 'Text only (pictures and video behind a click)']] },
+        { key: 'perPageLayout', type: 'bool', def: false, label: 'Remember columns and post size separately for each page', help: 'Home, Search, Lists, Bookmarks and profiles each keep what you last picked in the top bar.' },
+      ],
+    },
+    {
+      id: 'reading', title: 'Reading', custom: 'reading', items: [
+        { key: 'seen', type: 'select', def: 'off', label: 'Posts I\u2019ve already read', options: [['off', 'Leave them alone'], ['dim', 'Fade them'], ['hide', 'Hide them']],
+          help: 'On Home and Lists. A post counts as read after you\u2019ve looked at it for a second. Remembered on this device only.' },
+        { key: 'collapseReposts', type: 'bool', def: false, label: 'Show a post once when several people repost it', help: 'Folded into one card: \u201cA, B and 2 others reposted\u201d.' },
       ],
     },
     {
@@ -99,15 +108,30 @@ var XMCSettings = (function () {
   ];
 
   // saved state that isn't edited on the options page
-  const INTERNAL = { filter: 'all', mutedQuoteIds: [], hiddenNav: [], navItems: [] };
+  const INTERNAL = { filter: 'all', mutedQuoteIds: [], hiddenNav: [], navItems: [], pageLayouts: {} };
 
   const DEFAULTS = Object.assign({}, INTERNAL);
   const ITEMS = {};
   for (const sec of SCHEMA) for (const it of sec.items) { DEFAULTS[it.key] = it.def; ITEMS[it.key] = it; }
 
+  const PAGES = ['home', 'search', 'explore', 'bookmarks', 'list', 'profile']; // the kinds of page (see routeKind in logic.js)
+
   // saved lists come from storage, so check them rather than trust them
   function cleanInternal(key, v, fallback) {
     if (key === 'filter') return typeof v === 'string' ? v.slice(0, 20) : fallback;
+    if (key === 'pageLayouts') { // { home: { cols, density }, ... }
+      const out = {};
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return fallback;
+      for (const where of PAGES) {
+        const e = v[where];
+        if (!e || typeof e !== 'object') continue;
+        const own = {};
+        if (typeof e.cols === 'number' && Number.isFinite(e.cols)) own.cols = Math.max(0, Math.min(8, Math.round(e.cols)));
+        if (ITEMS.density.options.some(([val]) => val === e.density)) own.density = e.density;
+        if (Object.keys(own).length) out[where] = own;
+      }
+      return out;
+    }
     if (key === 'navItems') {
       return Array.isArray(v) ? v.filter((i) => i && typeof i.key === 'string' && typeof i.label === 'string')
         .slice(0, 60).map((i) => ({ key: i.key.slice(0, 200), label: i.label.slice(0, 60) })) : fallback;
@@ -133,7 +157,7 @@ var XMCSettings = (function () {
   }
 
   function normalize(raw) {
-    const out = Object.assign({}, DEFAULTS, { mutedQuoteIds: [], hiddenNav: [], navItems: [] });
+    const out = Object.assign({}, DEFAULTS, { mutedQuoteIds: [], hiddenNav: [], navItems: [], pageLayouts: {} });
     if (!raw || typeof raw !== 'object') return out;
     const from = Number(raw.v) || 0;
     for (const [ver, keys] of Object.entries(DEFAULT_CHANGED_IN)) {

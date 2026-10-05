@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.0
+- **Post size:** Normal, Compact or Text only (pictures and video become a label you can click). Smaller sizes fit more columns when the number is automatic. A button in the top bar cycles them.
+- **A layout for each page** (option): Home, Search, Lists, Bookmarks and profiles each remember their own column count and post size.
+- **Posts you've read** (option): hide or fade them on Home and Lists. Read means on screen for a second; only the post's number is kept, on your device. Nothing disappears while you read: it applies on your next visit and when you refresh. A top-bar button shows what's hidden, and when everything recent is read it stops loading older posts and says so. A button on the settings page forgets the list.
+- **Reposts folded** (option): several people reposting the same post make one card, "A, B and 2 others reposted".
+- Comment order was already remembered between visits; there is now a test for it.
+
 ## 0.9.3
 - **Long sessions stay light:** posts far above or below you give their contents back (keeping their exact height, so nothing shifts) and get them again
   as you scroll towards them. It starts once 150 posts are on the page.

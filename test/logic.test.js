@@ -335,3 +335,63 @@ test('health: each rule fires on what was seen failing, and a healthy page repor
   assert.deepEqual(keys({ navFallback: true, sideFallback: true }), ['pinning']);
   assert.deepEqual(L.healthIssues({ active: false, sinceRoute: 99, opsSeen: 0, tabCount: 0, waitingSeconds: 99 }), [], 'columns off: nothing to report');
 });
+
+test('layouts: per-page picks win only when the setting is on; smaller posts get narrower automatic columns', () => {
+  const s = Object.assign(S.normalize(), { cols: 4, density: 'normal', pageLayouts: { home: { cols: 2 }, list: { density: 'text' } } });
+  assert.deepEqual(L.pageLayout(s, 'home'), { cols: 4, density: 'normal' }, 'ignored while the setting is off');
+  s.perPageLayout = true;
+  assert.deepEqual(L.pageLayout(s, 'home'), { cols: 2, density: 'normal' }, 'a page keeps its own columns, and falls back for what it has not set');
+  assert.deepEqual(L.pageLayout(s, 'list'), { cols: 4, density: 'text' });
+  assert.deepEqual(L.pageLayout(s, 'search'), { cols: 4, density: 'normal' }, 'a page with nothing saved follows the global settings');
+  assert.deepEqual(L.pageLayout(Object.assign({}, s, { cols: 0 }), 'home'), { cols: 2, density: 'normal' }, 'a saved 0 would mean automatic, and an unset page follows the global 0');
+  assert.deepEqual(L.pageLayout(Object.assign({}, s, { cols: 0, pageLayouts: { home: { cols: 0 } } }), 'home'), { cols: 0, density: 'normal' }, 'automatic can be chosen for one page');
+  assert.equal(L.minColFor(s, 'normal'), 500);
+  assert.ok(L.minColFor(s, 'compact') < 500 && L.minColFor(s, 'text') < L.minColFor(s, 'compact'));
+  assert.ok(L.minColFor({ minColWidth: 280 }, 'text') >= 240, 'never absurdly narrow');
+  const wide = 3400;
+  assert.ok(L.autoCols(wide, { minColWidth: L.minColFor(s, 'text'), maxAutoCols: 8 }) > L.autoCols(wide, { minColWidth: 500, maxAutoCols: 8 }));
+});
+
+test('layouts: saved page layouts are checked on the way in', () => {
+  const n = S.normalize({ pageLayouts: { home: { cols: 99, density: 'compact' }, nowhere: { cols: 2 }, list: { cols: 'x', density: 'huge' }, search: 5 } });
+  assert.deepEqual(n.pageLayouts, { home: { cols: 8, density: 'compact' } });
+  assert.deepEqual(S.normalize({ pageLayouts: [1, 2] }).pageLayouts, {});
+  assert.deepEqual(S.normalize().pageLayouts, {});
+  assert.notEqual(S.normalize().pageLayouts, S.normalize().pageLayouts, 'not one shared object');
+  assert.equal(S.normalize({ density: 'text' }).density, 'text');
+  assert.equal(S.normalize({ density: 'nonsense' }).density, 'normal');
+  assert.equal(S.normalize({ seen: 'hide' }).seen, 'hide');
+  assert.equal(S.normalize({ seen: 'nonsense' }).seen, 'off');
+  const d = S.diff(Object.assign(S.normalize(), { pageLayouts: { home: { cols: 2 } } }));
+  assert.deepEqual(d.set.pageLayouts, { home: { cols: 2 } });
+  assert.ok(S.diff(S.normalize()).clear.includes('pageLayouts'), 'back to nothing saved: the stored copy is removed');
+});
+
+test('reposts: the line says who, and several people fold into one card', () => {
+  assert.equal(L.repostLine(['Ann'], 'reposted'), 'Ann reposted');
+  assert.equal(L.repostLine(['Ann', 'Bo'], 'reposted'), 'Ann and Bo reposted');
+  assert.equal(L.repostLine(['Ann', 'Bo', 'Cy'], 'retweeted'), 'Ann, Bo and 1 other retweeted');
+  assert.equal(L.repostLine(['Ann', 'Bo', 'Cy', 'Di', 'Ed'], 'reposted'), 'Ann, Bo and 3 others reposted');
+  const post = (id, by) => ({ id, key: id + (by ? 'rt' + by : ''), repostedBy: by ? { name: by, handle: by.toLowerCase() } : null });
+  const c = L.collapser();
+  const first = post('1', 'Ann');
+  assert.equal(c.offer(first), null, 'the first one gets a card');
+  assert.equal(c.offer(post('1', 'Bo')), first, 'a second repost folds into it');
+  assert.equal(c.offer(post('1', 'Bo')), first, '...and the same person twice is still one');
+  assert.equal(c.offer(post('1', null)), first, 'the original arriving later adds nothing');
+  assert.equal(c.offer(post('2', 'Ann')), null, 'a different post is a different card');
+  assert.deepEqual(c.who('1').map((b) => b.name), ['Ann', 'Bo']);
+  assert.deepEqual(c.who('nope'), []);
+  const o = L.collapser(); const orig = post('9', null);
+  assert.equal(o.offer(orig), null);
+  assert.equal(o.offer(post('9', 'Cy')), orig, 'a repost of a post already shown as an original is folded without being added');
+  assert.deepEqual(o.who('9'), [], 'an original has no reposters to list');
+});
+
+test('new reading and layout settings exist, off by default, and pageLayouts is not a visible setting', () => {
+  const d = S.normalize();
+  assert.equal(d.seen, 'off'); assert.equal(d.collapseReposts, false); assert.equal(d.density, 'normal'); assert.equal(d.perPageLayout, false);
+  const keys = S.SCHEMA.flatMap((sec) => sec.items.map((i) => i.key));
+  for (const k of ['seen', 'collapseReposts', 'density', 'perPageLayout', 'commentSort']) assert.ok(keys.includes(k), k);
+  assert.ok(!keys.includes('pageLayouts'));
+});

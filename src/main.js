@@ -34,6 +34,7 @@
       const v = storage ? await storage.get(null) : JSON.parse(localStorage.getItem('xmc.settings') || '{}');
       Object.assign(settings, XMCSettings.normalize(v));
       loadHistory(v.dlHistory);
+      loadSeen(storage ? v.seenPosts : JSON.parse(localStorage.getItem('xmc.seen') || '[]'));
     } catch { /* defaults */ }
   }
   function onExternalChange(next, hist) {
@@ -45,12 +46,14 @@
     ext.storage.onChanged.addListener((changes, area) => {
       if (area !== 'local') return;
       const next = {};
-      for (const k in changes) if (k !== 'dlHistory') next[k] = changes[k].newValue;
-      onExternalChange(next, changes.dlHistory ? changes.dlHistory.newValue : undefined);
+      for (const k in changes) if (k !== 'dlHistory' && k !== 'seenPosts') next[k] = changes[k].newValue;
+      if (changes.seenPosts) mergeSeen(changes.seenPosts.newValue);
+      if (Object.keys(next).length || changes.dlHistory) onExternalChange(next, changes.dlHistory ? changes.dlHistory.newValue : undefined);
     });
   } else {
     window.addEventListener('storage', (e) => {
       if (e.key === 'xmc.settings') { try { onExternalChange(JSON.parse(e.newValue || '{}')); } catch { /* ignore */ } }
+      if (e.key === 'xmc.seen') { try { mergeSeen(JSON.parse(e.newValue || '[]')); } catch { /* ignore */ } }
     });
   }
 
@@ -116,6 +119,7 @@
     actionFails: [],          // when a like / repost / bookmark couldn't reach X's button (for the health check)
     commentFails: [],         // when comments couldn't be loaded
     health: [],               // what the health check currently sees wrong
+    showSeen: false,          // you asked to see the posts you've read (this page only)
   };
   function remember(list) {
     for (const t of list) { if (t && t.id) { state.byId.delete(t.id); state.byId.set(t.id, t); } }
@@ -170,6 +174,7 @@
       if (established) { state.latestByRoute.set(rk, f.key); state.feedByTab.set(slotFor(state.sel), f.key); }
     } else if (kind === 'refresh') { // you asked for a refresh
       f.items = []; f.keys.clear(); f.index.clear(); f.pending = []; f.exhausted = false; f.empty = 0; f.version++;
+      foldSeen();
       f.cursors = new Set(r.bottomCursor ? [r.bottomCursor] : []);
       addItems(f, r.items);
       state.refreshing = null;
@@ -201,6 +206,7 @@
     const m = XMCLogic.mergeNew(f.items, f.pending);
     f.pending = [];
     if (!m.added) return;
+    foldSeen();
     f.items = m.items;
     f.keys = new Set(f.items.map((t) => t.key));
     f.index = new Map();
@@ -315,6 +321,64 @@
     }
   }, { threshold: [0, 0.25, 0.5, 0.75] });
 
+  // ---------- posts you've read ----------
+  // A post counts as read once it has been mostly on screen for a second. What is hidden or faded is what you read on EARLIER
+  // visits (seenBefore); what you read on this page only joins it when you refresh (foldSeen), so nothing vanishes while you read.
+  // Only the post's id is kept (the last few thousand, on this device), and only while the setting is on.
+  const SEEN_MAX = 4000;
+  const CAUGHT_UP = 30; // this many read posts in a row = you're up to date: stop loading older ones
+  let seenAll = new Set();    // every id remembered, oldest first
+  let seenBefore = new Set(); // read on earlier visits
+  const seenNow = new Set();  // read since this page loaded
+  let seenEpoch = 0;          // changes whenever seenBefore does, so the view is redrawn
+  let seenDirty = false;
+  let seenTimer = 0;
+  const cleanIds = (list) => (Array.isArray(list) ? list.filter((x) => typeof x === 'string' && x.length < 30).slice(-SEEN_MAX) : []);
+  function loadSeen(list) {
+    seenAll = new Set(cleanIds(list));
+    seenBefore = new Set(seenAll);
+  }
+  function mergeSeen(list) { // another tab (or the options page) changed the list
+    const ids = cleanIds(list);
+    if (!ids.length) { seenAll = new Set(); seenBefore = new Set(); seenNow.clear(); seenEpoch++; return; } // "forget what I've read"
+    for (const id of ids) if (!seenAll.has(id)) seenAll.add(id);
+  }
+  function flushSeen() {
+    seenTimer = 0;
+    if (!seenDirty) return;
+    seenDirty = false;
+    while (seenAll.size > SEEN_MAX) seenAll.delete(seenAll.values().next().value);
+    const ids = [...seenAll];
+    if (storage) storage.set({ seenPosts: ids }).catch(() => {});
+    else { try { localStorage.setItem('xmc.seen', JSON.stringify(ids)); } catch { /* private mode */ } }
+  }
+  function markRead(el) {
+    const t = tweetOf.get(el);
+    if (!t || settings.seen === 'off' || document.hidden || el.dataset.recycled) return;
+    seenNow.add(t.id);
+    seenAll.delete(t.id); seenAll.add(t.id); // newest last
+    seenDirty = true;
+    if (!seenTimer) seenTimer = setTimeout(flushSeen, 4000);
+  }
+  function foldSeen() { // the posts you read on this page now count as read: they're hidden or faded the next time the feed is drawn
+    if (!seenNow.size) return;
+    for (const id of seenNow) seenBefore.add(id);
+    seenNow.clear();
+    seenEpoch++;
+  }
+  window.addEventListener('pagehide', flushSeen);
+  const readTimers = new Map();
+  const readObserver = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      const el = en.target;
+      const mostly = en.isIntersecting && (en.intersectionRatio >= 0.5 || (en.rootBounds && en.intersectionRect.height >= en.rootBounds.height * 0.4)); // a tall post can't reach half
+      if (mostly && !readTimers.has(el)) readTimers.set(el, setTimeout(() => { readTimers.delete(el); markRead(el); }, 1000));
+      else if (!mostly && readTimers.has(el)) { clearTimeout(readTimers.get(el)); readTimers.delete(el); }
+    }
+  }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+  // where read posts are hidden or faded: Home and Lists, where the same posts come round again (not a profile or your bookmarks)
+  const seenApplies = () => settings.seen !== 'off' && (where() === 'home' || where() === 'list');
+
   function renderSegs(segs) {
     const frag = document.createDocumentFragment();
     for (const s of segs) {
@@ -403,10 +467,23 @@
     const paid = a.blue && !a.verified;
     return h('span', { className: 'xmc-badge' + (paid ? ' blue' : ''), title: paid ? 'Paid verification' : 'Verified' }, icon('check', 'chk'), icon('bird', 'bird'));
   }
+  // "A reposted", or "A, B and 2 others reposted" when several people's reposts were folded into this card
+  function ctxText(t) {
+    const by = view.fold ? view.fold.who(t.id) : [];
+    return XMCLogic.repostLine((by.length ? by : [t.repostedBy]).map((b) => b.name), T('reposted'));
+  }
+  // Text-only layout: a small label where the pictures or video would be; one click shows them
+  function mediaChip(t) {
+    const photos = t.media.filter((m) => m.type === 'photo').length, clips = t.media.length - photos;
+    const bits = [];
+    if (photos) bits.push(photos + (photos === 1 ? ' photo' : ' photos'));
+    if (clips) bits.push(t.media.some((m) => m.type === 'gif') && clips === 1 ? 'GIF' : clips === 1 ? 'video' : clips + ' videos');
+    return h('button', { className: 'xmc-mediachip', type: 'button', title: 'Show the pictures and video', textContent: '\u25b6 ' + bits.join(' + ') });
+  }
   function renderCard(t) {
     const card = h('article', { className: 'xmc-card' });
     tweetOf.set(card, t);
-    if (t.repostedBy) card.append(h('div', { className: 'xmc-ctx' }, icon('repost'), ' ' + t.repostedBy.name + ' ' + T('reposted')));
+    if (t.repostedBy) card.append(h('div', { className: 'xmc-ctx' }, icon('repost'), h('span', { textContent: ctxText(t) })));
     const sub = h('div', { className: 'xmc-sub' }, '@' + t.author.handle + ' · ',
       h('a', { className: 'xmc-time xmc-nav', href: t.url, title: new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt) }));
     if (settings.showSource && t.source) sub.append(h('span', { className: 'xmc-src', textContent: ' · via ' + t.source }));
@@ -422,7 +499,7 @@
       if (long) card.append(h('button', { className: 'xmc-more', type: 'button', textContent: 'Show more' }));
       if (needsTranslation(t)) card.append(h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Opens the post, where X can translate it' }));
     }
-    if (t.media.length) card.append(renderMedia(t));
+    if (t.media.length) card.append(pageLayout().density === 'text' && !t.revealed ? mediaChip(t) : renderMedia(t));
     if (t.card) card.append(renderLinkCard(t.card));
     if (t.quoted) card.append(renderQuote(t.quoted));
     const actions = h('div', { className: 'xmc-actions' });
@@ -460,11 +537,12 @@
 
   // rough card height, used only to spread a batch of new cards over the columns
   function estimate(t, w) {
-    let hh = 100 + (t.repostedBy ? 22 : 0);
+    const density = pageLayout().density;
+    let hh = (density === 'normal' ? 100 : 84) + (t.repostedBy ? 22 : 0);
     hh += Math.ceil(textLength(t.segs) / Math.max(20, w / 7.4)) * 21 + 8;
-    if (t.media.length) hh += t.media.length === 1 ? w * Math.min(1 / clampRatio(t.media[0].w, t.media[0].h), 1.67) : w * 0.5625;
-    if (t.card) hh += 200;
-    if (t.quoted) hh += 130;
+    if (t.media.length) hh += density === 'text' && !t.revealed ? 36 : (t.media.length === 1 ? w * Math.min(1 / clampRatio(t.media[0].w, t.media[0].h), 1.67) : w * 0.5625) * (density === 'compact' ? 0.7 : 1);
+    if (t.card) hh += density === 'normal' ? 200 : density === 'compact' ? 150 : 70;
+    if (t.quoted) hh += density === 'text' ? 100 : 130;
     return Math.round(hh);
   }
 
@@ -489,10 +567,14 @@
 
   const autoBtn = btn('Auto', 'Fit the number of columns to the window (highlighted = on)', () => setCols(0));
   const colGroup = h('div', { className: 'xmc-colgroup' },
-    btn('\u2212', 'Fewer columns', () => setCols((settings.cols || colCount()) - 1)), countEl,
-    btn('+', 'More columns', () => setCols((settings.cols || colCount()) + 1)),
+    btn('\u2212', 'Fewer columns', () => setCols((pageLayout().cols || colCount()) - 1)), countEl,
+    btn('+', 'More columns', () => setCols((pageLayout().cols || colCount()) + 1)),
     autoBtn);
-  const row1 = h('div', { className: 'xmc-bar1' }, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, refreshBtn, colGroup, nsfwBtn, gearBtn);
+  const DENSITY_LABEL = { normal: 'Normal', compact: 'Compact', text: 'Text' };
+  const densityBtn = btn('', '', () => { const all = XMCLogic.DENSITIES; setLayout({ density: all[(all.indexOf(pageLayout().density) + 1) % all.length] }); }, 'xmc-density');
+  const seenBtn = btn('', '', () => toggleSeen(), 'xmc-seenbtn');
+  seenBtn.hidden = true;
+  const row1 = h('div', { className: 'xmc-bar1' }, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, seenBtn, refreshBtn, colGroup, densityBtn, nsfwBtn, gearBtn);
   const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
   const bar = h('div', { className: 'xmc-bar' }, row1, row2);
   const statusEl = h('div', { className: 'xmc-status' });
@@ -502,7 +584,12 @@
   const loaderEl = h('div', { className: 'xmc-loader', hidden: true }, spinner(), loaderText, diagBtn);
   const endEl = h('div', { className: 'xmc-end', hidden: true }, h('span', { textContent: 'That’s everything X has sent.' }),
     btn('Try loading more', '', () => { const f = activeFeed(); if (f) { f.exhausted = false; f.empty = 0; f.misses = 0; f.retryOnce = true; pump(); } }));
-  const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, colsEl, loaderEl, endEl, statusEl);
+  const caughtText = h('span');
+  const caughtEl = h('div', { className: 'xmc-end', hidden: true }, caughtText,
+    h('span', { className: 'xmc-endbtns' },
+      btn('Show what I\u2019ve read', '', () => toggleSeen()),
+      btn('Keep loading older posts', '', () => { view.keepGoing = true; view.caughtUp = false; const f = activeFeed(); if (f) pump(); guard('render', renderFeed); })));
+  const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, colsEl, loaderEl, caughtEl, endEl, statusEl);
   const root = h('div', { id: 'xmc-root', hidden: true }, bar, scroller);
   const toastEl = h('div', { id: 'xmc-toast', hidden: true });
   document.body.append(root, toastEl);
@@ -600,7 +687,7 @@
   function settingsChanged() {
     XMCSite.apply(settings);
     applyBar();
-    if (columns.length && colCount() !== columns.length) relayout(); // column settings changed
+    if (columns.length && (colCount() !== columns.length || layoutSig() !== view.layoutSig)) relayout(); // column or post-size settings changed
     refreshDownloadMarks();
   }
   function applyBar() {
@@ -625,7 +712,17 @@
     if (nsfwBtn.dataset.ic !== ic) { nsfwBtn.dataset.ic = ic; nsfwBtn.firstChild.replaceChildren(icon(ic)); }
   }
   function setFilter(key) { settings.filter = key; save(); applyBar(); guard('render', renderFeed); } // draw now, not on the next tick
-  function setCols(n) { settings.cols = Math.max(0, Math.min(8, n)); save(); relayout(); }
+  // Columns and post size: what you pick in the top bar is kept for this kind of page when "per page" is on, else for every page
+  const pageLayout = () => XMCLogic.pageLayout(settings, where());
+  function setLayout(part) {
+    if (settings.perPageLayout) {
+      const w = where();
+      settings.pageLayouts = Object.assign({}, settings.pageLayouts, { [w]: Object.assign({}, settings.pageLayouts[w], part) });
+    } else Object.assign(settings, part);
+    save(); relayout();
+    guard('render', renderFeed);
+  }
+  const setCols = (n) => setLayout({ cols: Math.max(0, Math.min(8, n)) });
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { if (lightbox) closeLightbox(); closeMenu(); }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
@@ -641,15 +738,19 @@
   const MIN_COL = 320;
   function colCount() {
     const w = colsEl.clientWidth;
-    if (settings.cols > 0) return Math.min(settings.cols, XMCLogic.autoCols(w, { minColWidth: MIN_COL, maxAutoCols: 8 }, GAP));
-    return XMCLogic.autoCols(w, settings, GAP);
+    const lay = pageLayout();
+    if (lay.cols > 0) return Math.min(lay.cols, XMCLogic.autoCols(w, { minColWidth: MIN_COL, maxAutoCols: 8 }, GAP));
+    return XMCLogic.autoCols(w, { minColWidth: XMCLogic.minColFor(settings, lay.density), maxAutoCols: settings.maxAutoCols }, GAP);
   }
+  const layoutSig = () => { const l = pageLayout(); return l.cols + '|' + l.density + '|' + XMCLogic.minColFor(settings, l.density) + '|' + settings.maxAutoCols; };
   // everything that changes which posts pass; when it changes the view is rebuilt
   const FILTER_KEYS = ['filter', 'repostsHome', 'quotesHome', 'repliesHome', 'repostsProfile', 'repostsLists', 'onlyFollowed',
-    'hideBlueReplies', 'hideMutedQuotes', 'mutedWords', 'mutedAccounts', 'nsfw'];
+    'hideBlueReplies', 'hideMutedQuotes', 'mutedWords', 'mutedAccounts', 'nsfw', 'seen', 'collapseReposts'];
   // everything that changes how a card is built
   const RENDER_KEYS = ['branding', 'showSource', 'autoplayVideo'];
   const sigOf = (keys) => keys.map((k) => String(settings[k])).join('|') + '|' + where() + '|' + settings.mutedQuoteIds.length;
+  const filterSig = () => sigOf(FILTER_KEYS) + '|' + (state.showSeen ? 1 : 0) + '|' + seenEpoch;
+  const renderSig = () => RENDER_KEYS.map((k) => String(settings[k])).join('|') + '|' + pageLayout().density;
   const passCtx = () => ({
     s: settings, view: settings.filter, where: where(), words: XMCSettings.words(settings.mutedWords),
     accounts: new Set(XMCSettings.handles(settings.mutedAccounts)), quoteIds: new Set(settings.mutedQuoteIds),
@@ -664,7 +765,8 @@
       let i = 0;
       for (let j = 1; j < heights.length; j++) if (heights[j] < heights[i]) i = j;
       const guess = est || estimate(t, w);
-      const el = t.el || (t.el = renderCard(t));
+      if (!t.el) { t.el = renderCard(t); t.elSig = renderSig(); } // elSig: how it was built, so a layout change rebuilds only what is out of date
+      const el = t.el;
       // a card that hasn't been drawn yet counts as our estimate (not a flat 420px), so the columns stay level
       if (!el.dataset.sized) { el.style.containIntrinsicSize = 'auto ' + guess + 'px'; el.dataset.sized = '1'; }
       columns[i].append(el);
@@ -682,22 +784,30 @@
   }
   function relayout() {
     const n = colCount();
-    countEl.textContent = (settings.cols ? '' : 'auto · ') + n;
-    autoBtn.classList.toggle('on', !settings.cols); // shows whether the number is automatic or fixed
+    const lay = pageLayout();
+    view.layoutSig = layoutSig();
+    countEl.textContent = (lay.cols ? '' : 'auto · ') + n;
+    autoBtn.classList.toggle('on', !lay.cols); // shows whether the number is automatic or fixed
+    root.classList.toggle('xmc-compact', lay.density === 'compact');
+    root.classList.toggle('xmc-textonly', lay.density === 'text');
+    densityBtn.textContent = DENSITY_LABEL[lay.density];
+    densityBtn.title = 'Post size: ' + DENSITY_LABEL[lay.density].toLowerCase() + ' \u2014 click to change';
     const real = view.cards.map((t) => (t.el ? t.el.offsetHeight : 0));
     columns = Array.from({ length: n }, () => h('div', { className: 'xmc-col' }));
-    colsEl.classList.toggle('auto', !settings.cols); // automatic: columns keep about one width, the window shows more or fewer
-    root.style.setProperty('--xmc-colw', settings.minColWidth + 'px');
+    colsEl.classList.toggle('auto', !lay.cols); // automatic: columns keep about one width, the window shows more or fewer
+    root.style.setProperty('--xmc-colw', XMCLogic.minColFor(settings, lay.density) + 'px');
     colsEl.replaceChildren(...columns);
     placeBatch(view.cards.map((t, i) => ({ t, est: real[i] || undefined })));
   }
   function resetView(feed) {
     view.feedKey = feed ? feed.key : null;
     view.version = feed ? feed.version : -1;
-    view.sig = sigOf(FILTER_KEYS);
-    view.renderSig = sigOf(RENDER_KEYS);
+    view.sig = filterSig();
+    view.renderSig = renderSig();
     view.upto = 0;
     view.cards = [];
+    view.fold = settings.collapseReposts ? XMCLogic.collapser() : null; // reposts of the same post share one card
+    view.seenRun = 0; view.hiddenSeen = 0; view.caughtUp = false; view.keepGoing = false;
     recycled = 0;
     view.memoTop = 0;
     scroller.scrollTop = 0;
@@ -774,19 +884,20 @@
     if (settings.disableHome && where() === 'home') {
       if (view.feedKey) resetView(null);
       setStatus('The Home timeline is turned off in settings.');
-      loaderEl.hidden = true; endEl.hidden = true;
+      loaderEl.hidden = true; endEl.hidden = true; seenBtn.hidden = true; caughtEl.hidden = true;
       return;
     }
     const f = activeFeed();
     if (!f || !f.items.length || state.homeHold) {
       if (view.feedKey) resetView(null);
       setStatus('Loading…', true);
-      loaderEl.hidden = true; endEl.hidden = true;
+      loaderEl.hidden = true; endEl.hidden = true; seenBtn.hidden = true; caughtEl.hidden = true;
       updateRefreshBtn(null);
       return;
     }
-    if (view.renderSig !== sigOf(RENDER_KEYS)) for (const feed of state.feeds.values()) for (const t of feed.items) t.el = null; // rebuild the cards themselves
-    if (view.feedKey !== f.key || view.version !== f.version || view.sig !== sigOf(FILTER_KEYS) || view.renderSig !== sigOf(RENDER_KEYS)) resetView(f);
+    const rs = renderSig();
+    if (view.renderSig !== rs) for (const feed of state.feeds.values()) for (const t of feed.items) if (t.el && t.elSig !== rs) t.el = null; // rebuild the cards themselves
+    if (view.feedKey !== f.key || view.version !== f.version || view.sig !== filterSig() || view.renderSig !== rs) resetView(f);
     if (!columns.length) relayout();
     // Draw while ANY column has room: its end is within about three screens below where you are. If there is blank
     // space on screen right now, catch up faster (up to four batches in one go).
@@ -797,19 +908,40 @@
       if (batch > 0 && bottom >= seen) break; // only the first batch of a tick unless there is blank space on screen
       const fresh = [];
       let scanned = 0;
+      const readMode = seenApplies() && !state.showSeen ? settings.seen : 'off';
       while (view.upto < f.items.length && fresh.length < CHUNK && scanned < 400) {
+        if (view.caughtUp) break;
         const t = f.items[view.upto++];
         scanned++;
-        if (XMCLogic.passes(t, c)) { fresh.push({ t }); view.cards.push(t); }
+        if (!XMCLogic.passes(t, c)) continue;
+        const read = readMode !== 'off' && seenBefore.has(t.id);
+        if (read && readMode === 'hide') {
+          view.hiddenSeen++;
+          if (++view.seenRun >= CAUGHT_UP && !view.keepGoing) view.caughtUp = true; // a long run of posts you've read: you're up to date
+          continue;
+        }
+        if (view.fold) { // another repost of a post already drawn: add to its card instead of drawing it again
+          const host = view.fold.offer(t);
+          if (host) { const ctx = host.el && !host.el.dataset.recycled && host.el.querySelector(':scope > .xmc-ctx span'); if (ctx) ctx.textContent = ctxText(host); continue; }
+        }
+        view.seenRun = 0;
+        fresh.push({ t, read }); view.cards.push(t);
       }
       placeBatch(fresh);
+      for (const { t, read } of fresh) {
+        t.el.classList.toggle('xmc-read', read);
+        if (t.repostedBy) { const ctx = t.el.querySelector(':scope > .xmc-ctx span'); if (ctx) ctx.textContent = ctxText(t); } // a card kept from before may say something else now
+        if (settings.seen !== 'off') readObserver.observe(t.el);
+      }
       if (!fresh.length) break;
     }
+    updateSeenUi(f);
     updateRefreshBtn(f);
     const drawn = view.upto >= f.items.length;
-    setStatus(!view.cards.length && drawn && (f.exhausted || !state.waitingPage) ? (f.exhausted ? 'Nothing in this view.' : 'Nothing here matches this view yet...') : '');
+    setStatus(!view.cards.length && drawn && (f.exhausted || !state.waitingPage)
+      ? (view.hiddenSeen ? 'You\u2019re all caught up: everything here is posts you\u2019ve read.' : f.exhausted ? 'Nothing in this view.' : 'Nothing here matches this view yet...') : '');
     // spinner while we're fetching more; a note when X has no more to give
-    const waiting = state.waitingPage && !f.exhausted;
+    const waiting = state.waitingPage && !f.exhausted && !view.caughtUp;
     loaderEl.hidden = !waiting;
     loaderEl.classList.toggle('xmc-sticky', waiting && shortestBottom() < scroller.scrollTop + scroller.clientHeight); // blank space on screen: keep the spinner in view
     const fl = state.fail && Date.now() - state.fail.at < 90000 ? state.fail : null;
@@ -820,6 +952,19 @@
     diagBtn.hidden = !(waiting && Date.now() - state.waitSince > 20000 || waiting && fl);
     endEl.hidden = !(f.exhausted && drawn && view.cards.length);
   }
+  // the "N read" button in the top bar, and the "you're up to date" note under the posts
+  function updateSeenUi(f) {
+    const hiding = seenApplies() && settings.seen === 'hide';
+    const n = view.hiddenSeen;
+    seenBtn.hidden = !(hiding && (n > 0 || state.showSeen));
+    const label = state.showSeen ? 'Hide read' : n + ' hidden';
+    if (seenBtn.textContent !== label) seenBtn.textContent = label;
+    seenBtn.title = state.showSeen ? 'Hide the posts you have already read again' : n + (n === 1 ? ' post' : ' posts') + ' you have already read are hidden \u2014 click to show them';
+    const caught = hiding && view.caughtUp && !state.showSeen;
+    caughtEl.hidden = !caught;
+    if (caught) caughtText.textContent = view.cards.length ? 'You\u2019re up to date: everything older is posts you\u2019ve read.' : 'You\u2019re all caught up: nothing here you haven\u2019t read.';
+  }
+  function toggleSeen() { state.showSeen = !state.showSeen; guard('render', renderFeed); }
   function updateRefreshBtn(f) {
     const n = f ? f.pending.length : 0;
     const flag = n > 0 || !!state.xNewPill;
@@ -873,7 +1018,7 @@
     if (Date.now() < state.proxyUntil) return;
     if (settings.disableHome && where() === 'home') return;
     const f = activeFeed();
-    if (!f || f.exhausted) return;
+    if (!f || f.exhausted || view.caughtUp) return;
     const ahead = Date.now() - lastScrollAt < 4000 ? 120 : 50; // scrolling: keep about six pages waiting; reading: two or three
     if (f.items.length - view.upto > ahead) return; // plenty already waiting to be drawn
     const need = scroller.scrollTop + scroller.clientHeight > shortestBottom() - innerHeight * 8;
@@ -917,7 +1062,7 @@
     return JSON.stringify({
       version: ext && ext.runtime.getManifest ? ext.runtime.getManifest().version : 'dev',
       page: location.pathname,
-      layout: { recycledPosts: recycled, domNodes: document.getElementsByTagName('*').length, columns: columns.length, shortestPx: Math.round(shortestBottom()), tallestPx: Math.round(Math.max(0, ...columns.map((c) => c.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top + scroller.scrollTop))), drawn: view.upto, loaded: (activeFeed() || { items: [] }).items.length },
+      layout: { recycledPosts: recycled, density: pageLayout().density, perPage: settings.perPageLayout, readHidden: view.hiddenSeen || 0, readRemembered: seenAll.size, caughtUp: !!view.caughtUp, domNodes: document.getElementsByTagName('*').length, columns: columns.length, shortestPx: Math.round(shortestBottom()), tallestPx: Math.round(Math.max(0, ...columns.map((c) => c.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top + scroller.scrollTop))), drawn: view.upto, loaded: (activeFeed() || { items: [] }).items.length },
       hiddenPage: { scrollY: Math.round(window.scrollY), height: d.scrollHeight, viewport: innerHeight, postsMountedByX: articles().length },
       requestsSeen: state.seenOps,
       feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0] + (f.key.includes('#') ? '#' + f.key.split('#').pop() : ''), posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
@@ -1264,7 +1409,7 @@
     save();
     const c = passCtx();
     dropCards((t) => !XMCLogic.passes(t, c));
-    view.sig = sigOf(FILTER_KEYS); // already applied in place: don't rebuild the view and lose your place
+    view.sig = filterSig(); // already applied in place: don't rebuild the view and lose your place
     toast('Muted @' + handle + ' — manage in settings');
   }
   function muteQuotesOf(t) {
@@ -1272,7 +1417,7 @@
     save();
     const c = passCtx();
     dropCards((x) => !XMCLogic.passes(x, c));
-    view.sig = sigOf(FILTER_KEYS);
+    view.sig = filterSig();
     toast('Hiding quotes of that post');
   }
   function openMore(t, button) {
@@ -1453,6 +1598,8 @@
     if (e.target.closest('.xmc-rclose')) { const p = cardEl.querySelector('.xmc-replies'); if (p) p.remove(); updateActions(t); return; }
     if (e.target.closest('.xmc-replies')) return; // links inside comments open normally (new tab); clicking text doesn't open the post
     if (e.target.closest('.xmc-translate')) { e.preventDefault(); navigate(t.url, t); return; }
+    const chip = e.target.closest('.xmc-mediachip');
+    if (chip) { t.revealed = true; chip.replaceWith(renderMedia(t)); return; }
     const reveal = e.target.closest('.xmc-reveal');
     if (reveal) { reveal.parentElement.classList.remove('sensitive'); reveal.remove(); return; }
     const more = e.target.closest('.xmc-more');
@@ -2008,7 +2155,7 @@
     // new page: reset per-page bookkeeping BEFORE the rules below can start waiting for a feed
     if (route !== state.route) {
       state.route = route; state.routeSince = Date.now(); state.waitingPage = false; state.waitSince = 0;
-      state.awaiting = null; state.refreshing = null; lastSig = ''; state.sub = {}; applyBar(); // X resets its dropdowns on a new page
+      state.awaiting = null; state.refreshing = null; lastSig = ''; state.sub = {}; state.showSeen = false; applyBar(); // X resets its dropdowns on a new page
     }
     if (tickN % 5 === 2) guard('hidden videos', stopHiddenVideos);
     if (tickN++ % 5 === 0) {

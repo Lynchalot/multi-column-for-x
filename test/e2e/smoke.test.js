@@ -298,3 +298,185 @@ browserTest('the health check shows a warning in the top bar when things keep fa
     await page.waitForSelector('.xmc-health', { state: 'hidden', timeout: 5000 });
   });
 });
+
+// ---- reading options ----
+// the post numbers the stand-in sends on its first three pages (a repost is known by the post it reposts)
+const FIRST_PAGE = Array.from({ length: 60 }, (_, g) => String((g % 20) % 8 === 5 ? 590000 - g : 90000 - g)); // g: place in the feed; every page has reposts at 5 and 13
+
+browserTest('post size: text only keeps pictures behind a click, compact fits more columns, the top-bar button cycles', async (e) => {
+  const normal = await e.open('/home/', { width: 2000 });
+  const text = await e.open('/home/', { settings: { v: 8, density: 'text' } });
+  const compact = await e.open('/home/', { settings: { v: 8, density: 'compact' }, width: 2000 });
+  let normalCols = 0;
+  await checked(normal, async () => {
+    await e.ready(normal.page);
+    normalCols = await normal.page.locator('.xmc-col').count();
+    assert.equal(await normal.page.locator('.xmc-density').innerText(), 'Normal');
+    await normal.page.locator('.xmc-density').click(); // normal -> compact
+    await normal.page.waitForFunction(() => document.getElementById('xmc-root').classList.contains('xmc-compact'));
+    assert.equal(await normal.page.evaluate(() => window.__xmc.settings.density), 'compact', 'what the button picked is the saved setting');
+    assert.equal(await normal.page.locator('.xmc-density').innerText(), 'Compact');
+    await normal.page.locator('.xmc-density').click(); // compact -> text
+    await normal.page.waitForFunction(() => document.querySelector('.xmc-mediachip') && !document.querySelector('.xmc-media'));
+  });
+  await checked(text, async () => {
+    await e.ready(text.page);
+    assert.equal(await text.page.locator('.xmc-card .xmc-media').count(), 0, 'no picture or video drawn');
+    assert.equal(await text.page.locator('.xmc-card video').count(), 0);
+    const chips = await text.page.locator('.xmc-mediachip').count();
+    assert.ok(chips >= 3, `${chips} cards with pictures show a label instead`);
+    assert.match(await text.page.locator('.xmc-mediachip').first().innerText(), /photo|video|GIF/);
+    const before = await text.page.locator('.xmc-card').first().evaluate((el) => el.getBoundingClientRect().height);
+    const at = await text.page.evaluate(() => [...document.querySelectorAll('.xmc-card')].findIndex((c) => c.querySelector('.xmc-mediachip')));
+    const card = text.page.locator('.xmc-card').nth(at); // by place, since it stops matching "has a label" once opened
+    await card.locator('.xmc-mediachip').click();
+    await text.page.waitForFunction(() => document.querySelector('.xmc-card .xmc-media'));
+    assert.equal(await card.locator('.xmc-mediachip').count(), 0, 'the label gave way to the media');
+    assert.ok(before > 0);
+    assert.equal(await text.page.evaluate(() => location.pathname), '/home/', 'the click did not open the post');
+  });
+  await checked(compact, async () => {
+    await e.ready(compact.page);
+    assert.ok((await compact.page.locator('.xmc-col').count()) > normalCols, 'smaller posts, more columns');
+    const w = await compact.page.locator('.xmc-card').first().evaluate((el) => el.getBoundingClientRect().width);
+    assert.ok(w < 500, `compact cards are narrower (${Math.round(w)}px)`);
+  });
+});
+
+browserTest('per-page layouts: a page keeps what you picked there, and the others are left alone', async (e) => {
+  const cfg = { v: 8, cols: 4, perPageLayout: true, pageLayouts: { home: { cols: 2 } } };
+  const wide = { width: 2400 }; // wide enough that a fixed four fits
+  const home = await e.open('/home/', { settings: cfg, ...wide });
+  const other = await e.open('/menu/', { settings: cfg, ...wide });
+  const off = await e.open('/home/', { settings: { v: 8, cols: 4, pageLayouts: { home: { cols: 2 } } }, ...wide });
+  await checked(home, async () => {
+    await e.ready(home.page);
+    assert.equal(await home.page.locator('.xmc-col').count(), 2, 'Home has its own two columns');
+    await home.page.locator('.xmc-colgroup button', { hasText: '+' }).click();
+    await home.page.waitForFunction(() => document.querySelectorAll('.xmc-col').length === 3);
+    const s = await home.page.evaluate(() => ({ cols: window.__xmc.settings.cols, own: window.__xmc.settings.pageLayouts.home }));
+    assert.equal(s.cols, 4, 'the global setting is untouched');
+    assert.equal(s.own.cols, 3, 'the pick is kept for Home');
+    const stored = await home.page.evaluate(() => JSON.parse(localStorage.getItem('xmc.settings')));
+    assert.equal(stored.pageLayouts.home.cols, 3, 'and saved');
+  });
+  await checked(other, async () => {
+    await e.ready(other.page);
+    assert.equal(await other.page.locator('.xmc-col').count(), 4, 'another page follows the global setting');
+  });
+  await checked(off, async () => {
+    await e.ready(off.page);
+    assert.equal(await off.page.locator('.xmc-col').count(), 4, 'with the setting off, saved page layouts are ignored');
+  });
+});
+
+browserTest('repost folding: several people reposting the same post make one card', async (e) => {
+  const on = await e.open('/dupes/', { settings: { v: 8, collapseReposts: true } });
+  const off = await e.open('/dupes/');
+  await checked(off, async () => {
+    await e.ready(off.page, 12);
+    const dupes = await off.page.evaluate(() => { const ids = window.__xmc.view.cards.map((t) => t.id); return ids.length - new Set(ids).size; });
+    assert.ok(dupes >= 1, 'without folding the same post is drawn twice (that is what the stand-in sends)');
+  });
+  await checked(on, async () => {
+    await e.ready(on.page, 8);
+    const r = await on.page.evaluate(() => {
+      const ids = window.__xmc.view.cards.map((t) => t.id);
+      const lines = [...document.querySelectorAll('.xmc-card > .xmc-ctx')].map((c) => c.innerText.trim());
+      return { dupes: ids.length - new Set(ids).size, lines, reposts: window.__xmc.view.cards.filter((t) => t.repostedBy).length };
+    });
+    assert.equal(r.dupes, 0, 'no post is drawn twice');
+    assert.ok(r.lines.length && r.lines.every((l) => /^User \d+ and User \d+ (reposted|retweeted)$/.test(l)), 'the card names both: ' + r.lines.join(' | '));
+    assert.ok(r.reposts >= 1);
+    const one = await on.page.locator('.xmc-card > .xmc-ctx').first().evaluate((el) => ({ h: el.getBoundingClientRect().height, sh: el.scrollWidth <= el.clientWidth + 1 }));
+    assert.ok(one.h < 30 && one.sh, 'the line stays on one line');
+  });
+});
+
+browserTest('read posts: hidden on the next visit (not while you read), counted, shown on request, faded on request', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 8, seen: 'hide' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const before = await page.evaluate(() => window.__xmc.view.cards.length);
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('xmc.seen') || '[]').length >= 4; } catch { return false; } }, null, { timeout: 15000 });
+    assert.ok((await page.evaluate(() => window.__xmc.view.cards.length)) >= before, 'what you read is not taken away while you are reading');
+    const read = await page.evaluate(() => JSON.parse(localStorage.getItem('xmc.seen')));
+    assert.ok(read.every((id) => /^\d+$/.test(id)), 'only post numbers are kept');
+    await page.reload(); // a new visit
+    await e.ready(page, 4);
+    const r = await page.evaluate((ids) => ({ shown: window.__xmc.view.cards.map((t) => t.id), hidden: window.__xmc.view.hiddenSeen, btn: document.querySelector('.xmc-seenbtn').hidden ? '' : document.querySelector('.xmc-seenbtn').innerText }), read);
+    assert.equal(r.shown.filter((id) => read.includes(id)).length, 0, 'the posts you read last time are gone');
+    assert.ok(r.shown.length >= 4, 'the rest of the feed is there');
+    assert.ok(r.hidden >= read.length - 1, 'and counted');
+    assert.match(r.btn, /^\d+ hidden$/);
+    await page.locator('.xmc-seenbtn').click();
+    await page.waitForFunction((n) => window.__xmc.view.cards.length >= n && window.__xmc.view.cards.some((t) => t.id === '90000'), 4);
+    assert.equal(await page.locator('.xmc-seenbtn').innerText(), 'Hide read');
+    await page.locator('.xmc-seenbtn').click();
+    await page.waitForFunction(() => !window.__xmc.view.cards.some((t) => t.id === '90000'));
+  });
+  const dim = await e.open('/home/', { settings: { v: 8, seen: 'dim' }, seen: FIRST_PAGE.slice(0, 10) });
+  await checked(dim, async () => {
+    await e.ready(dim.page, 12);
+    const r = await dim.page.evaluate(() => ({ faded: [...document.querySelectorAll('.xmc-card.xmc-read')].length, kept: window.__xmc.view.cards.filter((t) => t.el.classList.contains('xmc-read')).map((t) => t.id) }));
+    assert.ok(r.faded >= 7, `${r.faded} read posts are faded, not removed (the other kinds of post are on their own tab)`);
+    assert.ok(r.kept.every((id) => FIRST_PAGE.slice(0, 10).includes(id)), 'and only the ones read');
+  });
+  const other = await e.open('/menu/', { settings: { v: 8, seen: 'hide' }, seen: FIRST_PAGE });
+  await checked(other, async () => {
+    await e.ready(other.page, 8);
+    assert.ok(await other.page.evaluate(() => window.__xmc.view.cards.some((t) => t.id === '90000')), 'a profile is never filtered by what you have read');
+  });
+});
+
+browserTest('read posts: when everything recent is read it says so and stops loading older ones; "keep loading" goes on', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 8, seen: 'hide' }, seen: FIRST_PAGE });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForFunction(() => window.__xmc && window.__xmc.view.caughtUp, null, { timeout: 20000 });
+    await page.waitForSelector('.xmc-scroller > .xmc-end:not([hidden])');
+    assert.match(await page.locator('.xmc-scroller > .xmc-end:not([hidden])').innerText(), /caught up/);
+    assert.equal(await page.evaluate(() => window.__xmc.view.cards.length), 0);
+    await page.waitForTimeout(2500);
+    const loaded = await page.evaluate(() => [...window.__xmc.state.feeds.values()].reduce((n, f) => n + f.items.length, 0));
+    assert.ok(loaded <= 100, `it stopped asking X for older posts (${loaded} loaded)`);
+    await page.locator('.xmc-endbtns button', { hasText: 'Keep loading' }).click();
+    await page.waitForFunction(() => window.__xmc.view.cards.length >= 4, null, { timeout: 20000 });
+    assert.ok(await page.evaluate(() => window.__xmc.view.cards.every((t) => Number(t.id) < 89941)), 'past the read ones, new posts show');
+  });
+});
+
+browserTest('comment order is remembered between visits', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.locator('.xmc-card [data-act="reply"]').first().click();
+    await page.waitForSelector('.xmc-rsort', { timeout: 20000 });
+    assert.equal(await page.locator('.xmc-rsort').inputValue(), 'relevant');
+    await page.locator('.xmc-rsort').selectOption('likes');
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('xmc.settings')).commentSort === 'likes'; } catch { return false; } });
+    await page.reload();
+    await e.ready(page);
+    await page.locator('.xmc-card [data-act="reply"]').first().click();
+    await page.waitForSelector('.xmc-rsort', { timeout: 20000 });
+    assert.equal(await page.locator('.xmc-rsort').inputValue(), 'likes', 'the order picked last time is what comments open in');
+  });
+});
+
+browserTest('the settings page offers the reading and layout options, and can forget what you have read', async (e) => {
+  const h = await e.open('/ext/options.html', { seen: ['1', '2', '3'] });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#sec-reading');
+    for (const id of ['opt-density', 'opt-perPageLayout', 'opt-seen', 'opt-collapseReposts', 'opt-commentSort']) assert.equal(await page.locator('#' + id).count(), 1, id);
+    assert.equal(await page.locator('#opt-seen').inputValue(), 'off', 'off until asked for');
+    assert.match(await page.locator('#read-summary').innerText(), /3 posts remembered/);
+    await page.locator('#opt-seen').selectOption('hide');
+    await page.locator('#read-clear').click();
+    assert.match(await page.locator('#read-summary').innerText(), /No posts remembered/);
+    assert.equal(await page.evaluate(() => localStorage.getItem('xmc.seen')), null, 'the list is gone');
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('xmc.settings')).seen), 'hide', 'and the choice you made stays');
+  });
+});

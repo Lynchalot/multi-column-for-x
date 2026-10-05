@@ -31,7 +31,8 @@ function makeApi(origin, pages) {
       base.extended_entities = { media: [{ id_str: `g${i}`, type: 'animated_gif', media_url_https: `${origin}/img/m${i}g.svg`, original_info: { width: 400, height: 400 },
         video_info: { variants: [{ bitrate: 0, content_type: 'video/mp4', url: `${origin}/vid/lo.mp4` }] }, indices: [0, 0] }] };
     }
-    if (kind === 5) r.legacy.retweeted_status_result = { result: tweet(i + 500000, un + 40, 0, feed) };
+    // the dupes feed has two people reposting the same post on every page (a post is the same post whoever reposts it)
+    if (kind === 5) r.legacy.retweeted_status_result = { result: feed === 'DupesTimeline' ? tweet(700000 + Math.floor(i / 20), 40, 0, feed) : tweet(i + 500000, un + 40, 0, feed) };
     if (kind === 6) r.quoted_status_result = { result: tweet(i + 600000, un + 50, 1, feed) };
     if (kind === 7) r.note_tweet = { note_tweet_results: { result: { text: `Long form text number ${i}. `.repeat(40), entity_set: {} } } };
     return r;

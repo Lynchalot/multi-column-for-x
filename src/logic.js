@@ -93,6 +93,17 @@ var XMCLogic = (function () {
     }
   }
 
+  // ---- layout ----
+  // Columns and post size can be remembered per page (Home, Search, Lists...). `s.pageLayouts` holds what was picked on each.
+  const DENSITIES = ['normal', 'compact', 'text'];
+  function pageLayout(s, where) {
+    const own = s.perPageLayout && s.pageLayouts ? s.pageLayouts[where] : null;
+    return { cols: own && own.cols !== undefined ? own.cols : s.cols, density: own && own.density ? own.density : s.density };
+  }
+  // smaller posts fit in narrower columns, so "automatic" gives them more of them
+  const DENSITY_WIDTH = { normal: 1, compact: 0.8, text: 0.7 };
+  const minColFor = (s, density) => Math.max(240, Math.round(s.minColWidth * (DENSITY_WIDTH[density] || 1)));
+
   function autoCols(width, s, gap) {
     const g = gap === undefined ? 12 : gap;
     return Math.max(1, Math.min(s.maxAutoCols, Math.floor((width + g) / (s.minColWidth + g))));
@@ -158,6 +169,30 @@ var XMCLogic = (function () {
     return threads.slice().sort((a, b) => (key(a) - key(b)) || (pos.get(a) - pos.get(b))).flat();
   }
 
+  // ---- reposts ----
+  // "A reposted", "A and B reposted", "A, B and 2 others reposted"
+  function repostLine(names, word) {
+    const n = names.length;
+    if (n <= 1) return (names[0] || '') + ' ' + word;
+    if (n === 2) return names[0] + ' and ' + names[1] + ' ' + word;
+    return names[0] + ', ' + names[1] + ' and ' + (n - 2) + (n === 3 ? ' other ' : ' others ') + word;
+  }
+  // Folds several reposts of the same post into one card. offer(t) returns null when t should get a card of its own,
+  // or the card it was folded into. who(id) lists everyone who reposted a post that has a card.
+  function collapser() {
+    const hosts = new Map(); // post id -> { t, by: [{name, handle}] }
+    return {
+      offer(t) {
+        const host = hosts.get(t.id);
+        if (!host) { hosts.set(t.id, { t, by: t.repostedBy ? [t.repostedBy] : [] }); return null; }
+        // an original that arrives after (or before) its reposts adds nothing; a repost by someone new does
+        if (t.repostedBy && host.t.repostedBy && !host.by.some((b) => b.handle === t.repostedBy.handle)) host.by.push(t.repostedBy);
+        return host.t;
+      },
+      who: (id) => (hosts.get(id) ? hosts.get(id).by : []),
+    };
+  }
+
   // new first-page posts go in front of what's already loaded, without duplicates
   function mergeNew(items, fresh) {
     const have = new Set(items.map((t) => t.key));
@@ -211,7 +246,7 @@ var XMCLogic = (function () {
     return out;
   }
 
-  const api = { healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  const api = { DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

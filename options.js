@@ -6,6 +6,7 @@
   const storage = ext && ext.storage && ext.storage.local;
   let settings = S.normalize();
   let history = [];
+  let readCount = 0; // posts remembered as read (only their ids, on this device)
 
   const $ = (sel) => document.querySelector(sel);
   const h = (tag, props, ...kids) => { const n = Object.assign(document.createElement(tag), props || {}); n.append(...kids.filter(Boolean)); return n; };
@@ -16,6 +17,7 @@
     try { v = storage ? await storage.get(null) : JSON.parse(localStorage.getItem('xmc.settings') || '{}'); } catch { v = {}; }
     settings = S.normalize(v);
     history = Array.isArray(v.dlHistory) ? v.dlHistory : [];
+    try { readCount = (Array.isArray(v.seenPosts) ? v.seenPosts : storage ? [] : JSON.parse(localStorage.getItem('xmc.seen') || '[]')).length; } catch { readCount = 0; }
   }
   function persist(partial) {
     Object.assign(settings, partial);
@@ -71,6 +73,21 @@
     if (old) old.replaceWith(navBlock());
   }
 
+  // the memory behind "Posts I've already read"
+  function readingBlock() {
+    const summary = h('p', { className: 'muted', id: 'read-summary' });
+    const show = () => { summary.textContent = readCount ? readCount + ' posts remembered as read. Only their numbers are kept, on this device.' : 'No posts remembered yet.'; };
+    show();
+    const clear = h('button', { type: 'button', id: 'read-clear', textContent: 'Forget which posts I\u2019ve read' });
+    clear.addEventListener('click', () => {
+      readCount = 0; show();
+      if (storage) storage.set({ seenPosts: [] }).catch(() => {}); else { try { localStorage.removeItem('xmc.seen'); } catch { /* ignore */ } }
+      say('Forgot which posts you have read.');
+    });
+    summary.refresh = show;
+    return h('div', { className: 'readblock' }, summary, h('div', { className: 'row' }, clear));
+  }
+
   // what a saved file will actually be called, updated as the settings change
   function downloadExample(section) {
     const el = h('p', { className: 'muted dlexample' });
@@ -118,6 +135,7 @@
         section.append(it.type === 'bool' ? h('div', { className: 'item bool' }, c, text) : h('div', { className: 'item' }, text, c));
       }
       if (sec.custom === 'nav') section.append(navBlock());
+      if (sec.custom === 'reading') section.append(readingBlock());
       if (sec.id === 'downloads') section.append(downloadExample(section));
       host.append(section);
     }
@@ -189,6 +207,7 @@
       ext.storage.onChanged.addListener((ch, area) => {
         if (area !== 'local') return;
         if (ch.dlHistory) { history = ch.dlHistory.newValue || []; renderHistory(); }
+        if (ch.seenPosts) { readCount = (ch.seenPosts.newValue || []).length; const sm = $('#read-summary'); if (sm && sm.refresh) sm.refresh(); }
         if (ch.navItems) { settings.navItems = ch.navItems.newValue || []; refreshNav(); }
         if (ch.hiddenNav) settings.hiddenNav = ch.hiddenNav.newValue || [];
       });
