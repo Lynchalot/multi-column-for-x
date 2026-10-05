@@ -5,38 +5,46 @@
 **Summary (max 250 characters):**
 Your X (Twitter) timeline in multiple columns, with in-card video, filters and media download button.
 
-**Description:**
-Multi-Column for X turns the single narrow X feed into as many columns as your screen can hold.
+**Description:** (the first 250 characters matter most; Markdown: bold, lists and links work)
+Read X in as many columns as your screen can hold. Multi-Column for X turns the single narrow feed into a smooth, scrolling wall of posts you can actually scan, with video that plays in the post, one-click media downloads, filters, and comments that open right inside the post.
 
-Layout
-- Automatic columns that keep a comfortable width: a narrower window shows fewer columns, down to one.
-- Smooth, stable scrolling that keeps loading ahead of you. Nothing refreshes behind your back: new posts wait behind a "N new" button.
-- Video and GIFs play in the card (a video you started pauses when you scroll it away); photos open in a viewer with Download and Copy link.
-- Posts and profiles open in a new tab by default, so you never lose your place.
-- Comments open inside the card, sortable by relevance, recency or likes, and you can reply from there.
-- Profile Videos / Photos tabs and Following's Popular / Recent sort work from the top bar.
+**Why you might want it**
+- **Use the whole screen.** Columns fit your window and keep a comfortable width. Shrink the window and columns drop away, down to one.
+- **Nothing jumps around.** New posts wait behind a "N new" button instead of shoving your feed down. Posts and profiles open in a new tab, so you never lose your place.
+- **Smooth.** Posts load ahead of you as you scroll, and photos are ready by the time you get there.
 
-Timeline controls
-- Following by default, hide "For you", only accounts you follow.
-- Reposts, quotes and replies: show, own view, or hide.
-- Mute words, accounts and quoted posts; hide replies from paid accounts; NSFW blur/hide.
-- Hide Trending, Who to follow, Topics, Premium and more; sidebar tidy-up; Twitter name and logo; system font; custom CSS.
+**What's in it**
+- Video and GIFs play in the post (a video you started pauses when you scroll it away). Photos open in a viewer with Download and Copy link.
+- **Download** original-size photos and the best-quality video in one click, with your own folder and file-name pattern.
+- **Comments** open inside the post, sorted by relevance, newest or most liked, and you can reply from there.
+- **Filters:** Following by default, hide "For you", only accounts you follow, mute words and accounts, show or hide reposts, quotes and replies, NSFW blur or hide.
+- Profile **Videos / Photos** and Following's **Popular / Recent** work from the top bar.
+- **Tidy-ups:** hide Trending, Who to follow, Topics and Premium boxes, adjust the sidebar, use the bird logo and "Tweet" wording, custom CSS.
 
-Media downloads
-- Original-size photos and best-quality video in one click, also from a post's own page.
-- Choose the folder and file-name pattern; ask where to save each file; download history.
+**Private by design**
+No data collected. No analytics, no accounts, no remote code. Everything stays in your browser. Open source (MIT): https://github.com/Lynchalot/multi-column-for-x
 
-Privacy
-No data collected. No analytics, no accounts, no remote code. Everything stays in your browser. Open source (MIT).
+**Good to know**
+It works with what X's own page already loads, so if X redesigns something, a small piece may need an update: report it on GitHub and it gets fixed. Press the Columns button in X's left menu to switch back to X's normal feed at any time.
 
 Not affiliated with, endorsed by, or sponsored by X Corp.
+
+**Release notes (version 0.9.2):**
+First release. Columns on Home, Search, Lists, Bookmarks and profiles; video in the post; comments inside the post; one-click media downloads; filters; a settings page.
+
+**Screenshot captions** (upload 4 or 5, 1280x800, in this order; `store/frame-screenshots.sh` sizes them):
+1. Your feed in five columns, using the whole screen.
+2. Comments open inside the post: sort by relevance, newest or most liked, and reply right there.
+3. Photos open in a viewer with one-click Download and Copy link.
+4. Filter by posts, reposts, quotes or media; switch a profile between Videos and Photos.
+5. Every setting on one page: filters, sidebar, downloads and more.
 
 **Support link ("Support" / contributions field):** https://ko-fi.com/falsehamartia
 **Homepage:** https://github.com/Lynchalot/multi-column-for-x
 **Support site:** https://github.com/Lynchalot/multi-column-for-x/issues
 
 **Categories:** Social & Communication; Appearance
-**Tags:** twitter, x, columns, multi-column, timeline, media download, video
+**Tags:** twitter, x, columns, multi-column, timeline, media download, video, filters, layout
 **License:** MIT
 **Privacy policy:** paste the text of PRIVACY.md into the privacy-policy field (or link to it once the repository is public)
 **Compatibility:** tick Firefox for desktop; untick Firefox for Android (the layout is built for wide screens)
