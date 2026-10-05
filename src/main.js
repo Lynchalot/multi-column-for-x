@@ -1087,6 +1087,7 @@
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
       commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
+      floating: floatingReport(),
       mode: { walkOnly: !!state.walkOnly, tickMsAverage: Math.round(tickTimes.reduce((a, b) => a + b, 0) / Math.max(1, tickTimes.length)), tickMsWorst: Math.round(Math.max(0, ...tickTimes)) },
     }, null, 2);
   }
@@ -2114,7 +2115,9 @@
     const nav = pin.nav.el();
     const side = pin.side.el();
     if (!rr) return;
-    for (const d of rr.querySelectorAll('div')) {
+    // X mounts some floating things (the chat drawer, popups) under #layers, outside the page's own root
+    const layers = document.getElementById('layers');
+    for (const d of [...rr.querySelectorAll('div'), ...(layers ? layers.querySelectorAll('div') : [])]) {
       if (main && (main.contains(d) || d.contains(main))) continue;
       if ((nav && nav.contains(d)) || (side && (side.contains(d) || d.contains(side)))) continue;
       if (getComputedStyle(d).position !== 'fixed') continue;
@@ -2138,6 +2141,25 @@
     }
     for (const el of floatEls) if (!el.isConnected) floatEls.delete(el);
     updateFloaters();
+  }
+  // for the diagnostics: small fixed things in the bottom-right corner (what the Chat / Grok buttons are, and whether they were found)
+  function floatingReport() {
+    const out = [];
+    for (const root of [document.getElementById('react-root'), document.getElementById('layers')]) {
+      if (!root) continue;
+      for (const d of root.querySelectorAll('*')) {
+        if (out.length >= 12) return out;
+        if (d.closest('#xmc-root')) continue;
+        const cs = getComputedStyle(d);
+        if (cs.position !== 'fixed') continue;
+        const r = d.getBoundingClientRect();
+        if (!r.width || r.width > 450 || r.height > 450 || innerWidth - r.right > 120 || innerHeight - r.bottom > 300) continue;
+        out.push({ tag: d.tagName.toLowerCase(), testid: d.dataset.testid || '', label: (d.getAttribute('aria-label') || '').slice(0, 30), role: d.getAttribute('role') || '',
+          in: d.closest('#layers') ? 'layers' : 'root', w: Math.round(r.width), h: Math.round(r.height), right: Math.round(innerWidth - r.right), bottom: Math.round(innerHeight - r.bottom),
+          grok: d.hasAttribute('data-xmc-grok'), chat: d.hasAttribute('data-xmc-dm'), shown: cs.display !== 'none' });
+      }
+    }
+    return out;
   }
   // Every few ticks: cut a hole in the columns where one of X's floating things (the chat panel when it is open) overlaps them,
   // and keep Grok beside Chat.

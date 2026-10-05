@@ -556,3 +556,17 @@ browserTest('the floating Chat button is hidden even when X gives it a name we d
     await page.waitForFunction(() => document.getElementById('dmb').getBoundingClientRect().width === 0, null, { timeout: 8000 });
   });
 });
+
+browserTest('the floating Chat button is hidden when X keeps it under #layers', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 8, hideGrokDrawer: true, hideDmDrawer: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => {
+      document.getElementById('dmb').parentElement.remove();
+      document.getElementById('layers').insertAdjacentHTML('beforeend', '<div style="position:fixed;right:16px;bottom:90px;width:50px;height:50px"><button id="dmx" aria-label="Open" style="width:50px;height:50px">C</button></div>');
+    });
+    await page.waitForFunction(() => document.getElementById('dmx').getBoundingClientRect().width === 0, null, { timeout: 8000 });
+    assert.ok(JSON.parse(await page.evaluate(() => window.__xmc.diagnostics())).floating, 'diagnostics list the floating things');
+  });
+});
