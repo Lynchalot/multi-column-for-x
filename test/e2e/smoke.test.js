@@ -473,6 +473,7 @@ browserTest('the settings page offers the reading and layout options, and can fo
     const { page } = h;
     await page.waitForSelector('#sec-reading');
     for (const id of ['opt-perPageLayout', 'opt-seen', 'opt-collapseReposts', 'opt-commentSort']) assert.equal(await page.locator('#' + id).count(), 1, id);
+    for (const id of ['opt-hideGrokDrawer', 'opt-hideDmDrawer']) assert.equal(await page.locator('#' + id).count(), 1, id);
     assert.equal(await page.locator('#opt-density').count(), 0, 'post size is shelved: not offered');
     assert.equal(await page.locator('#opt-seen').inputValue(), 'off', 'off until asked for');
     assert.match(await page.locator('#read-summary').innerText(), /3 posts remembered/);
@@ -529,5 +530,16 @@ browserTest('comments: the reply box is at the top, and a single comment can be 
     const sent = await page.evaluate(() => window.__replies[0]);
     assert.deepEqual(sent, { to: ids[1], text: 'hello there' });
     await page.waitForFunction(() => location.pathname === '/home/', null, { timeout: 8000 });
+  });
+});
+
+browserTest('the floating Grok and Chat buttons can be hidden', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 8, hideGrokDrawer: true, hideDmDrawer: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.querySelector('[data-xmc-grok]') && document.querySelector('[data-xmc-dm]'), null, { timeout: 8000 });
+    const shown = await page.evaluate(() => ['grokb', 'dmb'].map((id) => document.getElementById(id).getBoundingClientRect().width > 0));
+    assert.deepEqual(shown, [false, false]);
   });
 });

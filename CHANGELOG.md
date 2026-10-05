@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.11.1
+- **Hide the floating Grok and Chat buttons** (settings, Navigation & sidebar). Both are in the left menu already.
+
 ## 0.11.0
 - **Like and reply to a single comment.** Each comment has a heart and a Reply button. Both work the way posts do: X's hidden side opens the post, presses the real button on that comment and goes back, so the columns don't move.
 - **The reply box is at the top of the comments**, above the first comment.
