@@ -570,3 +570,18 @@ browserTest('the floating Chat button is hidden when X keeps it under #layers', 
     assert.ok(JSON.parse(await page.evaluate(() => window.__xmc.diagnostics())).floating, 'diagnostics list the floating things');
   });
 });
+
+browserTest('the floating Chat button is found by where it sits, even when nothing around it is position:fixed', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 8, hideGrokDrawer: true, hideDmDrawer: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => {
+      document.getElementById('drawer').remove();
+      // a full-screen click-through overlay holding a button that is only laid out in its corner (not fixed itself)
+      document.getElementById('layers').insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:0;pointer-events:none;z-index:50;display:flex;align-items:flex-end;justify-content:flex-end"><div style="margin:40px;pointer-events:auto"><button id="dmy" aria-label="Open" style="width:52px;height:52px">C</button></div></div>');
+    });
+    await page.waitForFunction(() => document.getElementById('dmy').getBoundingClientRect().width === 0, null, { timeout: 8000 });
+    assert.ok(JSON.parse(await page.evaluate(() => window.__xmc.diagnostics())).corner, 'diagnostics list what is in the corner');
+  });
+});

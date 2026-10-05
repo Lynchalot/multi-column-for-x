@@ -1088,6 +1088,7 @@
       commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       floating: floatingReport(),
+      corner: cornerReport(),
       mode: { walkOnly: !!state.walkOnly, tickMsAverage: Math.round(tickTimes.reduce((a, b) => a + b, 0) / Math.max(1, tickTimes.length)), tickMsWorst: Math.round(Math.max(0, ...tickTimes)) },
     }, null, 2);
   }
@@ -2140,7 +2141,59 @@
       floatEls.add(d);
     }
     for (const el of floatEls) if (!el.isConnected) floatEls.delete(el);
+    guard('corner probe', probeCorner);
     updateFloaters();
+  }
+  // Finding the buttons by what is on screen in the bottom-right corner, not by how X positions them (X can keep them inside a
+  // full-screen container, where no element of its own is "fixed"). Each point is asked what is on top there; the outermost button-sized
+  // wrapper around it is Grok (if it holds Grok) or else Chat.
+  const CORNER_PTS = [];
+  for (const dx of [30, 50, 65, 80, 100]) for (const dy of [30, 57, 90, 124, 160, 200]) CORNER_PTS.push([dx, dy]);
+  const OURS = '#xmc-root, #xmc-toast, #xmc-pill, #xmc-fab, #xmc-sidefreeze';
+  const PAGE = '[data-testid="sidebarColumn"], [data-testid="primaryColumn"], header[role="banner"], nav, [role="dialog"], [role="menu"], [role="alertdialog"], [aria-modal="true"]';
+  function cornerButton(x, y) {
+    for (const e of document.elementsFromPoint(x, y)) {
+      if (e === document.documentElement || e === document.body || e.id === 'react-root' || e.id === 'layers') continue;
+      if (e.closest(OURS)) continue;
+      if (e.closest(PAGE)) return null; // the page itself is under this point: nothing floats here
+      let n = e;
+      while (n.parentElement) {
+        const r = n.parentElement.getBoundingClientRect();
+        if (r.width > 100 || r.height > 100 || n.parentElement === document.body) break;
+        n = n.parentElement;
+      }
+      const r = n.getBoundingClientRect();
+      if (r.width < 24 || r.height < 24 || innerWidth - r.right > 140 || innerHeight - r.bottom > 320) return null;
+      for (let a = n.parentElement; a && a !== document.body; a = a.parentElement) { // an open chat panel's insides are not buttons
+        const b = a.getBoundingClientRect();
+        if (b.width > 200 && b.width <= 760 && b.height > 150 && b.height <= 900 && getComputedStyle(a).position === 'fixed') return null;
+      }
+      return n;
+    }
+    return null;
+  }
+  function probeCorner() {
+    if (document.hidden || state.peek) return;
+    for (const [dx, dy] of CORNER_PTS) {
+      const n = cornerButton(innerWidth - dx, innerHeight - dy);
+      if (!n || n.closest('[data-xmc-grok], [data-xmc-dm]') || n.querySelector('[data-xmc-grok], [data-xmc-dm]')) continue;
+      if (n.matches(GROK_SEL) || n.querySelector(GROK_SEL)) n.dataset.xmcGrok = '1'; else n.dataset.xmcDm = '1';
+      floatEls.add(n);
+    }
+  }
+  function cornerReport() {
+    const seen = new Set(), out = [];
+    for (const [dx, dy] of CORNER_PTS) {
+      for (const e of document.elementsFromPoint(innerWidth - dx, innerHeight - dy).slice(0, 4)) {
+        if (seen.has(e) || e.closest(OURS) || out.length >= 16) continue;
+        seen.add(e);
+        const r = e.getBoundingClientRect();
+        out.push({ at: dx + ',' + dy, tag: e.tagName.toLowerCase(), testid: e.dataset.testid || '', label: (e.getAttribute('aria-label') || '').slice(0, 30), id: e.id || '',
+          pos: getComputedStyle(e).position, w: Math.round(r.width), h: Math.round(r.height), right: Math.round(innerWidth - r.right), bottom: Math.round(innerHeight - r.bottom),
+          in: e.closest('#layers') ? 'layers' : 'root', marked: e.closest('[data-xmc-grok]') ? 'grok' : e.closest('[data-xmc-dm]') ? 'chat' : '' });
+      }
+    }
+    return out;
   }
   // for the diagnostics: small fixed things in the bottom-right corner (what the Chat / Grok buttons are, and whether they were found)
   function floatingReport() {
