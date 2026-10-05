@@ -14,8 +14,6 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
   *All / Tweets / Retweets / Quote Tweets / Media* views on a line below. A view only appears once the feed actually has
   something for it, so you never click an empty tab. A profile's **Media** tab sorts into **Photos / Videos** (GIFs count as videos). A **Columns** pill sits in X's left sidebar (styled like the Post button) and
   switches between columns and X's normal feed.
-- **Fast comments** — the post's page is opened out of sight the way X's own router does it, so they load quickly wherever you
-  are in the feed; hovering the button starts early.
 - **X's dropdown tabs work** — the profile Videos / Photos tab and Following's Popular / Recent show their choices in a menu of our
   own (and Videos / Photos as buttons under the tabs); each choice keeps its own feed.
 - **Never lose your place** — posts and profiles open in a **new tab** by default. Prefer one tab? Pick "This tab" in settings and
@@ -80,7 +78,7 @@ Permanent: submit the zip to addons.mozilla.org, or `npx web-ext sign --channel=
 ## If it shows the normal feed instead of columns
 Open the browser console on x.com and look for `[xmc]`. It lists which timeline requests it saw: `Seen: {}` means the page hook
 didn't run; `Seen: {HomeTimeline: n}` with no posts means X changed its data format (fix `src/parse.js`; add a fixture to
-`test/fixtures.js` first). Press **Retry columns** (bottom right) to try again. `window.__xmc` shows the live state.
+`test/fixtures.js` first). Press **Turn Columns On** in X's left sidebar to try again. `window.__xmc` shows the live state.
 
 If **Loading more** never finishes, or comments say they couldn't load, press **Copy diagnostics** (it appears on the spinner after
 20 seconds, and in the comments panel). It copies a private snapshot — request names and counts, no post text — to paste when asking for help.
