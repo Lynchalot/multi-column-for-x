@@ -195,3 +195,29 @@ test('links in posts are only ever web addresses', () => {
   const none = P.buildSegments('x data:text/html,boo', { urls: [{ url: 'data:text/html,boo', expanded_url: 'data:text/html,boo', display_url: 'd', indices: [2, 20] }] }, null, () => false);
   assert.ok(!none.some((s) => s.t === 'url'), 'nothing safe to link to: no link');
 });
+
+// ---- a reply sent together with the post it answers; a profile's header ----
+test('a reply in the same entry as the post it answers knows its parent', () => {
+  const tw = (id, handle, to) => ({ __typename: 'Tweet', rest_id: id, core: { user_results: { result: { __typename: 'User', rest_id: 'u' + handle, core: { name: handle, screen_name: handle }, legacy: {} } } },
+    legacy: { id_str: id, full_text: 'text ' + id, created_at: 'Wed Oct 04 12:00:00 +0000 2026', in_reply_to_status_id_str: to || undefined, in_reply_to_screen_name: to ? 'bob' : undefined, entities: {} } });
+  const item = (r) => ({ itemContent: { itemType: 'TimelineTweet', tweet_results: { result: r } } });
+  const json = { data: { user: { result: { timeline: { timeline: { instructions: [{ type: 'TimelineAddEntries', entries: [
+    { entryId: 'conversation-2', content: { entryType: 'TimelineTimelineModule', items: [{ item: item(tw('1', 'bob')) }, { item: item(tw('2', 'ann', '1')) }] } },
+    { entryId: 'tweet-3', content: { entryType: 'TimelineTimelineItem', itemContent: item(tw('3', 'ann', '1')).itemContent } },
+  ] }] } } } } } };
+  const r = P.parseResponse(json, 'https://x.com/i/api/graphql/a/UserTweetsAndReplies?variables={}');
+  const by = (id) => r.items.find((t) => t.id === id);
+  assert.equal(by('2').parent.id, '1');
+  assert.equal(by('1').moduleParent, true, 'the other person\'s post is marked as context');
+  assert.equal(by('3').parent, undefined, 'a reply that arrives alone has no parent here');
+});
+test('a profile: what X sends is read, links in the bio are expanded, missing fields are left out', () => {
+  const r = P.parseProfile({ data: { user: { result: { rest_id: '5', is_blue_verified: true, core: { name: 'Ann', screen_name: 'ann', created_at: 'Sun Jun 01 00:00:00 +0000 2008' },
+    avatar: { image_url: 'https://x/a_normal.jpg' }, location: { location: 'PA' },
+    legacy: { description: 'hi https://t.co/x', entities: { description: { urls: [{ url: 'https://t.co/x', expanded_url: 'https://site.org' }] } }, followers_count: 21300, friends_count: 97 } } } } });
+  assert.equal(r.name, 'Ann'); assert.equal(r.handle, 'ann'); assert.equal(r.blue, true);
+  assert.equal(r.avatar, 'https://x/a_400x400.jpg');
+  assert.equal(r.bio, 'hi https://site.org');
+  assert.equal(r.followers, 21300); assert.equal(r.posts, undefined);
+  assert.equal(P.parseProfile({ data: {} }), null);
+});

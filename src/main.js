@@ -124,6 +124,7 @@
     health: [],               // what the health check currently sees wrong
     showSeen: false,          // you asked to see the posts you've read (this page only)
     listNames: new Map(),     // list id -> its name (read from what X sends when a list page opens)
+    profiles: new Map(),      // handle (lower case) -> a profile's header (read from what X sends when a profile opens)
   };
   function remember(list) {
     for (const t of list) { if (t && t.id) { state.byId.delete(t.id); state.byId.set(t.id, t); } }
@@ -145,6 +146,12 @@
     const op = XMCParse.opOf(url);
     if (op) state.seenOps[op] = (state.seenOps[op] || 0) + 1;
     try { noteList(op, body); } catch { /* not a list */ }
+    if (/^User(Result)?By/.test(op || '')) {
+      try {
+        const p = XMCParse.parseProfile(body);
+        if (p) { state.profiles.set(p.handle.toLowerCase(), p); while (state.profiles.size > 50) state.profiles.delete(state.profiles.keys().next().value); }
+      } catch { /* not a profile */ }
+    }
     const isConversation = op === 'TweetDetail' || !!(body && body.data && body.data.threaded_conversation_with_injections_v2);
     if (isConversation) {
       const d = XMCParse.parseDetail(body, url, reqBody, state.peek ? state.peek.id : idOfHref(location.pathname));
@@ -499,6 +506,17 @@
     if (clips) bits.push(t.media.some((m) => m.type === 'gif') && clips === 1 ? 'GIF' : clips === 1 ? 'video' : clips + ' videos');
     return h('button', { className: 'xmc-mediachip', type: 'button', title: 'Show the pictures and video', textContent: '\u25b6 ' + bits.join(' + ') });
   }
+  // the post a reply is answering, small, above the reply
+  function renderParentContext(p) {
+    const photos = p.media.filter((m) => m.type === 'photo').length, clips = p.media.length - photos;
+    const bits = [photos ? photos + (photos === 1 ? ' photo' : ' photos') : '', clips ? (clips === 1 ? 'video' : clips + ' videos') : ''].filter(Boolean).join(', ');
+    const box = h('div', { className: 'xmc-pctx' },
+      h('div', {}, h('b', { textContent: p.author.name }), h('span', { className: 'xmc-dim', textContent: ' @' + p.author.handle + ' \u00b7 ' + relTime(p.createdAt) })),
+      p.segs.length ? h('div', { className: 'xmc-pctx-text' }, renderSegs(p.segs)) : null,
+      bits ? h('div', { className: 'xmc-dim' }, bits) : null);
+    box.dataset.href = p.url;
+    return box;
+  }
   // the rest of a person's thread, folded behind one line
   function renderThread(t) {
     const n = t.thread.length;
@@ -520,6 +538,9 @@
     const card = h('article', { className: 'xmc-card' });
     tweetOf.set(card, t);
     if (t.repostedBy) card.append(h('div', { className: 'xmc-ctx' }, icon('repost'), h('span', { textContent: ctxText(t) })));
+    const par = t.parent || (t.replyToId && state.byId.get(t.replyToId)) || null;
+    const context = par && par !== t && par.author && !par.unavailable && par.segs ? renderParentContext(par) : null;
+    if (context) card.append(context);
     const sub = h('div', { className: 'xmc-sub' }, '@' + t.author.handle + ' · ',
       h('a', { className: 'xmc-time xmc-nav', href: t.url, title: new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt) }));
     if (settings.showSource && t.source) sub.append(h('span', { className: 'xmc-src', textContent: ' · via ' + t.source }));
@@ -528,7 +549,7 @@
       h('div', { className: 'xmc-who' },
         h('a', { className: 'xmc-name xmc-nav', href: '/' + t.author.handle }, t.author.name, badge(t.author)), sub),
       moreButton()));
-    if (t.replyTo) card.append(h('div', { className: 'xmc-dim xmc-reply', textContent: 'Replying to @' + t.replyTo }));
+    if (t.replyTo && !context) card.append(h('div', { className: 'xmc-dim xmc-reply', textContent: 'Replying to @' + t.replyTo }));
     if (t.segs.length) {
       const long = textLength(t.segs) > 420;
       card.append(h('div', { className: 'xmc-text' + (long ? ' clamp' : '') }, renderSegs(t.segs)));
@@ -629,7 +650,8 @@
     h('span', { className: 'xmc-endbtns' },
       btn('Show what I\u2019ve read', '', () => toggleSeen()),
       btn('Keep loading older posts', '', () => { view.keepGoing = true; view.caughtUp = false; const f = activeFeed(); if (f) pump(); guard('render', renderFeed); })));
-  const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, colsEl, loaderEl, caughtEl, endEl, statusEl);
+  const profileEl = h('section', { className: 'xmc-profile', hidden: true });
+  const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, profileEl, colsEl, loaderEl, caughtEl, endEl, statusEl);
   const root = h('div', { id: 'xmc-root', hidden: true }, bar, scroller);
   const toastEl = h('div', { id: 'xmc-toast', hidden: true });
   document.body.append(root, toastEl);
@@ -982,6 +1004,7 @@
         if (view.caughtUp) break;
         const t = f.items[view.upto++];
         scanned++;
+        if (t.moduleParent && where() === 'profile') continue; // the post a reply answers is shown inside that reply's card
         const root = plan && plan.rootOf.get(t.id);
         if (root && showing(root)) continue; // a reply to themselves: it is shown under the first post of the thread
         if (!XMCLogic.passes(t, c)) continue;
@@ -1551,12 +1574,73 @@
     fillReplies(panel, t, res);
   }
 
+  // A profile page: who it is. X's own header is under our columns, so a compact one is drawn above the posts, and the name is
+  // kept in the top bar. The details come from what X sends when the profile opens (or, failing that, from X's own header).
+  const PROFILE_TABS = ['with_replies', 'media', 'likes', 'highlights', 'articles'];
+  function profileHandle() {
+    const seg = location.pathname.split('/').filter(Boolean);
+    if (!seg.length || RESERVED.has(seg[0].toLowerCase())) return '';
+    return seg.length === 1 || (seg.length === 2 && PROFILE_TABS.includes(seg[1])) ? seg[0] : '';
+  }
+  const plural = (n, one) => fmt(n) + ' ' + one;
+  function profileFromDom(handle) {
+    const col = mainCol(), nameEl = col && col.querySelector('[data-testid="UserName"]');
+    if (!nameEl) return null;
+    const m = /^(.*?)@(\w+)/.exec((nameEl.textContent || '').replace(/\s+/g, ' ').trim());
+    if (!m || m[2].toLowerCase() !== handle.toLowerCase()) return null;
+    const src = (sel) => { const i = col.querySelector(sel); return i && i.src ? i.src : ''; };
+    const items = col.querySelector('[data-testid="UserProfileHeader_Items"]');
+    const count = (suffix) => { const a = col.querySelector('a[href$="' + suffix + '"]'); return a ? (a.textContent || '').trim().replace(/\s+/g, ' ') : ''; };
+    return {
+      name: m[1].trim() || m[2], handle: m[2],
+      avatar: src('[data-testid^="UserAvatar-Container-"] img').replace(/_(normal|bigger|200x200)\./, '_400x400.'), banner: src('a[href$="/header_photo"] img'),
+      bio: ((col.querySelector('[data-testid="UserDescription"]') || {}).textContent || '').trim(),
+      meta: items ? [...items.children].map((c) => (c.textContent || '').trim()).filter(Boolean).join(' \u00b7 ') : '',
+      counts: [count('/following'), count('/verified_followers') || count('/followers')].filter(Boolean).join('   '),
+    };
+  }
+  function profileCard(handle) {
+    const p = state.profiles.get(handle.toLowerCase());
+    if (p) {
+      const joined = p.joined ? 'Joined ' + new Date(p.joined).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '';
+      return {
+        name: p.name, handle: p.handle, blue: p.blue, verified: p.verified, avatar: p.avatar, banner: p.banner, bio: p.bio,
+        meta: [p.location, p.site, joined].filter(Boolean).join(' \u00b7 '),
+        counts: [p.following !== undefined ? plural(p.following, 'Following') : '', p.followers !== undefined ? plural(p.followers, 'Followers') : ''].filter(Boolean).join('   '),
+      };
+    }
+    return profileFromDom(handle);
+  }
+  let profileSig = '';
+  function updateProfile() {
+    const handle = settings.profileHeader && state.shown && !root.hidden ? profileHandle() : '';
+    const c = handle ? profileCard(handle) : null;
+    profileEl.hidden = !c;
+    if (!c) { profileSig = ''; if (!listNameOnBar) pageTitleEl.hidden = true; return; }
+    pageTitleEl.hidden = false; pageTitleEl.textContent = c.name;
+    const sig = JSON.stringify(c);
+    if (sig === profileSig) return;
+    profileSig = sig;
+    profileEl.replaceChildren(
+      c.banner ? h('div', { className: 'xmc-pbanner', style: 'background-image:url("' + c.banner.replace(/"/g, '%22') + '")' }) : null,
+      h('div', { className: 'xmc-pmain' },
+        c.avatar ? h('img', { className: 'xmc-pavatar', src: c.avatar, alt: '' }) : null,
+        h('div', { className: 'xmc-pwho' },
+          h('div', { className: 'xmc-pname' }, c.name, badge(c)),
+          h('div', { className: 'xmc-dim' }, '@' + c.handle))),
+      c.bio ? h('div', { className: 'xmc-pbio', textContent: c.bio }) : null,
+      c.meta ? h('div', { className: 'xmc-dim xmc-pmeta', textContent: c.meta }) : null,
+      c.counts ? h('div', { className: 'xmc-pcounts', textContent: c.counts }) : null);
+  }
+
   // A list page: its name in the tab title (X leaves it as "List") and at the left of the top bar
+  let listNameOnBar = false;
   function listTitle() {
     const m = /^\/i\/lists\/(\d+)/.exec(location.pathname);
     const name = m && state.listNames.get(m[1]);
-    pageTitleEl.hidden = !name;
-    if (!name) return;
+    listNameOnBar = !!name;
+    if (!name) { if (m) pageTitleEl.hidden = true; return; }
+    pageTitleEl.hidden = false;
     if (pageTitleEl.textContent !== name) pageTitleEl.textContent = name;
     const want = name + ' / ' + (settings.branding === 'twitter' ? 'Twitter' : 'X');
     if (document.title !== want && /^List( \/ |$)/.test(document.title)) document.title = want;
@@ -1820,7 +1904,7 @@
     const actBtn = e.target.closest('[data-act]');
     if (actBtn) { e.preventDefault(); e.stopPropagation(); act(t, actBtn.dataset.act, actBtn); return; }
     if (e.target.closest('.xmc-thread-toggle')) return;
-    const tpost = e.target.closest('.xmc-tpost');
+    const tpost = e.target.closest('.xmc-tpost, .xmc-pctx');
     if (tpost && !e.target.closest('a[href], video, .xmc-reveal')) { e.preventDefault(); navigate(tpost.dataset.href, null); return; }
     if (e.target.closest('.xmc-rclose')) { const p = cardEl.querySelector('.xmc-replies'); if (p) p.remove(); updateActions(t); return; }
     if (e.target.closest('.xmc-replies')) return; // links inside comments open normally (new tab); clicking text doesn't open the post
@@ -2463,7 +2547,7 @@
     }
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
-    if (tickN % 5 === 1) { guard('list title', listTitle); guard('sensitive notices', revealNative); }
+    if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
     if (tickN % 10 === 5 && Date.now() - lastScrollAt > 500) guard('recycle', () => recycleCards(false));
     if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);
     const quiet = state.posting && isModalRoute(); // our own reply automation: X's reply box is open, out of sight

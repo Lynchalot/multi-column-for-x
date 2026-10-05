@@ -778,3 +778,46 @@ browserTest('Grok\'s floating button lines up beside Chat\'s even when its wrapp
     }, null, { timeout: 8000 });
   });
 });
+
+browserTest('a profile\'s header (name, bio, counts) is shown above its posts, and its name stays in the top bar', async (e) => {
+  const h = await e.open('/user5/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('.xmc-profile:not([hidden]) .xmc-pname');
+    const text = await page.locator('.xmc-profile').innerText();
+    for (const part of ['User Five', '@user5', 'Bio of user five', 'Valley Forge', 'Joined June 2008', '97 Following', '1.2K Followers']) assert.ok(text.includes(part), part + ' in: ' + text);
+    assert.equal((await page.locator('.xmc-pagetitle').innerText()).trim(), 'User Five');
+  });
+  const off = await e.open('/user5/', { settings: { v: 8, profileHeader: false } });
+  await checked(off, async () => {
+    await e.ready(off.page);
+    await off.page.waitForTimeout(1500);
+    assert.equal(await off.page.locator('.xmc-profile:not([hidden])').count(), 0);
+  });
+});
+
+browserTest('on a profile\'s Replies tab a reply shows the post it answers, in its own card', async (e) => {
+  const h = await e.open('/user6/with_replies/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const ids = await page.evaluate(() => window.__xmc.view.cards.map((t) => t.id));
+    assert.ok(ids.includes('89998'), 'the reply has a card');
+    assert.ok(!ids.includes('789998'), 'the post it answers has no card of its own here');
+    const card = page.locator('.xmc-card', { has: page.locator('.xmc-pctx') }).first();
+    assert.match(await card.locator('.xmc-pctx').innerText(), /tweet 789998/);
+    assert.equal(await card.locator('.xmc-reply').count(), 0, 'no separate "Replying to" line');
+  });
+});
+
+browserTest('if X sent no profile data, the header is read from X\'s own header instead', async (e) => {
+  const h = await e.open('/user7/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('.xmc-profile:not([hidden]) .xmc-pname', { timeout: 8000 });
+    const text = await page.locator('.xmc-profile').innerText();
+    for (const part of ['Seven Name', '@user7', 'Bio seven', 'Somewhere', 'Joined May 2010', '12 Following', '34 Followers']) assert.ok(text.includes(part), part + ' in: ' + text);
+  });
+});

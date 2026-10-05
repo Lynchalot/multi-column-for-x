@@ -256,10 +256,15 @@ var XMCParse = (function () {
       if (cur && cur.type === 'top') topCursor = cur.value;
       const eid = String(entry.entryId || '');
       if (/^(cursor|who-to-follow|promoted|toptabsfilter|label|messageprompt)/i.test(eid)) continue;
+      const group = []; // X sends a reply together with the post it answers as one entry: keep that link
       for (const item of tweetItems(entry)) {
         if (item.promotedMetadata || item.tweet_results.promotedMetadata) continue;
         const t = normalizeTweet(item.tweet_results.result);
-        if (t) items.push(t);
+        if (!t) continue;
+        const up = t.replyToId && !t.repostedBy ? group.find((g) => g.id === t.replyToId) : null;
+        if (up) { t.parent = up; if (up.author.handle.toLowerCase() !== t.author.handle.toLowerCase()) up.moduleParent = true; }
+        group.push(t);
+        items.push(t);
       }
     }
     return { op, feedKey: feedKeyOf(op, vars), known, first: !vars.cursor, reqCursor: vars.cursor || '', topCursor, bottomCursor, items };
@@ -294,7 +299,35 @@ var XMCParse = (function () {
     return { focalId, focal, replies, more };
   }
 
-  const api = { parseResponse, parseDetail, normalizeTweet, buildSegments, parseDate, opOf, varsOf, requestVars, feedKeyOf };
+  // A profile's header, from X's reply to the "user by screen name" request. Fields X does not send are left out.
+  const expandLinks = (text, urls) => (urls || []).reduce((out, u) => (u && u.url ? out.split(u.url).join(u.expanded_url || u.display_url || u.url) : out), String(text || ''));
+  function parseProfile(json) {
+    const data = json && json.data;
+    if (!data || typeof data !== 'object') return null;
+    let u = null;
+    for (const v of Object.values(data)) { const r = v && (v.result || v); if (r && typeof r === 'object' && (r.core || r.legacy) && (r.rest_id || r.id)) { u = r; break; } }
+    if (!u) return null;
+    const user = parseUser(u);
+    if (!user) return null;
+    const legacy = u.legacy || {}, core = u.core || {};
+    const ents = legacy.entities || {};
+    const bio = (u.profile_bio && u.profile_bio.description) || legacy.description || '';
+    const loc = (u.location && u.location.location) || legacy.location || '';
+    const site = ents.url && ents.url.urls && ents.url.urls[0];
+    const counts = u.relationship_counts || {};
+    const num = (...vals) => { for (const v of vals) if (typeof v === 'number' && Number.isFinite(v)) return v; return undefined; };
+    return {
+      handle: user.handle, name: user.name, blue: user.blue, verified: user.verified,
+      avatar: ((u.avatar && u.avatar.image_url) || legacy.profile_image_url_https || '').replace(/_(normal|bigger)\./, '_400x400.'),
+      banner: legacy.profile_banner_url ? legacy.profile_banner_url + '/600x200' : '',
+      bio: expandLinks(bio, ents.description && ents.description.urls),
+      location: loc, site: site ? (site.display_url || site.expanded_url || '') : '',
+      joined: parseDate(core.created_at || legacy.created_at),
+      followers: num(legacy.followers_count, counts.followers), following: num(legacy.friends_count, counts.following), posts: num(legacy.statuses_count, u.tweet_count),
+    };
+  }
+
+  const api = { parseProfile, parseResponse, parseDetail, normalizeTweet, buildSegments, parseDate, opOf, varsOf, requestVars, feedKeyOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

@@ -412,3 +412,18 @@ html.xmc-nsfw-show .xmc-rmedias.sensitive img { filter: none !important; transfo
 html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
 /* a list's name at the left of the top bar */
 .xmc-pagetitle { font-size: 16px; font-weight: 700; padding: 0 14px 0 8px; white-space: nowrap; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; }
+
+/* the post a reply answers, above the reply */
+.xmc-pctx { margin: 0 0 8px; padding: 2px 0 2px 12px; border-left: 2px solid var(--xmc-border); font-size: 14px; color: var(--xmc-muted); cursor: pointer; }
+.xmc-pctx b { color: var(--xmc-fg); }
+.xmc-pctx-text { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+/* who a profile is */
+.xmc-profile { padding: 0 12px 12px; margin-bottom: 8px; border-bottom: 1px solid var(--xmc-border); }
+.xmc-pbanner { height: 110px; margin: 8px 0 12px; border-radius: 12px; background-size: cover; background-position: center; background-color: var(--xmc-hover); }
+.xmc-profile:not(:has(.xmc-pbanner)) { padding-top: 12px; }
+.xmc-pmain { display: flex; align-items: center; gap: 12px; }
+.xmc-pavatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; flex: none; background: var(--xmc-hover); }
+.xmc-pname { font-size: 20px; font-weight: 800; line-height: 1.2; display: flex; align-items: center; gap: 4px; }
+.xmc-pbio { margin-top: 10px; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 70ch; }
+.xmc-pmeta { margin-top: 6px; font-size: 14px; }
+.xmc-pcounts { margin-top: 6px; font-size: 14px; font-weight: 600; white-space: pre-wrap; }

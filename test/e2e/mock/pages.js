@@ -26,7 +26,7 @@ ${SCRIPTS}
 // cfg: { title, tabs:[{label, feed}], selected, load (default true), dropdown:{tab, items, kind:'sort'|'media'} }
 function timelinePage(cfg) {
   const tabs = cfg.tabs.map((t, i) => `<a role="tab" aria-selected="${i === cfg.selected}" id="t${i}"><span style="font-weight:${i === cfg.selected ? 700 : 500}">${t.label}</span></a>`).join('');
-  const body = `<div style="margin-left:480px;width:600px"><div data-testid="primaryColumn"><div role="tablist">${tabs}</div><div id="list" style="position:relative"></div></div></div>`;
+  const body = `<div style="margin-left:480px;width:600px"><div data-testid="primaryColumn">${cfg.header || ''}<div role="tablist">${tabs}</div><div id="list" style="position:relative"></div></div></div>`;
   const script = `<script>
 const CFG = ${JSON.stringify(cfg)};
 const H=320; let items=[], feed=CFG.tabs[CFG.selected].feed, cursor=null, loading=false, done=false; const list=document.getElementById('list');
@@ -112,6 +112,9 @@ function pageFor(path) {
   if (p === '/explore') return timelinePage({ title: 'Explore / X', tabs: [{ label: 'For you', feed: 'ExplorePage' }, { label: 'Trending', feed: 'ExplorePage' }], selected: 0 });
   if (p === '/threads') return timelinePage({ title: 'threads / X', tabs: [{ label: 'Posts', feed: 'ThreadsTimeline' }], selected: 0 });
   if (p === '/i/lists/123') return timelinePage({ title: 'List / X', tabs: [{ label: 'Posts', feed: 'ListLatestTimeline' }], selected: 0, meta: 'ListByRestId' });
+  if (p === '/user5') return timelinePage({ title: 'User Five (@user5) / X', tabs: [{ label: 'Posts', feed: 'UserTweets' }], selected: 0, meta: 'UserByScreenName' });
+  if (p === '/user7') return timelinePage({ title: 'user7 / X', tabs: [{ label: 'Posts', feed: 'UserTweets' }], selected: 0, header: '<div data-testid="UserName"><span>Seven Name</span><span>@user7</span></div><div data-testid="UserDescription">Bio seven</div><div data-testid="UserProfileHeader_Items"><span>Somewhere</span><span>Joined May 2010</span></div><a href="/user7/following">12 Following</a><a href="/user7/verified_followers">34 Followers</a>' });
+  if (p === '/user6/with_replies') return timelinePage({ title: 'user6 / X', tabs: [{ label: 'Posts', feed: 'UserTweets' }, { label: 'Replies', feed: 'UserTweetsAndReplies' }], selected: 1 });
   if (p === '/dupes') return timelinePage({ title: 'dupes / X', tabs: [{ label: 'Posts', feed: 'DupesTimeline' }], selected: 0 });
   if (p === '/nofeed') return timelinePage({ ...HOME, title: 'No feed / X', load: false });
   const m = /^\/user\/status\/(\d+)$/.exec(p);

@@ -43,6 +43,13 @@ function makeApi(origin, pages) {
     const ents = [];
     for (let k = 0; k < 20; k++) {
       const i = 90000 + (newer || 0) * 5 - p * 20 - k;
+      if (feed === 'UserTweetsAndReplies' && k === 2) { // a reply, sent together with the post it answers (as X's Replies tab does)
+        const parent = tweet(i + 700000, 31, 0, feed), reply = tweet(i, 6, 0, feed);
+        reply.legacy.in_reply_to_status_id_str = String(i + 700000); reply.legacy.in_reply_to_screen_name = 'user31';
+        const wrap = (t) => ({ entryId: `conversation-${i}-tweet-${t.rest_id}`, item: { itemContent: { itemType: 'TimelineTweet', tweet_results: { result: t } } } });
+        ents.push({ entryId: `conversation-${i}`, sortIndex: String(i), content: { entryType: 'TimelineTimelineModule', items: [wrap(parent), wrap(reply)] } });
+        continue;
+      }
       const thread = feed === 'ThreadsTimeline' && k >= 3 && k <= 5; // three posts by user5, each answering the one before (newest first, as the feed lists them)
       const t = tweet(i, thread ? 5 : (i % 9) + 1, thread ? 0 : k % 8, feed);
       if (thread && k < 5) { t.legacy.in_reply_to_status_id_str = String(i - 1); t.legacy.in_reply_to_screen_name = 'user5'; }
@@ -78,6 +85,11 @@ function makeApi(origin, pages) {
   // op = the GraphQL operation name, vars = its variables
   function respond(op, vars) {
     if (op === 'TweetDetail') return detail(vars.focalTweetId);
+    if (op === 'UserByScreenName') {
+      return { data: { user: { result: { rest_id: '5', is_blue_verified: true, core: { name: 'User Five', screen_name: 'user5', created_at: 'Sun Jun 01 00:00:00 +0000 2008' },
+        avatar: { image_url: `${origin}/img/a5_normal.svg` }, location: { location: 'Valley Forge' },
+        legacy: { description: 'Bio of user five', followers_count: 1234, friends_count: 97, profile_banner_url: `${origin}/img/b5`, entities: { description: { urls: [] } } } } } } };
+    }
     if (op === 'ListByRestId') return { data: { list: { __typename: 'List', id_str: '123', name: 'Psyop' } } };
     return page(op, vars.cursor, vars.newer || 0);
   }
