@@ -598,10 +598,24 @@
   const toastEl = h('div', { id: 'xmc-toast', hidden: true });
   document.body.append(root, toastEl);
 
+  // A tab left open while the extension is updated or reloaded keeps the old copy's script running beside the new one, and both
+  // draw columns on top of each other (window.__xmcLoaded can't see across that). The newest copy claims the page through the DOM;
+  // an older one notices on its next tick and stands down.
+  const instance = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  document.documentElement.dataset.xmcInstance = instance;
+  let retired = false;
+  let tickTimer = 0;
+  function retire() {
+    retired = true;
+    clearInterval(tickTimer);
+    root.remove(); toastEl.remove();
+    if (pill.isConnected) pill.remove();
+  }
+
   // Scrolling with the pointer over X's own sidebars: scroll the columns, as X does (the page scrolls wherever the pointer is).
   // Left alone if the sidebar itself has more to show in that direction.
   document.addEventListener('wheel', (e) => {
-    if (root.hidden || e.ctrlKey || e.defaultPrevented) return;
+    if (retired || root.hidden || e.ctrlKey || e.defaultPrevented) return;
     const bar = e.target.closest && e.target.closest('[data-testid="sidebarColumn"], header[role="banner"]');
     if (!bar || bar.id === 'xmc-sidefreeze') return;
     const down = e.deltaY > 0;
@@ -2115,6 +2129,7 @@
   const tickTimes = []; // how long our own work took recently (to tell our slowness from X's)
   function tick() {
     if (!ready) return;
+    if (document.documentElement.dataset.xmcInstance !== instance) { retire(); return; }
     if (state.shown) { // a sidebar X has just rebuilt must be pinned at once, not at the next slow pass
       const sd = pin.side.el(), nv = pin.nav.el();
       if (sd && sd.dataset.xmcStyle === undefined && !pin.side.fallback) guard('pin side', positionSide);
@@ -2189,6 +2204,6 @@
   loadAll().then(() => {
     ready = true;
     settingsChanged();
-    setInterval(() => { const t0 = performance.now(); guard('tick', tick); tickTimes.push(performance.now() - t0); if (tickTimes.length > 50) tickTimes.shift(); }, TICK_MS);
+    tickTimer = setInterval(() => { const t0 = performance.now(); guard('tick', tick); tickTimes.push(performance.now() - t0); if (tickTimes.length > 50) tickTimes.shift(); }, TICK_MS);
   });
 })();

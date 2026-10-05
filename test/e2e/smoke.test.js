@@ -483,3 +483,18 @@ browserTest('the settings page offers the reading and layout options, and can fo
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('xmc.settings')).seen), 'hide', 'and the choice you made stays');
   });
 });
+
+browserTest('a second copy of the script (after an extension update) replaces the first instead of drawing over it', async (e) => {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', 'src', 'main.js'), 'utf8');
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate((code) => { window.__xmcLoaded = false; (0, eval)(code); }, src);
+    await page.waitForFunction(() => document.querySelectorAll('#xmc-root').length === 1, null, { timeout: 5000 });
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator('#xmc-root').count(), 1, 'two column overlays');
+    assert.equal(await page.locator('#xmc-pill').count(), 1, 'two Columns buttons');
+    assert.ok((await page.locator('.xmc-col').count()) >= 2, 'the newer copy draws the columns');
+  });
+});

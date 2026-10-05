@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.1
+- **No more doubled columns after an update.** A tab left open while the extension updated or reloaded kept the old copy running beside the new one, and both drew columns on top of each other (ghost posts, doubled tabs, two Columns buttons). The newest copy now takes over and the old one stands down.
+
 ## 0.10.0
 - **A layout for each page** (option): Home, Search, Lists, Bookmarks and profiles each remember their own column count.
 - **Posts you've read** (option): hide or fade them on Home and Lists. Read means on screen for a second; only the post's number is kept, on your device. Nothing disappears while you read: it applies on your next visit and when you refresh. A top-bar button shows what's hidden, and when everything recent is read it stops loading older posts and says so. A button on the settings page forgets the list.
