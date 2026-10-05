@@ -303,7 +303,9 @@ browserTest('the health check shows a warning in the top bar when things keep fa
 // the post numbers the stand-in sends on its first three pages (a repost is known by the post it reposts)
 const FIRST_PAGE = Array.from({ length: 60 }, (_, g) => String((g % 20) % 8 === 5 ? 590000 - g : 90000 - g)); // g: place in the feed; every page has reposts at 5 and 13
 
-browserTest('post size: text only keeps pictures behind a click, compact fits more columns, the top-bar button cycles', async (e) => {
+const POST_SIZE_SHELVED = true; // see DENSITY_SHELVED in src/main.js
+browserTest('post size: text only keeps pictures behind a click, compact fits more columns, the top-bar button cycles', async (e, t) => {
+  if (POST_SIZE_SHELVED) return t.skip('post size is shelved');
   const normal = await e.open('/home/', { width: 2000 });
   const text = await e.open('/home/', { settings: { v: 8, density: 'text' } });
   const compact = await e.open('/home/', { settings: { v: 8, density: 'compact' }, width: 2000 });
@@ -470,7 +472,8 @@ browserTest('the settings page offers the reading and layout options, and can fo
   await checked(h, async () => {
     const { page } = h;
     await page.waitForSelector('#sec-reading');
-    for (const id of ['opt-density', 'opt-perPageLayout', 'opt-seen', 'opt-collapseReposts', 'opt-commentSort']) assert.equal(await page.locator('#' + id).count(), 1, id);
+    for (const id of ['opt-perPageLayout', 'opt-seen', 'opt-collapseReposts', 'opt-commentSort']) assert.equal(await page.locator('#' + id).count(), 1, id);
+    assert.equal(await page.locator('#opt-density').count(), 0, 'post size is shelved: not offered');
     assert.equal(await page.locator('#opt-seen').inputValue(), 'off', 'off until asked for');
     assert.match(await page.locator('#read-summary').innerText(), /3 posts remembered/);
     await page.locator('#opt-seen').selectOption('hide');

@@ -15,8 +15,8 @@ var XMCSettings = (function () {
         { key: 'cols', type: 'number', min: 0, max: 8, def: 0, label: 'Number of columns', help: '0 = automatic.' },
         { key: 'maxAutoCols', type: 'number', min: 1, max: 8, def: 5, label: 'Most columns when automatic' },
         { key: 'minColWidth', type: 'number', min: 280, max: 900, def: 500, label: 'Column width when automatic (px)' },
-        { key: 'density', type: 'select', def: 'normal', label: 'Post size', options: [['normal', 'Normal'], ['compact', 'Compact (tighter, smaller pictures)'], ['text', 'Text only (pictures and video behind a click)']] },
-        { key: 'perPageLayout', type: 'bool', def: false, label: 'Remember columns and post size separately for each page', help: 'Home, Search, Lists, Bookmarks and profiles each keep what you last picked in the top bar.' },
+        { key: 'density', type: 'select', def: 'normal', label: 'Post size', hidden: true, options: [['normal', 'Normal'], ['compact', 'Compact (tighter, smaller pictures)'], ['text', 'Text only (pictures and video behind a click)']] },
+        { key: 'perPageLayout', type: 'bool', def: false, label: 'Remember columns separately for each page', help: 'Home, Search, Lists, Bookmarks and profiles each keep the column count you last picked in the top bar.' },
       ],
     },
     {

@@ -9,6 +9,9 @@
   window.__xmcLoaded = true;
 
   const GAP = 12;
+  // SHELVED: post size (Compact / Text only). The code and tests stay, but the Compact layout is wrong, so it is switched off:
+  // no setting, no top-bar button, and the size is always Normal. Set to false (and un-hide `density` in settings.js) to bring it back.
+  const DENSITY_SHELVED = true;
   const TICK_MS = 100;
   const RESERVED = new Set(['home', 'explore', 'notifications', 'messages', 'settings', 'compose',
     'i', 'search', 'jobs', 'premium', 'tos', 'privacy', 'login', 'logout', 'signup', 'communities']);
@@ -574,6 +577,7 @@
   const densityBtn = btn('', '', () => { const all = XMCLogic.DENSITIES; setLayout({ density: all[(all.indexOf(pageLayout().density) + 1) % all.length] }); }, 'xmc-density');
   const seenBtn = btn('', '', () => toggleSeen(), 'xmc-seenbtn');
   seenBtn.hidden = true;
+  densityBtn.hidden = DENSITY_SHELVED;
   const row1 = h('div', { className: 'xmc-bar1' }, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, seenBtn, refreshBtn, colGroup, densityBtn, nsfwBtn, gearBtn);
   const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
   const bar = h('div', { className: 'xmc-bar' }, row1, row2);
@@ -713,7 +717,7 @@
   }
   function setFilter(key) { settings.filter = key; save(); applyBar(); guard('render', renderFeed); } // draw now, not on the next tick
   // Columns and post size: what you pick in the top bar is kept for this kind of page when "per page" is on, else for every page
-  const pageLayout = () => XMCLogic.pageLayout(settings, where());
+  const pageLayout = () => { const l = XMCLogic.pageLayout(settings, where()); return DENSITY_SHELVED ? Object.assign({}, l, { density: 'normal' }) : l; };
   function setLayout(part) {
     if (settings.perPageLayout) {
       const w = where();

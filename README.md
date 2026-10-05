@@ -6,8 +6,7 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
 
 ## What you get
 - **Columns** — automatic (about 500px wide each, never more than 5 by default; a narrower window drops columns down to one instead of squeezing them) or fixed 1–8.
-- **Post size** — Normal, **Compact** (tighter, smaller pictures) or **Text only** (a label where pictures and video would be, one click shows them). Smaller sizes fit more columns. The top-bar button cycles them.
-- **A layout for each page** *(option)* — Home, Search, Lists, Bookmarks and profiles each remember the columns and post size you last picked there.
+- **A layout for each page** *(option)* — Home, Search, Lists, Bookmarks and profiles each remember the column count you last picked there.
 - **Posts you've read** *(option)* — hide them or fade them. A post counts as read once it has been on screen for a second; only its number is kept, on your device. What you read on this visit stays until you refresh, so nothing disappears while you read, and a **N hidden** button in the top bar brings them back. When everything recent is read it says you're up to date instead of loading older posts for ever (**Keep loading older posts** goes on). Applies to Home and Lists.
 - **Reposts folded** *(option)* — when several people repost the same post it is one card: "A, B and 2 others reposted".
 - **Posts drawn by the extension**, from the data X already downloads. Nothing flickers when you like something, and

@@ -19,7 +19,7 @@ Read X in as many columns as your screen can hold. Multi-Column for X turns the 
 - **Comments** open inside the post, sorted by relevance, newest or most liked, and you can reply from there.
 - **Filters:** Following by default, hide "For you", only accounts you follow, mute words and accounts, show or hide reposts, quotes and replies, NSFW blur or hide.
 - Profile **Videos / Photos** and Following's **Popular / Recent** work from the top bar.
-- **Reading options (all off by default):** compact or text-only posts, a separate layout for each page, hide or fade posts you've already read, one card when several people repost the same post.
+- **Reading options (all off by default):** a separate column count for each page, hide or fade posts you've already read, one card when several people repost the same post.
 - **Tidy-ups:** hide Trending, Who to follow, Topics and Premium boxes, adjust the sidebar, use the bird logo and "Tweet" wording, custom CSS.
 
 **Private by design**
