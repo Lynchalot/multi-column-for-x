@@ -62,6 +62,10 @@ function makeApi(origin, pages) {
     const entries = [{ entryId: `tweet-${focal}`, content: { entryType: 'TimelineTimelineItem', itemContent: item(f) } }];
     for (let k = 0; k < 3; k++) {
       const a = reply(Number(focal) * 10 + k * 2 + 1, 20 + k, `Reply number ${k + 1} to the post`, focal);
+      if (k === 0) { // the first reply has a sensitive picture
+        a.legacy.possibly_sensitive = true;
+        a.legacy.extended_entities = { media: [{ id_str: 'ps' + focal, type: 'photo', media_url_https: `${origin}/img/ms.svg`, original_info: { width: 800, height: 600 }, indices: [0, 0] }] };
+      }
       const b = reply(Number(focal) * 10 + k * 2 + 2, 3, `The author answers reply ${k + 1}`, Number(focal) * 10 + k * 2 + 1);
       entries.push({ entryId: `conversationthread-${focal}-${k}`, content: { entryType: 'TimelineTimelineModule', items: [
         { entryId: `conversationthread-${focal}-${k}-tweet-${a.rest_id}`, item: { itemContent: item(a) } },
@@ -74,6 +78,7 @@ function makeApi(origin, pages) {
   // op = the GraphQL operation name, vars = its variables
   function respond(op, vars) {
     if (op === 'TweetDetail') return detail(vars.focalTweetId);
+    if (op === 'ListByRestId') return { data: { list: { __typename: 'List', id_str: '123', name: 'Psyop' } } };
     return page(op, vars.cursor, vars.newer || 0);
   }
   return { respond, tweet, page, detail };

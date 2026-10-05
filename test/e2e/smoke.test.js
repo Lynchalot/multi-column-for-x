@@ -187,7 +187,7 @@ browserTest('a post\'s own page: Download and Copy link buttons, and fewer butto
       return [...document.querySelectorAll('article')].map((a) => ({ tab: a.getAttribute('tabindex'), dl: vis(a.querySelector('.xmc-nat .dl')), bookmark: vis(a.querySelector('[data-testid="bookmark"]')), grok: vis(a.querySelector('[aria-label*="Grok"]')) }));
     });
     assert.deepEqual(r[0], { tab: '-1', dl: true, bookmark: true, grok: true }, 'the post itself keeps its buttons and gains Download (it has a photo)');
-    for (const reply of r.slice(1)) assert.deepEqual(reply, { tab: '0', dl: false, bookmark: false, grok: false });
+    r.slice(1).forEach((reply, i) => assert.deepEqual(reply, { tab: '0', dl: i === 0, bookmark: false, grok: false }, 'only the reply with a picture (the first) gets Download'));
   });
 });
 
@@ -711,5 +711,53 @@ browserTest('the settings page offers starting points, and one applies', async (
     assert.equal(saved.onlyFollowed, true);
     await page.locator('#preset-plain').click();
     assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), false);
+  });
+});
+
+browserTest('a list page: the list\'s name is in the tab title and at the left of the top bar; the scrollbar is the normal width', async (e) => {
+  const h = await e.open('/i/lists/123/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.title === 'Psyop / Twitter', null, { timeout: 8000 });
+    assert.equal((await page.locator('.xmc-pagetitle').innerText()).trim(), 'Psyop');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-scroller')).scrollbarWidth), 'auto');
+  });
+});
+
+browserTest('sensitive pictures in comments follow the sensitive-media setting', async (e) => {
+  const open = async (settings) => {
+    const h = await e.open('/home/', settings ? { settings: Object.assign({ v: 8 }, settings) } : undefined);
+    await e.ready(h.page);
+    await h.page.locator('.xmc-card [data-act="reply"]').first().click();
+    await h.page.waitForSelector('.xmc-replies .xmc-ritem');
+    return h;
+  };
+  const blur = await open();
+  await checked(blur, async () => {
+    assert.equal(await blur.page.locator('.xmc-rmedias.sensitive').count(), 1, 'blurred by default');
+    await blur.page.locator('.xmc-rmedias.sensitive .xmc-reveal').click();
+    assert.equal(await blur.page.locator('.xmc-rmedias.sensitive').count(), 0, 'one click shows it');
+  });
+  const hide = await open({ nsfw: 'hide' });
+  await checked(hide, async () => {
+    assert.equal(await hide.page.locator('.xmc-rmedias').count(), 0, 'the sensitive comment is left out');
+    assert.equal(await hide.page.locator('.xmc-replies .xmc-ritem').count(), 5);
+  });
+});
+
+browserTest('on X\'s own post page, "Sensitive media: Show" presses X\'s notice for you (and only then)', async (e) => {
+  const gate = (h) => h.page.evaluate(() => window.__gate || 0);
+  const normal = await e.open('/user/status/90001/');
+  await checked(normal, async () => {
+    await normal.page.waitForFunction(() => document.querySelectorAll('.xmc-nat').length === 7, null, { timeout: 15000 });
+    await normal.page.waitForTimeout(2500);
+    assert.equal(await gate(normal), 0);
+  });
+  const show = await e.open('/user/status/90001/', { settings: { v: 8, nsfw: 'show' } });
+  await checked(show, async () => {
+    await show.page.waitForFunction(() => window.__gate === 1, null, { timeout: 8000 });
+    await show.page.waitForTimeout(2500);
+    assert.equal(await gate(show), 1, 'pressed once, not over and over');
   });
 });

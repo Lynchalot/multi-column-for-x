@@ -30,7 +30,7 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
 
 
 /* ---- columns ---- */
-.xmc-scroller { flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.xmc-scroller { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
 .xmc-cols { display: flex; gap: 12px; align-items: flex-start; padding: 12px; }
 .xmc-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .xmc-status { padding: 40px 12px; text-align: center; color: var(--xmc-muted); }
@@ -191,7 +191,7 @@ html.xmc-reducedInteraction .xmc-n { display: none !important; }
    so the only scrollbar you see is the one for our columns. */
 html.xmc-on, html.xmc-on body { scrollbar-width: none; }
 html.xmc-on::-webkit-scrollbar, html.xmc-on body::-webkit-scrollbar { display: none; }
-.xmc-scroller { scrollbar-width: thin; outline: none; }
+.xmc-scroller { outline: none; }
 #xmc-root.xmc-under { visibility: hidden; pointer-events: none; }
 
 /* X's right-hand sidebar is kept (pinned by the extension); this setting hides it */
@@ -403,3 +403,12 @@ html.xmc-on [data-testid="sidebarColumn"] { overscroll-behavior: contain; }
 /* a single picture trimmed to a sensible height (the whole of it opens on click) */
 .xmc-media.single.xmc-cap { max-height: 75vh; }
 .xmc-media.single.xmc-cap > img { object-position: 50% 20%; }
+
+/* sensitive pictures in a comment: blurred until clicked, like the pictures in posts */
+.xmc-rmedias { position: relative; }
+.xmc-rmedias.sensitive { overflow: hidden; border-radius: 10px; }
+.xmc-rmedias.sensitive img { filter: blur(24px); transform: scale(1.1); }
+html.xmc-nsfw-show .xmc-rmedias.sensitive img { filter: none !important; transform: none !important; }
+html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
+/* a list's name at the left of the top bar */
+.xmc-pagetitle { font-size: 16px; font-weight: 700; padding: 0 14px 0 8px; white-space: nowrap; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; }

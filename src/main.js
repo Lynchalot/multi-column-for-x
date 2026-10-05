@@ -123,15 +123,28 @@
     commentFails: [],         // when comments couldn't be loaded
     health: [],               // what the health check currently sees wrong
     showSeen: false,          // you asked to see the posts you've read (this page only)
+    listNames: new Map(),     // list id -> its name (read from what X sends when a list page opens)
   };
   function remember(list) {
     for (const t of list) { if (t && t.id) { state.byId.delete(t.id); state.byId.set(t.id, t); } }
     while (state.byId.size > 4000) state.byId.delete(state.byId.keys().next().value);
   }
 
+  // X sends a list's name when a list page opens (the tab title it sets itself just says "List")
+  function noteList(op, body) {
+    const data = body && body.data;
+    if (!data || typeof data !== 'object' || !/^List/.test(op || '')) return;
+    for (const v of Object.values(data)) {
+      if (v && typeof v === 'object' && typeof v.name === 'string' && v.name && /^\d+$/.test(String(v.id_str || v.rest_id || ''))) {
+        state.listNames.set(String(v.id_str || v.rest_id), v.name.slice(0, 100));
+        while (state.listNames.size > 100) state.listNames.delete(state.listNames.keys().next().value);
+      }
+    }
+  }
   function onResponse(url, body, reqBody) {
     const op = XMCParse.opOf(url);
     if (op) state.seenOps[op] = (state.seenOps[op] || 0) + 1;
+    try { noteList(op, body); } catch { /* not a list */ }
     const isConversation = op === 'TweetDetail' || !!(body && body.data && body.data.threaded_conversation_with_injections_v2);
     if (isConversation) {
       const d = XMCParse.parseDetail(body, url, reqBody, state.peek ? state.peek.id : idOfHref(location.pathname));
@@ -600,7 +613,8 @@
   const seenBtn = btn('', '', () => toggleSeen(), 'xmc-seenbtn');
   seenBtn.hidden = true;
   densityBtn.hidden = DENSITY_SHELVED;
-  const row1 = h('div', { className: 'xmc-bar1' }, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, seenBtn, refreshBtn, colGroup, densityBtn, nsfwBtn, gearBtn);
+  const pageTitleEl = h('span', { className: 'xmc-pagetitle', hidden: true });
+  const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, seenBtn, refreshBtn, colGroup, densityBtn, nsfwBtn, gearBtn);
   const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
   const bar = h('div', { className: 'xmc-bar' }, row1, row2);
   const statusEl = h('div', { className: 'xmc-status' });
@@ -1338,6 +1352,8 @@
       slot.append(c);
       c.querySelector('textarea').focus();
     });
+    const medias = photos.length ? h('div', { className: 'xmc-rmedias' + (r.sensitive ? ' sensitive' : '') }, ...photos) : null;
+    if (medias && r.sensitive) medias.append(h('button', { className: 'xmc-reveal', type: 'button', textContent: 'Sensitive content \u2014 click to view', onclick: (e) => { e.stopPropagation(); medias.classList.remove('sensitive'); e.currentTarget.remove(); } }));
     return h('div', { className: 'xmc-ritem d' + (r.depth || 0) },
       h('a', { className: 'xmc-ravatar', href: '/' + r.author.handle, target: '_blank', rel: 'noopener' }, h('img', { src: r.author.avatar, alt: '', loading: 'lazy' })),
       h('div', { className: 'xmc-rbody' },
@@ -1345,7 +1361,7 @@
           h('a', { className: 'xmc-name', href: '/' + r.author.handle, target: '_blank', rel: 'noopener', textContent: r.author.name }), badge(r.author),
           h('span', { className: 'xmc-dim', textContent: ' @' + r.author.handle + ' \u00b7 ' + relTime(r.createdAt) })),
         text,
-        photos.length ? h('div', { className: 'xmc-rmedias' }, ...photos) : null,
+        medias,
         h('div', { className: 'xmc-ractions' }, likeBtn, replyBtn),
         slot));
   }
@@ -1353,7 +1369,7 @@
   function fillReplies(panel, t, res) {
     panel.replaceChildren();
     const d = res && res.data;
-    const list = d ? XMCLogic.sortReplies(d.replies.slice(0, 60), settings.commentSort) : [];
+    const list = d ? XMCLogic.sortReplies(d.replies.filter((r) => !(settings.nsfw === 'hide' && r.sensitive)).slice(0, 60), settings.commentSort) : [];
     const sortSel = h('select', { className: 'xmc-rsort', title: 'Order comments' },
       ...SORTS.map(([v, l]) => h('option', { value: v, textContent: l, selected: settings.commentSort === v })));
     sortSel.addEventListener('change', () => { settings.commentSort = sortSel.value; save(); fillReplies(panel, t, res); });
@@ -1533,6 +1549,43 @@
     if (!panel.isConnected) return; // closed while loading
     if (!res || !res.data) state.commentFails.push(Date.now());
     fillReplies(panel, t, res);
+  }
+
+  // A list page: its name in the tab title (X leaves it as "List") and at the left of the top bar
+  function listTitle() {
+    const m = /^\/i\/lists\/(\d+)/.exec(location.pathname);
+    const name = m && state.listNames.get(m[1]);
+    pageTitleEl.hidden = !name;
+    if (!name) return;
+    if (pageTitleEl.textContent !== name) pageTitleEl.textContent = name;
+    const want = name + ' / ' + (settings.branding === 'twitter' ? 'Twitter' : 'X');
+    if (document.title !== want && /^List( \/ |$)/.test(document.title)) document.title = want;
+  }
+
+  // On X's own pages (a post's page, a profile that asks "view profile?") X puts its own notice over sensitive media. With
+  // "Sensitive media: Show" it is pressed for you. Only a Show / View button that sits inside a notice about sensitive content.
+  const GATE_LABEL = /^(show|view|view post|view profile|yes, view profile|yes, view post)$/i;
+  const gatesPressed = new WeakSet();
+  function revealNative() {
+    if (settings.nsfw !== 'show' || state.peek || state.posting) return;
+    if (state.shown && !(where() === 'profile' && !activeFeed())) return; // our own columns are showing: their cards have the setting
+    const col = mainCol();
+    if (!col) return;
+    for (const b of col.querySelectorAll('[role="button"], button, [data-testid="empty_state_button_text"]')) {
+      if (gatesPressed.has(b)) continue;
+      const label = (b.textContent || '').trim();
+      if (label.length > 24 || !GATE_LABEL.test(label)) continue;
+      let box = b, inNotice = false;
+      for (let i = 0; i < 5 && box.parentElement && !inNotice; i++) {
+        box = box.parentElement;
+        const text = box.textContent || '';
+        inNotice = text.length < 400 && /sensitive/i.test(text);
+      }
+      if (!inNotice) continue;
+      gatesPressed.add(b);
+      state.gatesPressed = (state.gatesPressed || 0) + 1;
+      fire(b);
+    }
   }
 
   // ---------- popover menus ----------
@@ -2401,6 +2454,7 @@
     }
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
+    if (tickN % 5 === 1) { guard('list title', listTitle); guard('sensitive notices', revealNative); }
     if (tickN % 10 === 5 && Date.now() - lastScrollAt > 500) guard('recycle', () => recycleCards(false));
     if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);
     const quiet = state.posting && isModalRoute(); // our own reply automation: X's reply box is open, out of sight

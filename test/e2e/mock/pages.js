@@ -78,6 +78,7 @@ function openDrop(){ const d=CFG.dropdown, l=document.getElementById('layers'); 
 // X closes its menu when it sees a press outside it (set window.__strict to do it before anything else can react)
 window.addEventListener('pointerdown',(e)=>{ if(window.__strict && !e.target.closest('[role=menu]')){ document.getElementById('layers').innerHTML=''; window.__strictClosed=(window.__strictClosed||0)+1; } },true);
 CFG.tabs.forEach((t,i)=>{ document.getElementById('t'+i).onclick=()=>{ const sel=document.getElementById('t'+i).getAttribute('aria-selected')==='true'; if(CFG.dropdown && CFG.dropdown.tab===i && sel) openDrop(); else select(i); }; });
+if(CFG.meta) fetch('/i/api/graphql/abc/'+CFG.meta+'?variables='+encodeURIComponent(JSON.stringify({listId:'123'})));
 if(CFG.load!==false) load(true);
 </script>`;
   return shell(cfg.title || 'Home / X', body, script);
@@ -85,7 +86,7 @@ if(CFG.load!==false) load(true);
 
 // a post's own page: the post itself (tabindex -1) with its action row, and six replies whose like and reply buttons work
 function postPage(id) {
-  const art = (i, tab) => `<article data-testid="tweet" tabindex="${tab}" style="border-bottom:1px solid #333;padding:12px"><a href="/user/status/${i}"><time>t</time></a><div data-testid="tweetText">Post ${i}</div>
+  const art = (i, tab) => `<article data-testid="tweet" tabindex="${tab}" style="border-bottom:1px solid #333;padding:12px"><a href="/user/status/${i}"><time>t</time></a><div data-testid="tweetText">Post ${i}</div>${tab === -1 ? '<div><span>The following media includes potentially sensitive content.</span><div role="button" tabindex="0" onclick="window.__gate=(window.__gate||0)+1"><span>Show</span></div></div>' : ''}
  <button aria-label="Grok actions" style="float:right">G</button>
  <div role="group" id="id__${i}" style="display:flex;justify-content:space-between;margin-top:30px"><div><button data-testid="reply" onclick="openComposer('${i}')">r</button></div><div><button data-testid="retweet">rt</button></div><div><button data-testid="like" onclick="tog('${i}',this)">l</button></div><div><button data-testid="bookmark">b</button></div><div style=""><button aria-label="Share post">s</button></div></div></article>`;
   const body = `<div style="margin-left:480px;width:600px"><div data-testid="primaryColumn">${art(id, -1)}${[1, 2, 3, 4, 5, 6].map((k) => art(Number(id) * 10 + k, 0)).join('')}</div></div>`;
@@ -110,6 +111,7 @@ function pageFor(path) {
   if (p === '/user/media') return timelinePage({ title: 'user / Media / X', tabs: [{ label: 'Posts' }, { label: 'Replies' }, { label: 'Reposts' }, { label: 'Videos', feed: 'UserMedia' }], selected: 3, dropdown: { tab: 3, items: ['Videos', 'Photos'], kind: 'media' } });
   if (p === '/explore') return timelinePage({ title: 'Explore / X', tabs: [{ label: 'For you', feed: 'ExplorePage' }, { label: 'Trending', feed: 'ExplorePage' }], selected: 0 });
   if (p === '/threads') return timelinePage({ title: 'threads / X', tabs: [{ label: 'Posts', feed: 'ThreadsTimeline' }], selected: 0 });
+  if (p === '/i/lists/123') return timelinePage({ title: 'List / X', tabs: [{ label: 'Posts', feed: 'ListLatestTimeline' }], selected: 0, meta: 'ListByRestId' });
   if (p === '/dupes') return timelinePage({ title: 'dupes / X', tabs: [{ label: 'Posts', feed: 'DupesTimeline' }], selected: 0 });
   if (p === '/nofeed') return timelinePage({ ...HOME, title: 'No feed / X', load: false });
   const m = /^\/user\/status\/(\d+)$/.exec(p);
