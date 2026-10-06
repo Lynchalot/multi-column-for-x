@@ -64,6 +64,7 @@ var XMCSettings = (function () {
     {
       id: 'posts', title: 'Posts', items: [
         { key: 'profileHeader', type: 'bool', def: true, label: 'Show a profile\u2019s header above its posts', help: 'Name, bio and follower counts.' },
+        { key: 'hoverActions', type: 'bool', def: true, label: 'Show like, repost and save on a picture when I point at it' },
         { key: 'tallPhotos', type: 'select', def: 'cap', label: 'Tall pictures', options: [['cap', 'Trim to fit (click to see all of it)'], ['full', 'Show in full']] },
         { key: 'counts', type: 'bool', def: true, label: 'Show reply, repost and like counts' },
         { key: 'hideViews', type: 'bool', def: false, label: 'Hide view counts' },
@@ -76,7 +77,7 @@ var XMCSettings = (function () {
         { key: 'showSource', type: 'bool', def: false, label: 'Show which app a post was sent from' },
         { key: 'nsfw', type: 'select', def: 'blur', label: 'Sensitive media', options: [['blur', 'Blur until I click'], ['show', 'Show'], ['hide', 'Hide those posts']], help: 'Also applies on X\u2019s own pages (a post, a profile), where Hide leaves the picture out.' },
         { key: 'autoplayVideo', type: 'select', def: 'off', label: 'Videos', options: [['off', 'Play when I click'], ['muted', 'Autoplay muted while on screen']] },
-        { key: 'openIn', type: 'select', def: 'newtab', label: 'Open posts and profiles', options: [['newtab', 'In a new tab (you keep your place here)'], ['sametab', 'In this tab']] },
+        { key: 'openIn', type: 'select', def: 'view', label: 'Open posts and profiles', options: [['view', 'Posts in a panel over the columns, profiles in a new tab'], ['newtab', 'In a new tab (you keep your place here)'], ['sametab', 'In this tab']] },
         { key: 'commentSort', type: 'select', def: 'relevant', label: 'Order comments by', options: [['relevant', 'Relevant (as X ranks them)'], ['recent', 'Most recent'], ['likes', 'Most liked']] },
         { key: 'systemFont', type: 'bool', def: false, label: 'Use my system font instead of X’s Chirp font' },
       ],
@@ -148,8 +149,8 @@ var XMCSettings = (function () {
 
   // Bump when a default changes: values saved by older versions for those keys were never a choice
   // (older versions saved everything), so they're dropped rather than allowed to pin the old default.
-  const VERSION = 8;
-  const DEFAULT_CHANGED_IN = { 2: ['hideDmDrawer'], 6: ['hideDmDrawer', 'hideGrokDrawer'], 7: ['hideDmDrawer', 'hideGrokDrawer'], 8: ['hideDmDrawer', 'hideGrokDrawer'] };
+  const VERSION = 9;
+  const DEFAULT_CHANGED_IN = { 2: ['hideDmDrawer'], 6: ['hideDmDrawer', 'hideGrokDrawer'], 7: ['hideDmDrawer', 'hideGrokDrawer'], 8: ['hideDmDrawer', 'hideGrokDrawer'], 9: ['openIn'] };
   // the old default of a setting, as older versions saved it: dropped (it was never a choice) so the new default applies
   const OLD_DEFAULTS = { 3: { dlPattern: 'X/{account}/{tweetId}-{serial}' }, 4: { dlFolder: '' }, 5: { minColWidth: 440 } };
 

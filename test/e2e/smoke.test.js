@@ -911,3 +911,56 @@ browserTest('on X\'s own pages the sensitive-media setting works on X\'s blur it
     assert.deepEqual(await probe(hide.page), { filter: 'blur(30px)', picture: 'none', notice: 'none' }, 'the picture and its notice are gone');
   });
 });
+
+browserTest('clicking a post opens it in a panel over the columns: pictures, words, actions and comments; Esc closes it and nothing moved', async (e) => {
+  const h = await e.open('/home/', { width: 1600, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
+    await page.evaluate(() => { document.querySelector('.xmc-scroller').scrollTop = 300; });
+    await page.waitForTimeout(200);
+    const before = await page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop);
+    // a post with a picture: click its words
+    const id = await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector('.xmc-media img') && x.querySelector(':scope > .xmc-text')); const t = window.__xmc.view.cards.find((x) => x.el === c); c.querySelector(':scope > .xmc-text').click(); return t.id; });
+    await page.waitForSelector('.xmc-view .xmc-vpanel');
+    assert.equal(await page.locator('.xmc-vmediapane img').count() >= 1, true, 'its picture at full size');
+    assert.ok((await page.locator('.xmc-vside .xmc-text').innerText()).includes(id), 'its words');
+    assert.equal(await page.locator('.xmc-vside [data-act="like"]').count(), 1, 'its actions');
+    await page.waitForSelector('.xmc-vside .xmc-cbox', { timeout: 20000 }); // and its comments box
+    assert.deepEqual(await page.evaluate(() => window.__opened), [], 'no new tab');
+    // like from the panel presses X's real button and shows on the card too
+    await page.locator('.xmc-vside [data-act="like"]').click();
+    await page.waitForFunction((i) => (window.__actions || []).includes('liked:' + i), id, { timeout: 15000 });
+    assert.equal(await page.evaluate((i) => window.__xmc.view.cards.find((t) => t.id === i).el.querySelector('.xmc-actions [data-act="like"]').classList.contains('on'), id), true, 'the card shows it too');
+    // the arrow keys go to the next post
+    await page.keyboard.press('ArrowRight');
+    await page.waitForFunction((i) => !document.querySelector('.xmc-vside .xmc-text') || !document.querySelector('.xmc-vside .xmc-text').innerText.includes(i), id);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view'));
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop), before, 'the columns did not move');
+    await page.waitForFunction(() => location.pathname === '/home/', null, { timeout: 15000 }); // X's hidden side finishes fetching comments and steps back
+  });
+}, 90000);
+
+browserTest('pointing at a picture shows like, repost, save and download on it; they work', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const media = page.locator('.xmc-card .xmc-media:has(img):not(.sensitive)').first();
+    const bar = media.locator('.xmc-hover');
+    assert.equal(await bar.evaluate((b) => getComputedStyle(b).opacity), '0', 'hidden until you point');
+    await media.hover();
+    await page.waitForFunction((el) => getComputedStyle(el).opacity === '1', await bar.elementHandle());
+    const id = await page.evaluate(() => { const m = document.querySelector('.xmc-card .xmc-media:hover'); return window.__xmc.view.cards.find((t) => t.el === m.closest('.xmc-card')).id; });
+    await bar.locator('[data-act="bookmark"]').click();
+    await page.waitForFunction((i) => (window.__actions || []).includes('bm:' + i), id, { timeout: 15000 });
+    assert.equal(await page.locator('.xmc-viewer, #xmc-lightbox').count(), 0, 'pressing it did not open the picture');
+  });
+  const off = await e.open('/home/', { settings: { v: 9, hoverActions: false } });
+  await checked(off, async () => {
+    await e.ready(off.page);
+    assert.equal(await off.page.locator('.xmc-hover').count(), 0);
+  });
+});

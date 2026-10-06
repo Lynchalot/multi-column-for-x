@@ -453,3 +453,45 @@ html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
 /* "Card background: None": the cards sit straight on the page again */
 #xmc-root.xmc-flat .xmc-card, #xmc-root.xmc-flat .xmc-profile { background: transparent; border-color: transparent; }
 #xmc-root.xmc-flat .xmc-card:hover { background: var(--xmc-hover); }
+
+/* ---- actions on a picture, shown when you point at it ---- */
+.xmc-hover { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; gap: 6px; opacity: 0; transform: translateY(-3px); pointer-events: none; transition: opacity .12s ease, transform .12s ease; }
+.xmc-media:hover .xmc-hover, .xmc-media:focus-within .xmc-hover { opacity: 1; transform: none; pointer-events: auto; }
+.xmc-hover .xmc-act { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 50%; color: #fff; background: rgba(0, 0, 0, .55); backdrop-filter: blur(6px); }
+.xmc-hover .xmc-act:hover { background: rgba(0, 0, 0, .8); color: #fff; }
+.xmc-hover .xmc-n { display: none; }
+.xmc-hover .xmc-act[data-act=like].on { color: #f91880; }
+.xmc-hover .xmc-act[data-act=repost].on { color: #00ba7c; }
+.xmc-hover .xmc-act[data-act=bookmark].on, .xmc-hover .xmc-act[data-act=download].done { color: var(--xmc-accent); }
+.xmc-media.sensitive .xmc-hover { display: none; }
+
+/* ---- a post, opened over the columns ---- */
+.xmc-view { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, .6); backdrop-filter: blur(6px); animation: xmc-fade .14s ease-out; cursor: zoom-out; }
+.xmc-view.xmc-still, .xmc-view.xmc-still .xmc-vpanel { animation: none; }
+.xmc-vpanel { display: flex; width: min(1200px, 100%); height: min(880px, 100%); overflow: hidden; border-radius: 20px; border: 1px solid var(--xmc-edge); background: var(--xmc-solid, var(--xmc-bg)); color: var(--xmc-fg);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .5); cursor: default; animation: xmc-zoom .16s ease-out; }
+.xmc-vpanel.single { width: min(640px, 100%); height: auto; max-height: 100%; }
+.xmc-vmediapane { flex: 1 1 62%; min-width: 0; background: #000; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 2px; }
+.xmc-vm { position: relative; flex: 1 0 auto; display: flex; align-items: center; justify-content: center; min-height: 0; }
+.xmc-vm img { display: block; max-width: 100%; height: auto; max-height: 100%; object-fit: contain; cursor: zoom-in; }
+.xmc-vmediapane > .xmc-vm:only-child img { max-height: min(880px, calc(100vh - 50px)); }
+.xmc-vm .xmc-video, .xmc-vm video { width: 100%; max-height: min(880px, calc(100vh - 50px)); display: block; }
+.xmc-vm.sensitive img, .xmc-vm.sensitive video { filter: blur(32px); transform: scale(1.05); }
+html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive video { filter: none !important; transform: none !important; }
+.xmc-vside { flex: 0 0 min(440px, 100%); min-width: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px 18px 20px; font-size: 15px; line-height: 1.4; }
+.xmc-vpanel.single .xmc-vside { flex: 1 1 auto; }
+.xmc-vside a { color: inherit; text-decoration: none; }
+.xmc-vside .xmc-text a { color: var(--xmc-accent); }
+.xmc-vside .xmc-text a:hover, .xmc-vside .xmc-name:hover { text-decoration: underline; }
+.xmc-vside .xmc-actions { margin: 8px -8px 4px; }
+.xmc-vside .xmc-replies { margin: 8px 0 0; padding: 4px 0 0; }
+.xmc-view .xmc-rclose { display: none; }
+.xmc-vclose, .xmc-vnav { position: absolute; appearance: none; border: 0; cursor: pointer; color: #fff; background: rgba(255, 255, 255, .14); width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.xmc-vclose:hover, .xmc-vnav:hover { background: rgba(255, 255, 255, .28); }
+.xmc-vclose svg, .xmc-vnav svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-vclose { top: 16px; right: 16px; }
+.xmc-vnav { top: 50%; margin-top: -22px; }
+.xmc-vnav.prev { left: 16px; } .xmc-vnav.next { right: 16px; }
+.xmc-vnav[hidden] { display: none; }
+@media (max-width: 900px) { .xmc-vpanel { flex-direction: column; overflow-y: auto; } .xmc-vmediapane { flex: 0 0 auto; max-height: 55%; } .xmc-vside { flex: 1 0 auto; overflow: visible; } }
+@media (prefers-reduced-motion: reduce) { .xmc-view, .xmc-vpanel { animation: none; } .xmc-hover { transition: none; } }

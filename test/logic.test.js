@@ -227,7 +227,9 @@ test('downloads: old saved values no longer pin existing users, but real choices
   assert.equal(S.normalize({}).dlSuffix, 'twitter');
   assert.equal(S.normalize({}).dlByAccount, false);
   assert.equal(S.normalize({}).dlAsk, false);
-  assert.equal(S.normalize({}).openIn, 'newtab');
+  assert.equal(S.normalize({}).openIn, 'view');
+  assert.equal(S.normalize({ openIn: 'newtab' }).openIn, 'view', 'an older version\'s saved choice was the old default');
+  assert.equal(S.normalize({ v: 9, openIn: 'newtab' }).openIn, 'newtab', 'but a choice made on this version is kept');
 });
 
 const R = (id, depth, like, createdAt) => ({ id, depth, counts: { like }, createdAt });

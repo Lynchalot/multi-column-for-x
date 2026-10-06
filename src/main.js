@@ -506,6 +506,11 @@
     if (clips) bits.push(t.media.some((m) => m.type === 'gif') && clips === 1 ? 'GIF' : clips === 1 ? 'video' : clips + ' videos');
     return h('button', { className: 'xmc-mediachip', type: 'button', title: 'Show the pictures and video', textContent: '\u25b6 ' + bits.join(' + ') });
   }
+  // like, repost, save and download, on the picture, shown when you point at it
+  function hoverBar(t) {
+    const bar = h('div', { className: 'xmc-hover' }, actionBtn('like', 'Like'), actionBtn('repost', T('repost')), actionBtn('bookmark', 'Bookmark'), actionBtn('download', 'Download media', 'download'));
+    return bar;
+  }
   // the post a reply is answering, above the reply: its words, pictures and what it quotes, as X shows it
   function renderParentContext(p) {
     const box = h('div', { className: 'xmc-pctx' },
@@ -557,7 +562,11 @@
       if (long) card.append(h('button', { className: 'xmc-more', type: 'button', textContent: 'Show more' }));
       if (needsTranslation(t)) card.append(h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Opens the post, where X can translate it' }));
     }
-    if (t.media.length) card.append(pageLayout().density === 'text' && !t.revealed ? mediaChip(t) : renderMedia(t));
+    if (t.media.length) {
+      const pics = pageLayout().density === 'text' && !t.revealed ? mediaChip(t) : renderMedia(t);
+      if (settings.hoverActions && pics.classList.contains('xmc-media') && hasMedia(t)) pics.append(hoverBar(t));
+      card.append(pics);
+    }
     if (t.card) card.append(renderLinkCard(t.card));
     if (t.quoted) card.append(renderQuote(t.quoted));
     card.dataset.thr = t.thread && t.thread.length ? t.thread.map((k) => k.id).join(',') : '';
@@ -573,24 +582,26 @@
     return card;
   }
   function updateActions(t, card) {
-    card = card || t.el;
-    if (!card) return;
-    const set = (act, on, n) => {
-      const b = card.querySelector(`[data-act="${act}"]`);
-      if (!b) return;
-      b.classList.toggle('on', !!on);
-      b.querySelector('.xmc-n').textContent = fmt(n);
-    };
-    set('reply', !!card.querySelector('.xmc-replies'), t.counts.reply);
-    set('repost', t.state.reposted, t.counts.repost);
-    set('like', t.state.liked, t.counts.like);
-    set('bookmark', t.state.bookmarked, t.counts.bookmark);
-    const dl = card.querySelector('[data-act="download"]');
-    if (dl) {
+    const places = card ? [card] : [t.el, postView && postView.t === t ? postView.side : null];
+    for (const where_ of places) {
+      if (!where_) continue;
+      const set = (act, on, n) => {
+        for (const b of where_.querySelectorAll(`[data-act="${act}"]`)) {
+          b.classList.toggle('on', !!on);
+          const label = b.querySelector('.xmc-n');
+          if (label) label.textContent = fmt(n);
+        }
+      };
+      set('reply', !!where_.querySelector('.xmc-replies'), t.counts.reply);
+      set('repost', t.state.reposted, t.counts.repost);
+      set('like', t.state.liked, t.counts.like);
+      set('bookmark', t.state.bookmarked, t.counts.bookmark);
       const done = settings.dlHistory && savedDownloads.has(t.id);
-      dl.classList.toggle('done', !!done);
-      dl.title = done ? 'Downloaded — click to download again' : 'Download media';
-      dl.replaceChildren(icon(done ? 'done' : 'download'));
+      for (const dl of where_.querySelectorAll('[data-act="download"]')) {
+        dl.classList.toggle('done', !!done);
+        dl.title = done ? 'Downloaded — click to download again' : 'Download media';
+        dl.replaceChildren(icon(done ? 'done' : 'download'));
+      }
     }
   }
   const refreshDownloadMarks = () => { for (const t of view.cards) updateActions(t); };
@@ -685,7 +696,7 @@
   }, { passive: false, capture: true });
 
   // Vimium and friends scroll "the element you last clicked in", so make that our columns
-  const focusScroller = () => { if (!root.hidden && !/^(input|textarea|select)$/i.test((document.activeElement || {}).tagName || '')) scroller.focus({ preventScroll: true }); };
+  const focusScroller = () => { if (!root.hidden && !postView && !/^(input|textarea|select)$/i.test((document.activeElement || {}).tagName || '')) scroller.focus({ preventScroll: true }); };
   root.addEventListener('pointerdown', (e) => { if (!e.target.closest('input, textarea, select')) setTimeout(focusScroller, 0); });
   let drawSoon = 0;
   let lastScrollAt = 0;
@@ -802,9 +813,10 @@
   }
   const setCols = (n) => setLayout({ cols: Math.max(0, Math.min(8, n)) });
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { if (lightbox) closeLightbox(); closeMenu(); }
+    if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) closePostView(); }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
     if (lightbox && e.key === 'ArrowLeft') stepLightbox(-1);
+    if (postView && !lightbox && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !/^(input|textarea|select|video)$/i.test((e.target || {}).tagName || '')) { e.preventDefault(); stepPostView(e.key === 'ArrowRight' ? 1 : -1); }
   }, true);
 
   // ---------- columns ----------
@@ -825,7 +837,7 @@
   const FILTER_KEYS = ['filter', 'repostsHome', 'quotesHome', 'repliesHome', 'repostsProfile', 'repostsLists', 'onlyFollowed',
     'hideBlueReplies', 'hideMutedQuotes', 'mutedWords', 'mutedAccounts', 'nsfw', 'seen', 'collapseReposts', 'foldThreads'];
   // everything that changes how a card is built
-  const RENDER_KEYS = ['branding', 'showSource', 'autoplayVideo', 'tallPhotos'];
+  const RENDER_KEYS = ['branding', 'showSource', 'autoplayVideo', 'tallPhotos', 'hoverActions'];
   const sigOf = (keys) => keys.map((k) => String(settings[k])).join('|') + '|' + where() + '|' + settings.mutedQuoteIds.length;
   const filterSig = () => sigOf(FILTER_KEYS) + '|' + (state.showSeen ? 1 : 0) + '|' + seenEpoch;
   const renderSig = () => RENDER_KEYS.map((k) => String(settings[k])).join('|') + '|' + pageLayout().density;
@@ -1259,7 +1271,17 @@
   const normHref = (s) => String(s || '').split('?')[0].toLowerCase();
   // the link on a post's time stamp, found by the post's number (exact), not by how X spells the handle
   const timeLinkOf = (art, id) => [...art.querySelectorAll('a[href]')].find((a) => idOfHref(a.getAttribute('href')) === id && a.querySelector('time'));
+  // a link to a post we already have opens in the panel; anything else (a profile, a post we haven't seen) in a new tab
+  function openHref(href) {
+    const m = /^\/[^/]+\/status\/(\d+)\/?$/.exec(new URL(href, location.origin).pathname);
+    const tw = m && state.byId.get(m[1]);
+    if (tw && tw.author) { openPostView(tw); return true; }
+    window.open(new URL(href, location.origin).href, '_blank', 'noopener');
+    return false;
+  }
+  function openOnX(t) { if (settings.openIn === 'sametab') navigate(t.url, t); else window.open(new URL(t.url, location.origin).href, '_blank', 'noopener'); }
   async function navigate(href, t) {
+    if (settings.openIn === 'view') { openHref(href); return; }
     if (settings.openIn === 'newtab') { window.open(new URL(href, location.origin).href, '_blank', 'noopener'); return; }
     if (t) {
       const art = await realArticle(t);
@@ -1881,6 +1903,91 @@
     document.documentElement.classList.remove('xmc-viewer');
   }
 
+  // ---------- the post panel ----------
+  // Opens a post over the columns: its pictures at full size on one side, the words, actions and comments on the other. Esc, the
+  // backdrop or the cross closes it and the columns are exactly as they were; the arrow keys go to the next or previous post.
+  let postView = null; // { t, el, panel, side }
+  function viewMedia(t) {
+    let photo = 0;
+    return t.media.map((m) => {
+      const box = h('div', { className: 'xmc-vm' + (t.sensitive ? ' sensitive' : '') });
+      if (m.type === 'photo') { const img = h('img', { src: photoUrl(m.thumb, 'large'), alt: m.alt || '', decoding: 'async' }); img.dataset.lb = String(photo++); box.append(img); }
+      else box.append(renderVideo(m, t));
+      if (t.sensitive) box.append(h('button', { className: 'xmc-reveal', type: 'button', textContent: 'Sensitive content \u2014 click to view', onclick: (e) => { e.stopPropagation(); box.classList.remove('sensitive'); e.currentTarget.remove(); } }));
+      return box;
+    });
+  }
+  function viewSide(t) {
+    const side = h('div', { className: 'xmc-vside' });
+    const sub = h('div', { className: 'xmc-sub' }, '@' + t.author.handle + ' \u00b7 ',
+      h('a', { className: 'xmc-time xmc-nav', href: t.url, title: new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt) }));
+    side.append(h('div', { className: 'xmc-head' },
+      h('a', { className: 'xmc-avatar xmc-nav', href: '/' + t.author.handle }, h('img', { src: t.author.avatar, alt: '' })),
+      h('div', { className: 'xmc-who' }, h('a', { className: 'xmc-name xmc-nav', href: '/' + t.author.handle }, t.author.name, badge(t.author)), sub)));
+    if (t.segs.length) side.append(h('div', { className: 'xmc-text' }, renderSegs(t.segs)));
+    if (t.card) side.append(renderLinkCard(t.card));
+    if (t.quoted) side.append(renderQuote(t.quoted));
+    if (t.thread && t.thread.length) side.append(renderThread(t));
+    const actions = h('div', { className: 'xmc-actions' });
+    actions.append(actionBtn('reply', 'Comments'), actionBtn('repost', T('repost')), actionBtn('like', 'Like'), actionBtn('bookmark', 'Bookmark'));
+    if (hasMedia(t)) actions.append(actionBtn('download', 'Download media', 'download'));
+    actions.append(actionBtn('share', 'Copy link', 'link'));
+    if (t.counts.views) actions.append(h('span', { className: 'xmc-views xmc-n', textContent: fmt(t.counts.views) + ' views' }));
+    side.append(actions);
+    const panel = h('div', { className: 'xmc-replies' }, h('div', { className: 'xmc-rhead' }, spinner(), h('span', { textContent: ' Loading comments\u2026' })));
+    side.append(panel);
+    if (t.counts.reply > 0) {
+      loadReplies(t, { wanted: () => panel.isConnected }).then((res) => { if (panel.isConnected) { if (!res || !res.data) state.commentFails.push(Date.now()); fillReplies(panel, t, res); updateActions(t); } });
+    } else fillReplies(panel, t, { data: { replies: [], more: false } });
+    return side;
+  }
+  function openPostView(t, still) {
+    closePostView();
+    closeMenu();
+    const media = t.media.length ? h('div', { className: 'xmc-vmediapane' }, ...viewMedia(t)) : null;
+    const side = viewSide(t);
+    const panel = h('div', { className: 'xmc-vpanel' + (media ? '' : ' single') }, media, side);
+    const idx = view.cards.indexOf(t);
+    const nav = (d, ic, label) => h('button', { className: 'xmc-vnav ' + (d < 0 ? 'prev' : 'next'), type: 'button', title: label, hidden: idx < 0 || !view.cards[idx + d], onclick: (e) => { e.stopPropagation(); stepPostView(d); } }, icon(ic));
+    const el = h('div', { className: 'xmc-view' + (still ? ' xmc-still' : '') }, panel, nav(-1, 'prev', 'Previous post (\u2190)'), nav(1, 'next', 'Next post (\u2192)'),
+      h('button', { className: 'xmc-vclose', type: 'button', title: 'Close (Esc)' }, icon('close')));
+    el.addEventListener('click', (e) => {
+      if (e.target === el || e.target.closest('.xmc-vclose')) { closePostView(); return; }
+      const btn = e.target.closest('[data-act]');
+      if (btn) {
+        e.preventDefault(); e.stopPropagation();
+        const kind = btn.dataset.act;
+        if (kind === 'reply') { const box = side.querySelector('.xmc-cbox'); if (box) { box.scrollIntoView({ block: 'nearest' }); box.focus(); } }
+        else if (kind === 'conversation') window.open(new URL(t.url, location.origin).href, '_blank', 'noopener');
+        else act(t, kind, btn);
+        return;
+      }
+      const lb = e.target.closest('[data-lb]');
+      if (lb) { e.preventDefault(); if (!lb.closest('.sensitive')) openLightbox(t, Number(lb.dataset.lb)); return; }
+      const near = e.target.closest('.xmc-tpost, .xmc-pctx');
+      if (near && !e.target.closest('a[href], video, .xmc-reveal')) { e.preventDefault(); navigate(near.dataset.href, null); return; }
+      const quote = e.target.closest('.xmc-quote[data-href]');
+      if (quote && !e.target.closest('a[href]')) { openHref(quote.dataset.href); return; }
+      const nl = e.target.closest('a.xmc-nav');
+      if (nl) { e.preventDefault(); navigate(nl.getAttribute('href'), t); }
+    });
+    el.addEventListener('wheel', (e) => { if (e.target === el) e.preventDefault(); }, { passive: false }); // not onto the columns or X's page behind
+    root.append(el);
+    postView = { t, el, panel, side };
+    updateActions(t);
+    const first = el.querySelector('.xmc-vclose'); if (first) first.focus({ preventScroll: true });
+  }
+  function stepPostView(d) {
+    if (!postView) return;
+    const i = view.cards.indexOf(postView.t), next = i >= 0 ? view.cards[i + d] : null;
+    if (next) openPostView(next, true);
+  }
+  function closePostView() {
+    if (!postView) return;
+    postView.el.remove();
+    postView = null;
+  }
+
   // ---------- translation ----------
   // Posts in another language get a "Translate post" button. It opens the post, where X translates it itself
   // (translating inside the columns kept failing: X offers the control only on the post's own page).
@@ -1970,7 +2077,7 @@
     if (tpost && !e.target.closest('a[href], video, .xmc-reveal')) { e.preventDefault(); navigate(tpost.dataset.href, null); return; }
     if (e.target.closest('.xmc-rclose')) { const p = cardEl.querySelector('.xmc-replies'); if (p) p.remove(); updateActions(t); return; }
     if (e.target.closest('.xmc-replies')) return; // links inside comments open normally (new tab); clicking text doesn't open the post
-    if (e.target.closest('.xmc-translate')) { e.preventDefault(); navigate(t.url, t); return; }
+    if (e.target.closest('.xmc-translate')) { e.preventDefault(); openOnX(t); return; } // X translates on its own page: never in the panel
     const chip = e.target.closest('.xmc-mediachip');
     if (chip) { t.revealed = true; chip.replaceWith(renderMedia(t)); return; }
     const reveal = e.target.closest('.xmc-reveal');
@@ -1985,7 +2092,7 @@
     if (e.target.closest('a[href]')) return; // external link: new tab (target=_blank)
     if (String(getSelection())) return;
     const quote = e.target.closest('.xmc-quote[data-href]');
-    if (quote) { if (settings.openIn === 'newtab') window.open(new URL(quote.dataset.href, location.origin).href, '_blank', 'noopener'); else location.assign(quote.dataset.href); return; }
+    if (quote) { if (settings.openIn === 'view') openHref(quote.dataset.href); else if (settings.openIn === 'newtab') window.open(new URL(quote.dataset.href, location.origin).href, '_blank', 'noopener'); else location.assign(quote.dataset.href); return; }
     navigate(t.url, t);
   });
   // Resting on the comments button for a moment starts fetching them, so they're often there by the time you click
