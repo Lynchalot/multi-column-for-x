@@ -445,8 +445,11 @@
     for (const m of list) {
       let node;
       if (m.type === 'photo') {
+        box.classList.add('xmc-loading'); // a quiet tint until the picture has arrived, then it fades in
         node = h('img', { src: photoUrl(m.thumb, n === 1 ? 'large' : 'medium'), alt: m.alt, loading: 'eager', decoding: 'async' }); // the card is only drawn a few screens ahead, so loading now keeps photos from sitting black while you scroll
         node.dataset.lb = String(photoIdx++);
+        const arrived = () => box.classList.remove('xmc-loading');
+        node.addEventListener('load', arrived); node.addEventListener('error', arrived); setTimeout(arrived, 8000);
       } else node = renderVideo(m, t);
       if (n === 1) box.style.aspectRatio = String(clampRatio(m.w, m.h, photoFloor(m)));
       box.append(node);
@@ -1380,6 +1383,10 @@
     } finally { setTimeout(() => doc.classList.remove('xmc-acting'), 500); }
   }
 
+  // every history step back that we take ourselves is noted, so the Back button (the person's) can be told from them
+  let ownBackAt = 0;
+  function stepBack() { ownBackAt = Date.now(); window.history.back(); }
+
   // ---------- comments ----------
   // X only sends a post's replies when its own page is opened. So we open that page on X's hidden side (nothing
   // changes on screen: our columns stay put), read the conversation as it arrives, and go straight back.
@@ -1430,7 +1437,7 @@
         : 'X opened the post but sent no comments. Requests seen: ' + Object.keys(state.seenOps).join(', ') };
     } finally {
       if (onPostPage() && idOfHref(location.pathname) === t.id) { // still the page we opened (not one you've since gone to yourself)
-        window.history.back();
+        stepBack();
         await waitFor(() => !onPostPage(), 3500);
       }
       state.peek = null;
@@ -1605,7 +1612,7 @@
         out = { ok: false, why: 'Something went wrong (' + ((err && err.message) || err) + ').' };
         return out;
       } finally {
-        if (!stay && onPostPage() && idOfHref(location.pathname) === t.id) { window.history.back(); await waitFor(() => !onPostPage(), 3500); }
+        if (!stay && onPostPage() && idOfHref(location.pathname) === t.id) { stepBack(); await waitFor(() => !onPostPage(), 3500); }
         state.peek = null;
         state.lastPeekEnd = Date.now();
         state.proxyUntil = Date.now() + 1500;
@@ -1804,6 +1811,8 @@
 
   // a one-time line saying what you can do here
   function dismissHint() { hintEl.hidden = true; if (!settings.hintSeen) { settings.hintSeen = true; save(); } }
+  // a panel closed while X's hidden side was busy leaves our history entry behind: remove it once things are quiet
+  function tidyHistory() { if (!postView && !state.peek && !state.posting && !onPostPage() && window.history.state && window.history.state.xmcView) stepBack(); }
   function updateHint() { const show = !settings.hintSeen && state.shown && view.cards.length >= 3 && !postView; if (hintEl.hidden === show) hintEl.hidden = !show; }
 
   // ---------- popover menus ----------
@@ -1962,7 +1971,13 @@
     let photo = 0;
     return t.media.map((m) => {
       const box = h('div', { className: 'xmc-vm' + (t.sensitive ? ' sensitive' : '') });
-      if (m.type === 'photo') { const img = h('img', { src: photoUrl(m.thumb, 'large'), alt: m.alt || '', decoding: 'async' }); img.dataset.lb = String(photo++); box.append(img); }
+      if (m.type === 'photo') {
+        const img = h('img', { src: photoUrl(m.thumb, 'large'), alt: m.alt || '', decoding: 'async' }); img.dataset.lb = String(photo++);
+        box.classList.add('xmc-loading');
+        const arrived = () => box.classList.remove('xmc-loading');
+        img.addEventListener('load', arrived); img.addEventListener('error', arrived); setTimeout(arrived, 8000);
+        box.append(img);
+      }
       else box.append(renderVideo(m, t));
       if (t.sensitive) box.append(h('button', { className: 'xmc-reveal', type: 'button', textContent: 'Sensitive content \u2014 click to view', onclick: (e) => { e.stopPropagation(); box.classList.remove('sensitive'); e.currentTarget.remove(); } }));
       return box;
@@ -2002,7 +2017,8 @@
     return side;
   }
   function openPostView(t, still, focusBox) {
-    closePostView();
+    const reopen = !!postView;
+    closePostView(reopen);
     closeMenu();
     const media = t.media.length ? h('div', { className: 'xmc-vmediapane' }, ...viewMedia(t)) : null;
     const side = viewSide(t, focusBox);
@@ -2034,6 +2050,10 @@
     el.addEventListener('wheel', (e) => { if (e.target === el) e.preventDefault(); }, { passive: false }); // not onto the columns or X's page behind
     root.append(el);
     postView = { t, el, panel, side };
+    if (!reopen) {
+      try { window.history.pushState({ xmcView: true }, '', location.href); } catch { /* ignore */ } // so the Back button closes the panel
+      growFrom(t, panel);
+    }
     updateActions(t);
     const first = el.querySelector('.xmc-vclose'); if (first && !focusBox) first.focus({ preventScroll: true });
     if (!settings.hintSeen) dismissHint();
@@ -2043,12 +2063,32 @@
     const i = view.cards.indexOf(postView.t), next = i >= 0 ? view.cards[i + d] : null;
     if (next) openPostView(next, true);
   }
-  function closePostView() {
-    if (!postView) return;
-    postView.el.remove();
-    postView = null;
+  // the panel grows out of the picture (or card) you clicked
+  function growFrom(t, panel) {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches || !t.el) return;
+    const source = t.el.querySelector('.xmc-media') || t.el;
+    const from = source.getBoundingClientRect(), to = panel.getBoundingClientRect();
+    if (!from.width || !to.width) return;
+    const scale = Math.max(0.15, Math.min(1, from.width / to.width, from.height / to.height));
+    const dx = from.left + from.width / 2 - (to.left + to.width / 2), dy = from.top + from.height / 2 - (to.top + to.height / 2);
+    panel.style.animation = 'none';
+    panel.style.transition = 'none';
+    panel.style.transform = `translate(${Math.round(dx)}px, ${Math.round(dy)}px) scale(${scale})`;
+    panel.style.opacity = '0.4';
+    void panel.offsetWidth;
+    panel.style.transition = 'transform .24s cubic-bezier(.2, .8, .2, 1), opacity .18s ease-out';
+    panel.style.transform = ''; panel.style.opacity = '';
   }
-
+  function closePostView(keepHistory) {
+    if (!postView) return;
+    const el = postView.el;
+    postView = null;
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) { el.classList.add('xmc-out'); setTimeout(() => el.remove(), 130); } else el.remove();
+    if (!keepHistory && window.history.state && window.history.state.xmcView) stepBack(); // take our own history entry away again
+  }
+  window.addEventListener('popstate', () => { // the person pressed Back with the panel open: close it (X's own steps, and ours, don't count)
+    if (postView && !state.posting && Date.now() - ownBackAt > 1500) closePostView(true);
+  });
   // ---------- translation ----------
   // Posts in another language get a "Translate post" button. It opens the post, where X translates it itself
   // (translating inside the columns kept failing: X offers the control only on the post's own page).
@@ -2156,24 +2196,24 @@
     if (quote) { if (settings.openIn === 'view') openHref(quote.dataset.href); else if (settings.openIn === 'newtab') window.open(new URL(quote.dataset.href, location.origin).href, '_blank', 'noopener'); else location.assign(quote.dataset.href); return; }
     navigate(t.url, t);
   });
-  // Resting on the comments button for a moment starts fetching them, so they're often there by the time you click
-  // (a pass over it, or the page scrolling under the pointer, doesn't count)
+  // Resting on a post for a moment starts fetching its comments, so they are usually there by the time you open it (a pass over it,
+  // or the page scrolling under the pointer, doesn't count; and not while other comments are on their way)
   const prefetching = new Set();
   let hoverTimer = 0;
   colsEl.addEventListener('pointerover', (e) => {
-    const b = e.target.closest && e.target.closest('[data-act="reply"]');
-    if (!b) return;
+    const card = e.target.closest && e.target.closest('.xmc-card');
+    if (!card) return;
     clearTimeout(hoverTimer);
+    const onButton = !!e.target.closest('[data-act="reply"]');
     hoverTimer = setTimeout(() => {
-      if (Date.now() - lastScrollAt < 600 || !b.isConnected || !b.matches(':hover')) return;
-      const card = b.closest('.xmc-card');
-      const t = card && tweetOf.get(card);
-      if (!t || !t.counts.reply || state.details.has(t.id) || prefetching.has(t.id) || state.peek || repliesWaiting || state.posting) return;
+      if (Date.now() - lastScrollAt < 600 || !card.isConnected || !card.matches(':hover')) return;
+      const t = tweetOf.get(card);
+      if (!t || !t.counts.reply || state.details.has(t.id) || prefetching.has(t.id) || state.peek || repliesWaiting || state.posting || postView) return;
       prefetching.add(t.id);
       loadReplies(t).finally(() => prefetching.delete(t.id));
-    }, 350);
+    }, onButton ? 350 : 600);
   });
-  colsEl.addEventListener('pointerout', (e) => { if (e.target.closest && e.target.closest('[data-act="reply"]')) clearTimeout(hoverTimer); });
+  colsEl.addEventListener('pointerout', (e) => { const to = e.relatedTarget; if (!to || !(to.closest && to.closest('.xmc-card'))) clearTimeout(hoverTimer); });
   // only one (non-autoplaying) video plays at a time, and it is watched while it plays so it stops when scrolled away
   colsEl.addEventListener('play', (e) => {
     if (e.target.tagName !== 'VIDEO' || e.target.dataset.gif) return;
@@ -2777,7 +2817,7 @@
     }
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
-    if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); }
+    if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
     if (tickN % 10 === 5 && Date.now() - lastScrollAt > 500) guard('recycle', () => recycleCards(false));
     if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);

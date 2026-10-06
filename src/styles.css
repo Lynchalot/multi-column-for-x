@@ -504,3 +504,10 @@ html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive v
 .xmc-hint[hidden] { display: none; }
 /* no hovering on a touch screen: the actions on a picture stay visible */
 @media (hover: none) { .xmc-hover { opacity: 1; transform: none; pointer-events: auto; } }
+
+/* pictures: a quiet tint where they will be, then they fade in */
+.xmc-media:has(> img), .xmc-vm { background: var(--xmc-hover); }
+.xmc-media img, .xmc-vm img { transition: opacity .2s ease; }
+.xmc-media.xmc-loading img, .xmc-vm.xmc-loading img { opacity: 0; }
+.xmc-view.xmc-out { opacity: 0; transition: opacity .12s ease-in; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .xmc-media img, .xmc-vm img, .xmc-view.xmc-out { transition: none; } }

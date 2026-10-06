@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18.0
+- **Comments are usually there when the panel opens.** Resting on any post for about half a second (not just the comments button) starts loading its comments out of sight.
+- **The post panel grows out of the picture (or card) you clicked** and fades out when closed.
+- **The Back button closes the panel** instead of leaving the page. Closing it with Esc or a click leaves no extra history behind.
+- **Pictures arrive from a quiet tint** and fade in, rather than appearing out of black.
+
 ## 0.17.0
 - **A one-time hint** under the top bar the first time columns show: what clicking, Esc and the arrow keys do, that pictures have actions on hover, and where settings are. "Got it" dismisses it for good (it also goes away the first time you open a post).
 - **The comments button opens the post panel** with the cursor in the reply box, instead of making the card very tall. Option: Posts, "Open comments" (In the post panel / Inside the card).

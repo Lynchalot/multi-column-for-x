@@ -1039,3 +1039,44 @@ browserTest('the Following tab shows its Popular / Recent arrow from the start, 
     assert.deepEqual(await page.evaluate(() => window.__opened), ['https://github.com/Lynchalot/multi-column-for-x/issues/new/choose']);
   });
 });
+
+browserTest('the Back button closes the post panel, and closing it by hand leaves no extra history behind', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const len0 = await page.evaluate(() => history.length);
+    const open = () => page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector(':scope > .xmc-text')); c.querySelector(':scope > .xmc-text').click(); });
+    await open();
+    await page.waitForSelector('.xmc-view .xmc-vpanel');
+    assert.equal(await page.evaluate(() => history.state && history.state.xmcView), true);
+    await page.goBack();
+    await page.waitForFunction(() => !document.querySelector('.xmc-view'), null, { timeout: 5000 });
+    assert.equal(await page.evaluate(() => location.pathname), '/home/', 'Back stayed on the page');
+    await page.waitForTimeout(800);
+    await open();
+    await page.waitForSelector('.xmc-view .xmc-vpanel');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view'), null, { timeout: 5000 });
+    await page.waitForFunction(() => !(history.state && history.state.xmcView), null, { timeout: 15000 });
+    await page.waitForFunction(() => location.pathname === '/home/', null, { timeout: 15000 });
+    assert.ok((await page.evaluate(() => history.length)) <= len0 + 2, 'no pile of leftover entries');
+  });
+}, 90000);
+
+browserTest('resting on a post starts loading its comments; pictures fade in from a tint', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const id = await page.evaluate(() => { const t = window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected); return t.id; });
+    const card = page.locator('.xmc-card').filter({ has: page.locator(`a[href$="/status/${id}"]`) }).first();
+    await card.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(800);
+    await card.locator(':scope > .xmc-text').hover();
+    await page.waitForFunction((i) => window.__xmc.state.details.has(i), id, { timeout: 25000 });
+    await page.waitForFunction(() => location.pathname === '/home/', null, { timeout: 15000 });
+    await page.waitForFunction(() => !document.querySelector('.xmc-media.xmc-loading'), null, { timeout: 12000 });
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-media img')).opacity), '1');
+  });
+}, 90000);
