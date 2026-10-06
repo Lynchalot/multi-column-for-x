@@ -1437,6 +1437,35 @@ browserTest('comments in the panel keep coming as you scroll down, added below w
   });
 }, 120000);
 
+browserTest('on a narrow bar the controls fold into one menu button (Show, Columns, Sensitive media, Settings); on a wide one they stay as they are', async (e) => {
+  const narrow = await e.open('/home/', { width: 1000, height: 800 });
+  await checked(narrow, async () => {
+    const { page } = narrow;
+    await e.ready(page);
+    const vis = (sel) => page.evaluate((q) => { const el = document.querySelector(q); return !!el && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0; }, sel);
+    const width = await page.evaluate(() => Math.round(document.querySelector('.xmc-bar1').getBoundingClientRect().width));
+    assert.ok(width <= 560, 'the bar is narrow here: ' + width);
+    assert.equal(await vis('.xmc-menubtn'), true, 'the menu button shows');
+    for (const sel of ['.xmc-colbtn', '.xmc-nsfw', '.xmc-gear']) assert.equal(await vis(sel), false, sel + ' is folded away');
+    assert.equal(await vis('.xmc-refresh'), true, 'refresh (with its "N new") stays');
+    await page.locator('.xmc-menubtn').click();
+    const items = await page.locator('.xmc-menu button').allInnerTexts();
+    assert.ok(items.some((x) => /^Columns:/.test(x)) && items.some((x) => /^Sensitive media:/.test(x)) && items.includes('Settings'), items.join(' | '));
+    await page.locator('.xmc-menu button', { hasText: 'Columns:' }).click();
+    assert.ok((await page.locator('.xmc-menu button').allInnerTexts()).some((x) => /Auto/.test(x)), 'the columns list opens from the menu');
+    await page.keyboard.press('Escape');
+    await page.locator('.xmc-menubtn').click();
+    await page.locator('.xmc-menu button', { hasText: 'Sensitive media:' }).click();
+    assert.equal(await page.evaluate(() => window.__xmc.settings.nsfw), 'show', 'cycled from blurred');
+  });
+  const wide = await e.open('/home/', { width: 1700, height: 800 });
+  await checked(wide, async () => {
+    await e.ready(wide.page);
+    assert.equal(await wide.page.evaluate(() => getComputedStyle(document.querySelector('.xmc-menubtn')).display), 'none');
+    assert.equal(await wide.page.evaluate(() => getComputedStyle(document.querySelector('.xmc-gear')).display !== 'none'), true);
+  });
+});
+
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });
   await checked(h, async () => {

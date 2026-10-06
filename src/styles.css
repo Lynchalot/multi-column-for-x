@@ -296,6 +296,11 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
 /* narrow: the buttons keep their icons and drop their words */
 @container (max-width: 860px) { .xmc-showlabel, .xmc-nsfwl { display: none; } }
 @container (max-width: 560px) { .xmc-pagetitle { display: none; } }
+/* very narrow: the rest of the controls fold into one menu button */
+.xmc-menubtn { display: none; box-sizing: border-box; padding: 0 !important; flex: none; appearance: none; border: 0; background: none; color: inherit; width: 36px; height: 36px; border-radius: 999px; cursor: pointer; align-items: center; justify-content: center; }
+.xmc-menubtn:hover { background: var(--xmc-hover); }
+.xmc-menubtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+@container (max-width: 560px) { .xmc-bar1 > .xmc-showbtn, .xmc-bar1 > .xmc-colbtn, .xmc-bar1 > .xmc-nsfw, .xmc-bar1 > .xmc-gear, .xmc-bar1 > .xmc-density, .xmc-bar1 > .xmc-seenbtn { display: none !important; } .xmc-bar1 > .xmc-menubtn { display: inline-flex; } }
 /* a card too narrow for it drops the view count */
 .xmc-col { container-type: inline-size; }
 @container (max-width: 380px) { .xmc-views { display: none; } }

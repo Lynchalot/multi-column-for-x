@@ -311,6 +311,7 @@
     done: ['M20 6L9 17l-5-5'],
     link: ['M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7', 'M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'],
     more: ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'],
+    menu: ['M4 6h16', 'M4 12h16', 'M4 18h16'],
     check: ['M5 12.5l4.5 4.5L19 7'],
     bird: [XMCSite.BIRD],
     refresh: ['M21 12a9 9 0 1 1-2.6-6.4', 'M21 4v5h-5'],
@@ -697,13 +698,13 @@
   // One button for the number of columns: the number now, and a small arrow; it opens a short list to pick from (Auto first)
   const colLabel = h('span', { className: 'xmc-collabel' });
   const colBtn = h('button', { className: 'xmc-colbtn', type: 'button', onclick: () => openColumnsMenu() }, colLabel, icon('chev'));
-  function openColumnsMenu() {
+  function openColumnsMenu(anchor) {
     const lay = pageLayout(), now = colCount();
     const fit = XMCLogic.autoCols(scroller.clientWidth - 24, { minColWidth: MIN_COL, maxAutoCols: 8 }, GAP); // the most that fit at this width
     const tick = (on) => (on ? '\u2713\u2002' : '\u2003\u2002');
     const items = [[tick(!lay.cols) + 'Auto (' + now + ' now)', () => setCols(0)]];
     for (let n = 1; n <= Math.max(fit, lay.cols || 0, 1); n++) items.push([tick(lay.cols === n) + n + (n === 1 ? ' column' : ' columns'), () => setCols(n)]);
-    openMenu(colBtn, items);
+    openMenu(anchor || colBtn, items);
   }
   // One "Show" menu for what to show (everything, posts only, reposts...), so the tab row above is X's alone
   const showLabel = h('span', { className: 'xmc-showlabel' });
@@ -712,17 +713,28 @@
     if (mediaSplit()) { const kind = subFor(state.sel); return [['Videos', kind === 'videos', () => pickMediaKind('Videos')], ['Photos', kind === 'photos', () => pickMediaKind('Photos')]]; }
     return Object.keys(viewEls).filter((k) => !viewEls[k].hidden).map((k) => [VIEW_LABELS[k](), settings.filter === k, () => setFilter(k)]);
   }
-  function openShowMenu() {
+  function openShowMenu(anchor) {
     const tick = (on) => (on ? '\u2713\u2002' : '\u2003\u2002');
-    openMenu(showBtn, showChoices().map(([label, on, fn]) => [tick(on) + label, fn]));
+    openMenu(anchor || showBtn, showChoices().map(([label, on, fn]) => [tick(on) + label, fn]));
   }
   const DENSITY_LABEL = { normal: 'Normal', compact: 'Compact', text: 'Text' };
   const densityBtn = btn('', '', () => { const all = XMCLogic.DENSITIES; setLayout({ density: all[(all.indexOf(pageLayout().density) + 1) % all.length] }); }, 'xmc-density');
   const seenBtn = btn('', '', () => toggleSeen(), 'xmc-seenbtn');
   seenBtn.hidden = true;
   densityBtn.hidden = DENSITY_SHELVED;
+  // On a narrow bar the controls fold into one menu button (the refresh button, which shows "N new", and the tabs stay)
+  const menuBtn = h('button', { className: 'xmc-menubtn', title: 'Menu', type: 'button', onclick: () => openBarMenu() }, icon('menu'));
+  function openBarMenu() {
+    const items = [];
+    if (!showBtn.hidden) items.push(['Show: ' + showLabel.textContent.replace(/^Show:\s*/, '') + '  \u203a', () => openShowMenu(menuBtn)]);
+    items.push(['Columns: ' + (pageLayout().cols ? colCount() : 'auto, ' + colCount()) + '  \u203a', () => openColumnsMenu(menuBtn)]);
+    items.push(['Sensitive media: ' + ({ blur: 'blurred', show: 'shown', hide: 'hidden' }[settings.nsfw] || 'blurred'), () => cycleNsfw()]);
+    if (!seenBtn.hidden) items.push([seenBtn.textContent, () => toggleSeen()]);
+    items.push(['Settings', () => openOptions()]);
+    openMenu(menuBtn, items);
+  }
   const pageTitleEl = h('span', { className: 'xmc-pagetitle', hidden: true });
-  const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, seenBtn, refreshBtn, showBtn, colBtn, densityBtn, nsfwBtn, gearBtn);
+  const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, seenBtn, refreshBtn, showBtn, colBtn, densityBtn, nsfwBtn, gearBtn, menuBtn);
   const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
   const bar = h('div', { className: 'xmc-bar' }, row1); // (row2, the chips, is no longer shown: its choices are in the Show menu)
   const statusEl = h('div', { className: 'xmc-status' });
@@ -1106,7 +1118,7 @@
     }
     const rs = renderSig();
     if (view.renderSig !== rs) for (const feed of state.feeds.values()) for (const t of feed.items) if (t.el && t.elSig !== rs) t.el = null; // rebuild the cards themselves
-    if (view.feedKey !== f.key || view.version !== f.version || view.sig !== filterSig() || view.renderSig !== rs) resetView(f);
+    if (view.feedKey !== f.key || view.version !== f.version || view.sig !== filterSig() || view.renderSig !== rs) { const newFeed = view.feedKey !== f.key; resetView(f); if (newFeed) applyBar(); } // (the Show list and the rest of the bar match this feed from its first card, not from the next slow pass)
     if (!columns.length) relayout();
     // Draw while ANY column has room: its end is within about three screens below where you are. If there is blank
     // space on screen right now, catch up faster (up to four batches in one go).
@@ -3263,6 +3275,7 @@
       toast('Columns couldn’t load here, so this is X’s normal page. “Turn Columns On” tries again, or use Report a problem.');
       return;
     }
+    if (state.homeHold && state.sel === 1 && !state.awaiting) state.homeHold = false; // Following is up: draw it now, not at the next slow pass
     guard('render', renderFeed);
     guard('pump', pump);
     if (tickN % 5 === 1) { state.xNewPill = where() === 'home' && !!findNewPostsPill(); guard('park', () => parkAtTop(f)); }
