@@ -555,10 +555,10 @@
   }
   const usable = (p) => p && p.author && !p.unavailable && p.segs;
   // the post a reply is answering, above the reply: its words, pictures and what it quotes, as X shows it
-  function renderParentContext(p) {
+  function renderParentContext(p, big) {
     const box = h('div', { className: 'xmc-pctx' },
       h('div', {}, h('b', { textContent: p.author.name }), h('span', { className: 'xmc-dim', textContent: ' @' + p.author.handle + ' · ' + relTime(p.createdAt) })),
-      p.segs.length ? h('div', { className: 'xmc-pctx-text' }, renderSegs(p.segs)) : null,
+      p.segs.length ? h('div', { className: 'xmc-pctx-text' + (big ? ' big' : '') }, renderSegs(p.segs)) : null,
       p.media.length ? renderMedia(p) : null,
       p.card ? renderLinkCard(p.card) : null,
       p.quoted ? renderQuote(p.quoted) : null);
@@ -590,7 +590,7 @@
     tweetOf.set(card, t);
     if (t.repostedBy) card.append(h('div', { className: 'xmc-ctx' }, icon('repost'), h('span', { textContent: ctxText(t) })));
     const chain = t.replyToId || t.parent ? contextChain(t).filter(usable) : [];
-    for (const p of chain) card.append(renderParentContext(p));
+    for (const p of chain) card.append(renderParentContext(p, onlyWords(t)));
     const context = chain.length;
     const sub = h('div', { className: 'xmc-sub' }, '@' + t.author.handle + ' · ',
       h('a', { className: 'xmc-time xmc-nav', href: t.url, title: new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt) }));
@@ -2042,7 +2042,7 @@
   }
   function viewSide(t, focusBox) {
     const side = h('div', { className: 'xmc-vside' });
-    const ctxHost = h('div', { className: 'xmc-vctx' }, ...contextChain(t).filter(usable).map(renderParentContext));
+    const ctxHost = h('div', { className: 'xmc-vctx' }, ...contextChain(t).filter(usable).map((p) => renderParentContext(p, onlyWords(t))));
     side.append(ctxHost);
     const sub = h('div', { className: 'xmc-sub' }, '@' + t.author.handle + ' \u00b7 ',
       h('a', { className: 'xmc-time xmc-nav', href: t.url, title: new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt) }));
@@ -2068,7 +2068,7 @@
         if (!panel.isConnected) return;
         if (!res || !res.data) state.commentFails.push(Date.now());
         const chain = contextChain(t).filter(usable);
-        if (chain.length && !ctxHost.children.length) ctxHost.replaceChildren(...chain.map(renderParentContext));
+        if (chain.length && !ctxHost.children.length) ctxHost.replaceChildren(...chain.map((p) => renderParentContext(p, onlyWords(t))));
         fillReplies(panel, t, res); updateActions(t);
         if (focusBox) { const box = side.querySelector('.xmc-cbox'); if (box) box.focus({ preventScroll: true }); }
       });

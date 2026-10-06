@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.21.1
+- The post a reply answers is set in the same larger type as a short reply that is only words (it had stayed small next to it).
+
 ## 0.21.0
 - **Short posts that are only words are set larger** (20px, 22px in the panel), so they hold their own beside the pictures. Posts with a picture, video, link card or quote, and long posts, are unchanged. Option: Posts, "Set short posts that are only words in larger type".
 - **A toast with Undo** after saving a post to bookmarks or reposting it ("Saved to bookmarks · Undo"), so a mistaken press has an obvious way back.
