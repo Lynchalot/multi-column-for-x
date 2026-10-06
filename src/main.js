@@ -1274,6 +1274,7 @@
       feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0] + (f.key.includes('#') ? '#' + f.key.split('#').pop() : ''), posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
       ageFlag: state.ageFlag || null,
+      trace: TRACE.slice(-120),
       commentTimes: state.commentTimes || [],
       commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
@@ -1341,7 +1342,7 @@
       const here = articles().map((a) => f.index.get(articleId(a))).filter((n) => n !== undefined).sort((a, b) => a - b);
       let dy = here.length ? (idx - here[here.length >> 1]) * 520 : idx * 520 - window.scrollY;
       if (Math.abs(dy) < innerHeight * 0.5) dy = Math.sign(dy || 1) * innerHeight * 0.5;
-      const hop = Math.min(innerHeight * 6, Math.max(innerHeight * 1.5, Math.abs(dy) / 3)); // far away: bigger steps, small ones near the post
+      const hop = Math.min(innerHeight * 8, Math.max(innerHeight * 1.5, Math.abs(dy) * 0.7)); // far away: bigger steps (still steps, never one leap), small ones near the post
       window.scrollBy(0, Math.max(-hop, Math.min(hop, dy)));
       art = await waitFor(() => findArticle(t.id), 150); // as soon as X has drawn it, not after a fixed wait
     }
@@ -1427,8 +1428,17 @@
 
   // every history step back that we take ourselves is noted, so the Back button (the person's) can be told from them
   let ownBackAt = 0;
+  // A rolling log of what the extension did and anything that looked wrong (X's own page showing through, things shifting), kept
+  // for Copy diagnostics so a problem can be read from it without a recording. No post text, only ids and kinds of event.
+  const TRACE = [], traceAt = Date.now(), traceSeen = {};
+  function trace(kind, info) {
+    TRACE.push([Date.now() - traceAt, kind, info === undefined ? '' : String(info).slice(0, 80)]);
+    if (TRACE.length > 160) TRACE.shift();
+  }
+  const traceOnce = (kind, info, gapMs) => { const n = Date.now(); if (n - (traceSeen[kind] || 0) > (gapMs || 3000)) { traceSeen[kind] = n; trace(kind, info); } };
+  try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput && e.value > 0.02) trace('layout-shift', e.value.toFixed(3) + ' ' + (e.sources || []).slice(0, 2).map((x) => x.node && (x.node.id || String(x.node.className).slice(0, 24) || x.node.nodeName)).join(' | ')); }).observe({ type: 'layout-shift', buffered: false }); } catch { /* not supported */ }
   const ownBacks = []; // when each Back we pressed ourselves was pressed; the browser may take seconds to answer (Zen does)
-  function stepBack() { ownBackAt = Date.now(); ownBacks.push(ownBackAt); window.history.back(); }
+  function stepBack() { ownBackAt = Date.now(); ownBacks.push(ownBackAt); trace('back', 'ours, at ' + location.pathname); window.history.back(); }
 
   // ---------- comments ----------
   // X only sends a post's replies when its own page is opened. So we open that page on X's hidden side (nothing
@@ -1471,6 +1481,7 @@
   }
   async function fetchReplies(t, opts) {
     opts = opts || {};
+    trace('visit', 'start ' + t.id + (opts.background ? ' (background)' : ''));
     const T = { start: Date.now() }; // where the time goes, for Copy diagnostics: waiting in line, finding the post, X opening it, X's answer
     state.peek = { id: t.id, replies: null };
     state.proxyUntil = Date.now() + 40000;
@@ -1505,6 +1516,7 @@
         if (onPostPage() && idOfHref(location.pathname) === t.id && window.history.state && window.history.state.xmcView) { stepBack(); await waitFor(() => !onPostPage(), 3500); } // our own entry is what is left on the post's page: one more step, rather than leave X's post page showing
       }
       state.peek = null;
+      trace('visit', 'end ' + t.id);
       state.lastPeekEnd = Date.now();
       state.proxyUntil = Date.now() + 1500;
     }
@@ -1933,6 +1945,14 @@
   // a one-time line saying what you can do here
   function dismissHint() { hintEl.hidden = true; if (!settings.hintSeen) { settings.hintSeen = true; save(); } }
   // a panel closed while X's hidden side was busy leaves our history entry behind: remove it once things are quiet
+  let needEntry = false;
+  function ensurePanelEntry() {
+    if (!needEntry) return;
+    if (!postView) { needEntry = false; return; }
+    if (state.peek || state.posting || onPostPage() || isModalRoute() || Date.now() - ownBackAt < 1500) return;
+    needEntry = false;
+    if (!(window.history.state && window.history.state.xmcView)) { try { window.history.pushState({ xmcView: true }, '', location.href); trace('history', 'panel entry added after the visit'); } catch { /* ignore */ } }
+  }
   function tidyHistory() { if (Date.now() - ownBackAt > 4000 && !postView && !state.peek && !state.posting && !onPostPage() && window.history.state && window.history.state.xmcView) stepBack(); }
   function updateHint() { const show = !settings.hintSeen && state.shown && view.cards.length >= 3 && !postView; if (hintEl.hidden === show) hintEl.hidden = !show; }
 
@@ -2200,6 +2220,7 @@
   }
   function openPostView(t, still, focusBox, opts) {
     const parent = opts && opts.parent;
+    trace('panel-open', t.id + (parent ? ' (comment)' : '') + (postView ? ' (switch)' : ''));
     const reopen = !!postView;
     closePostView(reopen, reopen);
     closeMenu();
@@ -2245,6 +2266,7 @@
     if (!reopen) {
       // so the Back button closes the panel; never while X's hidden side is on, or on its way to, a post's page (the entry would be that page)
       if (!state.peek && !state.posting && !onPostPage() && !isModalRoute()) { try { window.history.pushState({ xmcView: true }, '', location.href); } catch { /* ignore */ } }
+      else needEntry = true; // a visit is running: the entry is added the moment it has ended, so Back still closes the panel
       growFrom(t, panel);
       watchBlur();
     }
@@ -2275,6 +2297,7 @@
   }
   function closePostView(keepHistory, instant) {
     if (!postView) return;
+    trace('panel-close', (instant ? 'switching' : keepHistory ? 'by Back' : 'closed') + ' ' + postView.t.id);
     const el = postView.el;
     postView = null;
     if (!instant && !matchMedia('(prefers-reduced-motion: reduce)').matches) { el.classList.add('xmc-out'); setTimeout(() => el.remove(), 90); } else el.remove(); // switching posts or comments inside the panel: no second backdrop while the first fades
@@ -2282,9 +2305,9 @@
   }
   window.addEventListener('popstate', () => { // the person pressed Back with the panel open: close it (X's own steps, and ours, don't count)
     while (ownBacks.length && Date.now() - ownBacks[0] > 12000) ownBacks.shift();
-    if (ownBacks.length) { ownBacks.shift(); return; } // the answer to one of ours, however late
-    if (window.history.state && window.history.state.xmcView) return; // landed on the panel's own entry: not a Back out of it
-    if (postView && !state.posting && Date.now() - ownBackAt > 1500) closePostView(true);
+    if (ownBacks.length) { ownBacks.shift(); trace('popstate', 'answer to ours'); return; } // the answer to one of ours, however late
+    if (window.history.state && window.history.state.xmcView) { trace('popstate', 'on the panel\u2019s entry'); return; } // landed on the panel's own entry: not a Back out of it
+    if (postView && !state.posting) { trace('popstate', 'you went Back: panel closed'); closePostView(true); } // (our own Backs are counted above, so no guessing by time)
   });
   // ---------- translation ----------
   // Posts in another language get a "Translate post" button. It opens the post, where X translates it itself
@@ -2635,6 +2658,7 @@
   function unpin(which) {
     const el = pin[which].el();
     if (!el || el.dataset.xmcStyle === undefined) return;
+    trace('unpin', which + (pin[which].fallback ? ' (pin check gave up)' : ''));
     if (el.dataset.xmcStyle) el.setAttribute('style', el.dataset.xmcStyle); else el.removeAttribute('style');
     delete el.dataset.xmcStyle;
     if (which === 'nav') {
@@ -2665,11 +2689,13 @@
     }
     if (!parts.length) return;
     document.documentElement.classList.add('xmc-frozen'); // also hides a sidebar or menu X builds from scratch meanwhile
+    trace('freeze', parts.length + ' still copies');
     sideFreeze = { parts, hardStop: Date.now() + 15000 };
   }
   function thawSidebar() {
     if (!sideFreeze) return;
     const { parts } = sideFreeze;
+    trace('thaw');
     sideFreeze = null;
     for (const { el } of parts) el.style.removeProperty('visibility');
     positionSide(); // if X rebuilt the sidebar meanwhile, pin the new one before anyone sees it (the menu is pinned by the next pass, hidden until then)
@@ -3053,7 +3079,7 @@
     }
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
-    if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); }
+    if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
     if (tickN % 10 === 5 && Date.now() - lastScrollAt > 500) guard('recycle', () => recycleCards(false));
     if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);
@@ -3072,6 +3098,13 @@
     document.documentElement.classList.toggle('xmc-on', active);
     document.documentElement.classList.remove('xmc-veil'); // decided: X's page is either hidden by the columns or meant to be seen
     document.documentElement.classList.toggle('xmc-peeking', !!state.peek || !!state.posting);
+    if (active && tickN % 4 === 0 && !document.documentElement.classList.contains('xmc-viewer')) { // something of X's showing through the columns
+      const shows = (el) => { if (!el) return false; const cs = getComputedStyle(el), r = el.getBoundingClientRect(); return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05 && r.width > 40 && r.height > 40 && r.right > 0 && r.left < innerWidth; };
+      const pc = mainCol(), nv = pin.nav.el(), sd = pin.side.el();
+      if (pc && !state.posting && shows(pc)) traceOnce('LEAK', 'X\u2019s own timeline is visible under the columns');
+      if (nv && nv.dataset.xmcStyle === undefined && !pin.nav.fallback && !sideFreeze && shows(nv)) traceOnce('LEAK', 'X\u2019s menu is showing unpinned');
+      if (sd && sd.dataset.xmcStyle === undefined && !pin.side.fallback && !sideFreeze && !settings.hideSidebar && shows(sd)) traceOnce('LEAK', 'X\u2019s sidebar is showing unpinned');
+    }
     if (!state.peek && !state.posting && !onPostPage() && !isModalRoute()) { const want = active ? location.pathname : ''; if (want !== veilPath) { veilPath = want; try { if (want) window.localStorage.setItem('xmcVeil', want); else window.localStorage.removeItem('xmcVeil'); } catch { /* ignore */ } } }
     root.hidden = !active;
     root.classList.toggle('xmc-under', modal);

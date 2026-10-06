@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.23.3
+- **Copy diagnostics now includes a log of what happened** (`trace`: panels opened and closed, visits to X's post pages, Backs pressed and answered, freezes, pins given up, layout shifts, and a `LEAK` line whenever X's own timeline, menu or sidebar is showing through the columns). One paste shows what a recording would.
+- **Back right after a comments visit now closes the panel.** A Back within 1.5 seconds of a visit ending was taken for our own and ignored; our own Backs are counted exactly, so that guess is gone. If the panel opens while a visit is running, its history entry is added as soon as the visit has ended, so Back still closes it.
+- **Finding a post far down X's hidden list is faster** (bigger steps when far away; still steps, never a leap). Your diagnostics showed one such lookup at 2.3 seconds.
+
 ## 0.23.2
 - **Copy diagnostics is back as a menu item**: a post's `...` menu now has "Copy diagnostics" (copies the details, opens nothing) above "Report a problem" (which opens the issue page and copies them too).
 

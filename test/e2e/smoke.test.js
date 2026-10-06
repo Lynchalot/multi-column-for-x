@@ -1053,7 +1053,7 @@ browserTest('the Back button closes the post panel, and closing it by hand leave
     const open = () => page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector(':scope > .xmc-text')); c.querySelector(':scope > .xmc-text').click(); });
     await open();
     await page.waitForSelector('.xmc-view .xmc-vpanel');
-    assert.equal(await page.evaluate(() => history.state && history.state.xmcView), true);
+    await page.waitForFunction(() => history.state && history.state.xmcView, null, { timeout: 15000 }); // at once, or the moment a background visit that was running has ended
     await page.goBack();
     await page.waitForFunction(() => !document.querySelector('.xmc-view'), null, { timeout: 5000 });
     assert.equal(await page.evaluate(() => location.pathname), '/home/', 'Back stayed on the page');
@@ -1367,6 +1367,26 @@ browserTest('a post\'s ... menu has Copy diagnostics (just the details, no page 
     assert.deepEqual(await page.evaluate(() => window.__opened), [], 'no tab opened');
   });
 });
+
+browserTest('the diagnostics carry a log of what happened (panels, visits, Backs, pins) and say so when X\'s own page shows through', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 25000 });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => JSON.parse(window.__xmc.diagnostics()).trace.some((x) => x[1] === 'thaw'), null, { timeout: 20000 });
+    const trace = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).trace);
+    const got = trace.map((x) => x[1]);
+    for (const k of ['panel-open', 'visit', 'freeze', 'thaw', 'back', 'panel-close']) assert.ok(got.includes(k), k + ' in ' + got.join(','));
+    const opened = trace.find((x) => x[1] === 'panel-open')[0];
+    assert.deepEqual(trace.filter((x) => x[1] === 'LEAK' && x[0] > opened), [], 'nothing showed through once a post was open');
+    await page.addStyleTag({ content: 'html.xmc-on [data-testid="primaryColumn"] { opacity: 1 !important; }' });
+    await page.waitForFunction(() => JSON.parse(window.__xmc.diagnostics()).trace.some((x) => x[1] === 'LEAK' && /timeline/.test(x[2])), null, { timeout: 5000 });
+  });
+}, 90000);
 
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });
