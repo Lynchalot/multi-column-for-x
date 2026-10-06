@@ -3029,6 +3029,11 @@
     const nav = pin.nav.el();
     if (!nav) return;
     const want = EXTRA_NAV.filter((x) => settings[x.key]);
+    // With both Bookmarks and Likes added, X's own History entry (the two in one) is redundant: hidden, and ours take its place
+    const history = [...nav.querySelectorAll('nav a[href]')].find((a) => !a.dataset.xmcNav && (/^\/i\/(bookmarks|history)\b/.test(a.getAttribute('href')) || /^history$/i.test((a.textContent || '').trim())));
+    const replaceHistory = !!history && settings.navBookmarks && settings.navLikes;
+    for (const a of nav.querySelectorAll('[data-xmc-hidden]')) if (a !== history || !replaceHistory) { a.style.removeProperty('display'); delete a.dataset.xmcHidden; }
+    if (replaceHistory && !history.dataset.xmcHidden) { history.dataset.xmcHidden = '1'; history.style.setProperty('display', 'none', 'important'); }
     for (const old of nav.querySelectorAll('[data-xmc-nav]')) if (!want.some((x) => x.key === old.dataset.xmcNav)) old.remove();
     if (!want.length) return;
     const links = [...nav.querySelectorAll('nav a[href]')].filter((a) => !a.dataset.xmcNav && !a.matches('[data-testid="SideNav_NewTweet_Button"]'));
@@ -3055,7 +3060,7 @@
       a.addEventListener('click', (e) => { if (e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return; e.preventDefault(); e.stopPropagation(); location.assign(href); });
       // placed under the last entry we added (or under History / Bookmarks / Notifications)
       const mine = [...nav.querySelectorAll('[data-xmc-nav]')].pop();
-      (mine || after).after(a);
+      if (mine) mine.after(a); else if (replaceHistory) history.before(a); else after.after(a); // (in History's place, when it is hidden)
     }
   }
   function scanNavItems() {

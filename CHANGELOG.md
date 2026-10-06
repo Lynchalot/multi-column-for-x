@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.26.1
+- **With Bookmarks and Likes both added to the left menu, X's History entry is hidden** and they take its place (it was the two in one). Turn either off and History comes back. History is recognised by its address (`/i/bookmarks`, `/i/history`) or its English name.
+
 ## 0.26.0
 - **Cards show up over a wallpaper again.** The card tint is a few per cent of the text colour over whatever is behind the page; over a see-through page (a wallpaper or a theme) that all but vanishes. When the page background is see-through the tint and the hairline edge are now stronger (9% and 15%, from 4% and 8%); on a plain page nothing changes. (This also fixed the see-through check itself, which took plain black, `rgb(0, 0, 0)`, for transparent.) Copy diagnostics now has a `theme` entry (the colours, whether the page is see-through, what a card's background and edge come out as).
 - **Bookmarks, Likes and Lists in X's left menu**, three options under Navigation & sidebar (off by default). Each is a link made from one of X's own menu links, placed under History / Bookmarks, and loads that page when pressed (a normal page load).

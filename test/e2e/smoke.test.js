@@ -1528,12 +1528,28 @@ browserTest('Bookmarks, Likes and Lists can be added to X\'s left menu (under Hi
     await page.waitForFunction(() => document.querySelectorAll('[data-xmc-nav]').length === 3, null, { timeout: 8000 });
     const got = await page.evaluate(() => [...document.querySelectorAll('[data-xmc-nav]')].map((a) => [a.getAttribute('href'), a.textContent.trim()]));
     assert.deepEqual(got, [['/i/bookmarks', 'Bookmarks'], ['/user1/likes', 'Likes'], ['/i/lists', 'Lists']]);
-    const order = await page.evaluate(() => [...document.querySelectorAll('header nav a')].map((a) => a.getAttribute('href')));
+    const order = await page.evaluate(() => [...document.querySelectorAll('header nav a')].filter((a) => getComputedStyle(a).display !== 'none').map((a) => a.getAttribute('href')));
     assert.ok(order.indexOf('/i/bookmarks') < order.indexOf('/user1/likes') && order.indexOf('/user1/likes') < order.indexOf('/i/lists'), order.join(' '));
+    assert.equal(await page.evaluate(() => [...document.querySelectorAll('header nav a')].filter((a) => !a.dataset.xmcNav && /History/.test(a.textContent) && getComputedStyle(a).display !== 'none').length), 0, 'X\'s History is hidden: Bookmarks and Likes are in its place');
+    assert.equal(await page.evaluate(() => { const v = [...document.querySelectorAll('header nav a')].filter((a) => getComputedStyle(a).display !== 'none').map((a) => a.textContent.trim()); return v.indexOf('Explore') + 1 === v.indexOf('Bookmarks') || v.indexOf('Grok') + 1 === v.indexOf('Bookmarks'); }), true, 'in History\'s old place');
     assert.equal(await page.locator('[data-xmc-nav]').count(), 3, 'no duplicates after a few passes');
+    await page.evaluate(() => { window.__xmc.settings.navLikes = false; });
+    await page.waitForFunction(() => [...document.querySelectorAll('header nav a')].some((a) => !a.dataset.xmcNav && /History/.test(a.textContent) && getComputedStyle(a).display !== 'none'), null, { timeout: 8000 }); // Likes off: History is back
+    await page.evaluate(() => { window.__xmc.settings.navLikes = true; });
+    await page.waitForFunction(() => document.querySelectorAll('[data-xmc-nav]').length === 3 && ![...document.querySelectorAll('header nav a')].some((a) => !a.dataset.xmcNav && /History/.test(a.textContent) && getComputedStyle(a).display !== 'none'), null, { timeout: 8000 });
     const req = page.waitForRequest((r) => /\/user1\/likes$/.test(r.url()), { timeout: 8000 });
     await page.locator('[data-xmc-nav="navLikes"]').click();
     await req;
+  });
+});
+
+browserTest('with only Bookmarks added (not Likes), X\'s History stays', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 9, navBookmarks: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.querySelectorAll('[data-xmc-nav]').length === 1, null, { timeout: 8000 });
+    assert.equal(await page.evaluate(() => [...document.querySelectorAll('header nav a')].filter((a) => !a.dataset.xmcNav && /History/.test(a.textContent) && getComputedStyle(a).display !== 'none').length), 1);
   });
 });
 
