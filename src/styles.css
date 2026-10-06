@@ -414,13 +414,11 @@ html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
 .xmc-pagetitle { font-size: 16px; font-weight: 700; padding: 0 14px 0 8px; white-space: nowrap; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; }
 
 /* the post a reply answers, above the reply */
-.xmc-pctx { margin: 0 0 8px; padding: 2px 0 2px 12px; border-left: 2px solid var(--xmc-border); font-size: 14px; color: var(--xmc-muted); cursor: pointer; }
-.xmc-pctx b { color: var(--xmc-fg); }
+.xmc-pctx { margin: 0 0 8px; padding: 2px 0 2px 12px; border-left: 2px solid var(--xmc-border); cursor: pointer; }
+.xmc-pctx b { font-weight: 700; }
 .xmc-pctx-text { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-/* who a profile is */
-.xmc-profile { padding: 0 12px 12px; margin-bottom: 8px; border-bottom: 1px solid var(--xmc-border); }
-.xmc-pbanner { height: 110px; margin: 8px 0 12px; border-radius: 12px; background-size: cover; background-position: center; background-color: var(--xmc-hover); }
-.xmc-profile:not(:has(.xmc-pbanner)) { padding-top: 12px; }
+/* who a profile is (the plainer header) */
+.xmc-pbanner { height: 110px; margin: -12px -14px 12px; border-radius: 0; background-size: cover; background-position: center; background-color: var(--xmc-hover); }
 .xmc-pmain { display: flex; align-items: center; gap: 12px; }
 .xmc-pavatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; flex: none; background: var(--xmc-hover); }
 .xmc-pname { font-size: 20px; font-weight: 800; line-height: 1.2; display: flex; align-items: center; gap: 4px; }
@@ -429,4 +427,23 @@ html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
 .xmc-pcounts { margin-top: 6px; font-size: 14px; font-weight: 600; white-space: pre-wrap; }
 
 /* X's own profile header, copied: kept to the width of X's column */
-.xmc-profile.xmc-native { max-width: 600px; margin: 0 auto 8px; padding: 0; border-bottom: 0; }
+.xmc-profile { padding: 12px 14px; border-radius: 16px; overflow: hidden; }
+.xmc-profile.xmc-native { padding: 0; }
+
+/* ---- motion: short and quiet (about a tenth of a second), only where it explains something ---- */
+@keyframes xmc-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes xmc-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes xmc-zoom { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes xmc-beat { 0% { transform: scale(1); } 40% { transform: scale(1.3); } 100% { transform: scale(1); } }
+.xmc-cols.xmc-enter { animation: xmc-enter .18s ease-out; }
+.xmc-replies, .xmc-thread-list:not([hidden]) { animation: xmc-drop .16s ease-out; }
+.xmc-profile:not([hidden]) { animation: xmc-fade .2s ease-out; }
+#xmc-lightbox { animation: xmc-fade .14s ease-out; }
+#xmc-lightbox img { animation: xmc-zoom .16s ease-out; }
+.xmc-act.xmc-bump svg { animation: xmc-beat .3s ease-out; }
+.xmc-media.sensitive img, .xmc-media.sensitive video, .xmc-rmedias.sensitive img { transition: filter .2s ease, transform .2s ease; }
+.xmc-card { transition: background-color .12s ease, color .12s ease, box-shadow .12s ease, opacity .2s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .xmc-cols.xmc-enter, .xmc-replies, .xmc-thread-list, .xmc-profile, #xmc-lightbox, #xmc-lightbox img, .xmc-act.xmc-bump svg { animation: none; }
+  .xmc-media.sensitive img, .xmc-media.sensitive video, .xmc-rmedias.sensitive img, .xmc-card { transition: none; }
+}

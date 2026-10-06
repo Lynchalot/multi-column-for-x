@@ -832,3 +832,47 @@ browserTest('a profile\'s header is a copy of X\'s own: its links open, and its 
     await page.waitForFunction(() => window.__follow === 1, null, { timeout: 8000 });
   });
 });
+
+browserTest('a profile\'s header is the first card of the first column, with the posts flowing beside it', async (e) => {
+  const h = await e.open('/user7/', { width: 1900, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('.xmc-profile.xmc-native', { timeout: 8000 });
+    await page.waitForTimeout(600);
+    const r = await page.evaluate(() => {
+      const head = document.querySelector('.xmc-profile').getBoundingClientRect();
+      const cols = [...document.querySelectorAll('.xmc-col')];
+      const first = cols[0].getBoundingClientRect(), second = cols[1].querySelector('.xmc-card').getBoundingClientRect();
+      const under = cols[0].querySelector('.xmc-card').getBoundingClientRect();
+      return { inFirst: cols[0].contains(document.querySelector('.xmc-profile')), atTopLeft: Math.abs(head.left - first.left) < 2 && Math.abs(head.top - first.top) < 2,
+        besideIsLevel: Math.abs(second.top - head.top) < 4, firstPostBelow: under.top >= head.bottom, cols: cols.length };
+    });
+    assert.ok(r.cols >= 2, 'several columns');
+    assert.deepEqual({ inFirst: r.inFirst, atTopLeft: r.atTopLeft, besideIsLevel: r.besideIsLevel, firstPostBelow: r.firstPostBelow }, { inFirst: true, atTopLeft: true, besideIsLevel: true, firstPostBelow: true });
+  });
+});
+
+browserTest('the post a reply answers is set in the same size as the reply', async (e) => {
+  const h = await e.open('/user6/with_replies/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const sizes = await page.evaluate(() => { const c = document.querySelector('.xmc-card:has(.xmc-pctx)'); return [getComputedStyle(c.querySelector('.xmc-pctx-text')).fontSize, getComputedStyle(c.querySelector(':scope > .xmc-text')).fontSize]; });
+    assert.equal(sizes[0], sizes[1]);
+  });
+});
+
+browserTest('a new set of posts fades up once, and the motion switches off for people who ask for less', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const started = await page.evaluate(() => { document.querySelector('.xmc-chip:not(.on)').click(); return document.querySelector('.xmc-cols').classList.contains('xmc-enter'); });
+    assert.equal(started, true);
+    await page.waitForFunction(() => !document.querySelector('.xmc-cols').classList.contains('xmc-enter'), null, { timeout: 3000 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.evaluate(() => { document.querySelector('.xmc-chip:not(.on)').click(); });
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-cols')).animationName), 'none');
+  });
+});

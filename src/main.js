@@ -652,7 +652,7 @@
       btn('Show what I\u2019ve read', '', () => toggleSeen()),
       btn('Keep loading older posts', '', () => { view.keepGoing = true; view.caughtUp = false; const f = activeFeed(); if (f) pump(); guard('render', renderFeed); })));
   const profileEl = h('section', { className: 'xmc-profile', hidden: true });
-  const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, profileEl, colsEl, loaderEl, caughtEl, endEl, statusEl);
+  const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, colsEl, loaderEl, caughtEl, endEl, statusEl);
   const root = h('div', { id: 'xmc-root', hidden: true }, bar, scroller);
   const toastEl = h('div', { id: 'xmc-toast', hidden: true });
   document.body.append(root, toastEl);
@@ -874,6 +874,7 @@
     colsEl.classList.toggle('auto', !lay.cols); // automatic: columns keep about one width, the window shows more or fewer
     root.style.setProperty('--xmc-colw', XMCLogic.minColFor(settings, lay.density) + 'px');
     colsEl.replaceChildren(...columns);
+    if (!profileEl.hidden) columns[0].prepend(profileEl); // a profile's header is the first card of the first column; the posts flow round it
     placeBatch(view.cards.map((t, i) => ({ t, est: real[i] || undefined })));
   }
   function resetView(feed) {
@@ -890,7 +891,15 @@
     view.memoTop = 0;
     scroller.scrollTop = 0;
     relayout();
+    if (feed) enterCols();
   }
+  // the columns fade up a little when a new set of posts is drawn (a tab, a filter, a new page), not as you scroll
+  function enterCols() {
+    colsEl.classList.remove('xmc-enter');
+    void colsEl.offsetWidth;
+    colsEl.classList.add('xmc-enter');
+  }
+  colsEl.addEventListener('animationend', (e) => { if (e.target === colsEl) colsEl.classList.remove('xmc-enter'); });
   let statusKey = '';
   function setStatus(msg, spinning) {
     const key = (msg || '') + '|' + (spinning ? 1 : 0);
@@ -1650,13 +1659,14 @@
     };
   }
   let profileSig = '';
+  function placeProfile() { if (columns.length && profileEl.parentElement !== columns[0]) relayout(); } // it joins the first column, and the posts are placed again around it
   function updateProfile() {
     const handle = settings.profileHeader && state.shown && !root.hidden ? profileHandle() : '';
-    if (!handle) { profileEl.hidden = true; profileSig = ''; headerCopy = null; if (!listNameOnBar) pageTitleEl.hidden = true; return; }
+    if (!handle) { profileEl.hidden = true; profileEl.remove(); profileSig = ''; headerCopy = null; if (!listNameOnBar) pageTitleEl.hidden = true; return; }
     if (headerCopy && headerCopy.handle !== handle.toLowerCase()) { headerCopy = null; profileSig = ''; profileEl.replaceChildren(); profileEl.className = 'xmc-profile'; }
     const api = profileCard(handle);
     if (copyHeader(handle)) {
-      profileEl.hidden = false;
+      profileEl.hidden = false; placeProfile();
       const nm = profileEl.querySelector('[data-testid="UserName"]');
       const name = (api && api.name) || (nm && nm.querySelector('span') ? nm.querySelector('span').textContent.trim() : '');
       pageTitleEl.hidden = !name; if (name && pageTitleEl.textContent !== name) pageTitleEl.textContent = name;
@@ -1664,7 +1674,7 @@
     }
     // X's own header is not there (yet): after a moment, the plainer one
     if (!api || Date.now() - state.routeSince < 2500) { profileEl.hidden = true; pageTitleEl.hidden = !(api || listNameOnBar); if (api) pageTitleEl.textContent = api.name; return; }
-    profileEl.hidden = false;
+    profileEl.hidden = false; placeProfile();
     pageTitleEl.hidden = false; pageTitleEl.textContent = api.name;
     const sig = JSON.stringify(api);
     if (sig === profileSig) return;
@@ -1916,10 +1926,11 @@
     const ok = await withReal(t, (art) => { const b = art.querySelector('[data-testid="reply"]'); if (b) fire(b); });
     if (!ok) navigate(t.url, t);
   }
+  const bump = (b) => { if (!b) return; b.classList.add('xmc-bump'); setTimeout(() => b.classList.remove('xmc-bump'), 320); }; // the icon gives a small beat when you press it
   async function act(t, kind, button) {
     switch (kind) {
-      case 'like': return toggleAction(t, 'liked', '[data-testid="like"]', '[data-testid="unlike"]', 'like');
-      case 'bookmark': return toggleAction(t, 'bookmarked', '[data-testid="bookmark"]', '[data-testid="removeBookmark"]', 'bookmark');
+      case 'like': bump(button); return toggleAction(t, 'liked', '[data-testid="like"]', '[data-testid="unlike"]', 'like');
+      case 'bookmark': bump(button); return toggleAction(t, 'bookmarked', '[data-testid="bookmark"]', '[data-testid="removeBookmark"]', 'bookmark');
       case 'repost':
         return openMenu(button, [[t.state.reposted ? T('undo') : T('repost'), () => repost(t, false)], [T('quote'), () => repost(t, true)]]);
       case 'reply': return toggleComments(t);
