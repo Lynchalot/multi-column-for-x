@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.2
+- **Clicking a post while its comments were already loading in the background** (which starts when you rest the pointer on a card) no longer leaves X's own post page showing with the columns hidden and no comments. The panel only adds its Back entry when X's hidden side is on neither a post's page nor on its way to one, and the visit takes one more step back if it is still on the post's page.
+- **Comments that can't load say why.** If X refuses the request (rate limit), the panel says so, with Try again and Report a problem. A request that takes more than 30 seconds gives up the same way.
+- **Less background lookup.** Resting on a post, and finding the post a reply answers, share one small budget (6 a minute) and stop for 15 minutes if X starts refusing them; the ones you ask for are never held back.
+- **"Age-restricted adult content" on X's own post pages** is now handled by the sensitive-media setting: Show presses X's Show, Don't show leaves the box out. This is written from X's wording, not from X's page: if it still gets in the way, send "Report a problem".
+
 ## 0.21.1
 - The post a reply answers is set in the same larger type as a short reply that is only words (it had stayed small next to it).
 

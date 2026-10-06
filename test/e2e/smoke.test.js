@@ -1085,6 +1085,70 @@ browserTest('resting on a post starts loading its comments; pictures fade in fro
   });
 }, 90000);
 
+browserTest('clicking a post while its comments are already being fetched in the background still opens the panel, loads the comments, and leaves X\'s own page hidden', async (e) => {
+  const h = await e.open('/home/', { width: 1600, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const id = await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).id);
+    const card = page.locator('.xmc-card').filter({ has: page.locator(`a[href$="/status/${id}"]`) }).first();
+    await card.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(800);
+    await card.locator(':scope > .xmc-text').hover();
+    await page.waitForFunction(() => !!window.__xmc.state.peek && /\/status\//.test(location.pathname), null, { timeout: 8000, polling: 'raf' }); // the background visit is on the post's page
+    await page.evaluate((i) => { const c = window.__xmc.view.cards.find((x) => x.id === i).el; c.querySelector(':scope > .xmc-text').click(); }, id);
+    await page.waitForSelector('.xmc-view .xmc-vpanel');
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 25000 });
+    await page.waitForFunction(() => location.pathname === '/home/' && !window.__xmc.state.peek, null, { timeout: 15000 });
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-on') && !document.documentElement.classList.contains('xmc-onpost')), true, 'columns still showing, not X\'s post page');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view'), null, { timeout: 5000 });
+    await page.waitForFunction(() => location.pathname === '/home/' && !(history.state && history.state.xmcView), null, { timeout: 15000 });
+  });
+}, 90000);
+
+browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
+  const h = await e.open('/home/', { width: 1600, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    let refuse = true;
+    await page.route(/TweetDetail/, (r) => (refuse ? r.fulfill({ status: 429, contentType: 'application/json', body: '{}' }) : r.continue()));
+    const id = await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).id);
+    await page.evaluate((i) => window.__xmc.view.cards.find((x) => x.id === i).el.querySelector(':scope > .xmc-text').click(), id);
+    await page.waitForSelector('.xmc-view .xmc-vpanel');
+    await page.waitForFunction(() => /limiting how fast/.test((document.querySelector('.xmc-vside') || {}).textContent || ''), null, { timeout: 30000 });
+    assert.equal(await page.locator('.xmc-vside .xmc-rbtn', { hasText: 'Try again' }).count(), 1);
+    assert.equal(await page.evaluate(() => location.pathname), '/home/', 'X\'s own page left behind');
+    refuse = false;
+    await page.evaluate(() => { window.__xmc.state.detailFail = null; });
+    await page.locator('.xmc-vside .xmc-rbtn', { hasText: 'Try again' }).click();
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 25000 });
+  });
+}, 90000);
+
+browserTest('"Age-restricted adult content" on X\'s own post page: Show presses it once, Don\'t show leaves the box out, and the post stays', async (e) => {
+  const gate2 = (h) => h.page.evaluate(() => window.__gate2 || 0);
+  const normal = await e.open('/user/status/90001/');
+  await checked(normal, async () => {
+    await normal.page.waitForFunction(() => document.querySelectorAll('.xmc-nat').length === 7, null, { timeout: 15000 });
+    await normal.page.waitForTimeout(2000);
+    assert.equal(await gate2(normal), 0, 'left alone by default');
+  });
+  const show = await e.open('/user/status/90001/', { settings: { v: 9, nsfw: 'show' } });
+  await checked(show, async () => {
+    await show.page.waitForFunction(() => window.__gate2 === 1, null, { timeout: 8000 });
+    await show.page.waitForTimeout(2500);
+    assert.equal(await gate2(show), 1, 'pressed once, not over and over');
+  });
+  const hide = await e.open('/user/status/90001/', { settings: { v: 9, nsfw: 'hide' } });
+  await checked(hide, async () => {
+    await hide.page.waitForFunction(() => getComputedStyle(document.getElementById('agebox')).display === 'none', null, { timeout: 8000 });
+    assert.equal(await gate2(hide), 0, 'not pressed');
+    assert.equal(await hide.page.evaluate(() => !!document.querySelector('[data-testid="tweetText"]') && getComputedStyle(document.querySelector('[data-testid="tweetText"]')).display !== 'none'), true, 'the words are still there');
+  });
+});
+
 browserTest('one button sets the number of columns: it shows the number, and a short list (Auto first) changes it', async (e) => {
   const h = await e.open('/home/', { width: 2400, height: 900 });
   await checked(h, async () => {

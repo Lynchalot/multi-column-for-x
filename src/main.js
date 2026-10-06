@@ -244,6 +244,7 @@
       try { onResponse(d.url, d.body, d.reqBody); } catch (err) { console.error('[xmc] could not read a timeline response', err); }
     } else if (d.source === 'xmc-fail') {
       const op = XMCParse.opOf(d.url) || '';
+      if (/TweetDetail/.test(op)) state.detailFail = { status: d.status, at: Date.now() };
       if (/Timeline|Tweets|Likes|Bookmarks/.test(op)) state.fail = { status: d.status, at: Date.now(), reset: d.reset };
     } else if (d.source === 'xmc-key') {
       if (d.key === 'Escape') closeLightbox();
@@ -517,18 +518,16 @@
     for (const en of entries) { const t = tweetOf.get(en.target); if (t) t.ctxSince = en.isIntersecting ? (t.ctxSince || Date.now()) : 0; }
   }, { threshold: 0.4 });
   let ctxLast = 0;
-  const ctxLog = [];
   function contextTick() {
     if (!settings.fetchContext) return;
     const now = Date.now();
     if (state.peek || state.posting || repliesWaiting || postView || state.fail || now < state.proxyUntil || now - ctxLast < 2500 || now - lastScrollAt < 1200) return;
-    while (ctxLog.length && now - ctxLog[0] > 60000) ctxLog.shift();
-    if (ctxLog.length >= 8) return;
+    if (!bgAllowed()) return;
     const top = scroller.getBoundingClientRect().top - 4;
     const t = view.cards.find((x) => x.ctxSince && now - x.ctxSince > 900 && x.replyToId && !x.ctxTried && x.el && x.el.isConnected
       && !(x.parents && x.parents.length) && !contextChain(x).length && x.el.getBoundingClientRect().top >= top); // not one above you: growing it would push what you are reading
     if (!t) return;
-    t.ctxTried = true; ctxLast = now; ctxLog.push(now);
+    t.ctxTried = true; ctxLast = now; bgUsed();
     loadReplies(t, { wanted: () => !!(t.el && t.el.isConnected) }).then((res) => {
       const found = res && res.data && res.data.ancestors;
       if (found && found.length && t.el && t.el.isConnected) restoreCard(t, t.el);
@@ -1469,6 +1468,7 @@
       if (!state.peek.replies && location.pathname === before) { link.click(); await waitFor(() => location.pathname !== before || state.peek.replies, 2500); } // a plain click as a second try
       const got = await waitFor(() => state.peek && state.peek.replies, 9000);
       if (got) return { data: got };
+      if (state.detailFail && Date.now() - state.detailFail.at < 60000) return { why: 'X is limiting how fast comments can be loaded (error ' + state.detailFail.status + '). Try again in a few minutes.' };
       return { why: location.pathname === before
         ? 'X didn\u2019t open the post when asked to.'
         : 'X opened the post but sent no comments. Requests seen: ' + Object.keys(state.seenOps).join(', ') };
@@ -1476,6 +1476,7 @@
       if (onPostPage() && idOfHref(location.pathname) === t.id) { // still the page we opened (not one you've since gone to yourself)
         stepBack();
         await waitFor(() => !onPostPage(), 3500);
+        if (onPostPage() && idOfHref(location.pathname) === t.id) { stepBack(); await waitFor(() => !onPostPage(), 3500); } // still there: one more step, rather than leave X's post page showing
       }
       state.peek = null;
       state.lastPeekEnd = Date.now();
@@ -1528,7 +1529,7 @@
     for (const r of list) panel.append(renderReply(r, t, panel));
     if (!d) {
       panel.append(h('div', { className: 'xmc-dim xmc-rempty', textContent: (res && res.why) || 'Try again in a moment.' }));
-      panel.append(btn('Report a problem', '', () => reportProblem(), 'xmc-rbtn'));
+      panel.append(h('div', { className: 'xmc-rfoot' }, btn('Try again', '', () => reloadComments(panel, t), 'xmc-rbtn'), btn('Report a problem', '', () => reportProblem(), 'xmc-rbtn')));
     }
     const more = h('button', { className: 'xmc-rbtn', type: 'button', textContent: d && d.more ? 'See all comments' : 'Open conversation' });
     more.dataset.act = 'conversation';
@@ -1823,8 +1824,27 @@
   // On X's own pages (a post's page, a profile that asks "view profile?") X puts its own notice over sensitive media. With
   // "Sensitive media: Show" it is pressed for you. Only a Show / View button that sits inside a notice about sensitive content.
   const GATE_LABEL = /^(show|view|view post|view profile|yes, view profile|yes, view post)$/i;
+  const GATE_TEXT = /sensitive|age-restricted|adult content/i;
   const gatesPressed = new WeakSet();
+  // "Hide": X's own notice and the picture under it are removed from X's own page (the box that holds them, never the post's words)
+  function hideGates(col) {
+    const walker = document.createTreeWalker(col, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!/age-restricted adult content|potentially sensitive content/i.test(n.nodeValue || '')) continue;
+      let box = n.parentElement;
+      if (!box || box.closest('[data-xmc-gate]')) continue;
+      for (let i = 0; i < 9 && box.parentElement && box.parentElement !== col; i++) {
+        const up = box.parentElement;
+        if (up.querySelector('[data-testid="tweetText"], [data-testid="User-Name"], [data-testid="UserName"]')) break;
+        const r = up.getBoundingClientRect();
+        if (r.width > 760 || r.height > 1000) break;
+        box = up;
+      }
+      box.dataset.xmcGate = 'hidden'; box.style.setProperty('display', 'none', 'important');
+    }
+  }
   function revealNative() {
+    if (settings.nsfw === 'hide' && !state.peek && !state.posting && !(state.shown && !(where() === 'profile' && !activeFeed()))) { const c = mainCol(); if (c) hideGates(c); return; }
     if (settings.nsfw !== 'show' || state.peek || state.posting) return;
     if (state.shown && !(where() === 'profile' && !activeFeed())) return; // our own columns are showing: their cards have the setting
     const col = mainCol();
@@ -1837,7 +1857,7 @@
       for (let i = 0; i < 5 && box.parentElement && !inNotice; i++) {
         box = box.parentElement;
         const text = box.textContent || '';
-        inNotice = text.length < 400 && /sensitive/i.test(text);
+        inNotice = text.length < 700 && GATE_TEXT.test(text);
       }
       if (!inNotice) continue;
       gatesPressed.add(b);
@@ -2064,7 +2084,7 @@
     const panel = h('div', { className: 'xmc-replies' }, ...[0, 1, 2].map(() => h('div', { className: 'xmc-sk' }, h('i'), h('div', {}, h('b'), h('b'), h('b')))));
     side.append(panel);
     if (t.counts.reply > 0) {
-      loadReplies(t, { wanted: () => panel.isConnected }).then((res) => {
+      Promise.race([loadReplies(t, { wanted: () => panel.isConnected }), sleep(30000).then(() => ({ why: 'This is taking too long.' }))]).then((res) => {
         if (!panel.isConnected) return;
         if (!res || !res.data) state.commentFails.push(Date.now());
         const chain = contextChain(t).filter(usable);
@@ -2110,7 +2130,8 @@
     root.append(el);
     postView = { t, el, panel, side };
     if (!reopen) {
-      try { window.history.pushState({ xmcView: true }, '', location.href); } catch { /* ignore */ } // so the Back button closes the panel
+      // so the Back button closes the panel; never while X's hidden side is on, or on its way to, a post's page (the entry would be that page)
+      if (!state.peek && !state.posting && !onPostPage() && !isModalRoute()) { try { window.history.pushState({ xmcView: true }, '', location.href); } catch { /* ignore */ } }
       growFrom(t, panel);
     }
     updateActions(t);
@@ -2259,6 +2280,16 @@
   // or the page scrolling under the pointer, doesn't count; and not while other comments are on their way)
   const prefetching = new Set();
   let hoverTimer = 0;
+  // Lookups done only in case you want them (comments on a post you are resting on, the post a reply answers) share one small budget,
+  // and stop altogether for a while if X says it is limiting them; the ones you ask for are never held back.
+  const bgLog = [];
+  function bgAllowed() {
+    const now = Date.now();
+    if (state.detailFail && now - state.detailFail.at < 15 * 60000) return false;
+    while (bgLog.length && now - bgLog[0] > 60000) bgLog.shift();
+    return bgLog.length < 6;
+  }
+  const bgUsed = () => bgLog.push(Date.now());
   // Pointing at a video for a moment plays it, muted; moving away stops it. Pressing on it takes over (sound as you last set it).
   let previewTimer = 0;
   colsEl.addEventListener('pointerover', (e) => {
@@ -2289,10 +2320,10 @@
     hoverTimer = setTimeout(() => {
       if (Date.now() - lastScrollAt < 600 || !card.isConnected || !card.matches(':hover')) return;
       const t = tweetOf.get(card);
-      if (!t || !t.counts.reply || state.details.has(t.id) || prefetching.has(t.id) || state.peek || repliesWaiting || state.posting || postView) return;
-      prefetching.add(t.id);
+      if (!t || !t.counts.reply || state.details.has(t.id) || prefetching.has(t.id) || state.peek || repliesWaiting || state.posting || postView || !bgAllowed()) return;
+      bgUsed(); prefetching.add(t.id);
       loadReplies(t).finally(() => prefetching.delete(t.id));
-    }, onButton ? 350 : 600);
+    }, onButton ? 500 : 900);
   });
   colsEl.addEventListener('pointerout', (e) => { const to = e.relatedTarget; if (!to || !(to.closest && to.closest('.xmc-card'))) clearTimeout(hoverTimer); });
   // only one (non-autoplaying) video plays at a time, and it is watched while it plays so it stops when scrolled away
