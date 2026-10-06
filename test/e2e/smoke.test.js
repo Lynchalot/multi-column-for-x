@@ -1308,6 +1308,48 @@ browserTest('an open post sits over X\'s menu and sidebar, and they stay pinned,
   });
 }, 90000);
 
+browserTest('the open post blurs what is behind it a little; it can be switched off, and switches itself off if frames stall', async (e) => {
+  const filter = (page) => page.evaluate(() => getComputedStyle(document.querySelector('.xmc-view')).backdropFilter);
+  const open = (page) => page.evaluate(() => window.__xmc.view.cards.find((x) => x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text, :scope .xmc-media').click());
+  const on = await e.open('/home/', { width: 1300, height: 800 });
+  await checked(on, async () => {
+    await e.ready(on.page); await on.page.waitForTimeout(800);
+    await open(on.page); await on.page.waitForSelector('.xmc-view');
+    assert.match(await filter(on.page), /blur\(3px\)/);
+  });
+  const off = await e.open('/home/', { width: 1300, height: 800, settings: { v: 9, blurBehind: false } });
+  await checked(off, async () => {
+    await e.ready(off.page); await off.page.waitForTimeout(800);
+    await open(off.page); await off.page.waitForSelector('.xmc-view');
+    assert.equal(await filter(off.page), 'none');
+  });
+  const slow = await e.open('/home/', { width: 1300, height: 800 });
+  await checked(slow, async () => {
+    await e.ready(slow.page); await slow.page.waitForTimeout(800);
+    await slow.page.evaluate(() => { const busy = (ms) => { const t = performance.now(); while (performance.now() - t < ms); }; setTimeout(() => busy(220), 150); setTimeout(() => busy(220), 500); });
+    await open(slow.page); await slow.page.waitForSelector('.xmc-view');
+    await slow.page.waitForFunction(() => !document.querySelector('#xmc-root').classList.contains('xmc-blur'), null, { timeout: 4000 });
+    assert.equal(await filter(slow.page), 'none', 'blur dropped for the session');
+  });
+});
+
+browserTest('comments show the moment they arrive, not after the hidden page has gone back (which can take seconds)', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1500);
+    await page.evaluate(() => { const back = history.back.bind(history); history.back = () => { setTimeout(back, 3000); }; });
+    const t0 = Date.now();
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 30000 });
+    const took = Date.now() - t0;
+    assert.ok(took < 2200, 'comments took ' + took + 'ms with a Back that takes 3000ms');
+    assert.equal(await page.evaluate(() => !!window.__xmc.state.peek), true, 'the visit was still finishing behind them');
+    await page.waitForFunction(() => !window.__xmc.state.peek && location.pathname === '/home/', null, { timeout: 20000 });
+  });
+}, 90000);
+
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });
   await checked(h, async () => {

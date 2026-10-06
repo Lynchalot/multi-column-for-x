@@ -843,6 +843,7 @@
     try { window.localStorage.setItem('xmcSkipAge', settings.skipAgeCheck ? '1' : '0'); } catch { /* storage blocked */ } // so the hook knows it at the next page load, before X draws anything
     XMCSite.apply(settings);
     root.classList.toggle('xmc-flat', settings.cardStyle === 'flat');
+    root.classList.toggle('xmc-blur', !!settings.blurBehind && !blurGuard.off);
     applyBar();
     if (columns.length && (colCount() !== columns.length || layoutSig() !== view.layoutSig)) relayout(); // column or post-size settings changed
     refreshDownloadMarks();
@@ -1341,10 +1342,9 @@
       if (Math.abs(dy) < innerHeight * 0.5) dy = Math.sign(dy || 1) * innerHeight * 0.5;
       const hop = Math.min(innerHeight * 6, Math.max(innerHeight * 1.5, Math.abs(dy) / 3)); // far away: bigger steps, small ones near the post
       window.scrollBy(0, Math.max(-hop, Math.min(hop, dy)));
-      await sleep(150);
-      art = findArticle(t.id);
+      art = await waitFor(() => findArticle(t.id), 150); // as soon as X has drawn it, not after a fixed wait
     }
-    if (art) await sleep(120);
+    if (art && !timeLinkOf(art, t.id)) await sleep(120); // (a post whose time stamp is already there needs no settling time)
     return art;
   }
   // realArticle keeps the loader away from X's page for up to 20s while it works; the moment the job is done, give it back
@@ -1438,11 +1438,17 @@
   // other (each panel opens at once and fills in as its turn comes), instead of refusing all but the first.
   let replyQueue = Promise.resolve();
   let repliesWaiting = 0;
+  // The comments are handed over the moment they arrive; the hidden page then steps back (which the browser may take seconds to
+  // do) while you are already reading them. One request per post: asking again while it is on its way waits for that same answer.
+  const repliesInflight = new Map();
   function loadReplies(t, opts) {
     opts = opts || {};
     const cached = state.details.get(t.id);
     if (cached) return Promise.resolve({ data: cached });
+    if (repliesInflight.has(t.id)) return repliesInflight.get(t.id);
     repliesWaiting++;
+    let early;
+    const earlyP = new Promise((resolve) => { early = resolve; });
     const run = replyQueue.then(async () => {
       repliesWaiting--;
       const again = state.details.get(t.id); // an earlier request for the same post may have fetched it meanwhile
@@ -1450,13 +1456,16 @@
       if (opts.wanted && !opts.wanted()) return { why: 'Closed before it loaded.' };
       if (opts.onStart) opts.onStart();
       await waitFor(() => !state.posting, 15000);
-      try { return await fetchReplies(t, opts); } catch (err) {
+      try { return await fetchReplies(t, Object.assign({}, opts, { early })); } catch (err) {
         console.warn('[xmc] comments failed', err);
         return { why: 'Something went wrong while loading this (' + ((err && err.message) || err) + ').' };
       }
     });
     replyQueue = run.catch(() => {});
-    return run;
+    const answer = Promise.race([earlyP, run]);
+    repliesInflight.set(t.id, answer);
+    run.catch(() => {}).then(() => { if (repliesInflight.get(t.id) === answer) repliesInflight.delete(t.id); });
+    return answer;
   }
   async function fetchReplies(t, opts) {
     opts = opts || {};
@@ -1473,7 +1482,7 @@
       await waitFor(() => location.pathname !== before || state.peek.replies, 3000);
       if (!state.peek.replies && location.pathname === before) { link.click(); await waitFor(() => location.pathname !== before || state.peek.replies, 2500); } // a plain click as a second try
       const got = await waitFor(() => state.peek && state.peek.replies, 9000);
-      if (got) return { data: got };
+      if (got) { if (opts.early) opts.early({ data: got }); return { data: got }; }
       if (state.detailFail && Date.now() - state.detailFail.at < 60000) return { why: 'X is limiting how fast comments can be loaded (error ' + state.detailFail.status + '). Try again in a few minutes.' };
       return { why: location.pathname === before
         ? 'X didn\u2019t open the post when asked to.'
@@ -2158,6 +2167,25 @@
     } else { fillReplies(panel, t, { data: { replies: [], more: false } }); if (focusBox) { const box = side.querySelector('.xmc-cbox'); if (box) box.focus({ preventScroll: true }); } }
     return side;
   }
+  // The blur behind an open post must never cost smoothness: if the first moments of an opening drop frames, it goes off for the
+  // session, and after three such openings it is switched off in the settings.
+  const blurGuard = { off: false, strikes: 0 };
+  function watchBlur() {
+    if (!settings.blurBehind || blurGuard.off) return;
+    let last = performance.now(), slow = 0;
+    const end = last + 900;
+    const step = (now) => {
+      if (now - last > 110) slow++;
+      last = now;
+      if (now < end && postView) { requestAnimationFrame(step); return; }
+      if (slow >= 2) {
+        blurGuard.off = true; blurGuard.strikes++;
+        root.classList.remove('xmc-blur');
+        if (blurGuard.strikes >= 3) { settings.blurBehind = false; save(); }
+      }
+    };
+    requestAnimationFrame(step);
+  }
   function openPostView(t, still, focusBox, opts) {
     const parent = opts && opts.parent;
     const reopen = !!postView;
@@ -2206,6 +2234,7 @@
       // so the Back button closes the panel; never while X's hidden side is on, or on its way to, a post's page (the entry would be that page)
       if (!state.peek && !state.posting && !onPostPage() && !isModalRoute()) { try { window.history.pushState({ xmcView: true }, '', location.href); } catch { /* ignore */ } }
       growFrom(t, panel);
+      watchBlur();
     }
     updateActions(t);
     const first = el.querySelector('.xmc-vclose'); if (first && !focusBox) first.focus({ preventScroll: true });

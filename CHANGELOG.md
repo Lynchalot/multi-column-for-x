@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.23.0
+- **Comments appear the moment they arrive.** They used to wait until X's hidden page had gone back from the post's page, which in Zen can take seconds (with a 2.6 second Back, comments came after 2.3 to 3.9 seconds; now 0.1 to 0.9 seconds whatever the Back does). The hidden page finishes stepping back behind them. Asking for the same post's comments again while they are on their way now waits for that same request.
+- **Finding the post on X's hidden side is quicker**: it takes the post the moment X has drawn it instead of waiting out a fixed pause at each step (first comments on a post you haven't rested on: about 0.85 seconds in the test page, was 1.3).
+- **A light blur behind an open post** (3px, with the dim a little lighter). Option: "Blur the columns behind an open post". If the first moments of an opening drop frames it goes off by itself for the session, and after three such openings it is switched off in the settings. Not applied if your system asks for reduced transparency.
+
 ## 0.22.5
 - **"Turn Columns Off" no longer goes wacky when you open a post.** It lives inside X's menu, so the still copy of the menu (added in 0.22.3) contained a second, unstyled copy of it: a dark box with an oversized icon. The copy now leaves it out, and the real button stays where it is.
 

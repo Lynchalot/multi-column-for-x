@@ -566,3 +566,7 @@ html.xmc-on.xmc-peeking [data-testid="sidebarColumn"]:not([data-xmc-style]), htm
 
 /* our button lives in X's menu; while the menu is hidden behind its still copy the button stays as it is */
 html.xmc-frozen #xmc-pill { visibility: visible !important; }
+
+/* a light blur behind an open post (off in the settings, or by itself if the computer struggles with it) */
+#xmc-root.xmc-blur .xmc-view { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); background: rgba(0, 0, 0, .5); }
+@media (prefers-reduced-transparency: reduce) { #xmc-root.xmc-blur .xmc-view { backdrop-filter: none; background: rgba(0, 0, 0, .6); } }
