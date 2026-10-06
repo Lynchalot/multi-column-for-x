@@ -1107,6 +1107,23 @@ browserTest('clicking a post while its comments are already being fetched in the
   });
 }, 90000);
 
+browserTest('closing the panel steps Back once even when the browser is slow to go back (it must not tidy up a second time and land on an older page)', async (e) => {
+  const h = await e.open('/home/', { width: 1600, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1500);
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 25000 });
+    await page.waitForFunction(() => !window.__xmc.state.peek && location.pathname === '/home/', null, { timeout: 15000 });
+    await page.evaluate(() => { const back = history.back.bind(history); window.__backs = 0; history.back = () => { window.__backs++; setTimeout(back, 2500); }; });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(6000);
+    assert.equal(await page.evaluate(() => window.__backs), 1, 'one step back for the panel\'s own entry');
+    assert.equal(await page.evaluate(() => location.pathname), '/home/');
+  });
+}, 90000);
+
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });
   await checked(h, async () => {
@@ -1127,7 +1144,7 @@ browserTest('when X refuses the comments (rate limit), the panel says so, offers
   });
 }, 90000);
 
-browserTest('"Age-restricted adult content" on X\'s own post page: Show presses it once, Don\'t show leaves the box out, and the post stays', async (e) => {
+browserTest('"Age-restricted adult content" on X\'s own post page: Show leaves it alone, Don\'t show leaves the box out, and the post stays', async (e) => {
   const gate2 = (h) => h.page.evaluate(() => window.__gate2 || 0);
   const normal = await e.open('/user/status/90001/');
   await checked(normal, async () => {
@@ -1137,9 +1154,9 @@ browserTest('"Age-restricted adult content" on X\'s own post page: Show presses 
   });
   const show = await e.open('/user/status/90001/', { settings: { v: 9, nsfw: 'show' } });
   await checked(show, async () => {
-    await show.page.waitForFunction(() => window.__gate2 === 1, null, { timeout: 8000 });
+    await show.page.waitForFunction(() => window.__gate === 1, null, { timeout: 8000 }); // the ordinary sensitive notice is pressed
     await show.page.waitForTimeout(2500);
-    assert.equal(await gate2(show), 1, 'pressed once, not over and over');
+    assert.equal(await gate2(show), 0, 'the age gate is not pressed (it only opens X\'s "confirm your age" dialog)');
   });
   const hide = await e.open('/user/status/90001/', { settings: { v: 9, nsfw: 'hide' } });
   await checked(hide, async () => {

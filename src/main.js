@@ -1476,7 +1476,7 @@
       if (onPostPage() && idOfHref(location.pathname) === t.id) { // still the page we opened (not one you've since gone to yourself)
         stepBack();
         await waitFor(() => !onPostPage(), 3500);
-        if (onPostPage() && idOfHref(location.pathname) === t.id) { stepBack(); await waitFor(() => !onPostPage(), 3500); } // still there: one more step, rather than leave X's post page showing
+        if (onPostPage() && idOfHref(location.pathname) === t.id && window.history.state && window.history.state.xmcView) { stepBack(); await waitFor(() => !onPostPage(), 3500); } // our own entry is what is left on the post's page: one more step, rather than leave X's post page showing
       }
       state.peek = null;
       state.lastPeekEnd = Date.now();
@@ -1825,12 +1825,14 @@
   // "Sensitive media: Show" it is pressed for you. Only a Show / View button that sits inside a notice about sensitive content.
   const GATE_LABEL = /^(show|view|view post|view profile|yes, view profile|yes, view post)$/i;
   const GATE_TEXT = /sensitive|age-restricted|adult content/i;
+  // X's own age gate: its Show opens a "confirm your age in the X app" dialog and nothing more unless the account is verified, so it is never pressed (Hide still removes it)
+  const AGE_GATE = /age[\s\u00a0\u2010-\u2015-]*restricted|adult content|verify your age/i;
   const gatesPressed = new WeakSet();
   // "Hide": X's own notice and the picture under it are removed from X's own page (the box that holds them, never the post's words)
   function hideGates(col) {
     const walker = document.createTreeWalker(col, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-      if (!/age-restricted adult content|potentially sensitive content/i.test(n.nodeValue || '')) continue;
+      if (!AGE_GATE.test(n.nodeValue || '') && !/potentially sensitive content/i.test(n.nodeValue || '')) continue;
       let box = n.parentElement;
       if (!box || box.closest('[data-xmc-gate]')) continue;
       for (let i = 0; i < 9 && box.parentElement && box.parentElement !== col; i++) {
@@ -1858,6 +1860,7 @@
         box = box.parentElement;
         const text = box.textContent || '';
         inNotice = text.length < 700 && GATE_TEXT.test(text);
+        if (inNotice && AGE_GATE.test(text)) { gatesPressed.add(b); inNotice = false; break; }
       }
       if (!inNotice) continue;
       gatesPressed.add(b);
@@ -1869,7 +1872,7 @@
   // a one-time line saying what you can do here
   function dismissHint() { hintEl.hidden = true; if (!settings.hintSeen) { settings.hintSeen = true; save(); } }
   // a panel closed while X's hidden side was busy leaves our history entry behind: remove it once things are quiet
-  function tidyHistory() { if (!postView && !state.peek && !state.posting && !onPostPage() && window.history.state && window.history.state.xmcView) stepBack(); }
+  function tidyHistory() { if (Date.now() - ownBackAt > 4000 && !postView && !state.peek && !state.posting && !onPostPage() && window.history.state && window.history.state.xmcView) stepBack(); }
   function updateHint() { const show = !settings.hintSeen && state.shown && view.cards.length >= 3 && !postView; if (hintEl.hidden === show) hintEl.hidden = !show; }
 
   // ---------- popover menus ----------

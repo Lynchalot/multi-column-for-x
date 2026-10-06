@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.3
+- **Closing the post panel no longer takes you to an older page.** Going Back is slow in Zen, and the tidy-up pass saw our history entry still there and stepped Back a second time, past Home onto whatever you had open before (X's own post page, columns hidden, for several seconds). It now waits for the first step to finish.
+- **X's "Age-restricted adult content" box is never pressed.** Its Show only opens X's "Confirm age in X mobile app" dialog unless the account is age-verified, so Show can't reveal it; Sensitive media: Hide still removes the box (and the picture) on posts, replies and profiles, and matches X's wording more loosely. The ordinary "sensitive content" notices are still pressed by Show.
+- The extra step back after a comments visit only happens when what is left is our own history entry.
+
 ## 0.21.2
 - **Clicking a post while its comments were already loading in the background** (which starts when you rest the pointer on a card) no longer leaves X's own post page showing with the columns hidden and no comments. The panel only adds its Back entry when X's hidden side is on neither a post's page nor on its way to one, and the visit takes one more step back if it is still on the post's page.
 - **Comments that can't load say why.** If X refuses the request (rate limit), the panel says so, with Try again and Report a problem. A request that takes more than 30 seconds gives up the same way.
