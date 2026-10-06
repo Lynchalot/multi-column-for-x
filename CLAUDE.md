@@ -26,7 +26,7 @@ Debug in the console with `window.__xmc`.
 
 ## Shelved
 - **Post size (Compact / Text only):** built and tested but switched off because the Compact layout is wrong. `DENSITY_SHELVED` in `src/main.js`, `density` is `hidden: true` in `src/settings.js`, one e2e test is skipped (`POST_SIZE_SHELVED`). Bring it back only when asked, and fix the Compact layout first.
-- In-column translation was deleted (the Translate button opens the post). Keyboard browsing (J/K/L) was declined.
+- Translation (0.25.0): the Translate button takes X's hidden page to the post (or, for a comment, to its post and then the comment), presses X's own "Translate post" control (found by its label, `translateControl`) and reads the words off X's page once "Translated from ..." shows. Written from X's wording, not its markup (nobody working here can see real X): if it fails the button turns into "Translate on X" and the trace has a `translate FAILED` line with the reason. Ask for Copy diagnostics, and for the outer HTML of X's Translate control and of a translated post. Keyboard browsing (J/K/L) was declined.
 
 ## Added in 0.12.0
 Thread folding (`XMCLogic.threadPlan`, `renderThread`, `view.drawnIds`: a reply to themselves is skipped while its first post will be drawn; `t.thread` is set at draw time and `card.dataset.thr` rebuilds the card when it changes), tall-photo cap (`photoFloor`), remembered volume (`volumechange` only counts while the person is using the player), presets (`XMCSettings.PRESETS`, shown by options.js, opened on install by background.js). Picture-in-picture is Firefox's own (no web API for extensions), so there is nothing to build; the off-screen auto-pause can end a PiP video when the card scrolls away.

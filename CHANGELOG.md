@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.0
+- **Translate in the panel.** The Translate post button on a post, a comment, or a card now translates it in place using X's own translation: the hidden page goes to the post, presses X's Translate control and the translated words are read off X's page and shown with "Translated from Japanese" and a Show original / Show translation toggle (asked of X once per post). On a card it opens the post's panel and translates there. If X offers nothing we can read, the button becomes "Translate on X" and opens the post on X. Written from X's wording, not its markup, so unverified on real X: a failure leaves a `translate FAILED` line, with the reason, in Copy diagnostics' `trace`.
+- When X still has a stale copy of a post in its page, the one on show is used.
+
 ## 0.24.1
 - **A menu button on a narrow bar.** Below about 560px the Show, Columns, Sensitive media and Settings controls (and Mark all read, when it applies) fold into one ☰ button; the tabs and the refresh button, which shows "N new", stay. Wider bars are as before.
 - **Columns appear about 0.4 seconds sooner after a reload** when Following is the default: the hold that kept the For you posts from flashing before Following was only released every half second; it now is the moment Following is up (in the test page, first posts at about 0.33 seconds, was 0.73).

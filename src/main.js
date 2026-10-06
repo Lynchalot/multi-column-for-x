@@ -620,7 +620,7 @@
       const long = textLength(t.segs) > 420;
       card.append(h('div', { className: 'xmc-text' + (long ? ' clamp' : '') + (onlyWords(t) ? ' big' : '') }, renderSegs(t.segs)));
       if (long) card.append(h('button', { className: 'xmc-more', type: 'button', textContent: 'Show more' }));
-      if (needsTranslation(t)) card.append(h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Opens the post, where X can translate it' }));
+      if (needsTranslation(t)) card.append(h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Opens the post and translates it' }));
     }
     if (t.media.length) {
       const pics = pageLayout().density === 'text' && !t.revealed ? mediaChip(t) : renderMedia(t);
@@ -1337,7 +1337,7 @@
   const idOfHref = (href) => { const m = /\/status\/(\d+)/.exec(href || ''); return m ? m[1] : null; };
   const articles = () => [...(mainCol() || document).querySelectorAll('article[data-testid="tweet"]')];
   const articleId = (a) => { const t = a.querySelector('a[href*="/status/"] time'); return t ? idOfHref(t.closest('a').getAttribute('href')) : null; };
-  const findArticle = (id) => articles().find((a) => articleId(a) === id) || null;
+  const findArticle = (id) => { const all = articles().filter((a) => articleId(a) === id); return all.find((a) => a.getClientRects().length) || all[0] || null; }; // (one that is on show, if X still has a stale copy)
 
   function fire(node) {
     const opts = { bubbles: true, cancelable: true, view: window, button: 0 };
@@ -1631,6 +1631,7 @@
       slot.append(c);
       c.querySelector('textarea').focus();
     });
+    const xl = needsTranslation(r) && r.segs.length ? h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Translates it here, using X\u2019s own translation' }) : null;
     const medias = photos.length ? h('div', { className: 'xmc-rmedias' + (r.sensitive ? ' sensitive' : '') }, ...photos) : null;
     if (medias && r.sensitive) medias.append(h('button', { className: 'xmc-reveal', type: 'button', textContent: 'Sensitive content \u2014 click to view', onclick: (e) => { e.stopPropagation(); medias.classList.remove('sensitive'); e.currentTarget.remove(); } }));
     const item = h('div', { className: 'xmc-ritem d' + (r.depth || 0) },
@@ -1640,10 +1641,11 @@
           h('a', { className: 'xmc-name', href: '/' + r.author.handle, target: '_blank', rel: 'noopener', textContent: r.author.name }), badge(r.author),
           h('span', { className: 'xmc-dim', textContent: ' @' + r.author.handle + ' \u00b7 ' + relTime(r.createdAt) })),
         text,
-        needsTranslation(r) ? h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Opens the comment, where X can translate it', onclick: (e) => { e.stopPropagation(); openOnX(r); } }) : null,
+        xl,
         medias,
         h('div', { className: 'xmc-ractions' }, likeBtn, replyBtn, markBtn, linkBtn, r.counts.views ? h('span', { className: 'xmc-dim xmc-rviews', textContent: fmt(r.counts.views) + ' views' }) : null),
         slot));
+    if (xl) wireTranslate(xl, text, r, t);
     // pressing the comment itself (not a link, button or box in it) opens it in the panel: its picture large, its replies beside it
     item.querySelector('.xmc-rbody').addEventListener('click', (e) => {
       if (e.target.closest('a, button, textarea, video, .xmc-rslot, .xmc-reveal') || (window.getSelection && String(window.getSelection()).length)) return;
@@ -2289,8 +2291,10 @@
     side.append(h('div', { className: 'xmc-head' },
       h('a', { className: 'xmc-avatar xmc-nav', href: '/' + t.author.handle }, h('img', { src: t.author.avatar, alt: '' })),
       h('div', { className: 'xmc-who' }, h('a', { className: 'xmc-name xmc-nav', href: '/' + t.author.handle }, t.author.name, badge(t.author)), sub)));
-    if (t.segs.length) side.append(h('div', { className: 'xmc-text' + (onlyWords(t) ? ' big' : '') }, renderSegs(t.segs)));
-    if (needsTranslation(t)) side.append(h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Opens the post, where X can translate it' }));
+    const wordsEl = h('div', { className: 'xmc-text' + (onlyWords(t) ? ' big' : '') }, renderSegs(t.segs));
+    if (t.segs.length) side.append(wordsEl);
+    let xlBtn = null;
+    if (needsTranslation(t)) { xlBtn = h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Translates it here, using X\u2019s own translation' }); side.append(xlBtn); if (t.segs.length) wireTranslate(xlBtn, wordsEl, t, parent || null); }
     if (t.card) side.append(renderLinkCard(t.card));
     if (t.quoted) side.append(renderQuote(t.quoted));
     if (t.thread && t.thread.length) side.append(renderThread(t));
@@ -2358,7 +2362,6 @@
       h('button', { className: 'xmc-vclose', type: 'button', title: 'Close (Esc)' }, icon('close')));
     el.addEventListener('click', (e) => {
       if (e.target === el || e.target.closest('.xmc-vclose')) { closePostView(); return; }
-      if (e.target.closest('.xmc-translate')) { e.preventDefault(); openOnX(t); return; } // X translates on its own page
       const btn = e.target.closest('[data-act]');
       if (btn) {
         e.preventDefault(); e.stopPropagation();
@@ -2393,6 +2396,7 @@
       watchBlur();
     }
     updateActions(t);
+    if (opts && opts.translate) { const xb = side.querySelector(':scope > .xmc-translate'); if (xb) setTimeout(() => xb.click(), 0); }
     const first = el.querySelector('.xmc-vclose'); if (first && !focusBox) first.focus({ preventScroll: true });
     if (!settings.hintSeen) dismissHint();
   }
@@ -2437,8 +2441,63 @@
     if (postView && !state.posting) { trace('popstate', 'you went Back: panel closed'); closePostView(true); } // (our own Backs are counted above, so no guessing by time)
   });
   // ---------- translation ----------
-  // Posts in another language get a "Translate post" button. It opens the post, where X translates it itself
-  // (translating inside the columns kept failing: X offers the control only on the post's own page).
+  // Posts and comments in another language get a "Translate post" button. X offers translation only on a post's own page, so the
+  // hidden page is taken there, X's own button is pressed, and the translated words are read off its page and shown here (with
+  // "Show original"). Nothing is sent anywhere else. If X's page offers nothing we can read, the button opens the post on X instead.
+  const translations = new Map(); // post id -> { text, from } once translated
+  const TRANSLATE_LABEL = /^translate (post|tweet|reply|comment)$/i;
+  function translateControl(art) {
+    const matches = (el) => { const label = (el.textContent || '').trim(); return label.length < 30 && TRANSLATE_LABEL.test(label); };
+    for (const el of art.querySelectorAll('[role="button"], button')) if (matches(el)) return el; // an actual button first
+    for (const el of art.querySelectorAll('span, div')) if (el.children.length <= 2 && matches(el)) return el.closest('[role="button"], button') || el;
+    return null;
+  }
+  async function translateOnX(t, root) {
+    if (translations.has(t.id)) return { ok: true, ...translations.get(t.id) };
+    const run = inQueue(() => visitPost(root || t, {}, {}, async ({ opened }) => {
+      if (!opened) return { why: 'X didn’t open the post.' };
+      const art = root ? await mountComment(t.id) : await waitFor(() => findArticle(t.id), 6000);
+      if (!art) return { why: 'Couldn’t find the post on X’s page.' };
+      const words = () => art.querySelector('[data-testid="tweetText"]');
+      const done = () => /translated from/i.test(art.textContent || '') && words() && (words().innerText || '').trim();
+      if (!done()) {
+        const ctl = translateControl(art);
+        if (!ctl) return { why: 'X offers no translation for this one.' };
+        fire(ctl);
+      }
+      const got = await waitFor(done, 7000);
+      if (!got) return { why: 'X didn’t translate it.' };
+      const from = (/translated from\s+([^·\n.]+)/i.exec(art.textContent || '') || [])[1];
+      return { ok: true, text: got, from: from ? from.trim() : '' };
+    }));
+    const res = await run;
+    if (res && res.ok) translations.set(t.id, { text: res.text, from: res.from });
+    return res || { why: 'Something went wrong.' };
+  }
+  // The button under a post's or comment's words: translates in place, then switches between the translation and the original
+  function wireTranslate(button, wordsEl, t, root) {
+    let shown = null, failed = false; // (the translated copy is only made when there is one)
+    const paint = (on) => { shown.hidden = !on; wordsEl.hidden = on; button.textContent = on ? 'Show original' : 'Show translation'; };
+    const show = (tr) => {
+      if (!shown) { shown = h('div', { className: wordsEl.className + ' xmc-xlate' }); wordsEl.after(shown); }
+      shown.replaceChildren(h('div', { className: 'xmc-dim xmc-xlfrom', textContent: 'Translated' + (tr.from ? ' from ' + tr.from : '') }), document.createTextNode(tr.text));
+      paint(true);
+    };
+    button.addEventListener('click', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (failed) { openOnX(t); return; }
+      if (button.disabled) return;
+      if (shown) { paint(shown.hidden); return; } // back and forth between the two, without asking X again
+      if (translations.has(t.id)) { show(translations.get(t.id)); return; }
+      button.disabled = true; button.textContent = 'Translating\u2026';
+      const res = await translateOnX(t, root);
+      button.disabled = false;
+      if (res.ok) { show(res); return; }
+      failed = true; button.textContent = 'Translate on X'; button.title = res.why + ' This opens the post on X.';
+      toast(res.why || 'Couldn\u2019t translate here.');
+      trace('translate', 'FAILED ' + t.id + ' ' + (res.why || ''));
+    });
+  }
   const uiLang = () => String(document.documentElement.lang || navigator.language || 'en').slice(0, 2).toLowerCase();
   const needsTranslation = (t) => !!t.lang && !/^(und|qme|qht|qam|qst|zxx|art)$/.test(t.lang) && t.lang.slice(0, 2).toLowerCase() !== uiLang();
 
@@ -2525,7 +2584,7 @@
     if (tpost && !e.target.closest('a[href], video, .xmc-reveal')) { e.preventDefault(); navigate(tpost.dataset.href, null); return; }
     if (e.target.closest('.xmc-rclose')) { const p = cardEl.querySelector('.xmc-replies'); if (p) p.remove(); updateActions(t); return; }
     if (e.target.closest('.xmc-replies')) return; // links inside comments open normally (new tab); clicking text doesn't open the post
-    if (e.target.closest('.xmc-translate')) { e.preventDefault(); openOnX(t); return; } // X translates on its own page: never in the panel
+    if (e.target.closest('.xmc-translate')) { e.preventDefault(); openPostView(t, false, false, { translate: true }); return; } // opens the post's panel and translates it there
     const chip = e.target.closest('.xmc-mediachip');
     if (chip) { t.revealed = true; chip.replaceWith(renderMedia(t)); return; }
     const reveal = e.target.closest('.xmc-reveal');

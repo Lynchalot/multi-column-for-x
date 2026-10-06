@@ -213,23 +213,15 @@ browserTest('a page with no timeline data falls back to X\'s own page instead of
   }, 40000);
 }, 60000);
 
-browserTest('Translate post opens the post instead of translating inside the columns', async (e) => {
+browserTest('Translate post on a card opens that post\'s panel, not a new tab', async (e) => {
   const h = await e.open('/home/');
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
     await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
-    const r = await page.evaluate(async () => {
-      const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector('.xmc-translate'));
-      const t = window.__xmc.view.cards.find((x) => x.el === c);
-      c.querySelector('.xmc-translate').click();
-      await new Promise((x) => setTimeout(x, 400));
-      return { opened: window.__opened, expected: t.url, path: location.pathname, visit: !!window.__xmc.state.peek };
-    });
-    assert.equal(r.opened.length, 1);
-    assert.ok(r.opened[0].endsWith(r.expected));
-    assert.equal(r.path, '/home/');
-    assert.equal(r.visit, false);
+    await page.evaluate(() => [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector('.xmc-translate')).querySelector('.xmc-translate').click());
+    await page.waitForSelector('.xmc-view .xmc-vpanel');
+    assert.deepEqual(await page.evaluate(() => window.__opened), []);
   });
 });
 
@@ -1465,6 +1457,46 @@ browserTest('on a narrow bar the controls fold into one menu button (Show, Colum
     assert.equal(await wide.page.evaluate(() => getComputedStyle(document.querySelector('.xmc-gear')).display !== 'none'), true);
   });
 });
+
+browserTest('Translate post on a card opens the panel and translates there (X\'s own button, read off its page); Show original brings the words back', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
+    const id = await page.evaluate(() => { const t = window.__xmc.view.cards.find((x) => x.lang === 'ja' && x.el && x.el.isConnected && x.el.querySelector('.xmc-translate')); t.el.querySelector('.xmc-translate').click(); return t.id; });
+    const side = '.xmc-view:not(.xmc-out) .xmc-vside';
+    await page.waitForSelector(side + ' .xmc-xlate:not([hidden])', { timeout: 30000 });
+    assert.match(await page.locator(side + ' .xmc-xlate').innerText(), /Translated from Japanese[\s\S]*Translated: Post /);
+    assert.equal(await page.locator(side + ' > .xmc-text:not(.xmc-xlate)').first().isHidden(), true, 'the original is out of the way');
+    assert.equal((await page.locator(side + ' > .xmc-translate').innerText()).trim(), 'Show original');
+    await page.locator(side + ' > .xmc-translate').click();
+    assert.equal(await page.locator(side + ' > .xmc-text:not(.xmc-xlate)').first().isVisible(), true, 'the original is back');
+    await page.locator(side + ' > .xmc-translate').click();
+    assert.equal(await page.locator(side + ' .xmc-xlate').isVisible(), true, 'and the translation again, without asking X again');
+    assert.equal(await page.evaluate(() => window.__xl), 1, 'X was asked once');
+    assert.deepEqual(await page.evaluate(() => window.__opened), [], 'no tab opened');
+    await page.waitForFunction(() => !window.__xmc.state.peek && location.pathname === '/home/', null, { timeout: 20000 });
+    assert.ok(id);
+  });
+}, 120000);
+
+browserTest('when X offers no translation, the button says so and then opens the post on X', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; window.__noTranslate = true; });
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.lang === 'ja' && x.el && x.el.isConnected && x.el.querySelector('.xmc-translate')).el.querySelector('.xmc-translate').click());
+    const btn = '.xmc-view:not(.xmc-out) .xmc-vside > .xmc-translate';
+    await page.waitForFunction((b) => document.querySelector(b) && document.querySelector(b).textContent === 'Translate on X', btn, { timeout: 30000 });
+    assert.deepEqual(await page.evaluate(() => window.__opened), [], 'nothing opened by itself');
+    await page.locator(btn).click();
+    assert.equal((await page.evaluate(() => window.__opened)).length, 1, 'now it opens the post');
+  });
+}, 120000);
 
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });

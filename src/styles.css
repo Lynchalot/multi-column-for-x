@@ -578,3 +578,7 @@ html.xmc-frozen #xmc-pill { visibility: visible !important; }
 
 /* the end of the comments list while more are on their way */
 .xmc-rmore { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 18px 0; font-size: 13px; color: var(--xmc-muted); }
+
+/* a translation, shown in place of the original words */
+.xmc-xlate { white-space: pre-wrap; overflow-wrap: anywhere; }
+.xmc-xlfrom { font-size: 12px; margin-bottom: 2px; }
