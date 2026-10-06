@@ -876,3 +876,18 @@ browserTest('a new set of posts fades up once, and the motion switches off for p
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-cols')).animationName), 'none');
   });
 });
+
+browserTest('cards sit a little off the page, and "Card background: None" puts them back on it', async (e) => {
+  const bg = (page) => page.evaluate(() => getComputedStyle(document.querySelector('.xmc-card')).backgroundColor);
+  const raised = await e.open('/home/');
+  await checked(raised, async () => {
+    await e.ready(raised.page);
+    assert.notEqual(await bg(raised.page), 'rgba(0, 0, 0, 0)', 'a tint');
+    assert.notEqual(await raised.page.evaluate(() => getComputedStyle(document.querySelector('.xmc-card')).borderTopColor), 'rgba(0, 0, 0, 0)', 'and a hairline edge');
+  });
+  const flat = await e.open('/home/', { settings: { v: 8, cardStyle: 'flat' } });
+  await checked(flat, async () => {
+    await e.ready(flat.page);
+    assert.equal(await bg(flat.page), 'rgba(0, 0, 0, 0)');
+  });
+});

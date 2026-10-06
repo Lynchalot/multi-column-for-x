@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.14.1
+- **Cards stand off the page**: each card (and a profile's header) has a faint tint, a little lighter than a dark page or darker than a light one, with a hairline edge, so you can see where one ends and the next begins. The tint is see-through, so a themed or wallpaper background still shows. Option: Look, "Card background" (None puts them back on the page).
+
 ## 0.14.0
 - **A profile's header is the first card of the first column**, top left, with the posts flowing beside and below it, instead of a banner across the whole window.
 - **The post a reply answers is set in the same size as the reply**, in full contrast, as on X.

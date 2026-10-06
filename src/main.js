@@ -763,6 +763,7 @@
   // settings that change what's drawn
   function settingsChanged() {
     XMCSite.apply(settings);
+    root.classList.toggle('xmc-flat', settings.cardStyle === 'flat');
     applyBar();
     if (columns.length && (colCount() !== columns.length || layoutSig() !== view.layoutSig)) relayout(); // column or post-size settings changed
     refreshDownloadMarks();

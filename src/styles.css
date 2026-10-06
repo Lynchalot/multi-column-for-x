@@ -7,6 +7,8 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
   --xmc-muted: color-mix(in srgb, var(--xmc-fg) 58%, transparent);
   --xmc-border: color-mix(in srgb, var(--xmc-fg) 16%, transparent);
   --xmc-hover: color-mix(in srgb, var(--xmc-fg) 7%, transparent);
+  --xmc-surface: color-mix(in srgb, var(--xmc-fg) 4%, transparent);      /* a card, a little off the page */
+  --xmc-edge: color-mix(in srgb, var(--xmc-fg) 8%, transparent);
   --xmc-accent: #1d9bf0;
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column;
   background: var(--xmc-bg); color: var(--xmc-fg);
@@ -36,7 +38,7 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
 .xmc-status { padding: 40px 12px; text-align: center; color: var(--xmc-muted); }
 
 /* ---- cards ---- */
-.xmc-card { position: relative; border: 1px solid transparent; border-radius: 16px; padding: 12px 14px 4px; cursor: pointer;
+.xmc-card { position: relative; border: 1px solid var(--xmc-edge); background: var(--xmc-surface); border-radius: 16px; padding: 12px 14px 4px; cursor: pointer;
   content-visibility: auto; contain-intrinsic-size: auto 420px; font-size: 15px; line-height: 1.35; }
 .xmc-card:hover { background: var(--xmc-hover); }
 .xmc-card a { color: inherit; text-decoration: none; }
@@ -427,7 +429,7 @@ html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
 .xmc-pcounts { margin-top: 6px; font-size: 14px; font-weight: 600; white-space: pre-wrap; }
 
 /* X's own profile header, copied: kept to the width of X's column */
-.xmc-profile { padding: 12px 14px; border-radius: 16px; overflow: hidden; }
+.xmc-profile { padding: 12px 14px; border-radius: 16px; overflow: hidden; border: 1px solid var(--xmc-edge); background: var(--xmc-surface); }
 .xmc-profile.xmc-native { padding: 0; }
 
 /* ---- motion: short and quiet (about a tenth of a second), only where it explains something ---- */
@@ -447,3 +449,7 @@ html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
   .xmc-cols.xmc-enter, .xmc-replies, .xmc-thread-list, .xmc-profile, #xmc-lightbox, #xmc-lightbox img, .xmc-act.xmc-bump svg { animation: none; }
   .xmc-media.sensitive img, .xmc-media.sensitive video, .xmc-rmedias.sensitive img, .xmc-card { transition: none; }
 }
+
+/* "Card background: None": the cards sit straight on the page again */
+#xmc-root.xmc-flat .xmc-card, #xmc-root.xmc-flat .xmc-profile { background: transparent; border-color: transparent; }
+#xmc-root.xmc-flat .xmc-card:hover { background: var(--xmc-hover); }
