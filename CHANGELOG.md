@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.18.1
+- **Snappier motion.** Everything that moves now takes a tenth of a second or less (the panel opening out of a picture is 0.15s), and a test keeps it that way. The soft blur behind the panel and on the picture buttons is gone, since it was the costliest part of those fades. Nothing waits for an animation: clicks and keys work straight away.
+
 ## 0.18.0
 - **Comments are usually there when the panel opens.** Resting on any post for about half a second (not just the comments button) starts loading its comments out of sight.
 - **The post panel grows out of the picture (or card) you clicked** and fades out when closed.

@@ -351,7 +351,7 @@ html.xmc-on [data-testid="sidebarColumn"] [style*="sticky"] { position: static !
 .xmc-bar button, .xmc-act, .xmc-card, .xmc-rbtn, .xmc-menu button, #xmc-pill, .xmc-nat-btn { transition: background-color .12s ease, color .12s ease, box-shadow .12s ease; }
 .xmc-menu { animation: xmc-pop .1s ease-out; transform-origin: top left; }
 @keyframes xmc-pop { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
-#xmc-toast { animation: xmc-fade .15s ease-out; }
+#xmc-toast { animation: xmc-fade .1s ease-out; }
 @keyframes xmc-fade { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .xmc-bar button, .xmc-act, .xmc-card, .xmc-rbtn, .xmc-menu button, #xmc-pill, .xmc-nat-btn { transition: none; }
@@ -391,7 +391,7 @@ html.xmc-on [data-testid="sidebarColumn"] { overscroll-behavior: contain; }
 #xmc-root.xmc-textonly .xmc-link > img, #xmc-root.xmc-textonly .xmc-qmedia { display: none; }
 
 /* a tab was pressed and its feed has not arrived: the old posts stay, dimmed and not clickable */
-#xmc-root.xmc-switching .xmc-cols { opacity: .35; pointer-events: none; transition: opacity .15s; }
+#xmc-root.xmc-switching .xmc-cols { opacity: .35; pointer-events: none; transition: opacity .08s; }
 
 /* a person's thread, folded under their first post */
 .xmc-thread { margin: 6px 0 2px; }
@@ -433,18 +433,18 @@ html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
 .xmc-profile.xmc-native { padding: 0; }
 
 /* ---- motion: short and quiet (about a tenth of a second), only where it explains something ---- */
-@keyframes xmc-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes xmc-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes xmc-enter { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes xmc-drop { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
 @keyframes xmc-zoom { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes xmc-beat { 0% { transform: scale(1); } 40% { transform: scale(1.3); } 100% { transform: scale(1); } }
-.xmc-cols.xmc-enter { animation: xmc-enter .18s ease-out; }
-.xmc-replies, .xmc-thread-list:not([hidden]) { animation: xmc-drop .16s ease-out; }
-.xmc-profile:not([hidden]) { animation: xmc-fade .2s ease-out; }
-#xmc-lightbox { animation: xmc-fade .14s ease-out; }
-#xmc-lightbox img { animation: xmc-zoom .16s ease-out; }
-.xmc-act.xmc-bump svg { animation: xmc-beat .3s ease-out; }
-.xmc-media.sensitive img, .xmc-media.sensitive video, .xmc-rmedias.sensitive img { transition: filter .2s ease, transform .2s ease; }
-.xmc-card { transition: background-color .12s ease, color .12s ease, box-shadow .12s ease, opacity .2s ease; }
+.xmc-cols.xmc-enter { animation: xmc-enter .1s ease-out; }
+.xmc-replies, .xmc-thread-list:not([hidden]) { animation: xmc-drop .1s ease-out; }
+.xmc-profile:not([hidden]) { animation: xmc-fade .1s ease-out; }
+#xmc-lightbox { animation: xmc-fade .08s ease-out; }
+#xmc-lightbox img { animation: xmc-zoom .1s ease-out; }
+.xmc-act.xmc-bump svg { animation: xmc-beat .18s ease-out; }
+.xmc-media.sensitive img, .xmc-media.sensitive video, .xmc-rmedias.sensitive img { transition: filter .12s ease, transform .12s ease; }
+.xmc-card { transition: background-color .12s ease, color .12s ease, box-shadow .12s ease, opacity .12s ease; }
 @media (prefers-reduced-motion: reduce) {
   .xmc-cols.xmc-enter, .xmc-replies, .xmc-thread-list, .xmc-profile, #xmc-lightbox, #xmc-lightbox img, .xmc-act.xmc-bump svg { animation: none; }
   .xmc-media.sensitive img, .xmc-media.sensitive video, .xmc-rmedias.sensitive img, .xmc-card { transition: none; }
@@ -457,7 +457,7 @@ html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
 /* ---- actions on a picture, shown when you point at it ---- */
 .xmc-hover { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; gap: 6px; opacity: 0; transform: translateY(-3px); pointer-events: none; transition: opacity .12s ease, transform .12s ease; }
 .xmc-media:hover .xmc-hover, .xmc-media:focus-within .xmc-hover { opacity: 1; transform: none; pointer-events: auto; }
-.xmc-hover .xmc-act { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 50%; color: #fff; background: rgba(0, 0, 0, .55); backdrop-filter: blur(6px); }
+.xmc-hover .xmc-act { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 50%; color: #fff; background: rgba(0, 0, 0, .62); }
 .xmc-hover .xmc-act:hover { background: rgba(0, 0, 0, .8); color: #fff; }
 .xmc-hover .xmc-n { display: none; }
 .xmc-hover .xmc-act[data-act=like].on { color: #f91880; }
@@ -466,10 +466,10 @@ html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
 .xmc-media.sensitive .xmc-hover { display: none; }
 
 /* ---- a post, opened over the columns ---- */
-.xmc-view { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, .6); backdrop-filter: blur(6px); animation: xmc-fade .14s ease-out; cursor: zoom-out; }
+.xmc-view { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, .6); animation: xmc-fade .08s ease-out; cursor: zoom-out; }
 .xmc-view.xmc-still, .xmc-view.xmc-still .xmc-vpanel { animation: none; }
 .xmc-vpanel { display: flex; width: min(1200px, 100%); height: min(880px, 100%); overflow: hidden; border-radius: 20px; border: 1px solid var(--xmc-edge); background: var(--xmc-solid, var(--xmc-bg)); color: var(--xmc-fg);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, .5); cursor: default; animation: xmc-zoom .16s ease-out; }
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .5); cursor: default; animation: xmc-zoom .1s ease-out; }
 .xmc-vpanel.single { width: min(640px, 100%); height: auto; max-height: 100%; }
 .xmc-vmediapane { flex: 1 1 62%; min-width: 0; background: #000; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 2px; }
 .xmc-vm { position: relative; flex: 1 0 auto; display: flex; align-items: center; justify-content: center; min-height: 0; }
@@ -507,7 +507,7 @@ html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive v
 
 /* pictures: a quiet tint where they will be, then they fade in */
 .xmc-media:has(> img), .xmc-vm { background: var(--xmc-hover); }
-.xmc-media img, .xmc-vm img { transition: opacity .2s ease; }
+.xmc-media img, .xmc-vm img { transition: opacity .12s ease; }
 .xmc-media.xmc-loading img, .xmc-vm.xmc-loading img { opacity: 0; }
-.xmc-view.xmc-out { opacity: 0; transition: opacity .12s ease-in; pointer-events: none; }
+.xmc-view.xmc-out { opacity: 0; transition: opacity .08s ease-in; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .xmc-media img, .xmc-vm img, .xmc-view.xmc-out { transition: none; } }

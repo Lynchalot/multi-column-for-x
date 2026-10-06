@@ -20,3 +20,17 @@ test('the page scrollbar is hidden (not disabled) while columns are showing', ()
   const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
   assert.match(css, /html\.xmc-on[^{]*\{[^}]*scrollbar-width:\s*none/);
 });
+
+// Motion is there to explain, never to make anyone wait: nothing animated may take longer than a fifth of a second
+// (the spinner turns for as long as something is loading, so it is exempt).
+test('motion is short: no animation or transition over 0.2s', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+  const long = [];
+  for (const line of css.split('\n')) {
+    if (!/(animation|transition)\s*:/.test(line) || /xmc-spin/.test(line)) continue;
+    for (const m of line.matchAll(/(?:^|[\s,])(\d*\.?\d+)s\b/g)) if (Number(m[1]) > 0.2) long.push(line.trim().slice(0, 80));
+  }
+  for (const m of js.matchAll(/transition = '([^']*)'/g)) for (const d of m[1].matchAll(/(\d*\.?\d+)s\b/g)) if (Number(d[1]) > 0.2) long.push(m[1]);
+  assert.deepEqual(long, []);
+});

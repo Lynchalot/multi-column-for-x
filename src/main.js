@@ -2076,14 +2076,14 @@
     panel.style.transform = `translate(${Math.round(dx)}px, ${Math.round(dy)}px) scale(${scale})`;
     panel.style.opacity = '0.4';
     void panel.offsetWidth;
-    panel.style.transition = 'transform .24s cubic-bezier(.2, .8, .2, 1), opacity .18s ease-out';
+    panel.style.transition = 'transform .15s cubic-bezier(.2, .8, .2, 1), opacity .1s ease-out';
     panel.style.transform = ''; panel.style.opacity = '';
   }
   function closePostView(keepHistory) {
     if (!postView) return;
     const el = postView.el;
     postView = null;
-    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) { el.classList.add('xmc-out'); setTimeout(() => el.remove(), 130); } else el.remove();
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) { el.classList.add('xmc-out'); setTimeout(() => el.remove(), 90); } else el.remove();
     if (!keepHistory && window.history.state && window.history.state.xmcView) stepBack(); // take our own history entry away again
   }
   window.addEventListener('popstate', () => { // the person pressed Back with the panel open: close it (X's own steps, and ours, don't count)
