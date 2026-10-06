@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.25.1
+- **Translation no longer depends on X being in English.** X's translate button and its "Translated from …" line are written in your interface language, so they are no longer found by their English words: the button is also found by where it sits (the one plain button beside the post's words, never one of X's named controls, and nothing is pressed if that isn't clear), and "translated" is recognised by X's words having changed after the press. The language shown in "Translated from …" is whatever X says (only when X says it in English; otherwise it just says "Translated"). The language it translates into is your X setting.
+
 ## 0.25.0
 - **Translate in the panel.** The Translate post button on a post, a comment, or a card now translates it in place using X's own translation: the hidden page goes to the post, presses X's Translate control and the translated words are read off X's page and shown with "Translated from Japanese" and a Show original / Show translation toggle (asked of X once per post). On a card it opens the post's panel and translates there. If X offers nothing we can read, the button becomes "Translate on X" and opens the post on X. Written from X's wording, not its markup, so unverified on real X: a failure leaves a `translate FAILED` line, with the reason, in Copy diagnostics' `trace`.
 - When X still has a stale copy of a post in its page, the one on show is used.

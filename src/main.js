@@ -2446,11 +2446,21 @@
   // "Show original"). Nothing is sent anywhere else. If X's page offers nothing we can read, the button opens the post on X instead.
   const translations = new Map(); // post id -> { text, from } once translated
   const TRANSLATE_LABEL = /^translate (post|tweet|reply|comment)$/i;
+  // X's control is found by its English label when X is in English; in any other interface language by where it sits: the one plain
+  // button beside the post's words (not one of the post's action buttons, nothing with a test id, nothing in the action row).
   function translateControl(art) {
     const matches = (el) => { const label = (el.textContent || '').trim(); return label.length < 30 && TRANSLATE_LABEL.test(label); };
     for (const el of art.querySelectorAll('[role="button"], button')) if (matches(el)) return el; // an actual button first
     for (const el of art.querySelectorAll('span, div')) if (el.children.length <= 2 && matches(el)) return el.closest('[role="button"], button') || el;
-    return null;
+    const words = art.querySelector('[data-testid="tweetText"]');
+    if (!words) return null;
+    let scope = words.parentElement;
+    for (let n = 0; n < 2 && scope && scope.parentElement && art.contains(scope.parentElement); n++) scope = scope.parentElement;
+    if (!scope) return null;
+    const tagged = (b) => { const x = b.closest('[data-testid]'); return !!x && x !== art && art.contains(x); }; // (a button with a test id of its own is one of X's named controls, not this)
+    const cands = [...scope.querySelectorAll('[role="button"], button')].filter((b) => !words.contains(b) && !b.closest('[role="group"]') && !tagged(b) && !b.querySelector('[data-testid]')
+      && /\p{L}{3}/u.test(b.textContent || '') && (b.textContent || '').trim().length < 40 && !b.closest('a[href]'));
+    return cands.length === 1 ? cands[0] : null; // not sure which: nothing is pressed
   }
   async function translateOnX(t, root) {
     if (translations.has(t.id)) return { ok: true, ...translations.get(t.id) };
@@ -2459,15 +2469,18 @@
       const art = root ? await mountComment(t.id) : await waitFor(() => findArticle(t.id), 6000);
       if (!art) return { why: 'Couldn’t find the post on X’s page.' };
       const words = () => art.querySelector('[data-testid="tweetText"]');
-      const done = () => /translated from/i.test(art.textContent || '') && words() && (words().innerText || '').trim();
-      if (!done()) {
+      const shownText = () => ((words() && words().innerText) || '').trim();
+      const before = shownText();
+      // translated = X's words changed after we pressed its control (works in any interface language), or X says so in English
+      const done = () => { const w = shownText(); return w && (w !== before || /translated from/i.test(art.textContent || '')) ? w : ''; };
+      if (!/translated from/i.test(art.textContent || '')) {
         const ctl = translateControl(art);
-        if (!ctl) return { why: 'X offers no translation for this one.' };
+        if (!ctl) return { why: 'X offers no translation for this one (or its button isn’t one we can tell).' };
         fire(ctl);
       }
       const got = await waitFor(done, 7000);
       if (!got) return { why: 'X didn’t translate it.' };
-      const from = (/translated from\s+([^·\n.]+)/i.exec(art.textContent || '') || [])[1];
+      const from = (/translated from\s+([^·\n.]+)/i.exec(art.textContent || '') || [])[1]; // (only when X says it in English)
       return { ok: true, text: got, from: from ? from.trim() : '' };
     }));
     const res = await run;

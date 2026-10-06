@@ -1482,6 +1482,22 @@ browserTest('Translate post on a card opens the panel and translates there (X\'s
   });
 }, 120000);
 
+browserTest('translation works when X is in another interface language (its button and its "translated from" line are not in English)', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => { window.__xlFrench = true; });
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.lang === 'ja' && x.el && x.el.isConnected && x.el.querySelector('.xmc-translate')).el.querySelector('.xmc-translate').click());
+    const side = '.xmc-view:not(.xmc-out) .xmc-vside';
+    await page.waitForSelector(side + ' .xmc-xlate:not([hidden])', { timeout: 30000 });
+    const text = await page.locator(side + ' .xmc-xlate').innerText();
+    assert.match(text, /^Translated\s*\n?Traduit : Post /, text);
+    assert.equal((await page.locator(side + ' > .xmc-translate').innerText()).trim(), 'Show original');
+  });
+}, 120000);
+
 browserTest('when X offers no translation, the button says so and then opens the post on X', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {
