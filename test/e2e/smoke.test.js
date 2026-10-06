@@ -1279,6 +1279,8 @@ browserTest('while comments are fetched on X\'s hidden side, the menu and the si
     assert.ok(during, 'a still copy of the menu is showing');
     assert.deepEqual([during.left, during.top], before, 'in the same place');
     assert.equal(during.visible, 'visible');
+    assert.equal(await page.evaluate(() => document.getElementById('xmc-navfreeze').innerText.includes('Turn Columns')), false, 'our button is not copied into the still menu');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('xmc-pill')).visibility), 'visible', 'our button stays');
     await page.waitForFunction(() => !document.getElementById('xmc-navfreeze') && !document.documentElement.classList.contains('xmc-frozen'), null, { timeout: 25000 });
     await page.waitForSelector('header[role="banner"][data-xmc-style]', { timeout: 5000 });
     assert.deepEqual(await rect(), before, 'the real menu is back where it was');

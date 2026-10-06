@@ -2611,6 +2611,7 @@
     for (const [el, id] of [[settings.hideSidebar ? null : pin.side.el(), 'xmc-sidefreeze'], [pin.nav.el(), 'xmc-navfreeze']]) { // the right column and the menu on the left
       if (!el || el.dataset.xmcStyle === undefined || !el.getBoundingClientRect().width) continue;
       const clone = el.cloneNode(true);
+      for (const mine of clone.querySelectorAll('#xmc-pill')) mine.remove(); // our own button stays where it is (below), never copied
       for (const x of [clone, ...clone.querySelectorAll('[data-testid], [id]')]) { x.removeAttribute('data-testid'); x.removeAttribute('id'); }
       clone.id = id;
       clone.removeAttribute('role'); // or the page's own menu lookups would find the copy

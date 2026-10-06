@@ -563,3 +563,6 @@ html.xmc-on.xmc-peeking [data-testid="sidebarColumn"]:not([data-xmc-style]), htm
 
 /* an open post (or comment) sits over everything, X's pinned menu and sidebar included */
 #xmc-root:has(> .xmc-view) { z-index: 20; }
+
+/* our button lives in X's menu; while the menu is hidden behind its still copy the button stays as it is */
+html.xmc-frozen #xmc-pill { visibility: visible !important; }

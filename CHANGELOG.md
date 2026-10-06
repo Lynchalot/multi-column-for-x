@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.22.5
+- **"Turn Columns Off" no longer goes wacky when you open a post.** It lives inside X's menu, so the still copy of the menu (added in 0.22.3) contained a second, unstyled copy of it: a dark box with an oversized icon. The copy now leaves it out, and the real button stays where it is.
+
 ## 0.22.4
 - **An open post now sits over X's menu and sidebar** (they were drawn above it, undimmed).
 - **The sidebar and menu no longer drop out while a post is open.** The check that they are still pinned took the open panel covering them for a broken pin, gave up after a few seconds, handed them back to X's own placement, and re-pinned them about ten seconds later. The same applied to the full-size picture viewer and to toasts. Anything of ours covering them is now fine.
