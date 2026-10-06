@@ -1353,6 +1353,21 @@ browserTest('comments show the moment they arrive, not after the hidden page has
   });
 }, 90000);
 
+browserTest('a post\'s ... menu has Copy diagnostics (just the details, no page opened) next to Report a problem', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
+    await page.locator('.xmc-card .xmc-moreBtn').first().click({ force: true });
+    const items = await page.locator('.xmc-menu button').allInnerTexts();
+    assert.ok(items.includes('Copy diagnostics') && items.includes('Report a problem'), items.join(' | '));
+    await page.locator('.xmc-menu button', { hasText: 'Copy diagnostics' }).click();
+    await page.waitForSelector('#xmc-toast');
+    assert.deepEqual(await page.evaluate(() => window.__opened), [], 'no tab opened');
+  });
+});
+
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });
   await checked(h, async () => {

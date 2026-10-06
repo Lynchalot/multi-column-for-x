@@ -1987,6 +1987,7 @@
         try { await navigator.clipboard.writeText(plain); toast('Copied'); } catch { toast('Couldn’t copy'); }
       }],
       ['Open in a new tab', () => window.open('https://' + location.host + t.url, '_blank', 'noopener')],
+      ['Copy diagnostics', () => copyDiagnostics()],
       ['Report a problem', () => reportProblem()],
     ]);
   }
