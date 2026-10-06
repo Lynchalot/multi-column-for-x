@@ -891,3 +891,23 @@ browserTest('cards sit a little off the page, and "Card background: None" puts t
     assert.equal(await bg(flat.page), 'rgba(0, 0, 0, 0)');
   });
 });
+
+browserTest('on X\'s own pages the sensitive-media setting works on X\'s blur itself: blur, show, or leave the picture out', async (e) => {
+  const probe = (page) => page.evaluate(() => ({ filter: getComputedStyle(document.getElementById('blurred')).filter, picture: getComputedStyle(document.getElementById('blurred')).display, notice: getComputedStyle(document.getElementById('notice')).display }));
+  const blur = await e.open('/user/status/90001/');
+  await checked(blur, async () => {
+    await blur.page.waitForFunction(() => document.querySelectorAll('.xmc-nat').length === 7, null, { timeout: 15000 });
+    await blur.page.waitForTimeout(1500);
+    assert.deepEqual(await probe(blur.page), { filter: 'blur(30px)', picture: 'block', notice: 'block' }, 'X\'s own blur stays');
+  });
+  const show = await e.open('/user/status/90001/', { settings: { v: 8, nsfw: 'show' } });
+  await checked(show, async () => {
+    await show.page.waitForFunction(() => getComputedStyle(document.getElementById('blurred')).filter === 'none', null, { timeout: 8000 });
+    assert.deepEqual(await probe(show.page), { filter: 'none', picture: 'block', notice: 'none' }, 'unblurred, and X\'s notice gone');
+  });
+  const hide = await e.open('/user/status/90001/', { settings: { v: 8, nsfw: 'hide' } });
+  await checked(hide, async () => {
+    await hide.page.waitForFunction(() => getComputedStyle(document.getElementById('blurred')).display === 'none', null, { timeout: 8000 });
+    assert.deepEqual(await probe(hide.page), { filter: 'blur(30px)', picture: 'none', notice: 'none' }, 'the picture and its notice are gone');
+  });
+});

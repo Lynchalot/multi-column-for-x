@@ -48,8 +48,36 @@ var XMCSite = (function () {
     }
   }
 
+  // X blurs sensitive pictures with one rule in its own stylesheet (a 30px blur) and lays a notice over them. Found by that rule, it
+  // can be switched off (Show) or the picture removed (Hide), on every page that is X's own: a post's page, a profile, search.
+  let sensitiveEl = null, nativeSheet = null, blurSelector = null;
+  function findBlurSelector() {
+    const style = document.getElementById('react-native-stylesheet');
+    const sheet = style && style.sheet;
+    if (!sheet) return null;
+    if (sheet !== nativeSheet) { nativeSheet = sheet; blurSelector = null; }
+    if (blurSelector) return blurSelector;
+    try {
+      for (const rule of sheet.cssRules) {
+        const m = rule instanceof CSSStyleRule && /blur\((\d+)px\)/.exec(rule.style.filter || '');
+        if (m && Number(m[1]) >= 20) { blurSelector = rule.selectorText; break; }
+      }
+    } catch { /* not readable yet */ }
+    return blurSelector;
+  }
+  function syncSensitive() {
+    if (!current) return;
+    const sel = current.nsfw === 'blur' ? null : findBlurSelector();
+    const css = !sel ? '' : current.nsfw === 'show'
+      ? sel + ' { filter: none !important; }\n' + sel + ' + div { display: none !important; }'
+      : sel + ', ' + sel + ' + div { display: none !important; }';
+    if (!sensitiveEl) { sensitiveEl = document.createElement('style'); sensitiveEl.id = 'xmc-sensitive-css'; document.head.append(sensitiveEl); }
+    if (sensitiveEl.textContent !== css) sensitiveEl.textContent = css;
+  }
+
   // things React may redraw, so they are re-applied now and then
   function refresh() {
+    syncSensitive();
     if (!current) return;
     const twitter = current.branding === 'twitter';
     swapLogo(twitter);
