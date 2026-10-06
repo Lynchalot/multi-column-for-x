@@ -23,7 +23,7 @@ async function setup(opts = {}) {
     // seen: post ids already "read" in an earlier visit (what the extension keeps in its read-posts memory)
     async open(path, { settings, seen, width = 1700, height = 900 } = {}) {
       const context = await browser.newContext({ viewport: { width, height } });
-      if (settings) await context.addInitScript((s) => { try { localStorage.setItem('xmc.settings', JSON.stringify(s)); } catch { /* ignore */ } }, settings);
+      if (settings) await context.addInitScript((s) => { try { if (!localStorage.getItem('xmc.settings')) localStorage.setItem('xmc.settings', JSON.stringify(s)); } catch { /* ignore */ } }, settings);
       if (seen) await context.addInitScript((ids) => { try { if (!localStorage.getItem('xmc.seen')) localStorage.setItem('xmc.seen', JSON.stringify(ids)); } catch { /* ignore */ } }, seen);
       const page = await context.newPage();
       const errors = [];

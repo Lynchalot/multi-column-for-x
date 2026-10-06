@@ -660,7 +660,7 @@
   tabsEl.style.display = 'contents';
   const countEl = h('span', { className: 'xmc-count' });
   const btn = (text, title, onclick, cls) => h('button', { textContent: text, title, onclick, type: 'button', className: cls || '' });
-  const VIEW_LABELS = { all: () => 'All', posts: () => T('posts'), reposts: () => T('reposts'), quotes: () => T('quotes'), replies: () => 'Replies', media: () => 'Media', photos: () => 'Photos', videos: () => 'Videos' };
+  const VIEW_LABELS = { all: () => 'All', posts: () => 'Posts only', reposts: () => T('reposts'), quotes: () => T('quotes'), replies: () => 'Replies', media: () => 'Media', photos: () => 'Photos', videos: () => 'Videos' };
   const viewEls = {};
   for (const key of Object.keys(VIEW_LABELS)) viewEls[key] = btn('', '', () => setFilter(key), 'xmc-chip');
   // X's profile Media tab is now split into Videos and Photos (a dropdown on the tab); these two press X's real choice
@@ -670,7 +670,7 @@
   };
   const mediaSplit = () => { const tb = realTabs()[state.sel]; return !!tb && /^(videos|photos)$/i.test(tb.textContent.trim()); };
   const gearBtn = h('button', { className: 'xmc-gear', title: 'Settings', type: 'button', onclick: () => openOptions() }, icon('gear'));
-  const healthBtn = h('button', { className: 'xmc-health', type: 'button', hidden: true, textContent: '\u26a0', onclick: () => copyDiagnostics() });
+  const healthBtn = h('button', { className: 'xmc-health', type: 'button', hidden: true, textContent: '\u26a0', onclick: () => reportProblem() });
   const refreshBtn = h('button', { className: 'xmc-refresh', title: 'Refresh', type: 'button', onclick: () => refresh() }, icon('refresh'), h('span', { className: 'xmc-newn' }));
   const nsfwBtn = h('button', { className: 'xmc-nsfw', type: 'button', onclick: () => cycleNsfw() }, h('span', { className: 'xmc-nsfwi' }), h('span', { className: 'xmc-nsfwl', textContent: 'NSFW' }));
 
@@ -691,7 +691,7 @@
   const statusEl = h('div', { className: 'xmc-status' });
   const colsEl = h('div', { className: 'xmc-cols' });
   const loaderText = h('span', { textContent: 'Loading more…' });
-  const diagBtn = btn('Copy diagnostics', 'Copies a private snapshot (no post text) to paste when asking for help', () => copyDiagnostics(), 'xmc-diagbtn');
+  const diagBtn = btn('Report a problem', 'Opens the issue page and copies a private snapshot (no post text) to paste into it', () => reportProblem(), 'xmc-diagbtn');
   const loaderEl = h('div', { className: 'xmc-loader', hidden: true }, spinner(), loaderText, diagBtn);
   const endEl = h('div', { className: 'xmc-end', hidden: true }, h('span', { textContent: 'That’s everything X has sent.' }),
     btn('Try loading more', '', () => { const f = activeFeed(); if (f) { f.exhausted = false; f.empty = 0; f.misses = 0; f.retryOnce = true; pump(); } }));
@@ -702,7 +702,10 @@
       btn('Keep loading older posts', '', () => { view.keepGoing = true; view.caughtUp = false; const f = activeFeed(); if (f) pump(); guard('render', renderFeed); })));
   const profileEl = h('section', { className: 'xmc-profile', hidden: true });
   const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, colsEl, loaderEl, caughtEl, endEl, statusEl);
-  const root = h('div', { id: 'xmc-root', hidden: true }, bar, scroller);
+  const hintEl = h('div', { className: 'xmc-hint', hidden: true },
+    h('span', { textContent: 'Click a post to open it; Esc closes it and the arrow keys move between posts. Point at a picture to like, repost or save it. Settings are under the gear.' }),
+    h('button', { type: 'button', textContent: 'Got it', onclick: () => dismissHint() }));
+  const root = h('div', { id: 'xmc-root', hidden: true }, bar, hintEl, scroller);
   const toastEl = h('div', { id: 'xmc-toast', hidden: true });
   document.body.append(root, toastEl);
 
@@ -1234,6 +1237,11 @@
       mode: { walkOnly: !!state.walkOnly, tickMsAverage: Math.round(tickTimes.reduce((a, b) => a + b, 0) / Math.max(1, tickTimes.length)), tickMsWorst: Math.round(Math.max(0, ...tickTimes)) },
     }, null, 2);
   }
+  // opens the project's issue page and copies the details to paste into it (nothing is sent anywhere by the extension itself)
+  async function reportProblem() {
+    if (typeof XMCMeta !== 'undefined' && XMCMeta.repo) window.open(XMCMeta.repo + '/issues/new/choose', '_blank', 'noopener');
+    try { await navigator.clipboard.writeText(diagnostics()); toast('Details copied. Paste them into the report.'); } catch { console.log('[xmc] diagnostics', diagnostics()); toast('Couldn\u2019t copy; the details are in the browser console.'); }
+  }
   async function copyDiagnostics() {
     try { await navigator.clipboard.writeText(diagnostics()); toast('Copied \u2014 paste it to whoever is helping you'); } catch { console.log('[xmc] diagnostics', diagnostics()); toast('Couldn\u2019t copy; it\u2019s in the browser console'); }
   }
@@ -1476,7 +1484,7 @@
     for (const r of list) panel.append(renderReply(r, t, panel));
     if (!d) {
       panel.append(h('div', { className: 'xmc-dim xmc-rempty', textContent: (res && res.why) || 'Try again in a moment.' }));
-      panel.append(btn('Copy diagnostics', '', () => copyDiagnostics(), 'xmc-rbtn'));
+      panel.append(btn('Report a problem', '', () => reportProblem(), 'xmc-rbtn'));
     }
     const more = h('button', { className: 'xmc-rbtn', type: 'button', textContent: d && d.more ? 'See all comments' : 'Open conversation' });
     more.dataset.act = 'conversation';
@@ -1794,6 +1802,10 @@
     }
   }
 
+  // a one-time line saying what you can do here
+  function dismissHint() { hintEl.hidden = true; if (!settings.hintSeen) { settings.hintSeen = true; save(); } }
+  function updateHint() { const show = !settings.hintSeen && state.shown && view.cards.length >= 3 && !postView; if (hintEl.hidden === show) hintEl.hidden = !show; }
+
   // ---------- popover menus ----------
   let menuEl = null;
   let menuDismiss = null; // called when the menu is closed without choosing anything
@@ -1845,7 +1857,7 @@
         try { await navigator.clipboard.writeText(plain); toast('Copied'); } catch { toast('Couldn’t copy'); }
       }],
       ['Open in a new tab', () => window.open('https://' + location.host + t.url, '_blank', 'noopener')],
-      ['Copy diagnostics', () => copyDiagnostics()],
+      ['Report a problem', () => reportProblem()],
     ]);
   }
 
@@ -1956,7 +1968,7 @@
       return box;
     });
   }
-  function viewSide(t) {
+  function viewSide(t, focusBox) {
     const side = h('div', { className: 'xmc-vside' });
     const ctxHost = h('div', { className: 'xmc-vctx' }, ...contextChain(t).filter(usable).map(renderParentContext));
     side.append(ctxHost);
@@ -1984,15 +1996,16 @@
         const chain = contextChain(t).filter(usable);
         if (chain.length && !ctxHost.children.length) ctxHost.replaceChildren(...chain.map(renderParentContext));
         fillReplies(panel, t, res); updateActions(t);
+        if (focusBox) { const box = side.querySelector('.xmc-cbox'); if (box) box.focus({ preventScroll: true }); }
       });
-    } else fillReplies(panel, t, { data: { replies: [], more: false } });
+    } else { fillReplies(panel, t, { data: { replies: [], more: false } }); if (focusBox) { const box = side.querySelector('.xmc-cbox'); if (box) box.focus({ preventScroll: true }); } }
     return side;
   }
-  function openPostView(t, still) {
+  function openPostView(t, still, focusBox) {
     closePostView();
     closeMenu();
     const media = t.media.length ? h('div', { className: 'xmc-vmediapane' }, ...viewMedia(t)) : null;
-    const side = viewSide(t);
+    const side = viewSide(t, focusBox);
     const panel = h('div', { className: 'xmc-vpanel' + (media ? '' : ' single') }, media, side);
     const idx = view.cards.indexOf(t);
     const nav = (d, ic, label) => h('button', { className: 'xmc-vnav ' + (d < 0 ? 'prev' : 'next'), type: 'button', title: label, hidden: idx < 0 || !view.cards[idx + d], onclick: (e) => { e.stopPropagation(); stepPostView(d); } }, icon(ic));
@@ -2022,7 +2035,8 @@
     root.append(el);
     postView = { t, el, panel, side };
     updateActions(t);
-    const first = el.querySelector('.xmc-vclose'); if (first) first.focus({ preventScroll: true });
+    const first = el.querySelector('.xmc-vclose'); if (first && !focusBox) first.focus({ preventScroll: true });
+    if (!settings.hintSeen) dismissHint();
   }
   function stepPostView(d) {
     if (!postView) return;
@@ -2088,7 +2102,7 @@
       case 'bookmark': bump(button); return toggleAction(t, 'bookmarked', '[data-testid="bookmark"]', '[data-testid="removeBookmark"]', 'bookmark');
       case 'repost':
         return openMenu(button, [[t.state.reposted ? T('undo') : T('repost'), () => repost(t, false)], [T('quote'), () => repost(t, true)]]);
-      case 'reply': return toggleComments(t);
+      case 'reply': return settings.commentsIn === 'panel' ? openPostView(t, false, true) : toggleComments(t);
       case 'compose': return composeReply(t);
       case 'conversation': return navigate(t.url, t);
       case 'share': return copyLink(t);
@@ -2299,7 +2313,7 @@
     tabsEl.replaceChildren(...tabs.map((tab, i) => {
       if (hideForYou && i === 0) return null;
       const label = tab.textContent.trim();
-      const dropdown = /^(videos|photos)$/i.test(label) || state.menuTabs.has(routeKey() + '|' + i);
+      const dropdown = /^(videos|photos)$/i.test(label) || state.menuTabs.has(routeKey() + '|' + i) || (where() === 'home' && /^following$/i.test(label)); // Following's Popular / Recent
       const b = btn(label + (dropdown ? ' \u25be' : ''), '', () => switchTab(i, b));
       b.classList.toggle('on', i === state.sel);
       return b;
@@ -2723,7 +2737,7 @@
     state.health = XMCLogic.healthIssues(healthSnapshot());
     const bad = state.health.length > 0;
     if (healthBtn.hidden === bad) healthBtn.hidden = !bad;
-    if (bad) healthBtn.title = state.health.map((i) => i.text).join('\n') + '\nClick to copy a report you can paste into a bug report.';
+    if (bad) healthBtn.title = state.health.map((i) => i.text).join('\n') + '\nClick to report it (the details are copied for you to paste).';
   }
 
   // ---------- main loop ----------
@@ -2763,7 +2777,7 @@
     }
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
-    if (tickN % 5 === 3) guard('reply context', contextTick);
+    if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
     if (tickN % 10 === 5 && Date.now() - lastScrollAt > 500) guard('recycle', () => recycleCards(false));
     if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);
@@ -2819,7 +2833,7 @@
       console.warn('[xmc] no timeline data after 10s; showing the normal feed. Seen:', JSON.stringify(state.seenOps),
         'feeds:', [...state.feeds.keys()]);
       state.failed = route; state.failedBy = 'error';
-      toast('Columns couldn’t read this page, so X’s own page is showing. “Turn Columns On” tries again.');
+      toast('Columns couldn’t load here, so this is X’s normal page. “Turn Columns On” tries again, or use Report a problem.');
       return;
     }
     guard('render', renderFeed);

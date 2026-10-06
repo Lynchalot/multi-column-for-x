@@ -495,3 +495,12 @@ html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive v
 .xmc-vnav[hidden] { display: none; }
 @media (max-width: 900px) { .xmc-vpanel { flex-direction: column; overflow-y: auto; } .xmc-vmediapane { flex: 0 0 auto; max-height: 55%; } .xmc-vside { flex: 1 0 auto; overflow: visible; } }
 @media (prefers-reduced-motion: reduce) { .xmc-view, .xmc-vpanel { animation: none; } .xmc-hover { transition: none; } }
+
+/* a one-time line saying what you can do here */
+.xmc-hint { display: flex; align-items: center; gap: 14px; padding: 8px 14px; font-size: 14px; color: var(--xmc-muted); border-bottom: 1px solid var(--xmc-border); }
+.xmc-hint span { flex: 1; }
+.xmc-hint button { appearance: none; border: 0; background: none; color: var(--xmc-accent); font: inherit; font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 999px; white-space: nowrap; }
+.xmc-hint button:hover { background: var(--xmc-hover); }
+.xmc-hint[hidden] { display: none; }
+/* no hovering on a touch screen: the actions on a picture stay visible */
+@media (hover: none) { .xmc-hover { opacity: 1; transform: none; pointer-events: auto; } }

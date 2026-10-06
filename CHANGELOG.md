@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.17.0
+- **A one-time hint** under the top bar the first time columns show: what clicking, Esc and the arrow keys do, that pictures have actions on hover, and where settings are. "Got it" dismisses it for good (it also goes away the first time you open a post).
+- **The comments button opens the post panel** with the cursor in the reply box, instead of making the card very tall. Option: Posts, "Open comments" (In the post panel / Inside the card).
+- **Following shows its Popular / Recent arrow** from the start; pressing the tab a second time opens the choice.
+- **"Report a problem"** replaces "Copy diagnostics" everywhere: it opens the project's issue page and copies the details for you to paste in. The fallback message when columns can't load says what to do.
+- **The "Tweets" filter is now "Posts only"**, which is what it shows.
+- Actions on a picture stay visible on touch screens.
+
 ## 0.16.0
 - **Replies carry their whole conversation.** A reply shows every post above it that X sent with it (up to three, oldest first), not just the last one. Where X sent the reply on its own, the posts it answers are looked up out of sight, one at a time, for replies you have been looking at for a moment (never while you scroll, at most eight a minute), and the card fills in. Option: Posts, "Look up the post a reply answers when X did not send it".
 - **The post panel shows the same context** above the post, and a post's comments no longer include the conversation above it (those posts used to be listed as comments).

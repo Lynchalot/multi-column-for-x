@@ -62,7 +62,7 @@ browserTest('loading keeps ahead of fast scrolling and the feed is never wiped',
 }, 90000);
 
 browserTest('comments for several posts load one after another, and scrolling meanwhile does not wipe the columns', async (e) => {
-  const h = await e.open('/home/');
+  const h = await e.open('/home/', { settings: { v: 9, commentsIn: 'card' } });
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
@@ -450,7 +450,7 @@ browserTest('read posts: when everything recent is read it says so and stops loa
 });
 
 browserTest('comment order is remembered between visits', async (e) => {
-  const h = await e.open('/home/');
+  const h = await e.open('/home/', { settings: { v: 9, commentsIn: 'card' } });
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
@@ -501,7 +501,7 @@ browserTest('a second copy of the script (after an extension update) replaces th
 });
 
 browserTest('comments: the reply box is at the top, and a single comment can be liked and replied to', async (e) => {
-  const h = await e.open('/home/');
+  const h = await e.open('/home/', { settings: { v: 9, commentsIn: 'card' } });
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
@@ -730,7 +730,7 @@ browserTest('a list page: the list\'s name is in the tab title and at the left o
 
 browserTest('sensitive pictures in comments follow the sensitive-media setting', async (e) => {
   const open = async (settings) => {
-    const h = await e.open('/home/', settings ? { settings: Object.assign({ v: 8 }, settings) } : undefined);
+    const h = await e.open('/home/', { settings: Object.assign({ v: 9, commentsIn: 'card' }, settings || {}) });
     await e.ready(h.page);
     await h.page.locator('.xmc-card [data-act="reply"]').first().click();
     await h.page.waitForSelector('.xmc-replies .xmc-ritem');
@@ -995,3 +995,47 @@ browserTest('the post panel shows what a reply answers above it, once looked up 
     await page.waitForFunction(() => location.pathname === '/user6/with_replies/', null, { timeout: 15000 });
   });
 }, 90000);
+
+browserTest('first run: a one-line hint says what you can do, and "Got it" keeps it away for good', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('.xmc-hint:not([hidden])', { timeout: 8000 });
+    assert.match(await page.locator('.xmc-hint').innerText(), /Click a post to open it/);
+    await page.locator('.xmc-hint button').click();
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('xmc.settings')).hintSeen === true; } catch { return false; } });
+    await page.reload();
+    await e.ready(page);
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator('.xmc-hint:not([hidden])').count(), 0);
+  });
+});
+
+browserTest('the comments button opens the post panel with the reply box ready', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.locator('.xmc-card [data-act="reply"]').first().click();
+    await page.waitForSelector('.xmc-view .xmc-vside .xmc-cbox', { timeout: 25000 });
+    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('xmc-cbox')), true, 'the cursor is in the reply box');
+    assert.equal(await page.locator('.xmc-card .xmc-replies').count(), 0, 'nothing opened inside the card');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => location.pathname === '/home/', null, { timeout: 15000 });
+  });
+}, 90000);
+
+browserTest('the Following tab shows its Popular / Recent arrow from the start, the filter says "Posts only", and Report a problem opens the issue page', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    assert.ok((await page.locator('.xmc-bar1 button', { hasText: 'Following' }).first().innerText()).includes('▾'), 'the arrow is there before anyone has pressed the tab twice');
+    assert.ok((await page.locator('.xmc-bar2 .xmc-chip:visible').allInnerTexts()).includes('Posts only'));
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
+    await page.evaluate(() => { document.querySelector('.xmc-card [data-act="more"]').click(); });
+    await page.locator('.xmc-menu button', { hasText: 'Report a problem' }).click();
+    assert.deepEqual(await page.evaluate(() => window.__opened), ['https://github.com/Lynchalot/multi-column-for-x/issues/new/choose']);
+  });
+});
