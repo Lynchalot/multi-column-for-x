@@ -34,3 +34,12 @@ Thread folding (`XMCLogic.threadPlan`, `renderThread`, `view.drawnIds`: a reply 
 ## Next up
 Done in 0.11.0: like and reply on individual comments (`actOnComment` opens the post on X's hidden side, finds the comment by id, presses X's own button, goes back), reply box at the top. Not verified on real X: if a comment's like or reply fails there, ask for "Copy diagnostics".
 Ideas to suggest: the post author's own replies marked, "show more replies" (only ~60 are listed), collapsing long threads, jump to a reply's parent.
+
+## Learned in 0.21 to 0.23 (all found on real X or from the owner's recordings)
+- History: the panel pushes `{xmcView:true}`; every Back we press goes through `stepBack` and is counted in `ownBacks`, and its popstate is ignored however late (Zen can take seconds). Never guess by time. A visit that starts while the panel opens gets its entry added afterwards (`ensurePanelEntry`).
+- The pinned menu and sidebar are `z-index: 6`; the columns root is 5, and 20 while a post is open (`#xmc-root:has(> .xmc-view)`), so the panel sits over them. The pin check (`probeOk`) must treat our own panel, toast, viewer and still copies as fine, or it gives up and un-pins them after three passes.
+- During a visit X rebuilds its menu and sidebar: both get a still copy (`freezeSidebar`, ids `xmc-sidefreeze`, `xmc-navfreeze`; the copy loses ids and `role`, and our pill is left out of it). Don't probe or re-pin while frozen.
+- `src/hook.js` hides X's timeline, menu and sidebar from document start on a page where columns were showing (`localStorage.xmcVeil` = the path), lifted by the first tick; 6 s safety timer. Also reads `xmcSkipAge` before X boots.
+- Comments are handed over the moment X answers (`opts.early`); the hidden page steps back behind them. One request per post (`repliesInflight`). Real-X timings (Copy diagnostics, `commentTimes`): X's own answer is 0.65 to 1.05 s of ~0.8 to 1.2 s; finding a far post once took 2.3 s.
+- Copy diagnostics (a post's ... menu) carries `trace`, a rolling event log with `LEAK` lines when X's own page shows through. Ask for it before asking for a recording.
+- The skip-age-check flag is `rweb_age_assurance_flow_enabled` (the technique Control Panel for Twitter uses). Untested against a real age-restricted post; `ageFlag` in the diagnostics says what the hook managed.

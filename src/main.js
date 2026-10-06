@@ -3098,7 +3098,7 @@
     document.documentElement.classList.toggle('xmc-on', active);
     document.documentElement.classList.remove('xmc-veil'); // decided: X's page is either hidden by the columns or meant to be seen
     document.documentElement.classList.toggle('xmc-peeking', !!state.peek || !!state.posting);
-    if (active && tickN % 4 === 0 && !document.documentElement.classList.contains('xmc-viewer')) { // something of X's showing through the columns
+    if (active && tickN % 12 === 0 && Date.now() - lastScrollAt > 1500 && !document.documentElement.classList.contains('xmc-viewer')) { // something of X's showing through the columns
       const shows = (el) => { if (!el) return false; const cs = getComputedStyle(el), r = el.getBoundingClientRect(); return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05 && r.width > 40 && r.height > 40 && r.right > 0 && r.left < innerWidth; };
       const pc = mainCol(), nv = pin.nav.el(), sd = pin.side.el();
       if (pc && !state.posting && shows(pc)) traceOnce('LEAK', 'X\u2019s own timeline is visible under the columns');

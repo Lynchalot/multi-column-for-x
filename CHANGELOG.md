@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.4
+- Removed the setting "Show a Quotes link under posts that have been quoted": nothing read it, so it did nothing.
+- The check that notices X's own page showing through now runs about every 1.2 seconds and never while you are scrolling (it was every 0.4 seconds), so it costs nothing you can feel.
+
 ## 0.23.3
 - **Copy diagnostics now includes a log of what happened** (`trace`: panels opened and closed, visits to X's post pages, Backs pressed and answered, freezes, pins given up, layout shifts, and a `LEAK` line whenever X's own timeline, menu or sidebar is showing through the columns). One paste shows what a recording would.
 - **Back right after a comments visit now closes the panel.** A Back within 1.5 seconds of a visit ending was taken for our own and ignored; our own Backs are counted exactly, so that guess is gone. If the panel opens while a visit is running, its history entry is added as soon as the visit has ended, so Back still closes it.
