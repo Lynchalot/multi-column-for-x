@@ -1514,6 +1514,46 @@ browserTest('when X offers no translation, the button says so and then opens the
   });
 }, 120000);
 
+browserTest('Bookmarks, Likes and Lists can be added to X\'s left menu (under History), each a link that loads that page', async (e) => {
+  const none = await e.open('/home/');
+  await checked(none, async () => {
+    await e.ready(none.page);
+    await none.page.waitForTimeout(800);
+    assert.equal(await none.page.locator('[data-xmc-nav]').count(), 0, 'nothing added by default');
+  });
+  const h = await e.open('/home/', { settings: { v: 9, navBookmarks: true, navLikes: true, navLists: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.querySelectorAll('[data-xmc-nav]').length === 3, null, { timeout: 8000 });
+    const got = await page.evaluate(() => [...document.querySelectorAll('[data-xmc-nav]')].map((a) => [a.getAttribute('href'), a.textContent.trim()]));
+    assert.deepEqual(got, [['/i/bookmarks', 'Bookmarks'], ['/user1/likes', 'Likes'], ['/i/lists', 'Lists']]);
+    const order = await page.evaluate(() => [...document.querySelectorAll('header nav a')].map((a) => a.getAttribute('href')));
+    assert.ok(order.indexOf('/i/bookmarks') < order.indexOf('/user1/likes') && order.indexOf('/user1/likes') < order.indexOf('/i/lists'), order.join(' '));
+    assert.equal(await page.locator('[data-xmc-nav]').count(), 3, 'no duplicates after a few passes');
+    const req = page.waitForRequest((r) => /\/user1\/likes$/.test(r.url()), { timeout: 8000 });
+    await page.locator('[data-xmc-nav="navLikes"]').click();
+    await req;
+  });
+});
+
+browserTest('over a see-through page (a wallpaper or theme) the cards get a stronger tint so they can still be seen', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const alpha = () => page.evaluate(() => { const c = getComputedStyle(document.querySelector('.xmc-card')).backgroundColor; const m = /\/\s*([\d.]+)\s*\)/.exec(c) || /rgba\([^)]*,\s*([\d.]+)\s*\)/.exec(c); return m ? Number(m[1]) : 1; });
+    const solid = await alpha();
+    await page.evaluate(() => { document.body.style.background = 'transparent'; document.documentElement.style.background = 'transparent'; });
+    await page.waitForFunction(() => document.getElementById('xmc-root').classList.contains('xmc-seethru'), null, { timeout: 5000 });
+    await page.waitForTimeout(400); // (the tint fades in over 0.12s)
+    assert.ok((await alpha()) > solid + 0.03, 'stronger than on a plain page');
+    const info = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).theme);
+    assert.equal(info.seeThrough, true);
+    assert.ok(info.cardBg && info.fg, 'the diagnostics say what the theme is');
+  });
+});
+
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });
   await checked(h, async () => {

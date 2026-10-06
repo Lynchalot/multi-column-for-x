@@ -13,6 +13,7 @@ function shell(title, body, script) {
 <div id="react-root">
 <header role="banner" style="position:fixed;left:200px;top:0;bottom:0;width:260px"><nav><h1><a href="/home"><svg viewBox="0 0 24 24"><g><path d="M14.258 10.152L23.176 0h-2.113l-7.747 8.813L7.133 0H0l9.352 13.328L0 23.973h2.113l8.176-9.309 6.531 9.309h7.133z"></path></g></svg></a></h1>
  <a href="/home" data-testid="AppTabBar_Home_Link"><span>Home</span></a><br><a href="/explore"><span>Explore</span></a><br><a href="/notifications"><span>Notifications</span></a><br><a href="/i/grok"><span>Grok</span></a><br><a href="/i/bookmarks"><span>History</span></a><br><a href="/i/jf/creators/studio"><span>Creator Studio</span></a>
+ <a href="/user1" data-testid="AppTabBar_Profile_Link"><span>Profile</span></a>
  <a href="/compose/post" data-testid="SideNav_NewTweet_Button" style="display:block;width:230px;height:52px;border-radius:9999px;background:#eee;color:#000;text-align:center;line-height:52px;font-size:17px;font-weight:700"><span><span>Post</span></span></a></nav>
  <div data-testid="SideNav_AccountSwitcher_Button" style="position:absolute;bottom:10px;width:250px">account</div></header>
 ${body}

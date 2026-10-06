@@ -582,3 +582,7 @@ html.xmc-frozen #xmc-pill { visibility: visible !important; }
 /* a translation, shown in place of the original words */
 .xmc-xlate { white-space: pre-wrap; overflow-wrap: anywhere; }
 .xmc-xlfrom { font-size: 12px; margin-bottom: 2px; }
+
+/* over a wallpaper or a see-through theme the faint tint is not enough to see a card by */
+#xmc-root.xmc-seethru { --xmc-surface: color-mix(in srgb, var(--xmc-fg) 9%, transparent); --xmc-edge: color-mix(in srgb, var(--xmc-fg) 15%, transparent); }
+#xmc-root.xmc-seethru.xmc-flat { --xmc-surface: transparent; }

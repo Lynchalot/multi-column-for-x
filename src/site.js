@@ -134,7 +134,7 @@ var XMCSite = (function () {
     const out = [];
     const nav = document.querySelector('header[role="banner"]');
     if (!nav) return out;
-    for (const a of nav.querySelectorAll('nav a[href]')) {
+    for (const a of nav.querySelectorAll('nav a[href]:not([data-xmc-nav])')) {
       const key = a.getAttribute('href');
       if (!key || key[0] !== '/' || a.matches('[data-testid="SideNav_NewTweet_Button"]')) continue;
       const label = (a.textContent || a.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 60);

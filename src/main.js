@@ -312,6 +312,7 @@
     link: ['M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7', 'M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'],
     more: ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'],
     menu: ['M4 6h16', 'M4 12h16', 'M4 18h16'],
+    list: ['M9 6h12', 'M9 12h12', 'M9 18h12', 'M4 6h.01', 'M4 12h.01', 'M4 18h.01'],
     check: ['M5 12.5l4.5 4.5L19 7'],
     bird: [XMCSite.BIRD],
     refresh: ['M21 12a9 9 0 1 1-2.6-6.4', 'M21 4v5h-5'],
@@ -872,6 +873,7 @@
     applyBar();
     if (columns.length && (colCount() !== columns.length || layoutSig() !== view.layoutSig)) relayout(); // column or post-size settings changed
     refreshDownloadMarks();
+    guard('extra nav', syncExtraNav);
   }
   function applyBar() {
     const feed = activeFeed();
@@ -1298,6 +1300,7 @@
       requestsSeen: state.seenOps,
       feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0] + (f.key.includes('#') ? '#' + f.key.split('#').pop() : ''), posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
+      theme: (() => { const c = document.querySelector('.xmc-card'); const ccs = c && getComputedStyle(c); const rcs = getComputedStyle(root); return { cardStyle: settings.cardStyle, seeThrough: root.classList.contains('xmc-seethru'), fg: rcs.getPropertyValue('--xmc-fg').trim(), bg: rcs.getPropertyValue('--xmc-bg').trim(), cardBg: ccs && ccs.backgroundColor, cardEdge: ccs && ccs.borderTopColor, bodyBg: getComputedStyle(document.body).backgroundColor, htmlBg: getComputedStyle(document.documentElement).backgroundColor }; })(),
       ageFlag: state.ageFlag || null,
       trace: TRACE.slice(-120),
       commentTimes: state.commentTimes || [],
@@ -3015,7 +3018,48 @@
   }
 
   // Which sidebar entries exist right now; remembered so the settings page can offer to hide any of them.
+  // Extra entries in X's left menu (Bookmarks, Likes, Lists), made from one of X's own menu links so they look like the rest.
+  // Pressing one loads that page (a normal page load: X's router is not asked).
+  const EXTRA_NAV = [
+    { key: 'navBookmarks', label: 'Bookmarks', icon: 'bookmark', href: () => '/i/bookmarks' },
+    { key: 'navLikes', label: 'Likes', icon: 'like', href: (me) => (me ? '/' + me + '/likes' : '') },
+    { key: 'navLists', label: 'Lists', icon: 'list', href: () => '/i/lists' },
+  ];
+  function syncExtraNav() {
+    const nav = pin.nav.el();
+    if (!nav) return;
+    const want = EXTRA_NAV.filter((x) => settings[x.key]);
+    for (const old of nav.querySelectorAll('[data-xmc-nav]')) if (!want.some((x) => x.key === old.dataset.xmcNav)) old.remove();
+    if (!want.length) return;
+    const links = [...nav.querySelectorAll('nav a[href]')].filter((a) => !a.dataset.xmcNav && !a.matches('[data-testid="SideNav_NewTweet_Button"]'));
+    const template = links.find((a) => /^\/explore\b/.test(a.getAttribute('href'))) || links.find((a) => a.querySelector('svg') && a.textContent.trim());
+    if (!template) return;
+    const profile = nav.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
+    const me = profile ? (profile.getAttribute('href') || '').replace(/^\//, '').split('/')[0] : '';
+    const after = links.find((a) => /^\/i\/bookmarks\b/.test(a.getAttribute('href'))) || links.find((a) => /^\/notifications\b/.test(a.getAttribute('href'))) || template;
+    for (const x of want) {
+      const href = x.href(me);
+      if (!href || nav.querySelector(`[data-xmc-nav="${x.key}"]`)) continue;
+      const a = template.cloneNode(true);
+      for (const el of [a, ...a.querySelectorAll('[data-testid], [id]')]) { el.removeAttribute('data-testid'); el.removeAttribute('id'); }
+      a.setAttribute('href', href); a.setAttribute('aria-label', x.label); a.removeAttribute('aria-current'); a.dataset.xmcNav = x.key;
+      const svg = a.querySelector('svg');
+      if (svg) {
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.replaceChildren(...[...icon(x.icon).children]);
+        svg.style.cssText = 'fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round';
+      }
+      const tl = template.textContent.trim();
+      const word = [...a.querySelectorAll('span')].reverse().find((sp) => sp.children.length === 0 && sp.textContent.trim() === tl);
+      if (word) word.textContent = x.label;
+      a.addEventListener('click', (e) => { if (e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return; e.preventDefault(); e.stopPropagation(); location.assign(href); });
+      // placed under the last entry we added (or under History / Bookmarks / Notifications)
+      const mine = [...nav.querySelectorAll('[data-xmc-nav]')].pop();
+      (mine || after).after(a);
+    }
+  }
   function scanNavItems() {
+    guard('extra nav', syncExtraNav);
     const items = XMCSite.sidebarItems();
     if (!items.length) return;
     const known = new Map(settings.navItems.map((i) => [i.key, i]));
@@ -3250,12 +3294,13 @@
     const label = nav && ([...nav.querySelectorAll('span')].find((s) => s.textContent.trim() === 'Home') || nav.querySelector('span'));
     root.style.fontFamily = settings.systemFont ? 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
       : `${getComputedStyle(label || document.body).fontFamily}, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
-    const clear = (c) => !c || c === 'transparent' || /,\s*0\)$/.test(c);
+    const clear = (c) => !c || c === 'transparent' || /^rgba\([^)]*,\s*0(\.0+)?\)$/.test(c) || /\/\s*0(\.0+)?\)$/.test(c); // (not plain black, rgb(0, 0, 0): that ends in ", 0)" too)
     let bg = [document.body, document.documentElement].map((el) => getComputedStyle(el).backgroundColor).find((c) => !clear(c));
     if (!bg) { // nothing opaque found: pick black or white from the text colour
       const m = /(\d+)[, ]+(\d+)[, ]+(\d+)/.exec(cs.color || '');
       bg = m && (0.299 * m[1] + 0.587 * m[2] + 0.114 * m[3]) > 140 ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)';
     }
+    root.classList.toggle('xmc-seethru', clear(cs.backgroundColor)); // a wallpaper or theme shows through: cards need a stronger tint to be seen
     for (const el of [root, toastEl, document.documentElement]) {
       el.style.setProperty('--xmc-bg', cs.backgroundColor); // exactly what X's page has: may be see-through (a themed or wallpaper background shows through the columns)
       el.style.setProperty('--xmc-solid', bg);              // for things that must stay readable over anything: menus, toast, the loading pill
