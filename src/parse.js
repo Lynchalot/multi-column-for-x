@@ -262,7 +262,11 @@ var XMCParse = (function () {
         const t = normalizeTweet(item.tweet_results.result);
         if (!t) continue;
         const up = t.replyToId && !t.repostedBy ? group.find((g) => g.id === t.replyToId) : null;
-        if (up) { t.parent = up; if (up.author.handle.toLowerCase() !== t.author.handle.toLowerCase()) up.moduleParent = true; }
+        if (up) {
+          t.parent = up;
+          t.parents = (up.parents || []).concat(up); // the whole chain above it in this entry, oldest first
+          for (const a of t.parents) if (a.author.handle.toLowerCase() !== t.author.handle.toLowerCase()) a.moduleParent = true;
+        }
         group.push(t);
         items.push(t);
       }
@@ -278,6 +282,7 @@ var XMCParse = (function () {
     const focalId = String(varsOf(url, reqBody).focalTweetId || fallbackFocalId || '');
     if (!focalId) return null;
     const replies = [];
+    const above = []; // posts listed before the focal one: the conversation it answers
     const seen = new Set();
     let more = false;
     let focal = null;
@@ -292,11 +297,19 @@ var XMCParse = (function () {
         if (t && t.id === focalId && !focal) focal = t; // the post itself (not listed among its replies)
         if (!t || t.id === focalId || seen.has(t.id)) continue;
         seen.add(t.id);
+        if (!focal) { above.push(t); continue; } // before the post itself: what it answers, not a comment on it
         t.depth = t.replyToId === focalId ? 0 : 1;
         replies.push(t);
       }
     }
-    return { focalId, focal, replies, more };
+    if (!focal) for (const t of above) { t.depth = t.replyToId === focalId ? 0 : 1; replies.push(t); } // the post itself was not in the data: they are all just comments
+    // the chain of posts above the focal one, oldest first (only those linked to it by who-answers-whom)
+    const ancestors = [];
+    if (focal) {
+      const byId = new Map(above.map((t) => [t.id, t]));
+      for (let cur = focal, n = 0; cur.replyToId && byId.has(cur.replyToId) && n < 6; n++) { cur = byId.get(cur.replyToId); ancestors.unshift(cur); }
+    }
+    return { focalId, focal, replies, ancestors, more };
   }
 
   // A profile's header, from X's reply to the "user by screen name" request. Fields X does not send are left out.

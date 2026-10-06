@@ -158,7 +158,7 @@
       if (d) {
         state.details.set(d.focalId, d); if (state.peek && state.peek.id === d.focalId) state.peek.replies = d;
         while (state.details.size > 200) state.details.delete(state.details.keys().next().value);
-        remember([d.focal].concat(d.replies));
+        remember([d.focal].concat(d.ancestors || [], d.replies));
       }
       return;
     }
@@ -506,11 +506,49 @@
     if (clips) bits.push(t.media.some((m) => m.type === 'gif') && clips === 1 ? 'GIF' : clips === 1 ? 'video' : clips + ' videos');
     return h('button', { className: 'xmc-mediachip', type: 'button', title: 'Show the pictures and video', textContent: '\u25b6 ' + bits.join(' + ') });
   }
+  // A reply whose parent X did not send gets it looked up (X's own page for the post is read out of sight, as for comments), one at a
+  // time, only for cards you have been looking at for a moment, only when you are not scrolling, and not more than eight a minute.
+  const ctxObserver = new IntersectionObserver((entries) => {
+    for (const en of entries) { const t = tweetOf.get(en.target); if (t) t.ctxSince = en.isIntersecting ? (t.ctxSince || Date.now()) : 0; }
+  }, { threshold: 0.4 });
+  let ctxLast = 0;
+  const ctxLog = [];
+  function contextTick() {
+    if (!settings.fetchContext) return;
+    const now = Date.now();
+    if (state.peek || state.posting || repliesWaiting || postView || state.fail || now < state.proxyUntil || now - ctxLast < 2500 || now - lastScrollAt < 1200) return;
+    while (ctxLog.length && now - ctxLog[0] > 60000) ctxLog.shift();
+    if (ctxLog.length >= 8) return;
+    const top = scroller.getBoundingClientRect().top - 4;
+    const t = view.cards.find((x) => x.ctxSince && now - x.ctxSince > 900 && x.replyToId && !x.ctxTried && x.el && x.el.isConnected
+      && !(x.parents && x.parents.length) && !contextChain(x).length && x.el.getBoundingClientRect().top >= top); // not one above you: growing it would push what you are reading
+    if (!t) return;
+    t.ctxTried = true; ctxLast = now; ctxLog.push(now);
+    loadReplies(t, { wanted: () => !!(t.el && t.el.isConnected) }).then((res) => {
+      const found = res && res.data && res.data.ancestors;
+      if (found && found.length && t.el && t.el.isConnected) restoreCard(t, t.el);
+      if (t.el) ctxObserver.unobserve(t.el);
+    });
+  }
   // like, repost, save and download, on the picture, shown when you point at it
   function hoverBar(t) {
     const bar = h('div', { className: 'xmc-hover' }, actionBtn('like', 'Like'), actionBtn('repost', T('repost')), actionBtn('bookmark', 'Bookmark'), actionBtn('download', 'Download media', 'download'));
     return bar;
   }
+  // the posts a reply is answering, oldest first (up to three): what X sent with it, what we have seen, or what was looked up
+  function contextChain(t) {
+    if (t.parents && t.parents.length) return t.parents.slice(-3);
+    const looked = state.details.get(t.id);
+    if (looked && looked.ancestors && looked.ancestors.length) return looked.ancestors.slice(-3);
+    const chain = [];
+    for (let id = t.replyToId, n = 0; id && n < 3; n++) {
+      const p = state.byId.get(id);
+      if (!p || !p.author || p === t) break;
+      chain.unshift(p); id = p.replyToId;
+    }
+    return chain;
+  }
+  const usable = (p) => p && p.author && !p.unavailable && p.segs;
   // the post a reply is answering, above the reply: its words, pictures and what it quotes, as X shows it
   function renderParentContext(p) {
     const box = h('div', { className: 'xmc-pctx' },
@@ -544,9 +582,9 @@
     const card = h('article', { className: 'xmc-card' });
     tweetOf.set(card, t);
     if (t.repostedBy) card.append(h('div', { className: 'xmc-ctx' }, icon('repost'), h('span', { textContent: ctxText(t) })));
-    const par = t.parent || (t.replyToId && state.byId.get(t.replyToId)) || null;
-    const context = par && par !== t && par.author && !par.unavailable && par.segs ? renderParentContext(par) : null;
-    if (context) card.append(context);
+    const chain = t.replyToId || t.parent ? contextChain(t).filter(usable) : [];
+    for (const p of chain) card.append(renderParentContext(p));
+    const context = chain.length;
     const sub = h('div', { className: 'xmc-sub' }, '@' + t.author.handle + ' · ',
       h('a', { className: 'xmc-time xmc-nav', href: t.url, title: new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt) }));
     if (settings.showSource && t.source) sub.append(h('span', { className: 'xmc-src', textContent: ' · via ' + t.source }));
@@ -860,6 +898,7 @@
       // a card that hasn't been drawn yet counts as our estimate (not a flat 420px), so the columns stay level
       if (!el.dataset.sized) { el.style.containIntrinsicSize = 'auto ' + guess + 'px'; el.dataset.sized = '1'; }
       columns[i].append(el);
+      if (t.replyToId && settings.fetchContext) ctxObserver.observe(el);
       heights[i] += guess + GAP;
     }
   }
@@ -1919,6 +1958,8 @@
   }
   function viewSide(t) {
     const side = h('div', { className: 'xmc-vside' });
+    const ctxHost = h('div', { className: 'xmc-vctx' }, ...contextChain(t).filter(usable).map(renderParentContext));
+    side.append(ctxHost);
     const sub = h('div', { className: 'xmc-sub' }, '@' + t.author.handle + ' \u00b7 ',
       h('a', { className: 'xmc-time xmc-nav', href: t.url, title: new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt) }));
     side.append(h('div', { className: 'xmc-head' },
@@ -1937,7 +1978,13 @@
     const panel = h('div', { className: 'xmc-replies' }, h('div', { className: 'xmc-rhead' }, spinner(), h('span', { textContent: ' Loading comments\u2026' })));
     side.append(panel);
     if (t.counts.reply > 0) {
-      loadReplies(t, { wanted: () => panel.isConnected }).then((res) => { if (panel.isConnected) { if (!res || !res.data) state.commentFails.push(Date.now()); fillReplies(panel, t, res); updateActions(t); } });
+      loadReplies(t, { wanted: () => panel.isConnected }).then((res) => {
+        if (!panel.isConnected) return;
+        if (!res || !res.data) state.commentFails.push(Date.now());
+        const chain = contextChain(t).filter(usable);
+        if (chain.length && !ctxHost.children.length) ctxHost.replaceChildren(...chain.map(renderParentContext));
+        fillReplies(panel, t, res); updateActions(t);
+      });
     } else fillReplies(panel, t, { data: { replies: [], more: false } });
     return side;
   }
@@ -2716,6 +2763,7 @@
     }
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
+    if (tickN % 5 === 3) guard('reply context', contextTick);
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
     if (tickN % 10 === 5 && Date.now() - lastScrollAt > 500) guard('recycle', () => recycleCards(false));
     if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);

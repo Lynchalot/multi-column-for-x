@@ -64,6 +64,7 @@ var XMCSettings = (function () {
     {
       id: 'posts', title: 'Posts', items: [
         { key: 'profileHeader', type: 'bool', def: true, label: 'Show a profile\u2019s header above its posts', help: 'Name, bio and follower counts.' },
+        { key: 'fetchContext', type: 'bool', def: true, label: 'Look up the post a reply answers when X did not send it', help: 'Done out of sight, one at a time, for replies you have been looking at.' },
         { key: 'hoverActions', type: 'bool', def: true, label: 'Show like, repost and save on a picture when I point at it' },
         { key: 'tallPhotos', type: 'select', def: 'cap', label: 'Tall pictures', options: [['cap', 'Trim to fit (click to see all of it)'], ['full', 'Show in full']] },
         { key: 'counts', type: 'bool', def: true, label: 'Show reply, repost and like counts' },

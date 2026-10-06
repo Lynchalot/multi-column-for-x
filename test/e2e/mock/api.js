@@ -44,12 +44,15 @@ function makeApi(origin, pages) {
     for (let k = 0; k < 20; k++) {
       const i = 90000 + (newer || 0) * 5 - p * 20 - k;
       if (feed === 'UserTweetsAndReplies' && k === 2) { // a reply, sent together with the post it answers (as X's Replies tab does)
-        const parent = tweet(i + 700000, 31, 1, feed), reply = tweet(i, 6, 0, feed);
+        const grand = tweet(i + 800000, 32, 0, feed), parent = tweet(i + 700000, 31, 1, feed), reply = tweet(i, 6, 0, feed);
+        parent.legacy.in_reply_to_status_id_str = String(i + 800000); parent.legacy.in_reply_to_screen_name = 'user32';
         reply.legacy.in_reply_to_status_id_str = String(i + 700000); reply.legacy.in_reply_to_screen_name = 'user31';
         const wrap = (t) => ({ entryId: `conversation-${i}-tweet-${t.rest_id}`, item: { itemContent: { itemType: 'TimelineTweet', tweet_results: { result: t } } } });
-        ents.push({ entryId: `conversation-${i}`, sortIndex: String(i), content: { entryType: 'TimelineTimelineModule', items: [wrap(parent), wrap(reply)] } });
+        ents.push({ entryId: `conversation-${i}`, sortIndex: String(i), content: { entryType: 'TimelineTimelineModule', items: [wrap(grand), wrap(parent), wrap(reply)] } });
         continue;
       }
+      const lone = feed === 'UserTweetsAndReplies' && k === 5; // a reply sent on its own: what it answers has to be looked up
+      if (lone) { const r = tweet(i, 7, 0, feed); r.legacy.in_reply_to_status_id_str = '555555'; r.legacy.in_reply_to_screen_name = 'user40'; ents.push({ entryId: `tweet-${i}`, sortIndex: String(i), content: { entryType: 'TimelineTimelineItem', itemContent: { itemType: 'TimelineTweet', tweet_results: { result: r } } } }); continue; }
       const thread = feed === 'ThreadsTimeline' && k >= 3 && k <= 5; // three posts by user5, each answering the one before (newest first, as the feed lists them)
       const t = tweet(i, thread ? 5 : (i % 9) + 1, thread ? 0 : k % 8, feed);
       if (thread && k < 5) { t.legacy.in_reply_to_status_id_str = String(i - 1); t.legacy.in_reply_to_screen_name = 'user5'; }
@@ -66,7 +69,9 @@ function makeApi(origin, pages) {
       const t = tweet(i, un, 0, 'DETAIL'); t.legacy.full_text = text; t.legacy.display_text_range = [0, text.length]; t.legacy.in_reply_to_status_id_str = String(to); return t;
     };
     const f = tweet(Number(focal), 3, Number(focal) % 8, 'DETAIL');
-    const entries = [{ entryId: `tweet-${focal}`, content: { entryType: 'TimelineTimelineItem', itemContent: item(f) } }];
+    const entries = [];
+    if (focal === '89995') { const above = tweet(555555, 40, 0, 'DETAIL'); entries.push({ entryId: 'tweet-555555', content: { entryType: 'TimelineTimelineItem', itemContent: item(above) } }); f.legacy.in_reply_to_status_id_str = '555555'; f.legacy.in_reply_to_screen_name = 'user40'; }
+    entries.push({ entryId: `tweet-${focal}`, content: { entryType: 'TimelineTimelineItem', itemContent: item(f) } });
     for (let k = 0; k < 3; k++) {
       const a = reply(Number(focal) * 10 + k * 2 + 1, 20 + k, `Reply number ${k + 1} to the post`, focal);
       if (k === 0) { // the first reply has a sensitive picture

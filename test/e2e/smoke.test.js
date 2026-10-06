@@ -806,7 +806,9 @@ browserTest('on a profile\'s Replies tab a reply shows the post it answers, in i
     assert.ok(ids.includes('89998'), 'the reply has a card');
     assert.ok(!ids.includes('789998'), 'the post it answers has no card of its own here');
     const card = page.locator('.xmc-card', { has: page.locator('.xmc-pctx') }).first();
-    assert.match(await card.locator('.xmc-pctx').innerText(), /tweet 789998/);
+    assert.equal(await card.locator('.xmc-pctx').count(), 2, 'the whole chain above it, not just one post');
+    assert.match(await card.locator('.xmc-pctx').first().innerText(), /tweet 889998/, 'oldest first');
+    assert.match(await card.locator('.xmc-pctx').nth(1).innerText(), /tweet 789998/);
     assert.equal(await card.locator('.xmc-reply').count(), 0, 'no separate "Replying to" line');
     assert.equal(await card.locator('.xmc-pctx .xmc-media img').count(), 1, 'its picture is shown too, as on X');
   });
@@ -964,3 +966,32 @@ browserTest('pointing at a picture shows like, repost, save and download on it; 
     assert.equal(await off.page.locator('.xmc-hover').count(), 0);
   });
 });
+
+browserTest('a reply sent without the post it answers gets it looked up, out of sight, and the card shows it', async (e) => {
+  const h = await e.open('/user6/with_replies/', { width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const card = () => page.locator('.xmc-card', { hasText: 'tweet 89995' }).first();
+    await card().scrollIntoViewIfNeeded();
+    assert.equal(await card().locator('.xmc-reply').count(), 1, 'at first only "Replying to"');
+    await page.waitForFunction(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.textContent.includes('tweet 89995') && x.querySelector('.xmc-pctx')); return !!c && c.querySelector('.xmc-pctx').textContent.includes('tweet 555555'); }, null, { timeout: 30000 });
+    await page.waitForFunction(() => location.pathname === '/user6/with_replies/', null, { timeout: 15000 });
+    assert.equal(await card().locator('.xmc-reply').count(), 0);
+  });
+}, 90000);
+
+browserTest('the post panel shows what a reply answers above it, once looked up with its comments', async (e) => {
+  const h = await e.open('/user6/with_replies/', { width: 1700, height: 900, settings: { v: 9, fetchContext: false } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const card = page.locator('.xmc-card', { hasText: 'tweet 89995' }).first();
+    await card.scrollIntoViewIfNeeded();
+    await card.locator(':scope > .xmc-text').click();
+    await page.waitForSelector('.xmc-vside .xmc-cbox', { timeout: 25000 });
+    assert.match(await page.locator('.xmc-vctx .xmc-pctx').first().innerText(), /tweet 555555/);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => location.pathname === '/user6/with_replies/', null, { timeout: 15000 });
+  });
+}, 90000);

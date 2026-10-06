@@ -221,3 +221,13 @@ test('a profile: what X sends is read, links in the bio are expanded, missing fi
   assert.equal(r.followers, 21300); assert.equal(r.posts, undefined);
   assert.equal(P.parseProfile({ data: {} }), null);
 });
+
+test('a detail: the posts listed above the focal one are what it answers, not comments on it', () => {
+  const tw = (id, to) => ({ __typename: 'Tweet', rest_id: id, core: { user_results: { result: { __typename: 'User', rest_id: 'u' + id, core: { name: 'n' + id, screen_name: 'h' + id }, legacy: {} } } },
+    legacy: { id_str: id, full_text: 'text ' + id, created_at: 'Wed Oct 04 12:00:00 +0000 2026', in_reply_to_status_id_str: to, in_reply_to_screen_name: to ? 'x' : undefined, entities: {} } });
+  const entry = (r) => ({ entryId: 'tweet-' + r.rest_id, content: { entryType: 'TimelineTimelineItem', itemContent: { itemType: 'TimelineTweet', tweet_results: { result: r } } } });
+  const json = { data: { threaded_conversation_with_injections_v2: { instructions: [{ type: 'TimelineAddEntries', entries: [entry(tw('1')), entry(tw('2', '1')), entry(tw('9', '8')), entry(tw('3', '2')), entry(tw('4', '3')), entry(tw('5', '3'))] }] } } };
+  const d = P.parseDetail(json, 'https://x.com/i/api/graphql/a/TweetDetail?variables={"focalTweetId":"3"}');
+  assert.deepEqual(d.ancestors.map((t) => t.id), ['1', '2'], 'the chain, oldest first, only what is linked to it');
+  assert.deepEqual(d.replies.map((t) => t.id), ['4', '5'], 'comments are what comes after it');
+});
