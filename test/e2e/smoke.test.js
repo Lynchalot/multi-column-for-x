@@ -1345,6 +1345,9 @@ browserTest('comments show the moment they arrive, not after the hidden page has
     await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 30000 });
     const took = Date.now() - t0;
     assert.ok(took < 2200, 'comments took ' + took + 'ms with a Back that takes 3000ms');
+    const times = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).commentTimes);
+    assert.equal(times.length, 1, 'the diagnostics say where the time went');
+    for (const k of ['queueMs', 'findMs', 'openMs', 'answerMs', 'totalMs']) assert.equal(typeof times[0][k], 'number', k);
     assert.equal(await page.evaluate(() => !!window.__xmc.state.peek), true, 'the visit was still finishing behind them');
     await page.waitForFunction(() => !window.__xmc.state.peek && location.pathname === '/home/', null, { timeout: 20000 });
   });

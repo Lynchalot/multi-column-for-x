@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.1
+- **Comments start loading sooner.** Resting the pointer on a post now starts fetching its comments after 0.4 seconds (0.25 on its comment button), was 0.9 and 0.5, so by the time you click they are usually already there (about 0.1 seconds in the test page). The background budget goes from 6 to 8 lookups a minute, and still stops for 15 minutes if X starts refusing. A background lookup that is still waiting in line when you open a post gives way to it.
+- **Copy diagnostics now says where comment time goes** (`commentTimes`: waiting in line, finding the post, X opening it, X's answer, per request), so the next speed-up is based on your machine.
+
 ## 0.23.0
 - **Comments appear the moment they arrive.** They used to wait until X's hidden page had gone back from the post's page, which in Zen can take seconds (with a 2.6 second Back, comments came after 2.3 to 3.9 seconds; now 0.1 to 0.9 seconds whatever the Back does). The hidden page finishes stepping back behind them. Asking for the same post's comments again while they are on their way now waits for that same request.
 - **Finding the post on X's hidden side is quicker**: it takes the post the moment X has drawn it instead of waiting out a fixed pause at each step (first comments on a post you haven't rested on: about 0.85 seconds in the test page, was 1.3).

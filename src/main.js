@@ -1274,6 +1274,7 @@
       feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0] + (f.key.includes('#') ? '#' + f.key.split('#').pop() : ''), posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
       ageFlag: state.ageFlag || null,
+      commentTimes: state.commentTimes || [],
       commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       floating: floatingReport(),
@@ -1447,6 +1448,7 @@
     if (cached) return Promise.resolve({ data: cached });
     if (repliesInflight.has(t.id)) return repliesInflight.get(t.id);
     repliesWaiting++;
+    const asked = Date.now();
     let early;
     const earlyP = new Promise((resolve) => { early = resolve; });
     const run = replyQueue.then(async () => {
@@ -1456,7 +1458,7 @@
       if (opts.wanted && !opts.wanted()) return { why: 'Closed before it loaded.' };
       if (opts.onStart) opts.onStart();
       await waitFor(() => !state.posting, 15000);
-      try { return await fetchReplies(t, Object.assign({}, opts, { early })); } catch (err) {
+      try { return await fetchReplies(t, Object.assign({}, opts, { early, asked })); } catch (err) {
         console.warn('[xmc] comments failed', err);
         return { why: 'Something went wrong while loading this (' + ((err && err.message) || err) + ').' };
       }
@@ -1469,20 +1471,29 @@
   }
   async function fetchReplies(t, opts) {
     opts = opts || {};
+    const T = { start: Date.now() }; // where the time goes, for Copy diagnostics: waiting in line, finding the post, X opening it, X's answer
     state.peek = { id: t.id, replies: null };
     state.proxyUntil = Date.now() + 40000;
     freezeSidebar();
     try {
       const art = await realArticle(t);
+      T.found = Date.now();
       if (!art) return { why: 'Couldn\u2019t find this post on X\u2019s side (it may have scrolled out of X\u2019s list).' };
       const link = timeLinkOf(art, t.id);
       if (!link) return { why: 'Found the post but not its link, so couldn\u2019t open it.' };
       const before = location.pathname;
       fire(link);
       await waitFor(() => location.pathname !== before || state.peek.replies, 3000);
+      T.opened = Date.now();
       if (!state.peek.replies && location.pathname === before) { link.click(); await waitFor(() => location.pathname !== before || state.peek.replies, 2500); } // a plain click as a second try
       const got = await waitFor(() => state.peek && state.peek.replies, 9000);
-      if (got) { if (opts.early) opts.early({ data: got }); return { data: got }; }
+      if (got) {
+        T.data = Date.now();
+        (state.commentTimes = state.commentTimes || []).push({ queueMs: T.start - (opts.asked || T.start), findMs: T.found - T.start, openMs: T.opened - T.found, answerMs: T.data - T.opened, totalMs: T.data - (opts.asked || T.start), background: !!opts.background });
+        if (state.commentTimes.length > 12) state.commentTimes.shift();
+        if (opts.early) opts.early({ data: got });
+        return { data: got };
+      }
       if (state.detailFail && Date.now() - state.detailFail.at < 60000) return { why: 'X is limiting how fast comments can be loaded (error ' + state.detailFail.status + '). Try again in a few minutes.' };
       return { why: location.pathname === before
         ? 'X didn\u2019t open the post when asked to.'
@@ -2392,7 +2403,7 @@
     const now = Date.now();
     if (state.detailFail && now - state.detailFail.at < 15 * 60000) return false;
     while (bgLog.length && now - bgLog[0] > 60000) bgLog.shift();
-    return bgLog.length < 6;
+    return bgLog.length < 8;
   }
   const bgUsed = () => bgLog.push(Date.now());
   // Pointing at a video for a moment plays it, muted; moving away stops it. Pressing on it takes over (sound as you last set it).
@@ -2427,8 +2438,8 @@
       const t = tweetOf.get(card);
       if (!t || !t.counts.reply || state.details.has(t.id) || prefetching.has(t.id) || state.peek || repliesWaiting || state.posting || postView || !bgAllowed()) return;
       bgUsed(); prefetching.add(t.id);
-      loadReplies(t).finally(() => prefetching.delete(t.id));
-    }, onButton ? 500 : 900);
+      loadReplies(t, { background: true, wanted: () => !postView }).finally(() => prefetching.delete(t.id)); // never ahead of a post you have opened
+    }, onButton ? 250 : 400);
   });
   colsEl.addEventListener('pointerout', (e) => { const to = e.relatedTarget; if (!to || !(to.closest && to.closest('.xmc-card'))) clearTimeout(hoverTimer); });
   // only one (non-autoplaying) video plays at a time, and it is watched while it plays so it stops when scrolled away
