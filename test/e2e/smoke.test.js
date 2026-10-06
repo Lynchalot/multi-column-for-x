@@ -1249,6 +1249,42 @@ browserTest('stepping from a post into a comment and back never has two panels o
   });
 }, 90000);
 
+browserTest('a browser that is slow to go Back (seconds, as Zen can be) does not close the panel while its comments load', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { const back = history.back.bind(history); history.back = () => { setTimeout(back, 2600); }; });
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 30000 });
+    await page.waitForTimeout(6000);
+    assert.equal(await page.locator('.xmc-view:not(.xmc-out) .xmc-vpanel').count(), 1, 'the panel was closed by the browser answering our own Back');
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-onpost')), false);
+  });
+}, 90000);
+
+browserTest('while comments are fetched on X\'s hidden side, the menu and the sidebar stay on screen as they were (a still copy), then the real ones return', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.waitForSelector('header[role="banner"][data-xmc-style]');
+    const rect = () => page.evaluate(() => { const r = document.querySelector('header[role="banner"][data-xmc-style], #xmc-navfreeze').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; });
+    const before = await rect();
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForFunction(() => !!window.__xmc.state.peek && /status/.test(location.pathname), null, { timeout: 15000, polling: 'raf' });
+    const during = await page.evaluate(() => { const c = document.getElementById('xmc-navfreeze'); if (!c) return null; const r = c.getBoundingClientRect(); return { left: Math.round(r.left), top: Math.round(r.top), visible: getComputedStyle(c).visibility }; });
+    assert.ok(during, 'a still copy of the menu is showing');
+    assert.deepEqual([during.left, during.top], before, 'in the same place');
+    assert.equal(during.visible, 'visible');
+    await page.waitForFunction(() => !document.getElementById('xmc-navfreeze') && !document.documentElement.classList.contains('xmc-frozen'), null, { timeout: 25000 });
+    await page.waitForSelector('header[role="banner"][data-xmc-style]', { timeout: 5000 });
+    assert.deepEqual(await rect(), before, 'the real menu is back where it was');
+  });
+}, 90000);
+
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });
   await checked(h, async () => {

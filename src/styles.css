@@ -381,7 +381,8 @@ html.xmc-on [data-testid="sidebarColumn"] [style*="sticky"] { position: static !
 html.xmc-on.xmc-pinside [data-testid="sidebarColumn"]:not([data-xmc-style]) { visibility: hidden !important; }
 html.xmc-on.xmc-pinnav header[role="banner"]:not([data-xmc-style]) { visibility: hidden !important; }
 /* the still copy of the sidebar is showing: no real sidebar (including one X has just built) may show through */
-html.xmc-frozen [data-testid="sidebarColumn"] { visibility: hidden !important; }
+html.xmc-frozen [data-testid="sidebarColumn"], html.xmc-frozen header[role="banner"] { visibility: hidden !important; }
+html.xmc-frozen #xmc-sidefreeze, html.xmc-frozen #xmc-navfreeze { visibility: visible !important; }
 
 html.xmc-on [data-testid="sidebarColumn"] [style*="translate"] { transform: none !important; }
 html.xmc-on [data-testid="sidebarColumn"] { overscroll-behavior: contain; }

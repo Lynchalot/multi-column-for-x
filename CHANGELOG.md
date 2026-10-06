@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.3
+- **The panel no longer closes by itself while its comments load.** The visit to X's post page ends with a Back; Zen can take several seconds to answer it, and the answer was taken for you pressing Back, which closed the panel (and the reopening and closing looked like flashing). The panel now keeps count of the Backs it pressed itself and ignores their answers however late, and ignores any answer that lands on its own history entry.
+- **The left menu no longer disappears while comments load.** The right sidebar already had a still copy shown for the duration of a visit; the menu now has one too, and the pin check no longer mistakes the hidden original for a broken pin (which had been dropping the menu back to X's own placement after a visit).
+
 ## 0.22.2
 - **No flash of X's own page on reload.** On a page where the columns were showing, X's own timeline, menu and sidebar are kept out of sight from the first moment of the load until the columns take over (they used to show for the first second or so, then the menu jumped to its pinned place). It lasts at most 6 seconds if the extension never starts, and only on a page the columns were already on.
 - **The post panel no longer jumps as comments arrive** (posts without a picture): it now grows downwards from a fixed top instead of re-centring.

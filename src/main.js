@@ -752,7 +752,7 @@
   document.addEventListener('wheel', (e) => {
     if (retired || root.hidden || e.ctrlKey || e.defaultPrevented) return;
     const bar = e.target.closest && e.target.closest('[data-testid="sidebarColumn"], header[role="banner"]');
-    if (!bar || bar.id === 'xmc-sidefreeze') return;
+    if (!bar || bar.id === 'xmc-sidefreeze' || bar.id === 'xmc-navfreeze') return;
     const down = e.deltaY > 0;
     const room = bar.scrollHeight > bar.clientHeight + 2 && (down ? bar.scrollTop + bar.clientHeight < bar.scrollHeight - 1 : bar.scrollTop > 0);
     if (room && getComputedStyle(bar).overflowY !== 'visible') return;
@@ -1426,7 +1426,8 @@
 
   // every history step back that we take ourselves is noted, so the Back button (the person's) can be told from them
   let ownBackAt = 0;
-  function stepBack() { ownBackAt = Date.now(); window.history.back(); }
+  const ownBacks = []; // when each Back we pressed ourselves was pressed; the browser may take seconds to answer (Zen does)
+  function stepBack() { ownBackAt = Date.now(); ownBacks.push(ownBackAt); window.history.back(); }
 
   // ---------- comments ----------
   // X only sends a post's replies when its own page is opened. So we open that page on X's hidden side (nothing
@@ -2239,6 +2240,9 @@
     if (!keepHistory && window.history.state && window.history.state.xmcView) stepBack(); // take our own history entry away again
   }
   window.addEventListener('popstate', () => { // the person pressed Back with the panel open: close it (X's own steps, and ours, don't count)
+    while (ownBacks.length && Date.now() - ownBacks[0] > 12000) ownBacks.shift();
+    if (ownBacks.length) { ownBacks.shift(); return; } // the answer to one of ours, however late
+    if (window.history.state && window.history.state.xmcView) return; // landed on the panel's own entry: not a Back out of it
     if (postView && !state.posting && Date.now() - ownBackAt > 1500) closePostView(true);
   });
   // ---------- translation ----------
@@ -2602,28 +2606,33 @@
   // still copy of it for the duration, and put the real one back once it has settled.
   let sideFreeze = null;
   function freezeSidebar() {
-    if (sideFreeze || settings.hideSidebar) return;
-    const side = pin.side.el();
-    if (!side || side.dataset.xmcStyle === undefined || !side.getBoundingClientRect().width) return;
-    const clone = side.cloneNode(true);
-    for (const el of [clone, ...clone.querySelectorAll('[data-testid], [id]')]) { el.removeAttribute('data-testid'); el.removeAttribute('id'); }
-    clone.id = 'xmc-sidefreeze';
-    clone.setAttribute('inert', ''); clone.setAttribute('aria-hidden', 'true');
-    clone.style.setProperty('pointer-events', 'none', 'important');
-    document.body.append(clone);
-    clone.scrollTop = side.scrollTop;
-    side.style.setProperty('visibility', 'hidden', 'important');
-    document.documentElement.classList.add('xmc-frozen'); // also hides a sidebar X builds from scratch meanwhile
-    sideFreeze = { clone, side, hardStop: Date.now() + 15000 };
+    if (sideFreeze) return;
+    const parts = [];
+    for (const [el, id] of [[settings.hideSidebar ? null : pin.side.el(), 'xmc-sidefreeze'], [pin.nav.el(), 'xmc-navfreeze']]) { // the right column and the menu on the left
+      if (!el || el.dataset.xmcStyle === undefined || !el.getBoundingClientRect().width) continue;
+      const clone = el.cloneNode(true);
+      for (const x of [clone, ...clone.querySelectorAll('[data-testid], [id]')]) { x.removeAttribute('data-testid'); x.removeAttribute('id'); }
+      clone.id = id;
+      clone.removeAttribute('role'); // or the page's own menu lookups would find the copy
+      clone.setAttribute('inert', ''); clone.setAttribute('aria-hidden', 'true');
+      clone.style.setProperty('pointer-events', 'none', 'important');
+      document.body.append(clone);
+      clone.scrollTop = el.scrollTop;
+      el.style.setProperty('visibility', 'hidden', 'important');
+      parts.push({ clone, el });
+    }
+    if (!parts.length) return;
+    document.documentElement.classList.add('xmc-frozen'); // also hides a sidebar or menu X builds from scratch meanwhile
+    sideFreeze = { parts, hardStop: Date.now() + 15000 };
   }
   function thawSidebar() {
     if (!sideFreeze) return;
-    const { clone, side } = sideFreeze;
+    const { parts } = sideFreeze;
     sideFreeze = null;
-    side.style.removeProperty('visibility');
-    positionSide(); // if X rebuilt the sidebar meanwhile, pin the new one before anyone sees it
+    for (const { el } of parts) el.style.removeProperty('visibility');
+    positionSide(); // if X rebuilt the sidebar meanwhile, pin the new one before anyone sees it (the menu is pinned by the next pass, hidden until then)
     document.documentElement.classList.remove('xmc-frozen');
-    clone.remove();
+    for (const { clone } of parts) clone.remove();
   }
   const navRestore = () => { thawSidebar(); unpin('nav'); unpin('side'); };
   let resizeTimer = 0;
@@ -2640,7 +2649,7 @@
   function probeOk(b, container) {
     if (!b || !b.width || b.top < 0 || b.bottom > innerHeight || b.left < 0 || b.right > innerWidth) return true;
     const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-    return !hit || container.contains(hit) || !!hit.closest('#layers');
+    return !hit || container.contains(hit) || !!hit.closest('#layers, #xmc-navfreeze, #xmc-sidefreeze'); // our still copies sit over the real ones while those are busy
   }
   function positionNav() {
     const p = pin.nav, nav = p.el();
@@ -2657,7 +2666,7 @@
         `transform:none !important;z-index:6 !important;width:${Math.round(r.width)}px !important;` +
         `left:${Math.round(-(m.minL - r.left))}px !important`;
       if (acct) { acct.style.maxWidth = p.width + 'px'; acct.style.overflow = 'hidden'; }
-    } else {
+    } else if (!sideFreeze) { // (while a still copy stands in for it there is nothing to probe)
       const link = nav.querySelector('a[href="/home"], a[href^="/notifications"]');
       const b = link && link.getBoundingClientRect();
       const ok = probeOk(b, nav);
@@ -2818,7 +2827,7 @@
   // wrapper around it is Grok (if it holds Grok) or else Chat.
   const CORNER_PTS = [];
   for (const dx of [30, 50, 65, 80, 100]) for (const dy of [30, 57, 90, 124, 160, 200]) CORNER_PTS.push([dx, dy]);
-  const OURS = '#xmc-root, #xmc-toast, #xmc-pill, #xmc-fab, #xmc-sidefreeze';
+  const OURS = '#xmc-root, #xmc-toast, #xmc-pill, #xmc-fab, #xmc-sidefreeze, #xmc-navfreeze';
   const PAGE = '[data-testid="sidebarColumn"], [data-testid="primaryColumn"], header[role="banner"], nav, [role="dialog"], [role="menu"], [role="alertdialog"], [aria-modal="true"]';
   function cornerButton(x, y) {
     for (const e of document.elementsFromPoint(x, y)) {
