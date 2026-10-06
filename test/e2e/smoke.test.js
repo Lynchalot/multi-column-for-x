@@ -1056,7 +1056,7 @@ browserTest('the Back button closes the post panel, and closing it by hand leave
     await page.waitForFunction(() => history.state && history.state.xmcView, null, { timeout: 15000 }); // at once, or the moment a background visit that was running has ended
     await page.goBack();
     await page.waitForFunction(() => !document.querySelector('.xmc-view'), null, { timeout: 5000 });
-    assert.equal(await page.evaluate(() => location.pathname), '/home/', 'Back stayed on the page');
+    await page.waitForFunction(() => location.pathname === '/home/' && !window.__xmc.state.peek, null, { timeout: 20000 }); // (a visit that was under way finishes its own way back first)
     await page.waitForTimeout(800);
     await open();
     await page.waitForSelector('.xmc-view .xmc-vpanel');
@@ -1168,12 +1168,12 @@ browserTest('pressing a comment opens it in the panel like a post (its words, it
 
 browserTest('"Skip X\'s age check" turns off only X\'s age-verification flag, and puts it back when switched off', async (e) => {
   const flags = (h) => h.page.evaluate(() => ({ age: window.__fs.isTrue('rweb_age_assurance_flow_enabled'), other: window.__fs.isTrue('something_else') }));
-  const off = await e.open('/user/status/90001/');
+  const off = await e.open('/user/status/90001/', { settings: { v: 9, skipAgeCheck: false } });
   await checked(off, async () => {
     await off.page.waitForTimeout(2500);
-    assert.deepEqual(await flags(off), { age: true, other: true }, 'untouched by default');
+    assert.deepEqual(await flags(off), { age: true, other: true }, 'untouched when switched off');
   });
-  const on = await e.open('/user/status/90001/', { settings: { v: 9, skipAgeCheck: true } });
+  const on = await e.open('/user/status/90001/');
   await checked(on, async () => {
     await on.page.waitForFunction(() => window.__fs.isTrue('rweb_age_assurance_flow_enabled') === false, null, { timeout: 8000 });
     assert.deepEqual(await flags(on), { age: false, other: true }, 'only that flag');
@@ -1259,6 +1259,9 @@ browserTest('a browser that is slow to go Back (seconds, as Zen can be) does not
     await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
     await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 30000 });
     await page.waitForTimeout(6000);
+    assert.equal(await page.locator('.xmc-view:not(.xmc-out) .xmc-vpanel').count(), 1, 'the panel was closed by the browser answering our own Back');
+    await page.waitForFunction(() => !window.__xmc.state.peek, null, { timeout: 40000 }); // (a short list shows its end at once, so a further page may be on its way)
+    await page.waitForTimeout(3500);
     assert.equal(await page.locator('.xmc-view:not(.xmc-out) .xmc-vpanel').count(), 1, 'the panel was closed by the browser answering our own Back');
     assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-onpost')), false);
   });
@@ -1387,6 +1390,52 @@ browserTest('the diagnostics carry a log of what happened (panels, visits, Backs
     await page.waitForFunction(() => JSON.parse(window.__xmc.diagnostics()).trace.some((x) => x[1] === 'LEAK' && /timeline/.test(x[2])), null, { timeout: 5000 });
   });
 }, 90000);
+
+browserTest('if X ignores the link press, the comments still load (X\'s router is asked instead), and the page comes back to the timeline', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { window.__ignoreLinks = 1000; });
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 30000 });
+    assert.ok((await page.evaluate(() => window.__ignored)) >= 2, 'X did ignore the presses');
+    await page.waitForFunction(() => !window.__xmc.state.peek && location.pathname === '/home/', null, { timeout: 20000 });
+    const times = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).commentTimes);
+    assert.equal(times[times.length - 1].how, 'router');
+  });
+}, 90000);
+
+browserTest('comments in the panel keep coming as you scroll down, added below without moving what you are reading, until X has no more', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 25000 });
+    const items = () => page.locator('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem').count();
+    const first = await items();
+    assert.equal(await page.locator('.xmc-rmore').count(), 1, 'a "more" line at the end while X has more');
+    const mark = await page.evaluate(() => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); const it = s.querySelectorAll('.xmc-ritem')[1]; return { it: it.textContent.slice(0, 40), y: Math.round(it.getBoundingClientRect().top - s.getBoundingClientRect().top + s.scrollTop) }; });
+    // scroll to the end of the list: the next pages arrive
+    for (let i = 0; i < 12 && (await page.locator('.xmc-rmore').count()); i++) {
+      await page.evaluate(() => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); s.scrollTop = s.scrollHeight; });
+      await page.waitForTimeout(1500);
+    }
+    await page.waitForFunction(() => !document.querySelector('.xmc-rmore'), null, { timeout: 30000 });
+    const after = await page.evaluate((m) => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); const it = [...s.querySelectorAll('.xmc-ritem')].find((x) => x.textContent.slice(0, 40) === m.it); return Math.round(it.getBoundingClientRect().top - s.getBoundingClientRect().top + s.scrollTop); }, mark);
+    assert.equal(after, mark.y, 'a comment already on screen did not move');
+    assert.equal(first, 6, 'the first page');
+    assert.equal(await items(), first + 8, 'two more pages of four');
+    const text = await page.locator('.xmc-view:not(.xmc-out) .xmc-vside').innerText();
+    assert.ok(text.includes('Page 2 reply 1') && text.includes('Page 3 reply 4'), 'the later pages are there');
+    assert.equal(text.split('Page 2 reply 1').length, 2, 'and not twice');
+    await page.waitForFunction(() => !window.__xmc.state.peek && location.pathname === '/home/', null, { timeout: 20000 });
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-onpost')), false);
+  });
+}, 120000);
 
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });

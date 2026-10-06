@@ -63,7 +63,21 @@ function makeApi(origin, pages) {
     return { data: { home: { home_timeline_urt: { instructions: [{ type: 'TimelineAddEntries', entries: ents }] } } } };
   }
 
-  function detail(focal) {
+  // later pages of a post's comments (cursor P2, P3): four replies each, and a bottom cursor on all but the last
+  function detailPage(focal, cursor) {
+    const n = Number(String(cursor).slice(1)) || 2;
+    const entries = [];
+    for (let k = 0; k < 4; k++) {
+      const t = tweet(Number(focal) * 100 + n * 10 + k, 20 + k, 0, 'DETAIL');
+      const text = `Page ${n} reply ${k + 1}`;
+      t.legacy.full_text = text; t.legacy.display_text_range = [0, text.length]; t.legacy.in_reply_to_status_id_str = String(focal);
+      entries.push({ entryId: `conversationthread-${focal}-p${n}-${k}`, content: { entryType: 'TimelineTimelineItem', itemContent: { itemType: 'TimelineTweet', tweet_results: { result: t } } } });
+    }
+    if (n < 3) entries.push({ entryId: `cursor-bottom-p${n}`, content: { entryType: 'TimelineTimelineCursor', value: 'P' + (n + 1), cursorType: 'Bottom' } });
+    return { data: { threaded_conversation_with_injections_v2: { instructions: [{ type: 'TimelineAddEntries', entries }] } } };
+  }
+  function detail(focal, cursor) {
+    if (cursor) return detailPage(focal, cursor);
     const item = (t) => ({ itemType: 'TimelineTweet', tweet_results: { result: t } });
     const reply = (i, un, text, to) => {
       const t = tweet(i, un, 0, 'DETAIL'); t.legacy.full_text = text; t.legacy.display_text_range = [0, text.length]; t.legacy.in_reply_to_status_id_str = String(to); return t;
@@ -89,7 +103,7 @@ function makeApi(origin, pages) {
 
   // op = the GraphQL operation name, vars = its variables
   function respond(op, vars) {
-    if (op === 'TweetDetail') return detail(vars.focalTweetId);
+    if (op === 'TweetDetail') return detail(vars.focalTweetId, vars.cursor);
     if (op === 'UserByScreenName') {
       return { data: { user: { result: { rest_id: '5', is_blue_verified: true, core: { name: 'User Five', screen_name: 'user5', created_at: 'Sun Jun 01 00:00:00 +0000 2008' },
         avatar: { image_url: `${origin}/img/a5_normal.svg` }, location: { location: 'Valley Forge' },

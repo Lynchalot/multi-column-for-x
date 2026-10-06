@@ -309,7 +309,7 @@ var XMCParse = (function () {
       const byId = new Map(above.map((t) => [t.id, t]));
       for (let cur = focal, n = 0; cur.replyToId && byId.has(cur.replyToId) && n < 6; n++) { cur = byId.get(cur.replyToId); ancestors.unshift(cur); }
     }
-    return { focalId, focal, replies, ancestors, more };
+    return { focalId, focal, replies, ancestors, more, paged: !!varsOf(url, reqBody).cursor }; // paged: a later page of the comments, not the first
   }
 
   // A profile's header, from X's reply to the "user by screen name" request. Fields X does not send are left out.

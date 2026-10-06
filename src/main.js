@@ -155,8 +155,21 @@
     const isConversation = op === 'TweetDetail' || !!(body && body.data && body.data.threaded_conversation_with_injections_v2);
     if (isConversation) {
       const d = XMCParse.parseDetail(body, url, reqBody, state.peek ? state.peek.id : idOfHref(location.pathname));
-      if (d) {
+      const addPage = (old, pg) => { // more comments for a conversation we already have: only the new ones are added
+        const have = new Set(old.replies.map((x) => x.id));
+        const fresh = pg.replies.filter((x) => !have.has(x.id));
+        if (fresh.length) { old.replies = old.replies.concat(fresh); old.more = pg.more; } // (a page we had already says nothing new about what is left)
+        if (state.peek && state.peek.id === pg.focalId) { state.peek.page = (state.peek.page || 0) + 1; state.peek.fresh = (state.peek.fresh || 0) + fresh.length; }
+        remember(fresh);
+        const draw = pagers.get(pg.focalId); if (draw) setTimeout(draw, 0);
+      };
+      const have = d ? state.details.get(d.focalId) : null;
+      if (d && have) addPage(have, d); // X sends the first page again whenever the post is opened again, then the later ones
+      else if (d && d.paged) { const w = waitingPages.get(d.focalId) || []; w.push(d); waitingPages.set(d.focalId, w); } // arrived before the first page: kept for it
+      else if (d) {
         state.details.set(d.focalId, d); if (state.peek && state.peek.id === d.focalId) state.peek.replies = d;
+        for (const pg of waitingPages.get(d.focalId) || []) addPage(d, pg);
+        waitingPages.delete(d.focalId);
         while (state.details.size > 200) state.details.delete(state.details.keys().next().value);
         remember([d.focal].concat(d.ancestors || [], d.replies));
       }
@@ -1276,6 +1289,7 @@
       ageFlag: state.ageFlag || null,
       trace: TRACE.slice(-120),
       commentTimes: state.commentTimes || [],
+      commentFailures: state.commentFailures || [],
       commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       floating: floatingReport(),
@@ -1437,6 +1451,7 @@
   }
   const traceOnce = (kind, info, gapMs) => { const n = Date.now(); if (n - (traceSeen[kind] || 0) > (gapMs || 3000)) { traceSeen[kind] = n; trace(kind, info); } };
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput && e.value > 0.02) trace('layout-shift', e.value.toFixed(3) + ' ' + (e.sources || []).slice(0, 2).map((x) => x.node && (x.node.id || String(x.node.className).slice(0, 24) || x.node.nodeName)).join(' | ')); }).observe({ type: 'layout-shift', buffered: false }); } catch { /* not supported */ }
+  let routerPoke = false;
   const ownBacks = []; // when each Back we pressed ourselves was pressed; the browser may take seconds to answer (Zen does)
   function stepBack() { ownBackAt = Date.now(); ownBacks.push(ownBackAt); trace('back', 'ours, at ' + location.pathname); window.history.back(); }
 
@@ -1479,36 +1494,45 @@
     run.catch(() => {}).then(() => { if (repliesInflight.get(t.id) === answer) repliesInflight.delete(t.id); });
     return answer;
   }
-  async function fetchReplies(t, opts) {
-    opts = opts || {};
-    trace('visit', 'start ' + t.id + (opts.background ? ' (background)' : ''));
+  // Opens a post's page on X's hidden side, runs body() there, and steps back (all in one place: the finding, the pressing, the
+  // recovery when X ignores a press, and the way out). body gets { before, how } and returns what the caller wants.
+  async function visitPost(t, opts, keep, body) {
+    trace('visit', 'start ' + t.id + (opts.background ? ' (background)' : '') + (keep ? ' (more)' : ''));
+    let why = '', how = 'link';
     const T = { start: Date.now() }; // where the time goes, for Copy diagnostics: waiting in line, finding the post, X opening it, X's answer
-    state.peek = { id: t.id, replies: null };
+    state.peek = { id: t.id, replies: keep || null, page: 0 };
     state.proxyUntil = Date.now() + 40000;
     freezeSidebar();
     try {
-      const art = await realArticle(t);
+      let art = await realArticle(t);
       T.found = Date.now();
-      if (!art) return { why: 'Couldn\u2019t find this post on X\u2019s side (it may have scrolled out of X\u2019s list).' };
-      const link = timeLinkOf(art, t.id);
-      if (!link) return { why: 'Found the post but not its link, so couldn\u2019t open it.' };
+      if (!art) { why = 'post not on X’s side'; return { why: 'Couldn’t find this post on X’s side (it may have scrolled out of X’s list).' }; }
       const before = location.pathname;
-      fire(link);
-      await waitFor(() => location.pathname !== before || state.peek.replies, 3000);
-      T.opened = Date.now();
-      if (!state.peek.replies && location.pathname === before) { link.click(); await waitFor(() => location.pathname !== before || state.peek.replies, 2500); } // a plain click as a second try
-      const got = await waitFor(() => state.peek && state.peek.replies, 9000);
-      if (got) {
-        T.data = Date.now();
-        (state.commentTimes = state.commentTimes || []).push({ queueMs: T.start - (opts.asked || T.start), findMs: T.found - T.start, openMs: T.opened - T.found, answerMs: T.data - T.opened, totalMs: T.data - (opts.asked || T.start), background: !!opts.background });
-        if (state.commentTimes.length > 12) state.commentTimes.shift();
-        if (opts.early) opts.early({ data: got });
-        return { data: got };
+      const opened = () => location.pathname !== before || (state.peek && state.peek.replies && !keep);
+      // Press the post's link; X's list swaps its elements as the hidden page scrolls, so the link is found afresh each time.
+      let pressed = null;
+      for (let attempt = 0; attempt < 2 && !opened(); attempt++) {
+        if (attempt) { art = findArticle(t.id) || await realArticle(t); if (!art) break; }
+        const link = timeLinkOf(art, t.id);
+        if (!link) { why = 'no link on the post'; continue; }
+        if (link === pressed) break; // the very same link, already pressed twice: pressing it again would change nothing
+        pressed = link;
+        why = '';
+        fire(link);
+        await waitFor(opened, 1800);
+        if (!opened()) { link.click(); await waitFor(opened, 1200); } // a plain click as a second try
       }
-      if (state.detailFail && Date.now() - state.detailFail.at < 60000) return { why: 'X is limiting how fast comments can be loaded (error ' + state.detailFail.status + '). Try again in a few minutes.' };
-      return { why: location.pathname === before
-        ? 'X didn\u2019t open the post when asked to.'
-        : 'X opened the post but sent no comments. Requests seen: ' + Object.keys(state.seenOps).join(', ') };
+      if (!opened()) { // last resort: ask X's own router to go there
+        try {
+          window.history.pushState(null, '', t.url);
+          routerPoke = true; // (our own popstate listener must not take this one for you pressing Back)
+          try { window.dispatchEvent(new PopStateEvent('popstate', { state: null })); } finally { routerPoke = false; }
+          await waitFor(() => (keep ? onPostPage() : state.peek && state.peek.replies), 3500);
+          how = 'router';
+        } catch { /* ignore */ }
+      }
+      T.opened = Date.now();
+      return await body({ before, how, why, T, opened: location.pathname !== before });
     } finally {
       if (onPostPage() && idOfHref(location.pathname) === t.id) { // still the page we opened (not one you've since gone to yourself)
         stepBack();
@@ -1520,6 +1544,52 @@
       state.lastPeekEnd = Date.now();
       state.proxyUntil = Date.now() + 1500;
     }
+  }
+  async function fetchReplies(t, opts) {
+    opts = opts || {};
+    return visitPost(t, opts, null, async ({ before, how, why, T, opened }) => {
+      const got = await waitFor(() => state.peek && state.peek.replies, opened ? 9000 : 1500); // (if X never left the timeline there is nothing more to wait for)
+      if (got) {
+        T.data = Date.now();
+        (state.commentTimes = state.commentTimes || []).push({ queueMs: T.start - (opts.asked || T.start), findMs: T.found - T.start, openMs: T.opened - T.found, answerMs: T.data - T.opened, totalMs: T.data - (opts.asked || T.start), how, background: !!opts.background });
+        if (state.commentTimes.length > 12) state.commentTimes.shift();
+        if (opts.early) opts.early({ data: got });
+        return { data: got };
+      }
+      (state.commentFailures = state.commentFailures || []).push({ id: t.id, how, why, pageOpened: opened, sawDetail: !!(state.seenOps && state.seenOps.TweetDetail), background: !!opts.background, ms: Date.now() - T.start });
+      if (state.commentFailures.length > 8) state.commentFailures.shift();
+      trace('visit', 'FAILED ' + t.id + ' ' + (why || (opened ? 'no comments came' : 'X did not open the post')));
+      if (state.detailFail && Date.now() - state.detailFail.at < 60000) return { why: 'X is limiting how fast comments can be loaded (error ' + state.detailFail.status + '). Try again in a few minutes.' };
+      return { why: opened
+        ? 'X opened the post but sent no comments. Requests seen: ' + Object.keys(state.seenOps).join(', ')
+        : 'X didn’t open the post when asked to.' };
+    });
+  }
+  // The next page of a post's comments: X sends one more page of them when its own post page is scrolled down, so the hidden
+  // page is taken to the post and scrolled, in steps, until a page arrives (merged into state.details by onResponse).
+  const moreInflight = new Map();
+  function loadMoreReplies(t) {
+    const d = state.details.get(t.id);
+    if (!d || !d.more) return Promise.resolve({ added: [], more: false });
+    if (moreInflight.has(t.id)) return moreInflight.get(t.id);
+    const had = d.replies.length;
+    const run = inQueue(() => visitPost(t, {}, d, async ({ opened }) => {
+      if (!opened) return { why: 'X didn’t open the post.' };
+      const end = Date.now() + 12000; // X sends the first page again, then the later ones: scroll on until one with new comments comes
+      let top = 0;
+      while (Date.now() < end && state.peek && !state.peek.fresh && !repliesWaiting && pagers.has(t.id)) { // (gives way if another post's comments are waiting, or the panel has gone)
+        top = Math.min(top + innerHeight * 1.2, document.documentElement.scrollHeight);
+        window.scrollTo(0, top);
+        await sleep(250);
+        if (top >= document.documentElement.scrollHeight - innerHeight) { window.scrollTo(0, document.documentElement.scrollHeight); top = 0; await sleep(400); } // at the foot: let X's own "load more" notice it
+      }
+      return state.peek && state.peek.fresh ? { ok: true } : { why: 'X sent no more comments.' };
+    })).then((res) => {
+      const now = state.details.get(t.id);
+      return { ok: !!(res && res.ok), added: now ? now.replies.slice(had) : [], more: !!(now && now.more && res && res.ok), why: res && res.why };
+    }).finally(() => moreInflight.delete(t.id));
+    moreInflight.set(t.id, run);
+    return run;
   }
   function renderReply(r, t, panel) {
     const text = h('div', { className: 'xmc-text' }, renderSegs(r.segs));
@@ -1574,7 +1644,7 @@
   function fillReplies(panel, t, res, focal) {
     panel.replaceChildren();
     const d = res && res.data;
-    const list = d ? XMCLogic.sortReplies(d.replies.filter((r) => !(settings.nsfw === 'hide' && r.sensitive)).slice(0, 60), settings.commentSort) : [];
+    const list = d ? XMCLogic.sortReplies(d.replies.filter((r) => !(settings.nsfw === 'hide' && r.sensitive)), settings.commentSort) : [];
     const sortSel = h('select', { className: 'xmc-rsort', title: 'Order comments' },
       ...SORTS.map(([v, l]) => h('option', { value: v, textContent: l, selected: settings.commentSort === v })));
     sortSel.addEventListener('change', () => { settings.commentSort = sortSel.value; save(); fillReplies(panel, t, res, focal); });
@@ -1588,9 +1658,49 @@
       panel.append(h('div', { className: 'xmc-dim xmc-rempty', textContent: (res && res.why) || 'Try again in a moment.' }));
       panel.append(h('div', { className: 'xmc-rfoot' }, btn('Try again', '', () => reloadComments(panel, t), 'xmc-rbtn'), btn('Report a problem', '', () => reportProblem(), 'xmc-rbtn')));
     }
-    const more = h('button', { className: 'xmc-rbtn', type: 'button', textContent: d && d.more ? 'See all comments' : 'Open conversation' });
+    const more = h('button', { className: 'xmc-rbtn', type: 'button', textContent: 'Open conversation' });
     more.dataset.act = 'conversation';
-    panel.append(h('div', { className: 'xmc-rfoot' }, more));
+    const foot = h('div', { className: 'xmc-rfoot' }, more);
+    panel.append(foot);
+    if (d && d.more && !focal) pageComments(panel, t, foot);
+  }
+  // More comments as you scroll down: when the end of the list comes into view the next page is fetched (see loadMoreReplies) and
+  // added below, without disturbing where you are. Whatever has been merged into the stored conversation and is not drawn yet is
+  // drawn, whenever it arrived (X may send a further page of its own accord while the hidden page is still on its way back).
+  const pagers = new Map(), waitingPages = new Map();
+  function pageComments(panel, t, foot) {
+    const note = () => [spinner(), h('span', { textContent: ' Loading more comments…' })];
+    const sent = h('div', { className: 'xmc-rmore' }, ...note());
+    panel.insertBefore(sent, foot);
+    let busy = false, shown = (state.details.get(t.id) || { replies: [] }).replies.length, io = null;
+    const finish = () => { if (io) io.disconnect(); sent.remove(); pagers.delete(t.id); };
+    const flush = () => {
+      const cur = state.details.get(t.id);
+      if (!sent.isConnected || !cur) { finish(); return null; }
+      for (const r of cur.replies.slice(shown)) if (!(settings.nsfw === 'hide' && r.sensitive)) sent.before(renderReply(r, t, panel));
+      shown = cur.replies.length;
+      return cur;
+    };
+    pagers.set(t.id, () => { const cur = flush(); if (cur && !cur.more && !busy) finish(); });
+    const more = async () => {
+      if (busy) return;
+      if (!sent.isConnected) { finish(); return; }
+      busy = true;
+      sent.replaceChildren(...note());
+      const res = await loadMoreReplies(t);
+      busy = false;
+      const cur = flush();
+      if (!cur) return;
+      if (!cur.more) { finish(); return; }
+      if (!res.ok) { // X sent nothing this time
+        if (io) io.disconnect();
+        sent.replaceChildren(h('span', { className: 'xmc-dim', textContent: (res.why || 'Couldn’t load more.') + ' ' }), btn('Try again', '', () => { io.observe(sent); more(); }, 'xmc-rbtn'));
+        return;
+      }
+      io.unobserve(sent); io.observe(sent); // still more: asked again if the end is still in view
+    };
+    io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) more(); }, { root: panel.closest('.xmc-vside'), rootMargin: '0px 0px 500px 0px' });
+    io.observe(sent);
   }
 
   // Posting a comment from here: X's own reply box is opened out of sight, the text is typed into it and Send
@@ -2298,15 +2408,20 @@
   function closePostView(keepHistory, instant) {
     if (!postView) return;
     trace('panel-close', (instant ? 'switching' : keepHistory ? 'by Back' : 'closed') + ' ' + postView.t.id);
+    pagers.clear(); // no panel, no more comments to fetch for it (a visit under way for them stops at its next step)
     const el = postView.el;
     postView = null;
     if (!instant && !matchMedia('(prefers-reduced-motion: reduce)').matches) { el.classList.add('xmc-out'); setTimeout(() => el.remove(), 90); } else el.remove(); // switching posts or comments inside the panel: no second backdrop while the first fades
     if (!keepHistory && window.history.state && window.history.state.xmcView) stepBack(); // take our own history entry away again
   }
   window.addEventListener('popstate', () => { // the person pressed Back with the panel open: close it (X's own steps, and ours, don't count)
+    if (routerPoke) return;
     while (ownBacks.length && Date.now() - ownBacks[0] > 12000) ownBacks.shift();
     if (ownBacks.length) { ownBacks.shift(); trace('popstate', 'answer to ours'); return; } // the answer to one of ours, however late
-    if (window.history.state && window.history.state.xmcView) { trace('popstate', 'on the panel\u2019s entry'); return; } // landed on the panel's own entry: not a Back out of it
+    if (window.history.state && window.history.state.xmcView) { // landed on the panel's own entry
+      if (postView && state.peek && !state.posting) { trace('popstate', 'you went Back during a visit: panel closed'); closePostView(false); return; } // the visit's page was above it: this Back was yours
+      trace('popstate', 'on the panel\u2019s entry'); return;
+    }
     if (postView && !state.posting) { trace('popstate', 'you went Back: panel closed'); closePostView(true); } // (our own Backs are counted above, so no guessing by time)
   });
   // ---------- translation ----------

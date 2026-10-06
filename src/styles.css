@@ -570,3 +570,6 @@ html.xmc-frozen #xmc-pill { visibility: visible !important; }
 /* a light blur behind an open post (off in the settings, or by itself if the computer struggles with it) */
 #xmc-root.xmc-blur .xmc-view { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); background: rgba(0, 0, 0, .5); }
 @media (prefers-reduced-transparency: reduce) { #xmc-root.xmc-blur .xmc-view { backdrop-filter: none; background: rgba(0, 0, 0, .6); } }
+
+/* the end of the comments list while more are on their way */
+.xmc-rmore { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 18px 0; font-size: 13px; color: var(--xmc-muted); }

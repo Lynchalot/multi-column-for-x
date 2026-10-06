@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.24.0
+- **Comments in the panel keep loading as you scroll.** When the end of the list comes into view the next page is fetched and added below, without moving what you are reading, until X has no more (a small "Loading more comments…" line shows at the end meanwhile, with Try again if X sends nothing). X sends further pages when its own post page is scrolled, so the hidden page is taken to the post and scrolled in steps; pages that arrive early, late or twice are merged, not replaced. It gives way if another post's comments are waiting, and stops when the panel is closed.
+- **Comments that never loaded** (about half of the visits in your last diagnostics ran 11 to 14 seconds and never opened the post): the link is now found afresh right before it is pressed (X swaps its list's elements as the hidden page scrolls), and if X still ignores it, X's own router is asked to go to the post. Failed visits are recorded with a reason (`commentFailures` in Copy diagnostics, and a `FAILED` line in `trace`). Unverified on real X: whether its router follows the request.
+- **"Skip X's age check on sensitive media" is on by default** (it worked for you).
+- **Back pressed while a comments visit is under way now closes the panel** (it used to land on the panel's own history entry and do nothing).
+
 ## 0.23.4
 - Removed the setting "Show a Quotes link under posts that have been quoted": nothing read it, so it did nothing.
 - The check that notices X's own page showing through now runs about every 1.2 seconds and never while you are scrolling (it was every 0.4 seconds), so it costs nothing you can feel.

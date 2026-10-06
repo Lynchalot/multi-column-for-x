@@ -79,7 +79,7 @@ var XMCSettings = (function () {
         { key: 'reducedInteraction', type: 'bool', def: false, label: 'Reduced interaction mode', help: 'Hides the reply, repost and like buttons and all counts.' },
         { key: 'showSource', type: 'bool', def: false, label: 'Show which app a post was sent from' },
         { key: 'nsfw', type: 'select', def: 'blur', label: 'Sensitive media', options: [['blur', 'Blur until I click'], ['show', 'Show'], ['hide', 'Hide those posts']], help: 'Also applies on X\u2019s own pages (a post, a profile), where Hide leaves the picture out.' },
-        { key: 'skipAgeCheck', type: 'bool', def: false, label: 'Skip X\u2019s age check on sensitive media', help: 'Turns off the flag that makes X ask for age verification, so its older \u201csensitive content\u201d notice (which the setting above handles) shows instead. Reload X after changing it.' },
+        { key: 'skipAgeCheck', type: 'bool', def: true, label: 'Skip X\u2019s age check on sensitive media', help: 'Turns off the flag that makes X ask for age verification, so its older \u201csensitive content\u201d notice (which the setting above handles) shows instead. Reload X after changing it.' },
         { key: 'autoplayVideo', type: 'select', def: 'off', label: 'Videos', options: [['off', 'Play when I click'], ['muted', 'Autoplay muted while on screen']] },
         { key: 'openIn', type: 'select', def: 'view', label: 'Open posts and profiles', options: [['view', 'Posts in a panel over the columns, profiles in a new tab'], ['newtab', 'In a new tab (you keep your place here)'], ['sametab', 'In this tab']] },
         { key: 'blurBehind', type: 'bool', def: true, label: 'Blur the columns behind an open post', help: 'Turns itself off if your computer struggles with it.' },
