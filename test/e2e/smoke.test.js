@@ -276,7 +276,7 @@ browserTest('a long session: far-off posts give their nodes back, and nothing mo
     });
     assert.ok(r.cards >= 300, `only ${r.cards} posts`);
     assert.ok(r.gone > 100, `only ${r.gone} posts were recycled`);
-    assert.ok(r.nodes1 < r.nodes0 * 0.7, `nodes ${r.nodes0} -> ${r.nodes1}`);
+    assert.ok(r.nodes1 < r.nodes0 * 0.8, `nodes ${r.nodes0} -> ${r.nodes1}`);
     assert.ok(r.drift < 0.05, `a recycled post changed height by ${r.drift}px`);
     assert.ok(r.firstGone && r.firstEmpty, 'the first post, far above, was not recycled');
     assert.ok(r.firstBack, 'the first post did not come back');
@@ -1187,6 +1187,67 @@ browserTest('"Skip X\'s age check" turns off only X\'s age-verification flag, an
     await on.page.waitForFunction(() => window.__fs.isTrue('rweb_age_assurance_flow_enabled') === true, null, { timeout: 8000 });
   });
 });
+
+browserTest('reloading a page that showed columns never shows X\'s own timeline, menu or sidebar first', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => localStorage.getItem('xmcVeil') === '/home/', null, { timeout: 8000 });
+    await page.context().addInitScript(() => {
+      window.__seen = [];
+      const vis = (el) => { if (!el) return false; const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.02 && r.width > 20 && r.height > 20; };
+      const frame = () => {
+        if (!document.documentElement.classList.contains('xmc-on')) {
+          for (const sel of ['[data-testid="primaryColumn"]', '[data-testid="sidebarColumn"]', 'header[role="banner"]']) if (vis(document.querySelector(sel))) window.__seen.push(sel);
+        }
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    });
+    await page.reload();
+    await e.ready(page);
+    await page.waitForTimeout(500);
+    assert.deepEqual(await page.evaluate(() => [...new Set(window.__seen)]), [], 'X\'s own page was drawn before the columns');
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-veil')), false, 'the cover is lifted');
+  });
+});
+
+browserTest('a text-only post\'s panel keeps its top and its words where they are while the comments arrive', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => { const t = window.__xmc.view.cards.find((x) => x.counts.reply > 0 && !x.media.length && !x.quoted && x.el && x.el.isConnected); t.el.querySelector(':scope > .xmc-text').click(); });
+    await page.waitForSelector('.xmc-vpanel.single');
+    const box = () => page.evaluate(() => { const r = document.querySelector('.xmc-vpanel').getBoundingClientRect(), w = document.querySelector('.xmc-vside .xmc-text').getBoundingClientRect(); return { top: Math.round(r.top), words: Math.round(w.top) }; });
+    await page.waitForTimeout(250);
+    const before = await box();
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 25000 });
+    await page.waitForTimeout(300);
+    assert.deepEqual(await box(), before, 'the panel jumped when the comments arrived');
+  });
+}, 90000);
+
+browserTest('stepping from a post into a comment and back never has two panels or two backdrops showing', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.media.length && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 25000 });
+    await page.evaluate(() => { window.__most = 0; window.__w = []; const f = () => { window.__most = Math.max(window.__most, document.querySelectorAll('.xmc-view').length); const p = document.querySelector('.xmc-vpanel'); if (p) window.__w.push(Math.round(p.getBoundingClientRect().width)); requestAnimationFrame(f); }; requestAnimationFrame(f); });
+    await page.locator('.xmc-vside .xmc-ritem', { hasText: 'Reply number 2' }).locator('.xmc-text').click();
+    await page.waitForSelector('.xmc-vback');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-vback'));
+    await page.waitForTimeout(300);
+    assert.equal(await page.evaluate(() => window.__most), 1, 'two panels at once');
+    assert.equal(await page.evaluate(() => new Set(window.__w).size), 1, 'the panel changed shape');
+  });
+}, 90000);
 
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });

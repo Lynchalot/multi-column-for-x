@@ -2160,9 +2160,12 @@
   function openPostView(t, still, focusBox, opts) {
     const parent = opts && opts.parent;
     const reopen = !!postView;
-    closePostView(reopen);
+    closePostView(reopen, reopen);
     closeMenu();
-    const media = t.media.length ? h('div', { className: 'xmc-vmediapane' }, ...viewMedia(t)) : null;
+    // a comment without a picture of its own keeps the post's picture beside it, so the panel does not change shape when you step in and out
+    const shown = t.media.length || !parent || !parent.media.length ? t : parent;
+    const media = shown.media.length ? h('div', { className: 'xmc-vmediapane' }, ...viewMedia(shown)) : null;
+    if (media && shown !== t) media.dataset.owner = 'parent';
     const side = viewSide(t, focusBox, parent);
     const panel = h('div', { className: 'xmc-vpanel' + (media ? '' : ' single') }, media, side);
     const idx = view.cards.indexOf(t);
@@ -2187,7 +2190,7 @@
         return;
       }
       const lb = e.target.closest('[data-lb]');
-      if (lb) { e.preventDefault(); if (!lb.closest('.sensitive')) openLightbox(t, Number(lb.dataset.lb)); return; }
+      if (lb) { e.preventDefault(); if (!lb.closest('.sensitive')) openLightbox(lb.closest('[data-owner="parent"]') ? parent : t, Number(lb.dataset.lb)); return; }
       const near = e.target.closest('.xmc-tpost, .xmc-pctx');
       if (near && !e.target.closest('a[href], video, .xmc-reveal')) { e.preventDefault(); navigate(near.dataset.href, null); return; }
       const quote = e.target.closest('.xmc-quote[data-href]');
@@ -2228,11 +2231,11 @@
     panel.style.transition = 'transform .15s cubic-bezier(.2, .8, .2, 1), opacity .1s ease-out';
     panel.style.transform = ''; panel.style.opacity = '';
   }
-  function closePostView(keepHistory) {
+  function closePostView(keepHistory, instant) {
     if (!postView) return;
     const el = postView.el;
     postView = null;
-    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) { el.classList.add('xmc-out'); setTimeout(() => el.remove(), 90); } else el.remove();
+    if (!instant && !matchMedia('(prefers-reduced-motion: reduce)').matches) { el.classList.add('xmc-out'); setTimeout(() => el.remove(), 90); } else el.remove(); // switching posts or comments inside the panel: no second backdrop while the first fades
     if (!keepHistory && window.history.state && window.history.state.xmcView) stepBack(); // take our own history entry away again
   }
   window.addEventListener('popstate', () => { // the person pressed Back with the panel open: close it (X's own steps, and ours, don't count)
@@ -2985,6 +2988,7 @@
   }
 
   const guard = (name, fn) => { try { fn(); } catch (err) { console.error('[xmc]', name, err); } };
+  let veilPath = null;
   let tickN = 0;
   let wasActive = false;
   const tickTimes = []; // how long our own work took recently (to tell our slowness from X's)
@@ -3015,6 +3019,9 @@
     state.shown = active;
     if (!active) { navRestore(); wasActive = false; }
     document.documentElement.classList.toggle('xmc-on', active);
+    document.documentElement.classList.remove('xmc-veil'); // decided: X's page is either hidden by the columns or meant to be seen
+    document.documentElement.classList.toggle('xmc-peeking', !!state.peek || !!state.posting);
+    if (!state.peek && !state.posting && !onPostPage() && !isModalRoute()) { const want = active ? location.pathname : ''; if (want !== veilPath) { veilPath = want; try { if (want) window.localStorage.setItem('xmcVeil', want); else window.localStorage.removeItem('xmcVeil'); } catch { /* ignore */ } } }
     root.hidden = !active;
     root.classList.toggle('xmc-under', modal);
     const pillShown = eligible() || canTry();

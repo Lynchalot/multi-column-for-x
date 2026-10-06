@@ -8,6 +8,19 @@
   if (window.__xmcHook) return;
   window.__xmcHook = true;
 
+  // On a page where the columns were showing last time, keep X's own timeline, menu and sidebar out of sight until the extension
+  // has decided (it removes the class at once; the timer is only a safety net in case it never runs). Nothing is drawn over
+  // anything: the page is simply not shown until the columns are.
+  try {
+    if (window.localStorage.getItem('xmcVeil') === window.location.pathname) {
+      const st = document.createElement('style');
+      st.textContent = 'html.xmc-veil [data-testid="primaryColumn"], html.xmc-veil [data-testid="sidebarColumn"], html.xmc-veil header[role="banner"] { visibility: hidden !important; }';
+      document.documentElement.append(st);
+      document.documentElement.classList.add('xmc-veil');
+      setTimeout(() => document.documentElement.classList.remove('xmc-veil'), 6000);
+    }
+  } catch { /* storage blocked: no veil */ }
+
   const GRAPHQL = /\/i\/api\/graphql\/[^/]+\/[A-Za-z0-9_]+/;
   const KEEP = 6; // the extension script loads a little later; remember recent responses so it can catch up
   const recent = [];

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.22.2
+- **No flash of X's own page on reload.** On a page where the columns were showing, X's own timeline, menu and sidebar are kept out of sight from the first moment of the load until the columns take over (they used to show for the first second or so, then the menu jumped to its pinned place). It lasts at most 6 seconds if the extension never starts, and only on a page the columns were already on.
+- **The post panel no longer jumps as comments arrive** (posts without a picture): it now grows downwards from a fixed top instead of re-centring.
+- **Stepping into a comment and back keeps the panel's shape**: a comment without a picture of its own keeps the post's picture on the left, and the old panel goes at once, so there is never a second dimmed backdrop on top of the first.
+- While X's hidden page is busy for us, its menu and sidebar are hidden even if they have been rebuilt and not yet pinned.
+
 ## 0.22.1
 - **Bookmark, copy link and views on comments**, in the list and in a comment's own view. Bookmark presses X's own button on that comment, like Like does.
 - **Skip X's age check now acts before X starts.** The setting is kept where the page hook can read it at once, X's starting state has the flag switched off before its app reads it, and the lookup is still covered afterwards. The hook reports what it managed (Copy diagnostics, field `ageFlag`; also logged to the console as "[xmc] age flag"). Reload X once after turning it on.
