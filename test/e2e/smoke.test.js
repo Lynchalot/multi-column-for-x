@@ -1130,3 +1130,73 @@ browserTest('narrow window: the top bar stays on one row with icons only, and th
     assert.deepEqual(r, { rows: 1, showLabel: 'none', views: 'none' });
   });
 });
+
+browserTest('short posts that are only words are set larger; posts with a picture are not', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const r = await page.evaluate(() => { const size = (c) => getComputedStyle(c.querySelector(':scope > .xmc-text')).fontSize; const words = [...document.querySelectorAll('.xmc-card')].find((c) => !c.querySelector('.xmc-media') && !c.querySelector('.xmc-quote')); const pic = [...document.querySelectorAll('.xmc-card')].find((c) => c.querySelector('.xmc-media')); return { words: size(words), pic: size(pic) }; });
+    assert.equal(r.words, '20px'); assert.equal(r.pic, '15px');
+  });
+  const off = await e.open('/home/', { settings: { v: 9, bigText: false } });
+  await checked(off, async () => {
+    await e.ready(off.page);
+    assert.equal(await off.page.locator('.xmc-text.big').count(), 0);
+  });
+});
+
+browserTest('saving a post gives a toast with Undo, and Undo puts it back', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const id = await page.evaluate(() => { const t = window.__xmc.view.cards[0]; t.el.querySelector('[data-act="bookmark"]').click(); return t.id; });
+    await page.waitForFunction((i) => (window.__actions || []).includes('bm:' + i), id, { timeout: 15000 });
+    await page.waitForSelector('#xmc-toast:not([hidden]) .xmc-undo');
+    assert.match(await page.locator('#xmc-toast').innerText(), /Saved to bookmarks/);
+    await page.locator('#xmc-toast .xmc-undo').click();
+    await page.waitForFunction((i) => (window.__actions || []).filter((a) => a === 'bm:' + i).length === 2, id, { timeout: 15000 });
+    assert.equal(await page.evaluate((i) => window.__xmc.view.cards.find((t) => t.id === i).state.bookmarked, id), false);
+    await page.waitForTimeout(600);
+    assert.equal(await page.locator('#xmc-toast:not([hidden]) .xmc-undo').count(), 0, 'undoing does not offer another undo');
+  });
+});
+
+browserTest('the post panel offers more from the same account, and a tile opens that post', async (e) => {
+  const h = await e.open('/home/', { width: 1600, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const id = await page.evaluate(() => { const count = {}; for (const x of window.__xmc.state.byId.values()) if (!x.repostedBy && !x.replyToId) count[x.author.handle] = (count[x.author.handle] || 0) + 1; const t = window.__xmc.view.cards.find((c) => count[c.author.handle] >= 3 && c.el); (t.el.querySelector(':scope > .xmc-text') || t.el.querySelector('.xmc-head')).click(); return t.id; });
+    await page.waitForSelector('.xmc-view .xmc-more .xmc-more-tile');
+    assert.match(await page.locator('.xmc-more-head').innerText(), /More from @user/);
+    assert.ok((await page.locator('.xmc-more-tile').count()) >= 2);
+    await page.locator('.xmc-more-tile').first().click();
+    await page.waitForFunction((i) => !document.querySelector('.xmc-vside .xmc-text') || !document.querySelector('.xmc-vside .xmc-text').innerText.includes('tweet ' + i + ' '), id);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => location.pathname === '/home/', null, { timeout: 15000 });
+  });
+}, 90000);
+
+browserTest('pointing at a video plays a muted preview, moving away stops it, pressing on it takes over', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    // this test browser can't decode H.264, so the player is stood in for: what matters is when play and pause are asked for
+    await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); let paused = true; Object.defineProperty(v, 'paused', { get: () => paused }); v.play = () => { paused = false; return Promise.resolve(); }; v.pause = () => { paused = true; }; });
+    const vid = page.locator('.xmc-card video:not([data-gif])').first();
+    await vid.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(700);
+    await vid.hover();
+    await page.waitForFunction(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return !v.paused && v.muted; }, null, { timeout: 8000 });
+    await page.mouse.move(5, 300);
+    await page.waitForFunction(() => document.querySelector('.xmc-card video:not([data-gif])').paused, null, { timeout: 3000 });
+    // pressing on a previewing video keeps it playing and gives it the sound you last chose
+    await vid.hover();
+    await page.waitForFunction(() => !document.querySelector('.xmc-card video:not([data-gif])').paused, null, { timeout: 8000 });
+    await vid.click({ position: { x: 20, y: 20 } });
+    assert.equal(await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return { playing: !v.paused, preview: v.dataset.preview || '' }; }).then((x) => JSON.stringify(x)), JSON.stringify({ playing: true, preview: '' }));
+  });
+});

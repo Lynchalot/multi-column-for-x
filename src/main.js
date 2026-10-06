@@ -583,6 +583,8 @@
     toggle.addEventListener('click', () => { list.hidden = !list.hidden; toggle.textContent = list.hidden ? closed : 'Hide thread'; });
     return h('div', { className: 'xmc-thread' }, toggle, list);
   }
+  // a short post that is only words (no picture, video, link card or quote) is set larger, so it holds its own beside the pictures
+  const onlyWords = (t) => settings.bigText && !t.media.length && !t.card && !t.quoted && textLength(t.segs) <= 140;
   function renderCard(t) {
     const card = h('article', { className: 'xmc-card' });
     tweetOf.set(card, t);
@@ -601,7 +603,7 @@
     if (t.replyTo && !context) card.append(h('div', { className: 'xmc-dim xmc-reply', textContent: 'Replying to @' + t.replyTo }));
     if (t.segs.length) {
       const long = textLength(t.segs) > 420;
-      card.append(h('div', { className: 'xmc-text' + (long ? ' clamp' : '') }, renderSegs(t.segs)));
+      card.append(h('div', { className: 'xmc-text' + (long ? ' clamp' : '') + (onlyWords(t) ? ' big' : '') }, renderSegs(t.segs)));
       if (long) card.append(h('button', { className: 'xmc-more', type: 'button', textContent: 'Show more' }));
       if (needsTranslation(t)) card.append(h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Opens the post, where X can translate it' }));
     }
@@ -814,10 +816,11 @@
   }
 
   let toastTimer = 0;
-  function toast(msg) {
+  function toast(msg, undo) {
     toastEl.textContent = msg; toastEl.hidden = false;
+    if (undo) toastEl.append(h('button', { type: 'button', className: 'xmc-undo', textContent: 'Undo', onclick: () => { toastEl.hidden = true; clearTimeout(toastTimer); undo(); } }));
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 2800);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; }, undo ? 5000 : 2800);
   }
   function openOptions() {
     if (ext && ext.runtime && ext.runtime.sendMessage) ext.runtime.sendMessage({ type: 'xmc-open-options' }).catch(() => {});
@@ -901,7 +904,7 @@
   const FILTER_KEYS = ['filter', 'repostsHome', 'quotesHome', 'repliesHome', 'repostsProfile', 'repostsLists', 'onlyFollowed',
     'hideBlueReplies', 'hideMutedQuotes', 'mutedWords', 'mutedAccounts', 'nsfw', 'seen', 'collapseReposts', 'foldThreads'];
   // everything that changes how a card is built
-  const RENDER_KEYS = ['branding', 'showSource', 'autoplayVideo', 'tallPhotos', 'hoverActions'];
+  const RENDER_KEYS = ['branding', 'showSource', 'autoplayVideo', 'tallPhotos', 'hoverActions', 'bigText'];
   const sigOf = (keys) => keys.map((k) => String(settings[k])).join('|') + '|' + where() + '|' + settings.mutedQuoteIds.length;
   const filterSig = () => sigOf(FILTER_KEYS) + '|' + (state.showSeen ? 1 : 0) + '|' + seenEpoch;
   const renderSig = () => RENDER_KEYS.map((k) => String(settings[k])).join('|') + '|' + pageLayout().density;
@@ -1376,7 +1379,7 @@
     location.assign(href); // fallback: a normal page load
   }
 
-  async function toggleAction(t, key, onSel, offSel, countKey) {
+  async function toggleAction(t, key, onSel, offSel, countKey, quiet) {
     const want = !t.state[key];
     t.state[key] = want;
     if (countKey) t.counts[countKey] = Math.max(0, t.counts[countKey] + (want ? 1 : -1));
@@ -1388,9 +1391,9 @@
       if (countKey) t.counts[countKey] = Math.max(0, t.counts[countKey] + (want ? -1 : 1));
       updateActions(t);
       toast('Couldn’t reach that post just now — try again in a moment');
-    }
+    } else if (key === 'bookmarked' && !quiet) toast(want ? 'Saved to bookmarks' : 'Removed from bookmarks', () => toggleAction(t, key, onSel, offSel, countKey, true));
   }
-  async function repost(t, quote) {
+  async function repost(t, quote, quiet) {
     const doc = document.documentElement;
     if (!quote) doc.classList.add('xmc-acting'); // X's little repost menu is clicked for us; keep it from flashing
     try {
@@ -1409,6 +1412,7 @@
             t.state.reposted = !t.state.reposted;
             t.counts.repost = Math.max(0, t.counts.repost + (t.state.reposted ? 1 : -1));
             updateActions(t);
+            if (!quiet) toast(t.state.reposted ? 'Reposted' : 'Repost removed', () => repost(t, false, true));
           }
         }
       });
@@ -2016,6 +2020,26 @@
       return box;
     });
   }
+  // a short row of the same person's other posts that we already have (nothing is fetched), to carry on from this one
+  function moreFrom(t) {
+    const mine = t.author.handle.toLowerCase();
+    const seen = new Set([t.id]), found = [];
+    for (const x of state.byId.values()) {
+      if (x.repostedBy || x.replyToId || seen.has(x.id) || !x.author || x.author.handle.toLowerCase() !== mine) continue;
+      seen.add(x.id); found.push(x);
+    }
+    found.sort((a, b) => b.createdAt - a.createdAt);
+    const list = found.slice(0, 8);
+    if (list.length < 2) return null;
+    const tiles = list.map((x) => {
+      const pic = x.media.find((m) => m.thumb);
+      const tile = h('button', { className: 'xmc-more-tile' + (pic ? '' : ' words'), type: 'button', title: 'Open this post', onclick: (e) => { e.stopPropagation(); openPostView(x, true); } },
+        pic ? h('img', { src: photoUrl(pic.thumb, 'small'), alt: '', loading: 'lazy' }) : h('span', { textContent: x.segs.map((s) => (s.t === 'text' ? s.v : s.label || '')).join('').trim().slice(0, 90) }));
+      if (pic && pic.type !== 'photo') tile.append(h('i', { className: 'xmc-more-play' }));
+      return tile;
+    });
+    return h('div', { className: 'xmc-more' }, h('div', { className: 'xmc-more-head', textContent: 'More from @' + t.author.handle }), h('div', { className: 'xmc-more-row' }, ...tiles));
+  }
   function viewSide(t, focusBox) {
     const side = h('div', { className: 'xmc-vside' });
     const ctxHost = h('div', { className: 'xmc-vctx' }, ...contextChain(t).filter(usable).map(renderParentContext));
@@ -2025,7 +2049,7 @@
     side.append(h('div', { className: 'xmc-head' },
       h('a', { className: 'xmc-avatar xmc-nav', href: '/' + t.author.handle }, h('img', { src: t.author.avatar, alt: '' })),
       h('div', { className: 'xmc-who' }, h('a', { className: 'xmc-name xmc-nav', href: '/' + t.author.handle }, t.author.name, badge(t.author)), sub)));
-    if (t.segs.length) side.append(h('div', { className: 'xmc-text' }, renderSegs(t.segs)));
+    if (t.segs.length) side.append(h('div', { className: 'xmc-text' + (onlyWords(t) ? ' big' : '') }, renderSegs(t.segs)));
     if (t.card) side.append(renderLinkCard(t.card));
     if (t.quoted) side.append(renderQuote(t.quoted));
     if (t.thread && t.thread.length) side.append(renderThread(t));
@@ -2035,6 +2059,8 @@
     actions.append(actionBtn('share', 'Copy link', 'link'));
     if (t.counts.views) actions.append(h('span', { className: 'xmc-views xmc-n', textContent: fmt(t.counts.views) + ' views' }));
     side.append(actions);
+    const more = moreFrom(t);
+    if (more) side.append(more);
     const panel = h('div', { className: 'xmc-replies' }, ...[0, 1, 2].map(() => h('div', { className: 'xmc-sk' }, h('i'), h('div', {}, h('b'), h('b'), h('b')))));
     side.append(panel);
     if (t.counts.reply > 0) {
@@ -2233,6 +2259,28 @@
   // or the page scrolling under the pointer, doesn't count; and not while other comments are on their way)
   const prefetching = new Set();
   let hoverTimer = 0;
+  // Pointing at a video for a moment plays it, muted; moving away stops it. Pressing on it takes over (sound as you last set it).
+  let previewTimer = 0;
+  colsEl.addEventListener('pointerover', (e) => {
+    const v = settings.hoverVideo && e.target.closest && e.target.closest('video');
+    if (!v || v.dataset.gif) return;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => {
+      if (!v.isConnected || !v.matches(':hover') || !v.paused || v.ended || Date.now() - lastScrollAt < 400) return;
+      v.muted = true; v.dataset.preview = '1';
+      v.play().catch(() => { delete v.dataset.preview; });
+    }, 350);
+  });
+  colsEl.addEventListener('pointerout', (e) => {
+    const v = e.target.closest && e.target.closest('video');
+    if (!v || (e.relatedTarget && v.contains && v.contains(e.relatedTarget))) return;
+    clearTimeout(previewTimer);
+    if (v.dataset.preview === '1') { delete v.dataset.preview; v.pause(); v.muted = settings.videoMuted; v.volume = settings.volume; }
+  });
+  colsEl.addEventListener('click', (e) => {
+    const v = e.target.closest && e.target.closest('video');
+    if (v && v.dataset.preview === '1') { e.preventDefault(); e.stopPropagation(); delete v.dataset.preview; v.muted = settings.videoMuted; v.volume = settings.volume; } // keep playing, now with sound
+  }, true);
   colsEl.addEventListener('pointerover', (e) => {
     const card = e.target.closest && e.target.closest('.xmc-card');
     if (!card) return;
