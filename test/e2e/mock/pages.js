@@ -18,6 +18,7 @@ ${body}
 <div data-testid="sidebarColumn" style="position:fixed;right:200px;top:0;width:300px"><input data-testid="SearchBox_Search_Input" placeholder="Search"><br><a href="/explore">Trending</a><div aria-label="Who to follow">Who to follow</div></div>
 <div id="drawer" style="position:fixed;right:16px;bottom:16px;width:60px;display:flex;flex-direction:column;gap:8px"><div><button aria-label="Grok" id="grokb" style="width:50px;height:50px">G</button></div><div><button aria-label="Messages" id="dmb" style="width:50px;height:50px">M</button></div></div>
 </div><div id="layers"></div>
+<script>document.querySelector('#react-root').firstElementChild.__reactProps$mock = { children: { props: { children: { props: { contextProviderProps: { featureSwitches: (window.__fs = { isTrue: (f) => true }) } } } } } };</script>
 ${script}
 ${SCRIPTS}
 </body></html>`;

@@ -1124,6 +1124,59 @@ browserTest('closing the panel steps Back once even when the browser is slow to 
   });
 }, 90000);
 
+browserTest('pressing a comment opens it in the panel like a post (its words, its replies, Back and Esc return to the post); pressing its picture opens it full size', async (e) => {
+  const h = await e.open('/home/', { width: 1600, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    const postText = await page.evaluate(() => { const t = window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected); t.el.querySelector(':scope > .xmc-text').click(); return t.id; });
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 25000 });
+    // a picture in a comment: reveal it, press it, it is full size
+    await page.locator('.xmc-vside .xmc-rmedias .xmc-reveal').first().click();
+    await page.locator('.xmc-vside .xmc-rmedias img').first().click();
+    await page.waitForSelector('#xmc-lightbox');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('#xmc-lightbox'));
+    assert.equal(await page.locator('.xmc-vback').count(), 0, 'still the post');
+    // a comment's words: the comment opens
+    await page.locator('.xmc-vside .xmc-ritem', { hasText: 'Reply number 2 to the post' }).locator('.xmc-text').click();
+    await page.waitForSelector('.xmc-vback');
+    const side = () => page.locator('.xmc-view:not(.xmc-out) .xmc-vside').innerText();
+    assert.ok((await side()).includes('Reply number 2 to the post'), 'its words');
+    await page.waitForSelector('.xmc-vside .xmc-ritem');
+    assert.ok((await side()).includes('The author answers reply 2'), 'the replies to it');
+    assert.equal(await page.locator('.xmc-view:not(.xmc-out) .xmc-vside .xmc-cbox').count(), 1, 'a box to reply to it');
+    assert.equal(await page.locator('.xmc-view:not(.xmc-out) .xmc-vpanel').count(), 1, 'still one panel');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-vback'));
+    assert.ok((await side()).includes('Reply number 3 to the post'), 'back on the post, comments still there');
+    await page.locator('.xmc-vside .xmc-ritem', { hasText: 'Reply number 2 to the post' }).locator('.xmc-text').click();
+    await page.locator('.xmc-vback').click();
+    await page.waitForFunction(() => !document.querySelector('.xmc-vback'));
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view'));
+    assert.ok(postText);
+  });
+}, 90000);
+
+browserTest('"Skip X\'s age check" turns off only X\'s age-verification flag, and puts it back when switched off', async (e) => {
+  const flags = (h) => h.page.evaluate(() => ({ age: window.__fs.isTrue('rweb_age_assurance_flow_enabled'), other: window.__fs.isTrue('something_else') }));
+  const off = await e.open('/user/status/90001/');
+  await checked(off, async () => {
+    await off.page.waitForTimeout(2500);
+    assert.deepEqual(await flags(off), { age: true, other: true }, 'untouched by default');
+  });
+  const on = await e.open('/user/status/90001/', { settings: { v: 9, skipAgeCheck: true } });
+  await checked(on, async () => {
+    await on.page.waitForFunction(() => window.__fs.isTrue('rweb_age_assurance_flow_enabled') === false, null, { timeout: 8000 });
+    assert.deepEqual(await flags(on), { age: false, other: true }, 'only that flag');
+    await on.page.evaluate(() => { window.__xmc.settings.skipAgeCheck = false; });
+    await on.page.evaluate(() => window.postMessage({ source: 'xmc-flags', skipAge: false }, location.origin));
+    await on.page.waitForFunction(() => window.__fs.isTrue('rweb_age_assurance_flow_enabled') === true, null, { timeout: 8000 });
+  });
+});
+
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });
   await checked(h, async () => {

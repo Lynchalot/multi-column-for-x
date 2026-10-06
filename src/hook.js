@@ -1,6 +1,8 @@
 // Runs inside the page (manifest "world": "MAIN") at document_start.
 // It only *observes*: when X's own code downloads timeline data, a copy is handed to the extension via
 // window.postMessage. It never changes a request or a response, and sends nothing anywhere itself.
+// The one thing it changes, and only when the setting "Skip X's age check" is on, is X's own client-side feature flag for its
+// age-verification flow (the same flag Control Panel for Twitter turns off); nothing is requested from X differently.
 (() => {
   'use strict';
   if (window.__xmcHook) return;
@@ -23,6 +25,35 @@
     if (e.source === window && e.data && e.data.source === 'xmc-ready') {
       for (const msg of recent) window.postMessage(msg, window.location.origin);
     }
+  });
+
+  // "Skip X's age check": X's page decides whether to ask for age verification from a feature flag it keeps in its React props
+  let skipAge = false, ageTimer = 0, ageTries = 0;
+  function featureSwitches() {
+    try {
+      const first = document.querySelector('#react-root') && document.querySelector('#react-root').firstElementChild;
+      const key = first && Object.keys(first).find((k) => k.startsWith('__reactProps'));
+      const props = key && first[key].children && first[key].children.props && first[key].children.props.children && first[key].children.props.children.props;
+      return props && props.contextProviderProps && props.contextProviderProps.featureSwitches;
+    } catch { return null; }
+  }
+  function syncAge() {
+    const fs = featureSwitches();
+    if (!fs || typeof fs.isTrue !== 'function') return false;
+    if (skipAge && !fs.__xmcIsTrue) {
+      const orig = fs.isTrue;
+      fs.__xmcIsTrue = orig;
+      fs.isTrue = function (flag) { return flag === 'rweb_age_assurance_flow_enabled' ? false : orig.apply(this, arguments); };
+    } else if (!skipAge && fs.__xmcIsTrue) { fs.isTrue = fs.__xmcIsTrue; delete fs.__xmcIsTrue; }
+    return true;
+  }
+  window.addEventListener('message', (e) => {
+    if (e.source !== window || !e.data || e.data.source !== 'xmc-flags') return;
+    skipAge = !!e.data.skipAge;
+    ageTries = 0;
+    clearInterval(ageTimer);
+    // X builds its page a moment after this script runs: keep trying for a while, then check now and then (X may rebuild it)
+    ageTimer = setInterval(() => { ageTries++; if (syncAge() && ageTries > 40) { clearInterval(ageTimer); ageTimer = setInterval(syncAge, 5000); } }, 250);
   });
 
   // While the columns cover X's page, X's own (hidden) timeline must not start videos: they'd stream and decode for nothing.

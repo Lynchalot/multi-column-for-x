@@ -837,6 +837,7 @@
 
   // settings that change what's drawn
   function settingsChanged() {
+    window.postMessage({ source: 'xmc-flags', skipAge: !!settings.skipAgeCheck }, location.origin); // the page hook turns X's age-verification flag off or on
     XMCSite.apply(settings);
     root.classList.toggle('xmc-flat', settings.cardStyle === 'flat');
     applyBar();
@@ -879,7 +880,7 @@
   }
   const setCols = (n) => setLayout({ cols: Math.max(0, Math.min(8, n)) });
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) closePostView(); }
+    if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else closePostView(); } }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
     if (lightbox && e.key === 'ArrowLeft') stepLightbox(-1);
     if (postView && !lightbox && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !/^(input|textarea|select|video)$/i.test((e.target || {}).tagName || '')) { e.preventDefault(); stepPostView(e.key === 'ArrowRight' ? 1 : -1); }
@@ -1486,8 +1487,14 @@
   function renderReply(r, t, panel) {
     const text = h('div', { className: 'xmc-text' }, renderSegs(r.segs));
     for (const a of text.querySelectorAll('a.xmc-nav')) { a.classList.remove('xmc-nav'); a.target = '_blank'; a.rel = 'noopener'; }
-    const photos = r.media.slice(0, 2).map((m) => h('a', { href: photoUrl(m.thumb, 'large'), target: '_blank', rel: 'noopener' },
-      h('img', { className: 'xmc-rmedia', src: photoUrl(m.thumb, 'small'), alt: '', loading: 'lazy' })));
+    const pics = r.media.filter((m) => m.type === 'photo');
+    const photos = r.media.slice(0, 2).map((m) => {
+      const a = h('a', { href: photoUrl(m.thumb, 'large'), target: '_blank', rel: 'noopener' },
+        h('img', { className: 'xmc-rmedia', src: photoUrl(m.thumb, 'small'), alt: '', loading: 'lazy' }));
+      const at = pics.indexOf(m);
+      a.addEventListener('click', (e) => { if (at < 0 || a.closest('.sensitive') || e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); e.stopPropagation(); openLightbox(r, at); });
+      return a;
+    });
     const likeBtn = h('button', { className: 'xmc-ract xmc-rlike', type: 'button', title: 'Like' }, icon('like'), h('span', { className: 'xmc-n' }));
     const replyBtn = h('button', { className: 'xmc-ract xmc-rreply', type: 'button', title: 'Reply to this comment' }, icon('reply'), h('span', { textContent: 'Reply' }));
     const slot = h('div', { className: 'xmc-rslot' });
@@ -1502,30 +1509,38 @@
     });
     const medias = photos.length ? h('div', { className: 'xmc-rmedias' + (r.sensitive ? ' sensitive' : '') }, ...photos) : null;
     if (medias && r.sensitive) medias.append(h('button', { className: 'xmc-reveal', type: 'button', textContent: 'Sensitive content \u2014 click to view', onclick: (e) => { e.stopPropagation(); medias.classList.remove('sensitive'); e.currentTarget.remove(); } }));
-    return h('div', { className: 'xmc-ritem d' + (r.depth || 0) },
+    const item = h('div', { className: 'xmc-ritem d' + (r.depth || 0) },
       h('a', { className: 'xmc-ravatar', href: '/' + r.author.handle, target: '_blank', rel: 'noopener' }, h('img', { src: r.author.avatar, alt: '', loading: 'lazy' })),
       h('div', { className: 'xmc-rbody' },
         h('div', { className: 'xmc-rtop' },
           h('a', { className: 'xmc-name', href: '/' + r.author.handle, target: '_blank', rel: 'noopener', textContent: r.author.name }), badge(r.author),
           h('span', { className: 'xmc-dim', textContent: ' @' + r.author.handle + ' \u00b7 ' + relTime(r.createdAt) })),
         text,
+        needsTranslation(r) ? h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Opens the comment, where X can translate it', onclick: (e) => { e.stopPropagation(); openOnX(r); } }) : null,
         medias,
         h('div', { className: 'xmc-ractions' }, likeBtn, replyBtn),
         slot));
+    // pressing the comment itself (not a link, button or box in it) opens it in the panel: its picture large, its replies beside it
+    item.querySelector('.xmc-rbody').addEventListener('click', (e) => {
+      if (e.target.closest('a, button, textarea, video, .xmc-rslot, .xmc-reveal') || (window.getSelection && String(window.getSelection()).length)) return;
+      e.stopPropagation();
+      openPostView(r, true, false, { parent: t }); // Back and Esc return to the post, whichever comment this is
+    });
+    return item;
   }
   const SORTS = [['relevant', 'Relevant'], ['recent', 'Recent'], ['likes', 'Most liked']];
-  function fillReplies(panel, t, res) {
+  function fillReplies(panel, t, res, focal) {
     panel.replaceChildren();
     const d = res && res.data;
     const list = d ? XMCLogic.sortReplies(d.replies.filter((r) => !(settings.nsfw === 'hide' && r.sensitive)).slice(0, 60), settings.commentSort) : [];
     const sortSel = h('select', { className: 'xmc-rsort', title: 'Order comments' },
       ...SORTS.map(([v, l]) => h('option', { value: v, textContent: l, selected: settings.commentSort === v })));
-    sortSel.addEventListener('change', () => { settings.commentSort = sortSel.value; save(); fillReplies(panel, t, res); });
+    sortSel.addEventListener('change', () => { settings.commentSort = sortSel.value; save(); fillReplies(panel, t, res, focal); });
     panel.append(h('div', { className: 'xmc-rhead' },
-      h('b', { textContent: list.length ? 'Comments' : d ? 'No comments yet' : 'Couldn’t load comments' }),
+      h('b', { textContent: list.length ? (focal ? 'Replies' : 'Comments') : d ? (focal ? 'No replies shown yet' : 'No comments yet') : 'Couldn’t load comments' }),
       list.length > 1 ? sortSel : null,
       h('button', { className: 'xmc-rclose', type: 'button', title: 'Close comments' }, icon('close'))));
-    panel.append(renderComposer(panel, t));
+    panel.append(focal ? renderComposer(panel, t, focal, () => {}) : renderComposer(panel, t));
     for (const r of list) panel.append(renderReply(r, t, panel));
     if (!d) {
       panel.append(h('div', { className: 'xmc-dim xmc-rempty', textContent: (res && res.why) || 'Try again in a moment.' }));
@@ -1577,7 +1592,7 @@
       else { doc.classList.remove('xmc-acting'); toast(res.why + ' Finish it in X’s reply box.'); }
     }
   }
-  function renderComposer(panel, t, r) {
+  function renderComposer(panel, t, r, after) {
     const box = h('textarea', { className: 'xmc-cbox', placeholder: r ? 'Reply to @' + r.author.handle + '…' : 'Write a comment…', rows: 2, maxLength: 1000 });
     const send = h('button', { className: 'xmc-rbtn xmc-csend', type: 'button', textContent: 'Reply', disabled: true });
     const note = h('span', { className: 'xmc-dim xmc-cnote' });
@@ -1594,7 +1609,9 @@
       box.disabled = false;
       if (res.ok) {
         box.value = ''; box.style.height = 'auto'; note.textContent = 'Sent ✓';
-        t.counts.reply += 1; updateActions(t); toast('Reply sent');
+        toast('Reply sent');
+        if (after) { state.details.delete(t.id); return; } // inside a comment's own view: the post's comments are fetched afresh when you go back to it
+        t.counts.reply += 1; updateActions(t);
         reloadComments(panel, t);
       } else { send.disabled = false; note.textContent = res.why; }
     };
@@ -2063,9 +2080,22 @@
     });
     return h('div', { className: 'xmc-more' }, h('div', { className: 'xmc-more-head', textContent: 'More from @' + t.author.handle }), h('div', { className: 'xmc-more-row' }, ...tiles));
   }
-  function viewSide(t, focusBox) {
+  // the replies to one comment that came with its post's comments (X sends a few of each; the rest are on X)
+  function repliesTo(d, id) {
+    const out = [], seen = new Set([id]);
+    const walk = (pid, depth) => {
+      for (const x of d.replies) {
+        if (x.replyToId !== pid || seen.has(x.id)) continue;
+        seen.add(x.id); out.push(Object.assign(x, { depth: Math.min(depth, 1) })); walk(x.id, depth + 1);
+      }
+    };
+    walk(id, 0);
+    return out;
+  }
+  function viewSide(t, focusBox, parent) {
     const side = h('div', { className: 'xmc-vside' });
-    const ctxHost = h('div', { className: 'xmc-vctx' }, ...contextChain(t).filter(usable).map((p) => renderParentContext(p, onlyWords(t))));
+    const ctxHost = h('div', { className: 'xmc-vctx' }, ...(parent ? [] : contextChain(t).filter(usable).map((p) => renderParentContext(p, onlyWords(t)))));
+    if (parent) side.append(h('button', { className: 'xmc-vback', type: 'button', title: 'Back to the post (Esc)', onclick: (e) => { e.stopPropagation(); openPostView(parent, true); } }, icon('prev'), h('span', { textContent: 'Back to @' + parent.author.handle + '\u2019s post' })));
     side.append(ctxHost);
     const sub = h('div', { className: 'xmc-sub' }, '@' + t.author.handle + ' \u00b7 ',
       h('a', { className: 'xmc-time xmc-nav', href: t.url, title: new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt) }));
@@ -2073,20 +2103,26 @@
       h('a', { className: 'xmc-avatar xmc-nav', href: '/' + t.author.handle }, h('img', { src: t.author.avatar, alt: '' })),
       h('div', { className: 'xmc-who' }, h('a', { className: 'xmc-name xmc-nav', href: '/' + t.author.handle }, t.author.name, badge(t.author)), sub)));
     if (t.segs.length) side.append(h('div', { className: 'xmc-text' + (onlyWords(t) ? ' big' : '') }, renderSegs(t.segs)));
+    if (needsTranslation(t)) side.append(h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Opens the post, where X can translate it' }));
     if (t.card) side.append(renderLinkCard(t.card));
     if (t.quoted) side.append(renderQuote(t.quoted));
     if (t.thread && t.thread.length) side.append(renderThread(t));
     const actions = h('div', { className: 'xmc-actions' });
-    actions.append(actionBtn('reply', 'Comments'), actionBtn('repost', T('repost')), actionBtn('like', 'Like'), actionBtn('bookmark', 'Bookmark'));
+    if (parent) actions.append(actionBtn('reply', 'Reply'), actionBtn('like', 'Like'));
+    else actions.append(actionBtn('reply', 'Comments'), actionBtn('repost', T('repost')), actionBtn('like', 'Like'), actionBtn('bookmark', 'Bookmark'));
     if (hasMedia(t)) actions.append(actionBtn('download', 'Download media', 'download'));
     actions.append(actionBtn('share', 'Copy link', 'link'));
     if (t.counts.views) actions.append(h('span', { className: 'xmc-views xmc-n', textContent: fmt(t.counts.views) + ' views' }));
     side.append(actions);
-    const more = moreFrom(t);
+    const more = parent ? null : moreFrom(t);
     if (more) side.append(more);
-    const panel = h('div', { className: 'xmc-replies' }, ...[0, 1, 2].map(() => h('div', { className: 'xmc-sk' }, h('i'), h('div', {}, h('b'), h('b'), h('b')))));
+    const panel = h('div', { className: 'xmc-replies' }, ...(parent ? [] : [0, 1, 2].map(() => h('div', { className: 'xmc-sk' }, h('i'), h('div', {}, h('b'), h('b'), h('b'))))));
     side.append(panel);
-    if (t.counts.reply > 0) {
+    if (parent) {
+      const d = state.details.get(parent.id);
+      fillReplies(panel, parent, { data: { replies: d ? repliesTo(d, t.id) : [], more: false } }, t);
+      if (focusBox) { const box = side.querySelector('.xmc-cbox'); if (box) box.focus({ preventScroll: true }); }
+    } else if (t.counts.reply > 0) {
       Promise.race([loadReplies(t, { wanted: () => panel.isConnected }), sleep(30000).then(() => ({ why: 'This is taking too long.' }))]).then((res) => {
         if (!panel.isConnected) return;
         if (!res || !res.data) state.commentFails.push(Date.now());
@@ -2098,12 +2134,13 @@
     } else { fillReplies(panel, t, { data: { replies: [], more: false } }); if (focusBox) { const box = side.querySelector('.xmc-cbox'); if (box) box.focus({ preventScroll: true }); } }
     return side;
   }
-  function openPostView(t, still, focusBox) {
+  function openPostView(t, still, focusBox, opts) {
+    const parent = opts && opts.parent;
     const reopen = !!postView;
     closePostView(reopen);
     closeMenu();
     const media = t.media.length ? h('div', { className: 'xmc-vmediapane' }, ...viewMedia(t)) : null;
-    const side = viewSide(t, focusBox);
+    const side = viewSide(t, focusBox, parent);
     const panel = h('div', { className: 'xmc-vpanel' + (media ? '' : ' single') }, media, side);
     const idx = view.cards.indexOf(t);
     const nav = (d, ic, label) => h('button', { className: 'xmc-vnav ' + (d < 0 ? 'prev' : 'next'), type: 'button', title: label, hidden: idx < 0 || !view.cards[idx + d], onclick: (e) => { e.stopPropagation(); stepPostView(d); } }, icon(ic));
@@ -2111,13 +2148,18 @@
       h('button', { className: 'xmc-vclose', type: 'button', title: 'Close (Esc)' }, icon('close')));
     el.addEventListener('click', (e) => {
       if (e.target === el || e.target.closest('.xmc-vclose')) { closePostView(); return; }
+      if (e.target.closest('.xmc-translate')) { e.preventDefault(); openOnX(t); return; } // X translates on its own page
       const btn = e.target.closest('[data-act]');
       if (btn) {
         e.preventDefault(); e.stopPropagation();
         const kind = btn.dataset.act;
         if (kind === 'reply') { const box = side.querySelector('.xmc-cbox'); if (box) { box.scrollIntoView({ block: 'nearest' }); box.focus(); } }
         else if (kind === 'conversation') window.open(new URL(t.url, location.origin).href, '_blank', 'noopener');
-        else act(t, kind, btn);
+        else if (parent) { // a comment: X's own buttons are only on its post's page, so like goes through that; the rest are ours
+          if (kind === 'like') likeComment(parent, t, () => updateActions(t));
+          else if (kind === 'share') copyLink(t);
+          else if (kind === 'download') downloadMedia(t);
+        } else act(t, kind, btn);
         return;
       }
       const lb = e.target.closest('[data-lb]');
@@ -2131,7 +2173,7 @@
     });
     el.addEventListener('wheel', (e) => { if (e.target === el) e.preventDefault(); }, { passive: false }); // not onto the columns or X's page behind
     root.append(el);
-    postView = { t, el, panel, side };
+    postView = { t, el, panel, side, parent };
     if (!reopen) {
       // so the Back button closes the panel; never while X's hidden side is on, or on its way to, a post's page (the entry would be that page)
       if (!state.peek && !state.posting && !onPostPage() && !isModalRoute()) { try { window.history.pushState({ xmcView: true }, '', location.href); } catch { /* ignore */ } }
