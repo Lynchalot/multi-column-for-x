@@ -661,7 +661,6 @@
   // ---------- overlay UI ----------
   const tabsEl = h('div', { className: 'xmc-tabs' });
   tabsEl.style.display = 'contents';
-  const countEl = h('span', { className: 'xmc-count' });
   const btn = (text, title, onclick, cls) => h('button', { textContent: text, title, onclick, type: 'button', className: cls || '' });
   const VIEW_LABELS = { all: () => 'All', posts: () => 'Posts only', reposts: () => T('reposts'), quotes: () => T('quotes'), replies: () => 'Replies', media: () => 'Media', photos: () => 'Photos', videos: () => 'Videos' };
   const viewEls = {};
@@ -677,18 +676,23 @@
   const refreshBtn = h('button', { className: 'xmc-refresh', title: 'Refresh', type: 'button', onclick: () => refresh() }, icon('refresh'), h('span', { className: 'xmc-newn' }));
   const nsfwBtn = h('button', { className: 'xmc-nsfw', type: 'button', onclick: () => cycleNsfw() }, h('span', { className: 'xmc-nsfwi' }), h('span', { className: 'xmc-nsfwl', textContent: 'NSFW' }));
 
-  const autoBtn = btn('Auto', 'Fit the number of columns to the window (highlighted = on)', () => setCols(0));
-  const colGroup = h('div', { className: 'xmc-colgroup' },
-    btn('\u2212', 'Fewer columns', () => setCols((pageLayout().cols || colCount()) - 1)), countEl,
-    btn('+', 'More columns', () => setCols((pageLayout().cols || colCount()) + 1)),
-    autoBtn);
+  // One button for the number of columns: the icon and what it is now ("Auto" or a number); it opens a short list to pick from
+  const colLabel = h('span', { className: 'xmc-collabel' });
+  const colBtn = h('button', { className: 'xmc-colbtn', type: 'button', onclick: () => openColumnsMenu() }, icon('columns'), colLabel);
+  function openColumnsMenu() {
+    const lay = pageLayout(), now = colCount();
+    const tick = (on) => (on ? '\u2713\u2002' : '\u2003\u2002');
+    const items = [[tick(!lay.cols) + 'Auto (' + now + ' now)', () => setCols(0)]];
+    for (let n = 1; n <= 8; n++) items.push([tick(lay.cols === n) + n + (n === 1 ? ' column' : ' columns'), () => setCols(n)]);
+    openMenu(colBtn, items);
+  }
   const DENSITY_LABEL = { normal: 'Normal', compact: 'Compact', text: 'Text' };
   const densityBtn = btn('', '', () => { const all = XMCLogic.DENSITIES; setLayout({ density: all[(all.indexOf(pageLayout().density) + 1) % all.length] }); }, 'xmc-density');
   const seenBtn = btn('', '', () => toggleSeen(), 'xmc-seenbtn');
   seenBtn.hidden = true;
   densityBtn.hidden = DENSITY_SHELVED;
   const pageTitleEl = h('span', { className: 'xmc-pagetitle', hidden: true });
-  const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, seenBtn, refreshBtn, colGroup, densityBtn, nsfwBtn, gearBtn);
+  const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, seenBtn, refreshBtn, colBtn, densityBtn, nsfwBtn, gearBtn);
   const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
   const bar = h('div', { className: 'xmc-bar' }, row1, row2);
   const statusEl = h('div', { className: 'xmc-status' });
@@ -921,8 +925,8 @@
     const n = colCount();
     const lay = pageLayout();
     view.layoutSig = layoutSig();
-    countEl.textContent = (lay.cols ? '' : 'auto · ') + n;
-    autoBtn.classList.toggle('on', !lay.cols); // shows whether the number is automatic or fixed
+    colLabel.textContent = lay.cols ? String(n) : 'Auto';
+    colBtn.title = lay.cols ? 'Columns: ' + n + (lay.cols > n ? ' (all that fit at this width)' : '') + ' \u2014 click to change' : 'Columns: automatic, ' + n + ' at this width \u2014 click to change';
     root.classList.toggle('xmc-compact', lay.density === 'compact');
     root.classList.toggle('xmc-textonly', lay.density === 'text');
     densityBtn.textContent = DENSITY_LABEL[lay.density];

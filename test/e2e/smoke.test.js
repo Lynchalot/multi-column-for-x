@@ -354,7 +354,8 @@ browserTest('per-page layouts: a page keeps what you picked there, and the other
   await checked(home, async () => {
     await e.ready(home.page);
     assert.equal(await home.page.locator('.xmc-col').count(), 2, 'Home has its own two columns');
-    await home.page.locator('.xmc-colgroup button', { hasText: '+' }).click();
+    await home.page.locator('.xmc-colbtn').click();
+    await home.page.locator('.xmc-menu button', { hasText: '3 columns' }).click();
     await home.page.waitForFunction(() => document.querySelectorAll('.xmc-col').length === 3);
     const s = await home.page.evaluate(() => ({ cols: window.__xmc.settings.cols, own: window.__xmc.settings.pageLayouts.home }));
     assert.equal(s.cols, 4, 'the global setting is untouched');
@@ -1080,3 +1081,21 @@ browserTest('resting on a post starts loading its comments; pictures fade in fro
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-media img')).opacity), '1');
   });
 }, 90000);
+
+browserTest('one button sets the number of columns: it says Auto or the number, and a short list changes it', async (e) => {
+  const h = await e.open('/home/', { width: 2400, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    assert.equal((await page.locator('.xmc-colbtn').innerText()).trim(), 'Auto');
+    await page.locator('.xmc-colbtn').click();
+    assert.match(await page.locator('.xmc-menu button').first().innerText(), /Auto \(\d+ now\)/);
+    await page.locator('.xmc-menu button', { hasText: '3 columns' }).click();
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-col').length === 3);
+    assert.equal((await page.locator('.xmc-colbtn').innerText()).trim(), '3');
+    await page.locator('.xmc-colbtn').click();
+    assert.match(await page.locator('.xmc-menu button', { hasText: '3 columns' }).innerText(), /\u2713/, 'the current one is ticked');
+    await page.locator('.xmc-menu button').first().click();
+    await page.waitForFunction(() => document.querySelector('.xmc-colbtn').textContent.trim() === 'Auto');
+  });
+});

@@ -28,7 +28,6 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
 .xmc-gear { display: inline-flex; align-items: center; padding: 8px 10px !important; }
 .xmc-gear svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .xmc-spacer { flex: 1; min-width: 12px; }
-.xmc-count { font-size: 13px; color: var(--xmc-muted); min-width: 44px; text-align: center; white-space: nowrap; }
 
 
 /* ---- columns ---- */
@@ -287,9 +286,9 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
 .xmc-bar2 { display: flex; gap: 6px; padding: 2px 12px 8px; overflow-x: auto; scrollbar-width: none; }
 .xmc-bar2[hidden] { display: none; }
 .xmc-bar2 .xmc-chip { flex: none; }
-.xmc-colgroup { display: inline-flex; align-items: center; border: 1px solid var(--xmc-border); border-radius: 999px; padding: 0 2px; }
-.xmc-colgroup button { padding: 6px 10px !important; font-size: 14px !important; }
-.xmc-colgroup .xmc-count { min-width: 40px; }
+.xmc-colbtn { display: inline-flex !important; align-items: center; gap: 6px; padding: 8px 12px !important; }
+.xmc-colbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-collabel { font-size: 14px; font-weight: 700; }
 
 /* the columns on/off + retry pill, in X's left sidebar under its Post/Tweet button */
 #xmc-pill { display: flex; align-items: center; justify-content: center; gap: 10px; box-sizing: border-box; width: 100%; min-height: 52px; margin-top: 12px; padding: 0 20px;
