@@ -1100,7 +1100,7 @@ browserTest('clicking a post while its comments are already being fetched in the
     await page.waitForSelector('.xmc-view .xmc-vpanel');
     await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 25000 });
     await page.waitForFunction(() => location.pathname === '/home/' && !window.__xmc.state.peek, null, { timeout: 15000 });
-    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-on') && !document.documentElement.classList.contains('xmc-onpost')), true, 'columns still showing, not X\'s post page');
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-on') && !document.documentElement.classList.contains('xmc-onpost'), null, { timeout: 5000 }); // columns showing again, not X's post page
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.querySelector('.xmc-view'), null, { timeout: 5000 });
     await page.waitForFunction(() => location.pathname === '/home/' && !(history.state && history.state.xmcView), null, { timeout: 15000 });
@@ -1139,6 +1139,12 @@ browserTest('pressing a comment opens it in the panel like a post (its words, it
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.querySelector('#xmc-lightbox'));
     assert.equal(await page.locator('.xmc-vback').count(), 0, 'still the post');
+    // bookmark a comment from the list: X's own button on it is pressed
+    const row = page.locator('.xmc-vside .xmc-ritem', { hasText: 'Reply number 3 to the post' });
+    await row.locator('.xmc-rmark').click();
+    await page.waitForFunction(() => window.__bm === 1, null, { timeout: 25000 });
+    await page.waitForFunction(() => location.pathname === '/home/' && !window.__xmc.state.peek, null, { timeout: 15000 });
+    assert.equal(await row.locator('.xmc-rmark.on').count(), 1, 'shown as saved');
     // a comment's words: the comment opens
     await page.locator('.xmc-vside .xmc-ritem', { hasText: 'Reply number 2 to the post' }).locator('.xmc-text').click();
     await page.waitForSelector('.xmc-vback');
@@ -1171,6 +1177,11 @@ browserTest('"Skip X\'s age check" turns off only X\'s age-verification flag, an
   await checked(on, async () => {
     await on.page.waitForFunction(() => window.__fs.isTrue('rweb_age_assurance_flow_enabled') === false, null, { timeout: 8000 });
     assert.deepEqual(await flags(on), { age: false, other: true }, 'only that flag');
+    assert.equal(await on.page.evaluate(() => localStorage.getItem('xmcSkipAge')), '1', 'remembered for the next page load');
+    await on.page.reload();
+    await on.page.waitForFunction(() => window.__INITIAL_STATE__.featureSwitch.defaultConfig.rweb_age_assurance_flow_enabled.value === false, null, { timeout: 8000 });
+    assert.equal(await on.page.evaluate(() => window.__INITIAL_STATE__.featureSwitch.defaultConfig.other_flag.value), true, 'only that flag, in X\'s starting state too');
+    await on.page.waitForFunction(() => window.__xmc && window.__xmc.state.ageFlag && window.__xmc.state.ageFlag.lookup, null, { timeout: 8000 });
     await on.page.evaluate(() => { window.__xmc.settings.skipAgeCheck = false; });
     await on.page.evaluate(() => window.postMessage({ source: 'xmc-flags', skipAge: false }, location.origin));
     await on.page.waitForFunction(() => window.__fs.isTrue('rweb_age_assurance_flow_enabled') === true, null, { timeout: 8000 });

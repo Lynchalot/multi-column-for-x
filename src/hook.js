@@ -27,8 +27,30 @@
     }
   });
 
-  // "Skip X's age check": X's page decides whether to ask for age verification from a feature flag it keeps in its React props
+  // "Skip X's age check": X's page decides whether to ask for age verification from a feature flag. It is switched off in two
+  // places: X's starting state (before its app reads it) and the flag lookup itself (in case it is asked again later).
+  // The extension keeps its setting in localStorage ('xmcSkipAge') so this script knows it at once, before X has drawn anything.
+  const AGE_FLAG = 'rweb_age_assurance_flow_enabled';
   let skipAge = false, ageTimer = 0, ageTries = 0;
+  try { skipAge = window.localStorage.getItem('xmcSkipAge') === '1'; } catch { /* storage blocked */ }
+  const age = { setting: skipAge, startState: false, lookup: false, asked: 0 };
+  function sayAge() { try { window.postMessage({ source: 'xmc-age', age }, window.location.origin); } catch { /* ignore */ } }
+  function patchStartState() {
+    try {
+      const fsw = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.featureSwitch;
+      if (!fsw) return false;
+      let hit = false;
+      for (const bag of [fsw.defaultConfig, fsw.user && fsw.user.config]) {
+        const f = bag && bag[AGE_FLAG];
+        if (!f || typeof f !== 'object' || !('value' in f)) continue;
+        hit = true;
+        if (skipAge) { if (f.__xmcWas === undefined) f.__xmcWas = f.value; f.value = false; }
+        else if (f.__xmcWas !== undefined) { f.value = f.__xmcWas; delete f.__xmcWas; }
+      }
+      if (hit) age.startState = skipAge;
+      return true;
+    } catch { return false; }
+  }
   function featureSwitches() {
     try {
       const first = document.querySelector('#react-root') && document.querySelector('#react-root').firstElementChild;
@@ -43,17 +65,26 @@
     if (skipAge && !fs.__xmcIsTrue) {
       const orig = fs.isTrue;
       fs.__xmcIsTrue = orig;
-      fs.isTrue = function (flag) { return flag === 'rweb_age_assurance_flow_enabled' ? false : orig.apply(this, arguments); };
-    } else if (!skipAge && fs.__xmcIsTrue) { fs.isTrue = fs.__xmcIsTrue; delete fs.__xmcIsTrue; }
+      fs.isTrue = function (flag) { if (flag === AGE_FLAG) { age.asked++; return false; } return orig.apply(this, arguments); };
+      age.lookup = true; sayAge();
+    } else if (!skipAge && fs.__xmcIsTrue) { fs.isTrue = fs.__xmcIsTrue; delete fs.__xmcIsTrue; age.lookup = false; sayAge(); }
     return true;
   }
-  window.addEventListener('message', (e) => {
-    if (e.source !== window || !e.data || e.data.source !== 'xmc-flags') return;
-    skipAge = !!e.data.skipAge;
-    ageTries = 0;
+  function keepAge() {
     clearInterval(ageTimer);
+    ageTries = 0;
     // X builds its page a moment after this script runs: keep trying for a while, then check now and then (X may rebuild it)
-    ageTimer = setInterval(() => { ageTries++; if (syncAge() && ageTries > 40) { clearInterval(ageTimer); ageTimer = setInterval(syncAge, 5000); } }, 250);
+    ageTimer = setInterval(() => {
+      ageTries++;
+      if (skipAge && !age.startState) patchStartState();
+      if (syncAge() && ageTries > 40) { clearInterval(ageTimer); ageTimer = setInterval(syncAge, 5000); }
+    }, 100);
+  }
+  if (skipAge) { patchStartState(); keepAge(); }
+  window.addEventListener('message', (e) => {
+    if (e.source !== window || !e.data) return;
+    if (e.data.source === 'xmc-flags') { skipAge = !!e.data.skipAge; age.setting = skipAge; keepAge(); sayAge(); }
+    else if (e.data.source === 'xmc-ready') sayAge();
   });
 
   // While the columns cover X's page, X's own (hidden) timeline must not start videos: they'd stream and decode for nothing.

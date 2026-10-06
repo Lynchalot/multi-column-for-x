@@ -242,6 +242,8 @@
     if (e.source !== window || !d) return;
     if (d.source === 'xmc') {
       try { onResponse(d.url, d.body, d.reqBody); } catch (err) { console.error('[xmc] could not read a timeline response', err); }
+    } else if (d.source === 'xmc-age') {
+      state.ageFlag = d.age; console.info('[xmc] age flag', JSON.stringify(d.age));
     } else if (d.source === 'xmc-fail') {
       const op = XMCParse.opOf(d.url) || '';
       if (/TweetDetail/.test(op)) state.detailFail = { status: d.status, at: Date.now() };
@@ -838,6 +840,7 @@
   // settings that change what's drawn
   function settingsChanged() {
     window.postMessage({ source: 'xmc-flags', skipAge: !!settings.skipAgeCheck }, location.origin); // the page hook turns X's age-verification flag off or on
+    try { window.localStorage.setItem('xmcSkipAge', settings.skipAgeCheck ? '1' : '0'); } catch { /* storage blocked */ } // so the hook knows it at the next page load, before X draws anything
     XMCSite.apply(settings);
     root.classList.toggle('xmc-flat', settings.cardStyle === 'flat');
     applyBar();
@@ -1269,6 +1272,7 @@
       requestsSeen: state.seenOps,
       feeds: [...state.feeds.values()].map((f) => ({ name: f.key.split('|')[0] + (f.key.includes('#') ? '#' + f.key.split('#').pop() : ''), posts: f.items.length, parkedNew: f.pending.length, exhausted: f.exhausted, misses: f.misses })),
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
+      ageFlag: state.ageFlag || null,
       commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       floating: floatingReport(),
@@ -1497,10 +1501,15 @@
     });
     const likeBtn = h('button', { className: 'xmc-ract xmc-rlike', type: 'button', title: 'Like' }, icon('like'), h('span', { className: 'xmc-n' }));
     const replyBtn = h('button', { className: 'xmc-ract xmc-rreply', type: 'button', title: 'Reply to this comment' }, icon('reply'), h('span', { textContent: 'Reply' }));
+    const markBtn = h('button', { className: 'xmc-ract xmc-rmark', type: 'button', title: 'Bookmark' }, icon('bookmark'), h('span', { className: 'xmc-n' }));
+    const linkBtn = h('button', { className: 'xmc-ract xmc-rlink', type: 'button', title: 'Copy link' }, icon('link'));
     const slot = h('div', { className: 'xmc-rslot' });
     const paintLike = () => { likeBtn.classList.toggle('on', !!r.state.liked); likeBtn.querySelector('.xmc-n').textContent = r.counts.like ? fmt(r.counts.like) : ''; };
-    paintLike();
+    const paintMark = () => { markBtn.classList.toggle('on', !!r.state.bookmarked); markBtn.querySelector('.xmc-n').textContent = r.counts.bookmark ? fmt(r.counts.bookmark) : ''; };
+    paintLike(); paintMark();
     likeBtn.addEventListener('click', () => likeComment(t, r, paintLike));
+    markBtn.addEventListener('click', () => bookmarkComment(t, r, paintMark));
+    linkBtn.addEventListener('click', () => copyLink(r));
     replyBtn.addEventListener('click', () => {
       if (slot.firstChild) { slot.replaceChildren(); return; }
       const c = renderComposer(panel, t, r);
@@ -1518,7 +1527,7 @@
         text,
         needsTranslation(r) ? h('button', { className: 'xmc-translate', type: 'button', textContent: 'Translate post', title: 'Opens the comment, where X can translate it', onclick: (e) => { e.stopPropagation(); openOnX(r); } }) : null,
         medias,
-        h('div', { className: 'xmc-ractions' }, likeBtn, replyBtn),
+        h('div', { className: 'xmc-ractions' }, likeBtn, replyBtn, markBtn, linkBtn, r.counts.views ? h('span', { className: 'xmc-dim xmc-rviews', textContent: fmt(r.counts.views) + ' views' }) : null),
         slot));
     // pressing the comment itself (not a link, button or box in it) opens it in the panel: its picture large, its replies beside it
     item.querySelector('.xmc-rbody').addEventListener('click', (e) => {
@@ -1687,6 +1696,20 @@
       return { ok: true };
     });
     if (!res.ok) { state.actionFails.push(Date.now()); flip(!want); toast(res.why || 'Couldn’t reach that comment just now. Try again in a moment'); }
+  }
+  // save a comment to bookmarks (or take it off): X's own button on that comment, found the same way
+  async function bookmarkComment(t, r, paint) {
+    const want = !r.state.bookmarked;
+    const flip = (on) => { r.state.bookmarked = on; r.counts.bookmark = Math.max(0, (r.counts.bookmark || 0) + (on ? 1 : -1)); paint(); };
+    flip(want);
+    const res = await actOnComment(t, r.id, (art) => {
+      const b = art.querySelector(want ? '[data-testid="bookmark"]' : '[data-testid="removeBookmark"]');
+      if (!b) return { ok: false, why: 'Couldn\u2019t find that comment\u2019s bookmark button.' };
+      fire(b);
+      return { ok: true };
+    });
+    if (!res.ok) { state.actionFails.push(Date.now()); flip(!want); toast(res.why || 'Couldn\u2019t reach that comment just now. Try again in a moment'); }
+    else toast(want ? 'Saved to bookmarks' : 'Removed from bookmarks');
   }
   async function postCommentReply(t, r, text) {
     return actOnComment(t, r.id, async (art) => {
@@ -2108,7 +2131,7 @@
     if (t.quoted) side.append(renderQuote(t.quoted));
     if (t.thread && t.thread.length) side.append(renderThread(t));
     const actions = h('div', { className: 'xmc-actions' });
-    if (parent) actions.append(actionBtn('reply', 'Reply'), actionBtn('like', 'Like'));
+    if (parent) actions.append(actionBtn('reply', 'Reply'), actionBtn('like', 'Like'), actionBtn('bookmark', 'Bookmark'));
     else actions.append(actionBtn('reply', 'Comments'), actionBtn('repost', T('repost')), actionBtn('like', 'Like'), actionBtn('bookmark', 'Bookmark'));
     if (hasMedia(t)) actions.append(actionBtn('download', 'Download media', 'download'));
     actions.append(actionBtn('share', 'Copy link', 'link'));
@@ -2157,6 +2180,7 @@
         else if (kind === 'conversation') window.open(new URL(t.url, location.origin).href, '_blank', 'noopener');
         else if (parent) { // a comment: X's own buttons are only on its post's page, so like goes through that; the rest are ours
           if (kind === 'like') likeComment(parent, t, () => updateActions(t));
+          else if (kind === 'bookmark') bookmarkComment(parent, t, () => updateActions(t));
           else if (kind === 'share') copyLink(t);
           else if (kind === 'download') downloadMedia(t);
         } else act(t, kind, btn);

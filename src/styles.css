@@ -552,3 +552,7 @@ html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive v
 .xmc-vback:hover { background: var(--xmc-hover); opacity: 1; }
 .xmc-vback svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .xmc-vside .xmc-rbody { cursor: pointer; }
+
+.xmc-rmark:hover, .xmc-rmark.on { color: #1d9bf0; }
+.xmc-rmark:hover { background: rgba(29, 155, 240, .12); }
+.xmc-rviews { margin-left: auto; font-size: 12px; }

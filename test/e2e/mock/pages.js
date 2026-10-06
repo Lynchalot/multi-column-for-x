@@ -7,6 +7,7 @@ const SCRIPTS = ['settings', 'logic', 'parse', 'site', 'meta', 'main'].map((n) =
 function shell(title, body, script) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>
 <script src="/ext/src/hook.js"></script>
+<script>window.__INITIAL_STATE__ = { featureSwitch: { defaultConfig: { rweb_age_assurance_flow_enabled: { value: true }, other_flag: { value: true } }, user: { config: {} } } };</script>
 <link rel="stylesheet" href="/ext/src/styles.css"><style id="react-native-stylesheet">.r-blur{filter:blur(30px)}.r-other{filter:blur(2px)}</style><style>html,body{height:100%} body{overflow-y:scroll} #react-root{min-height:100%;display:flex;flex-direction:column}</style></head>
 <body style="margin:0;background:#000;color:#e7e9ea;font-family:sans-serif">
 <div id="react-root">
@@ -65,7 +66,7 @@ const pv=document.createElement('div'); pv.id='postview'; pv.style.display='none
 function showPost(id){ list.style.display='none'; pv.style.display=''; pv.innerHTML=[0,1,2,3,4,5,6].map(k=>{ const i=k?Number(id)*10+k:id; return '<article data-testid="tweet" tabindex="'+(k?0:-1)+'" style="border-bottom:1px solid #333;padding:12px"><a href="/user/status/'+i+'"><time>t</time></a><div data-testid="tweetText">Post '+i+'</div><div role="group">'
   +'<button data-testid="reply" onclick="openComposer(\\''+i+'\\')">r</button><button data-testid="retweet">rt</button>'
   +'<button data-testid="'+(state.liked.has(String(i))?'unlike':'like')+'" onclick="tog(\\'liked\\',\\''+i+'\\',this,\\'like\\',\\'unlike\\')">l</button>'
-  +'<button data-testid="bookmark">b</button></div></article>'; }).join(''); }
+  +'<button data-testid="bookmark" onclick="window.__bm=(window.__bm||0)+1">b</button></div></article>'; }).join(''); }
 function showRoute(){ const m=/\\/status\\/(\\d+)$/.exec(location.pathname); if(m) showPost(m[1]); else if(!/compose/.test(location.pathname)){ pv.style.display='none'; list.style.display=''; } }
 list.addEventListener('click',e=>{ const a=e.target.closest('a[href^="/user/status/"]'); if(!a) return; e.preventDefault(); const id=a.getAttribute('href').split('/').pop(); history.pushState({}, '', '/home/user/status/'+id); window.peeked=(window.peeked||[]).concat(id); showPost(id); fetch('/i/api/graphql/x/TweetDetail?variables='+encodeURIComponent(JSON.stringify({focalTweetId:id}))); });
 window.addEventListener('popstate',()=>{ window.backs=(window.backs||0)+1; showRoute(); });
@@ -90,7 +91,7 @@ if(CFG.load!==false) load(true);
 function postPage(id) {
   const art = (i, tab) => `<article data-testid="tweet" tabindex="${tab}" style="border-bottom:1px solid #333;padding:12px"><a href="/user/status/${i}"><time>t</time></a><div data-testid="tweetText">Post ${i}</div>${tab === -1 ? '<div><div class="r-blur" id="blurred" style="width:80px;height:40px;background:#c33">picture</div><div id="notice">cover</div></div>' : ''}${tab === -1 ? '<div id="agebox" style="width:300px;height:140px"><div><span>Age-restricted adult content. This content might not be appropriate for everyone.</span><div role="button" tabindex="0" onclick="window.__gate2=(window.__gate2||0)+1"><span>Show</span></div></div></div>' : ''}${tab === -1 ? '<div><span>The following media includes potentially sensitive content.</span><div role="button" tabindex="0" onclick="window.__gate=(window.__gate||0)+1"><span>Show</span></div></div>' : ''}
  <button aria-label="Grok actions" style="float:right">G</button>
- <div role="group" id="id__${i}" style="display:flex;justify-content:space-between;margin-top:30px"><div><button data-testid="reply" onclick="openComposer('${i}')">r</button></div><div><button data-testid="retweet">rt</button></div><div><button data-testid="like" onclick="tog('${i}',this)">l</button></div><div><button data-testid="bookmark">b</button></div><div style=""><button aria-label="Share post">s</button></div></div></article>`;
+ <div role="group" id="id__${i}" style="display:flex;justify-content:space-between;margin-top:30px"><div><button data-testid="reply" onclick="openComposer('${i}')">r</button></div><div><button data-testid="retweet">rt</button></div><div><button data-testid="like" onclick="tog('${i}',this)">l</button></div><div><button data-testid="bookmark" onclick="window.__bm=(window.__bm||0)+1">b</button></div><div style=""><button aria-label="Share post">s</button></div></div></article>`;
   const body = `<div style="margin-left:480px;width:600px"><div data-testid="primaryColumn">${art(id, -1)}${[1, 2, 3, 4, 5, 6].map((k) => art(Number(id) * 10 + k, 0)).join('')}</div></div>`;
   const script = `<script>
 window.__actions=[]; const liked=new Set();

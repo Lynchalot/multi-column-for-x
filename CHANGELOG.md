@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.1
+- **Bookmark, copy link and views on comments**, in the list and in a comment's own view. Bookmark presses X's own button on that comment, like Like does.
+- **Skip X's age check now acts before X starts.** The setting is kept where the page hook can read it at once, X's starting state has the flag switched off before its app reads it, and the lookup is still covered afterwards. The hook reports what it managed (Copy diagnostics, field `ageFlag`; also logged to the console as "[xmc] age flag"). Reload X once after turning it on.
+
 ## 0.22.0
 - **Comments open in the panel like posts.** Press a comment's words and it opens with its picture large on the left, its own replies (the ones X sent with the post), a reply box and Like on the right, with "Back to the post" and Esc returning to the post. Pressing a comment's picture opens it full size, in the post or in a comment.
 - **Option: Skip X's age check on sensitive media** (off by default). It turns off X's own age-verification flag in your browser (the same flag Control Panel for Twitter turns off), so X shows its older "sensitive content" notice, which the Sensitive media setting already handles. Reload X after changing it.
