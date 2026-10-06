@@ -1285,6 +1285,27 @@ browserTest('while comments are fetched on X\'s hidden side, the menu and the si
   });
 }, 90000);
 
+browserTest('an open post sits over X\'s menu and sidebar, and they stay pinned, not coming and going, for as long as it is open', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.waitForSelector('[data-testid="sidebarColumn"][data-xmc-style]');
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 25000 });
+    const over = () => page.evaluate(() => {
+      const top = (sel) => { const el = document.querySelector(sel + '[data-xmc-style]'); if (!el) return 'unpinned'; const r = el.getBoundingClientRect(); const hit = document.elementFromPoint(r.left + r.width / 2, r.top + 40); return hit && hit.closest('.xmc-view') ? 'under' : 'ABOVE: ' + (hit && hit.tagName); };
+      return { side: top('[data-testid="sidebarColumn"]'), nav: top('header[role="banner"]'), pinned: document.documentElement.classList.contains('xmc-pinside') };
+    });
+    for (let i = 0; i < 9; i++) { // far longer than the pin check takes to give up
+      const o = await over();
+      assert.deepEqual(o, { side: 'under', nav: 'under', pinned: true }, 'at ' + i + 's: ' + JSON.stringify(o));
+      await page.waitForTimeout(1000);
+    }
+  });
+}, 90000);
+
 browserTest('when X refuses the comments (rate limit), the panel says so, offers Try again, and the post still opens', async (e) => {
   const h = await e.open('/home/', { width: 1600, height: 900 });
   await checked(h, async () => {

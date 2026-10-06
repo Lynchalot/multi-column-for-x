@@ -560,3 +560,6 @@ html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive v
 
 /* while X's hidden page is busy for us, nothing of its own may show, whether or not our pins are on yet */
 html.xmc-on.xmc-peeking [data-testid="sidebarColumn"]:not([data-xmc-style]), html.xmc-on.xmc-peeking header[role="banner"]:not([data-xmc-style]) { visibility: hidden !important; }
+
+/* an open post (or comment) sits over everything, X's pinned menu and sidebar included */
+#xmc-root:has(> .xmc-view) { z-index: 20; }

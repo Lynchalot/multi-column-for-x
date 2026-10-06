@@ -2649,7 +2649,7 @@
   function probeOk(b, container) {
     if (!b || !b.width || b.top < 0 || b.bottom > innerHeight || b.left < 0 || b.right > innerWidth) return true;
     const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-    return !hit || container.contains(hit) || !!hit.closest('#layers, #xmc-navfreeze, #xmc-sidefreeze'); // our still copies sit over the real ones while those are busy
+    return !hit || container.contains(hit) || !!hit.closest('#layers, #xmc-root, #xmc-toast, #xmc-lightbox, #xmc-navfreeze, #xmc-sidefreeze'); // our own panel, toast and still copies may cover them: that is not a broken pin
   }
   function positionNav() {
     const p = pin.nav, nav = p.el();
