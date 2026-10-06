@@ -431,3 +431,12 @@ test('settings: volume is kept as a number between 0 and 1, and the presets only
   assert.ok(S.presetApplies(S.PRESETS[1], Object.assign({}, S.DEFAULTS, S.PRESETS[1].set)));
   assert.ok(!S.presetApplies(S.PRESETS[1], S.DEFAULTS));
 });
+
+test('a fresh install starts on Calm, stored as choices, so Calm is what shows as ticked', () => {
+  const stored = S.freshInstall();
+  assert.equal(stored.v, S.VERSION);
+  const n = S.normalize(stored);
+  assert.ok(S.presetApplies(S.PRESETS.find((p) => p.id === 'calm'), n));
+  assert.ok(!('hideForYou' in stored), 'what already matches the defaults is not stored');
+  assert.ok(!S.PRESETS.some((p) => p.id !== 'calm' && S.presetApplies(p, n)), 'and nothing else is ticked');
+});

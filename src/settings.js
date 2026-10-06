@@ -203,12 +203,15 @@ var XMCSettings = (function () {
     { id: 'media', label: 'Media wall', blurb: 'Narrower layout with more columns. Videos play muted as you scroll.',
       set: { autoplayVideo: 'muted', minColWidth: 380, maxAutoCols: 8, tallPhotos: 'cap', hideViews: true } },
   ];
+  // What a fresh install starts with: the Calm preset, stored as a person's own choices (so what is ticked on the settings page is Calm,
+  // not "Custom"), and only what differs from the defaults
+  const freshInstall = () => diff(Object.assign({}, DEFAULTS, PRESETS.find((p) => p.id === 'calm').set)).set;
   const presetApplies = (preset, settings) => Object.keys(preset.set).every((k) => JSON.stringify(settings[k]) === JSON.stringify(preset.set[k]));
 
   const words = (s) => String(s || '').split(/[,\n]/).map((w) => w.trim().toLowerCase()).filter(Boolean);
   const handles = (s) => words(s).map((w) => w.replace(/^@/, ''));
 
-  const api = { SCHEMA, DEFAULTS, INTERNAL, VERSION, PRESETS, presetApplies, normalize, diff, words, handles };
+  const api = { SCHEMA, DEFAULTS, INTERNAL, VERSION, PRESETS, presetApplies, freshInstall, normalize, diff, words, handles };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

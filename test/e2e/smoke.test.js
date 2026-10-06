@@ -152,9 +152,9 @@ browserTest('profile Videos / Photos buttons drive X\'s own switch', async (e) =
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
-    const chips = () => page.locator('.xmc-bar2 .xmc-chip:visible').allInnerTexts();
-    assert.deepEqual(await chips(), ['Videos', 'Photos']);
-    await page.locator('.xmc-bar2 .xmc-chip:visible', { hasText: 'Photos' }).click();
+    await page.locator('.xmc-showbtn').click();
+    assert.deepEqual((await page.locator('.xmc-menu button').allInnerTexts()).map((x) => x.replace(/[\u2713\s]+/, '')), ['Videos', 'Photos']);
+    await page.locator('.xmc-menu button', { hasText: 'Photos' }).click();
     await page.waitForFunction(() => window.__xmc.view.cards.length && Number(window.__xmc.view.cards[0].id) >= 99000, null, { timeout: 15000 });
     await page.waitForFunction(() => /Photos/.test((document.querySelector('.xmc-tabs .on') || {}).textContent || ''), null, { timeout: 5000 });
   });
@@ -871,11 +871,11 @@ browserTest('a new set of posts fades up once, and the motion switches off for p
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
-    const started = await page.evaluate(() => { document.querySelector('.xmc-chip:not(.on)').click(); return document.querySelector('.xmc-cols').classList.contains('xmc-enter'); });
+    const started = await page.evaluate(() => { document.querySelector('.xmc-showbtn').click(); document.querySelectorAll('.xmc-menu button')[1].click(); return document.querySelector('.xmc-cols').classList.contains('xmc-enter'); });
     assert.equal(started, true);
     await page.waitForFunction(() => !document.querySelector('.xmc-cols').classList.contains('xmc-enter'), null, { timeout: 3000 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.evaluate(() => { document.querySelector('.xmc-chip:not(.on)').click(); });
+    await page.evaluate(() => { document.querySelector('.xmc-showbtn').click(); document.querySelectorAll('.xmc-menu button')[0].click(); });
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-cols')).animationName), 'none');
   });
 });
@@ -1033,7 +1033,10 @@ browserTest('the Following tab shows its Popular / Recent arrow from the start, 
     const { page } = h;
     await e.ready(page);
     assert.ok((await page.locator('.xmc-bar1 button', { hasText: 'Following' }).first().innerText()).includes('▾'), 'the arrow is there before anyone has pressed the tab twice');
-    assert.ok((await page.locator('.xmc-bar2 .xmc-chip:visible').allInnerTexts()).includes('Posts only'));
+    assert.equal((await page.locator('.xmc-showbtn').innerText()).trim(), 'Show: Everything');
+    await page.locator('.xmc-showbtn').click();
+    assert.ok((await page.locator('.xmc-menu button').allInnerTexts()).some((x) => x.includes('Posts only')));
+    await page.keyboard.press('Escape');
     await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
     await page.evaluate(() => { document.querySelector('.xmc-card [data-act="more"]').click(); });
     await page.locator('.xmc-menu button', { hasText: 'Report a problem' }).click();
@@ -1082,20 +1085,48 @@ browserTest('resting on a post starts loading its comments; pictures fade in fro
   });
 }, 90000);
 
-browserTest('one button sets the number of columns: it says Auto or the number, and a short list changes it', async (e) => {
+browserTest('one button sets the number of columns: it shows the number, and a short list (Auto first) changes it', async (e) => {
   const h = await e.open('/home/', { width: 2400, height: 900 });
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
-    assert.equal((await page.locator('.xmc-colbtn').innerText()).trim(), 'Auto');
+    const auto = Number((await page.locator('.xmc-colbtn').innerText()).trim());
+    assert.ok(auto >= 2, 'it shows how many there are');
     await page.locator('.xmc-colbtn').click();
-    assert.match(await page.locator('.xmc-menu button').first().innerText(), /Auto \(\d+ now\)/);
+    assert.match(await page.locator('.xmc-menu button').first().innerText(), /\u2713\s+Auto \(\d+ now\)/, 'Auto first, and ticked');
     await page.locator('.xmc-menu button', { hasText: '3 columns' }).click();
     await page.waitForFunction(() => document.querySelectorAll('.xmc-col').length === 3);
     assert.equal((await page.locator('.xmc-colbtn').innerText()).trim(), '3');
     await page.locator('.xmc-colbtn').click();
     assert.match(await page.locator('.xmc-menu button', { hasText: '3 columns' }).innerText(), /\u2713/, 'the current one is ticked');
     await page.locator('.xmc-menu button').first().click();
-    await page.waitForFunction(() => document.querySelector('.xmc-colbtn').textContent.trim() === 'Auto');
+    await page.waitForFunction((n) => document.querySelectorAll('.xmc-col').length === n, auto);
+  });
+});
+
+browserTest('while posts are on their way and there is blank space, grey placeholder cards show at the foot of each column', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { window.__delay = 4000; });
+    await page.evaluate(async () => { const sc = document.querySelector('.xmc-scroller'); for (let i = 0; i < 60; i++) { sc.scrollTop += 2500; await new Promise((x) => setTimeout(x, 40)); } });
+    await page.waitForSelector('.xmc-col > .xmc-ghost', { timeout: 15000 });
+    assert.equal(await page.locator('.xmc-col > .xmc-ghost').count(), await page.locator('.xmc-col').count(), 'one per column');
+    await page.waitForFunction(() => !document.querySelector('.xmc-ghost'), null, { timeout: 30000 });
+  });
+}, 90000);
+
+browserTest('narrow window: the top bar stays on one row with icons only, and the view count goes', async (e) => {
+  const h = await e.open('/home/', { width: 900, height: 800 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const r = await page.evaluate(() => {
+      const bar = document.querySelector('.xmc-bar1'), btns = [...bar.children].filter((c) => !c.hidden && c.getBoundingClientRect().width);
+      const mids = btns.map((c) => { const b = c.getBoundingClientRect(); return b.top + b.height / 2; });
+      return { rows: Math.max(...mids) - Math.min(...mids) < 14 ? 1 : 2, showLabel: getComputedStyle(document.querySelector('.xmc-showlabel')).display, views: getComputedStyle(document.querySelector('.xmc-views')).display };
+    });
+    assert.deepEqual(r, { rows: 1, showLabel: 'none', views: 'none' });
   });
 });

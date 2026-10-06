@@ -298,6 +298,8 @@
     check: ['M5 12.5l4.5 4.5L19 7'],
     bird: [XMCSite.BIRD],
     refresh: ['M21 12a9 9 0 1 1-2.6-6.4', 'M21 4v5h-5'],
+    filter: ['M3 5h18', 'M6 12h12', 'M10 19h4'],
+    chev: ['M6 9l6 6 6-6'],
     eye: ['M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
     eyeoff: ['M17.9 17.9A10.1 10.1 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.1-5.9', 'M9.9 4.2A9.1 9.1 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.2 3.2', 'M14.1 14.1a3 3 0 1 1-4.2-4.2', 'M1 1l22 22'],
     ban: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M5.6 5.6l12.8 12.8'],
@@ -662,7 +664,7 @@
   const tabsEl = h('div', { className: 'xmc-tabs' });
   tabsEl.style.display = 'contents';
   const btn = (text, title, onclick, cls) => h('button', { textContent: text, title, onclick, type: 'button', className: cls || '' });
-  const VIEW_LABELS = { all: () => 'All', posts: () => 'Posts only', reposts: () => T('reposts'), quotes: () => T('quotes'), replies: () => 'Replies', media: () => 'Media', photos: () => 'Photos', videos: () => 'Videos' };
+  const VIEW_LABELS = { all: () => 'Everything', posts: () => 'Posts only', reposts: () => T('reposts'), quotes: () => T('quotes'), replies: () => 'Replies', media: () => 'Media', photos: () => 'Photos', videos: () => 'Videos' };
   const viewEls = {};
   for (const key of Object.keys(VIEW_LABELS)) viewEls[key] = btn('', '', () => setFilter(key), 'xmc-chip');
   // X's profile Media tab is now split into Videos and Photos (a dropdown on the tab); these two press X's real choice
@@ -676,15 +678,27 @@
   const refreshBtn = h('button', { className: 'xmc-refresh', title: 'Refresh', type: 'button', onclick: () => refresh() }, icon('refresh'), h('span', { className: 'xmc-newn' }));
   const nsfwBtn = h('button', { className: 'xmc-nsfw', type: 'button', onclick: () => cycleNsfw() }, h('span', { className: 'xmc-nsfwi' }), h('span', { className: 'xmc-nsfwl', textContent: 'NSFW' }));
 
-  // One button for the number of columns: the icon and what it is now ("Auto" or a number); it opens a short list to pick from
+  // One button for the number of columns: the number now, and a small arrow; it opens a short list to pick from (Auto first)
   const colLabel = h('span', { className: 'xmc-collabel' });
-  const colBtn = h('button', { className: 'xmc-colbtn', type: 'button', onclick: () => openColumnsMenu() }, icon('columns'), colLabel);
+  const colBtn = h('button', { className: 'xmc-colbtn', type: 'button', onclick: () => openColumnsMenu() }, colLabel, icon('chev'));
   function openColumnsMenu() {
     const lay = pageLayout(), now = colCount();
+    const fit = XMCLogic.autoCols(scroller.clientWidth - 24, { minColWidth: MIN_COL, maxAutoCols: 8 }, GAP); // the most that fit at this width
     const tick = (on) => (on ? '\u2713\u2002' : '\u2003\u2002');
     const items = [[tick(!lay.cols) + 'Auto (' + now + ' now)', () => setCols(0)]];
-    for (let n = 1; n <= 8; n++) items.push([tick(lay.cols === n) + n + (n === 1 ? ' column' : ' columns'), () => setCols(n)]);
+    for (let n = 1; n <= Math.max(fit, lay.cols || 0, 1); n++) items.push([tick(lay.cols === n) + n + (n === 1 ? ' column' : ' columns'), () => setCols(n)]);
     openMenu(colBtn, items);
+  }
+  // One "Show" menu for what to show (everything, posts only, reposts...), so the tab row above is X's alone
+  const showLabel = h('span', { className: 'xmc-showlabel' });
+  const showBtn = h('button', { className: 'xmc-showbtn', type: 'button', onclick: () => openShowMenu() }, icon('filter'), showLabel, icon('chev'));
+  function showChoices() {
+    if (mediaSplit()) { const kind = subFor(state.sel); return [['Videos', kind === 'videos', () => pickMediaKind('Videos')], ['Photos', kind === 'photos', () => pickMediaKind('Photos')]]; }
+    return Object.keys(viewEls).filter((k) => !viewEls[k].hidden).map((k) => [VIEW_LABELS[k](), settings.filter === k, () => setFilter(k)]);
+  }
+  function openShowMenu() {
+    const tick = (on) => (on ? '\u2713\u2002' : '\u2003\u2002');
+    openMenu(showBtn, showChoices().map(([label, on, fn]) => [tick(on) + label, fn]));
   }
   const DENSITY_LABEL = { normal: 'Normal', compact: 'Compact', text: 'Text' };
   const densityBtn = btn('', '', () => { const all = XMCLogic.DENSITIES; setLayout({ density: all[(all.indexOf(pageLayout().density) + 1) % all.length] }); }, 'xmc-density');
@@ -692,9 +706,9 @@
   seenBtn.hidden = true;
   densityBtn.hidden = DENSITY_SHELVED;
   const pageTitleEl = h('span', { className: 'xmc-pagetitle', hidden: true });
-  const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, seenBtn, refreshBtn, colBtn, densityBtn, nsfwBtn, gearBtn);
+  const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, seenBtn, refreshBtn, showBtn, colBtn, densityBtn, nsfwBtn, gearBtn);
   const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
-  const bar = h('div', { className: 'xmc-bar' }, row1, row2);
+  const bar = h('div', { className: 'xmc-bar' }, row1); // (row2, the chips, is no longer shown: its choices are in the Show menu)
   const statusEl = h('div', { className: 'xmc-status' });
   const colsEl = h('div', { className: 'xmc-cols' });
   const loaderText = h('span', { textContent: 'Loading more…' });
@@ -841,7 +855,9 @@
     }
     const kind = subFor(state.sel);
     for (const key of Object.keys(kindEls)) { kindEls[key].hidden = !split; kindEls[key].classList.toggle('on', kind === key); }
-    row2.hidden = !split && views.length <= 1; // nothing to choose between yet
+    showBtn.hidden = !split && views.length <= 1; // nothing to choose between yet
+    const cur = split ? (kind === 'photos' ? 'Photos' : 'Videos') : VIEW_LABELS[settings.filter]();
+    if (showLabel.textContent !== 'Show: ' + cur) showLabel.textContent = 'Show: ' + cur;
     const [ic, label] = NSFW[settings.nsfw] || NSFW.blur;
     nsfwBtn.title = label + ' — click to change';
     nsfwBtn.classList.toggle('shown', settings.nsfw === 'show');
@@ -897,6 +913,7 @@
   // Read the real column heights once per batch (one layout pass), then spread the batch using estimates.
   function placeBatch(items) {
     if (!items.length || !columns.length) return;
+    clearGhosts();
     const heights = columns.map((c) => c.offsetHeight);
     const w = columns[0].clientWidth || 360;
     for (const { t, est } of items) {
@@ -918,14 +935,25 @@
     if (!columns.length) return 0;
     const base = scroller.getBoundingClientRect().top - scroller.scrollTop;
     let m = Infinity;
-    for (const c of columns) m = Math.min(m, c.getBoundingClientRect().bottom - base);
+    for (const c of columns) {
+      const g = c.lastElementChild; // a grey placeholder card at the end doesn't count as content
+      m = Math.min(m, (g && g.classList.contains('xmc-ghost') ? g.getBoundingClientRect().top - GAP : c.getBoundingClientRect().bottom) - base);
+    }
     return m;
+  }
+  // grey placeholder cards at the foot of each column, only while there is blank space on screen and posts are on their way
+  const ghostCard = () => h('div', { className: 'xmc-ghost', 'aria-hidden': 'true' },
+    h('div', { className: 'xmc-gh' }, h('i'), h('div', {}, h('b'), h('b'))), h('b'), h('b'), h('b', { className: 'pic' }));
+  function clearGhosts() { for (const c of columns) { const g = c.lastElementChild; if (g && g.classList.contains('xmc-ghost')) g.remove(); } }
+  function syncGhosts(on) {
+    if (!on) { clearGhosts(); return; }
+    for (const c of columns) { const g = c.lastElementChild; if (!(g && g.classList.contains('xmc-ghost'))) c.append(ghostCard()); }
   }
   function relayout() {
     const n = colCount();
     const lay = pageLayout();
     view.layoutSig = layoutSig();
-    colLabel.textContent = lay.cols ? String(n) : 'Auto';
+    colLabel.textContent = String(n);
     colBtn.title = lay.cols ? 'Columns: ' + n + (lay.cols > n ? ' (all that fit at this width)' : '') + ' \u2014 click to change' : 'Columns: automatic, ' + n + ' at this width \u2014 click to change';
     root.classList.toggle('xmc-compact', lay.density === 'compact');
     root.classList.toggle('xmc-textonly', lay.density === 'text');
@@ -1113,6 +1141,7 @@
     // spinner while we're fetching more; a note when X has no more to give
     const waiting = state.waitingPage && !f.exhausted && !view.caughtUp;
     loaderEl.hidden = !waiting;
+    syncGhosts(waiting && shortestBottom() < scroller.scrollTop + scroller.clientHeight);
     loaderEl.classList.toggle('xmc-sticky', waiting && shortestBottom() < scroller.scrollTop + scroller.clientHeight); // blank space on screen: keep the spinner in view
     const fl = state.fail && Date.now() - state.fail.at < 90000 ? state.fail : null;
     const loaderMsg = waiting && fl
@@ -2006,7 +2035,7 @@
     actions.append(actionBtn('share', 'Copy link', 'link'));
     if (t.counts.views) actions.append(h('span', { className: 'xmc-views xmc-n', textContent: fmt(t.counts.views) + ' views' }));
     side.append(actions);
-    const panel = h('div', { className: 'xmc-replies' }, h('div', { className: 'xmc-rhead' }, spinner(), h('span', { textContent: ' Loading comments\u2026' })));
+    const panel = h('div', { className: 'xmc-replies' }, ...[0, 1, 2].map(() => h('div', { className: 'xmc-sk' }, h('i'), h('div', {}, h('b'), h('b'), h('b')))));
     side.append(panel);
     if (t.counts.reply > 0) {
       loadReplies(t, { wanted: () => panel.isConnected }).then((res) => {

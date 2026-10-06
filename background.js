@@ -20,6 +20,11 @@ api.runtime.onMessage.addListener((msg, sender) => {
 });
 
 // on first install, open the settings page at the presets
-api.runtime.onInstalled.addListener((info) => {
-  if (info && info.reason === 'install') api.tabs.create({ url: api.runtime.getURL('options.html#sec-presets') });
+api.runtime.onInstalled.addListener(async (info) => {
+  if (!info || info.reason !== 'install') return;
+  try { // a fresh install starts on the Calm preset (unless there are settings already, e.g. restored from sync)
+    const have = await api.storage.local.get('v');
+    if (have.v === undefined && typeof XMCSettings !== 'undefined') await api.storage.local.set(XMCSettings.freshInstall());
+  } catch { /* the defaults are fine */ }
+  api.tabs.create({ url: api.runtime.getURL('options.html#sec-presets') });
 });

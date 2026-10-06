@@ -282,13 +282,32 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
    ===================================================================== */
 /* top bar: tabs + controls on one line (wrapping on narrow windows), the "All / Tweets / ..." views on a second line */
 .xmc-bar { display: block; padding: 0; overflow: visible; gap: 0; }
-.xmc-bar1 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 8px 12px 4px; }
+.xmc-bar1 { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 6px; padding: 8px 12px 8px; overflow-x: auto; scrollbar-width: none; container-type: inline-size; }
+.xmc-bar1 > * { flex: none; }
+.xmc-bar1 > .xmc-spacer { flex: 1 1 12px; }
 .xmc-bar2 { display: flex; gap: 6px; padding: 2px 12px 8px; overflow-x: auto; scrollbar-width: none; }
 .xmc-bar2[hidden] { display: none; }
 .xmc-bar2 .xmc-chip { flex: none; }
-.xmc-colbtn { display: inline-flex !important; align-items: center; gap: 6px; padding: 8px 12px !important; }
-.xmc-colbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.xmc-collabel { font-size: 14px; font-weight: 700; }
+.xmc-colbtn, .xmc-showbtn { display: inline-flex !important; align-items: center; gap: 6px; padding: 8px 12px !important; }
+.xmc-colbtn svg, .xmc-showbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-colbtn svg:last-child, .xmc-showbtn svg:last-child { width: 14px; height: 14px; opacity: .7; }
+.xmc-collabel, .xmc-showlabel { font-size: 14px; font-weight: 700; }
+.xmc-showbtn[hidden] { display: none !important; }
+/* narrow: the buttons keep their icons and drop their words */
+@container (max-width: 860px) { .xmc-showlabel, .xmc-nsfwl { display: none; } }
+@container (max-width: 560px) { .xmc-pagetitle { display: none; } }
+/* a card too narrow for it drops the view count */
+.xmc-col { container-type: inline-size; }
+@container (max-width: 380px) { .xmc-views { display: none; } }
+/* comments on their way: grey placeholders; posts on their way: a grey card at the foot of each column */
+.xmc-sk { display: flex; gap: 10px; margin: 14px 0; }
+.xmc-sk i { width: 32px; height: 32px; border-radius: 50%; background: var(--xmc-hover); flex: none; }
+.xmc-sk div { flex: 1; } .xmc-sk b, .xmc-ghost b { display: block; height: 9px; border-radius: 5px; background: var(--xmc-hover); margin: 7px 0; }
+.xmc-sk b:nth-child(1) { width: 32%; } .xmc-sk b:nth-child(2) { width: 90%; } .xmc-sk b:nth-child(3) { width: 58%; }
+.xmc-ghost { border: 1px solid var(--xmc-edge); border-radius: 16px; padding: 14px; background: var(--xmc-surface); }
+.xmc-gh { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.xmc-gh i { width: 40px; height: 40px; border-radius: 50%; background: var(--xmc-hover); flex: none; } .xmc-gh div { flex: 1; } .xmc-gh b { width: 40%; }
+.xmc-ghost > b:nth-of-type(1) { width: 92%; } .xmc-ghost > b:nth-of-type(2) { width: 70%; } .xmc-ghost b.pic { height: 120px; border-radius: 14px; margin-top: 12px; }
 
 /* the columns on/off + retry pill, in X's left sidebar under its Post/Tweet button */
 #xmc-pill { display: flex; align-items: center; justify-content: center; gap: 10px; box-sizing: border-box; width: 100%; min-height: 52px; margin-top: 12px; padding: 0 20px;
