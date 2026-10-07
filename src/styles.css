@@ -608,3 +608,20 @@ html.xmc-frozen #xmc-pill { visibility: visible !important; }
 /* the speaker button over a video: the one icon for what a press does (off: sound is off, so it shows the crossed speaker) */
 .xmc-snd .snd-on { display: none; } .xmc-snd.on .snd-on { display: block; } .xmc-snd.on .snd-off { display: none; }
 .xmc-vside a.xmc-rtime, .xmc-vside a.xmc-time { color: inherit; } .xmc-vside a.xmc-rtime:hover, .xmc-vside a.xmc-time:hover { text-decoration: underline; }
+
+/* what a picture leaves empty in the panel is filled with a blurred, dimmed copy of it, not black */
+.xmc-vm { overflow: hidden; }
+.xmc-vm[style*="--xmc-vbg"]::before { content: ""; position: absolute; inset: -30px; background: var(--xmc-vbg) center / cover no-repeat; filter: blur(26px) brightness(.5) saturate(1.15); }
+.xmc-vm > * { position: relative; }
+.xmc-vm.sensitive::before { display: none; }
+.xmc-vm > .xmc-reveal { position: absolute; }
+
+/* the entries added to X's left menu (Bookmarks, Likes, Lists) are copies of X's own links, but X draws its hover pill from script, which
+   a copy does not get: the same pill, in CSS */
+a[data-xmc-nav] > div { border-radius: 9999px; transition: background-color .2s ease; }
+a[data-xmc-nav]:hover > div, a[data-xmc-nav]:focus-visible > div { background-color: color-mix(in srgb, currentColor 10%, transparent); }
+
+/* in the copy of a profile header, X's underline when you point at Following, Followers or Joined (X draws it from script; a copy does not get it) */
+.xmc-profile.xmc-native :is(a[href$="/following"], a[href$="/followers"], a[href$="/verified_followers"], [data-testid="UserJoinDate"] [role="button"], [data-testid="UserJoinDate"] a):hover,
+.xmc-profile.xmc-native :is(a[href$="/following"], a[href$="/followers"], a[href$="/verified_followers"], [data-testid="UserJoinDate"] [role="button"], [data-testid="UserJoinDate"] a):hover span { text-decoration: underline !important; }
+.xmc-profile.xmc-native [data-testid="UserJoinDate"] [role="button"] { cursor: pointer; }

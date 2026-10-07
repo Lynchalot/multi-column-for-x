@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.27.5
+- **Translate finds X's "Show translation" control.** Your probe on yaya's post showed the control worded "Show translation" (not "Translate post") among several other buttons, so neither the label nor the position fallback matched. Both wordings are known now, and the position fallback only counts buttons below the post's words.
+- **In the panel, the empty space around a picture is filled with a blurred, dimmed copy of it, not black.** A small or differently shaped picture no longer sits in a black box. It uses the picture's own address (nothing extra to download) and is hidden on sensitive pictures until you reveal them.
+- **Posts that X hasn't drawn are given 1.5 seconds, not 3.5, before the router is asked.** Your diagnostics showed the router path works every time on real X and cost 4.4 to 5.4 seconds, most of it the wait.
+- **The Bookmarks, Likes and Lists entries in the left menu get the same hover pill as X's own entries.** X draws that pill from script, which a copy of its link does not get.
+- **Following, Followers and Joined underline when you point at them in a profile header**, as they do on X. (X's "About this account" popup on Joined is not reproduced: it is drawn by X in its hidden page, at its own position.)
+
 ## 0.27.4
 - **Translate waits for X's Translate control.** Your trace showed four `translate FAILED … X offers no translation` lines, each right as the visit ended: the extension looked for the control the instant X's page opened, and X draws it a moment later (after it has judged the post's language). It now waits up to 5 seconds for it. If there is still no control, Copy diagnostics has `translateProbe` (the post's language, its words, and the buttons X's page showed) so the real cause is visible.
 - **The foot-of-conversation button is never one that reveals hidden replies.** Your `moreProbe` showed X's "Show probable spam" at the foot of a conversation, and 0.27.2 pressed it. Buttons whose words mention spam, offensive, abusive, muted, blocked or sensitive content are now left alone.

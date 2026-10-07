@@ -1411,7 +1411,7 @@
   const settleProxy = () => { state.proxyUntil = Date.now() + 800; };
   async function withReal(t, fn) {
     try {
-      const art = await realArticle(t, 3500);
+      const art = await realArticle(t, 1500);
       if (art) { await fn(art); return true; }
       // a post that is not in X's list (one seen only as a quote, or one X has not drawn): its own page has the same buttons
       if (!t.url) return false;
@@ -1556,7 +1556,7 @@
     state.proxyUntil = Date.now() + 40000;
     freezeSidebar();
     try {
-      let art = await realArticle(t, 3500); // X's list is virtual and does not always draw a post far down it: after a few seconds, ask X's router instead
+      let art = await realArticle(t, 1500); // X's list is virtual and does not always draw a post far down it: after a few seconds, ask X's router instead
       T.found = Date.now();
       if (!art) why = 'post not on X’s side';
       const before = location.pathname;
@@ -1564,7 +1564,7 @@
       // Press the post's link; X's list swaps its elements as the hidden page scrolls, so the link is found afresh each time.
       let pressed = null;
       for (let attempt = 0; art && attempt < 2 && !opened(); attempt++) {
-        if (attempt) { art = findArticle(t.id) || await realArticle(t, 3500); if (!art) break; }
+        if (attempt) { art = findArticle(t.id) || await realArticle(t, 1500); if (!art) break; }
         const link = timeLinkOf(art, t.id);
         if (!link) { why = 'no link on the post'; continue; }
         if (link === pressed) break; // the very same link, already pressed twice: pressing it again would change nothing
@@ -2300,7 +2300,9 @@
     return t.media.map((m) => {
       const box = h('div', { className: 'xmc-vm' + (t.sensitive ? ' sensitive' : '') });
       if (m.type === 'photo') {
-        const img = h('img', { src: photoUrl(m.thumb, 'large'), alt: m.alt || '', decoding: 'async' }); img.dataset.lb = String(photo++); img.tabIndex = 0; img.setAttribute('role', 'button'); img.setAttribute('aria-label', 'Open photo full size');
+        const img = h('img', { src: photoUrl(m.thumb, 'large'), alt: m.alt || '', decoding: 'async' }); img.dataset.lb = String(photo++);
+        img.tabIndex = 0; img.setAttribute('role', 'button'); img.setAttribute('aria-label', 'Open photo full size');
+        box.style.setProperty('--xmc-vbg', 'url("' + photoUrl(m.thumb, 'large') + '")'); // (the same address as the picture: nothing more to download)
         box.classList.add('xmc-loading');
         const arrived = () => box.classList.remove('xmc-loading');
         img.addEventListener('load', arrived); img.addEventListener('error', arrived); setTimeout(arrived, 8000);
@@ -2585,7 +2587,7 @@
   // hidden page is taken there, X's own button is pressed, and the translated words are read off its page and shown here (with
   // "Show original"). Nothing is sent anywhere else. If X's page offers nothing we can read, the button opens the post on X instead.
   const translations = new Map(); // post id -> { text, from } once translated
-  const TRANSLATE_LABEL = /^translate (post|tweet|reply|comment)$/i;
+  const TRANSLATE_LABEL = /^(translate (post|tweet|reply|comment)|show translation)$/i; // (X has used both)
   // X's control is found by its English label when X is in English; in any other interface language by where it sits: the one plain
   // button beside the post's words (not one of the post's action buttons, nothing with a test id, nothing in the action row).
   function translateControl(art) {
@@ -2600,7 +2602,8 @@
     const tagged = (b) => { const x = b.closest('[data-testid]'); return !!x && x !== art && art.contains(x); }; // (a button with a test id of its own is one of X's named controls, not this)
     const cands = [...scope.querySelectorAll('[role="button"], button')].filter((b) => !words.contains(b) && !b.closest('[role="group"]') && !tagged(b) && !b.querySelector('[data-testid]')
       && /\p{L}{3}/u.test(b.textContent || '') && (b.textContent || '').trim().length < 40 && !b.closest('a[href]'));
-    return cands.length === 1 ? cands[0] : null; // not sure which: nothing is pressed
+    const after = cands.filter((b) => words.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING); // (the control sits below the words)
+    return after.length === 1 ? after[0] : null; // not sure which: nothing is pressed
   }
   async function translateOnX(t, root) {
     if (translations.has(t.id)) return { ok: true, ...translations.get(t.id) };

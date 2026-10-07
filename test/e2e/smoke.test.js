@@ -937,6 +937,9 @@ browserTest('a profile\'s header is a copy of X\'s own: its links open, and its 
     assert.equal(await page.locator('.xmc-profile img').count(), 2, 'the banner and the picture came along');
     assert.equal(await page.locator('.xmc-profile [id]').count(), 0, 'no duplicate ids');
     assert.equal((await page.locator('.xmc-pagetitle').innerText()).trim(), 'Seven Name');
+    // Followers is underlined while the pointer is on it, as on X
+    await page.locator('.xmc-profile a', { hasText: '34 Followers' }).hover();
+    assert.match(await page.evaluate(() => getComputedStyle([...document.querySelectorAll('.xmc-profile a')].find((x) => /Followers/.test(x.textContent))).textDecorationLine), /underline/);
     // a link inside X's own pages opens as it does elsewhere here (a new tab)
     const opened = h.page.context().waitForEvent('page');
     await page.locator('.xmc-profile a', { hasText: '34 Followers' }).click();
@@ -1639,6 +1642,18 @@ browserTest('when every comment the post has is already shown, there is no "load
   });
 }, 90000);
 
+browserTest('in the panel a picture is set on a blurred copy of itself, so a smaller picture leaves no dead black', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelector('a.xmc-time').click(); });
+    await page.waitForSelector('.xmc-view .xmc-vmediapane.xmc-car');
+    const r = await page.evaluate(() => { const s = document.querySelector('.xmc-view .xmc-vm:not([hidden])'); const b = getComputedStyle(s, '::before'); return { bg: b.backgroundImage, filter: b.filter, content: b.content }; });
+    assert.match(r.bg, /url\(/); assert.match(r.filter, /blur/);
+  });
+});
+
 browserTest('a video: pressing on its preview turns the sound on, and the speaker button over it turns it on and off', async (e) => {
   const h = await e.open('/home/');
   await checked(h, async () => {
@@ -1777,6 +1792,18 @@ browserTest('Translate waits for X to draw its Translate control (it appears a m
   });
 }, 120000);
 
+browserTest('Translate also finds X\'s control when it is worded "Show translation"', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => { window.__xlShow = true; window.__xlNoise = true; }); // (with other plain buttons about, so position alone cannot pick it)
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.lang === 'ja' && x.el && x.el.isConnected && x.el.querySelector('.xmc-translate')).el.querySelector('.xmc-translate').click());
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-xlate:not([hidden])', { timeout: 30000 });
+  });
+}, 120000);
+
 browserTest('when X offers no translation, the button says so and then opens the post on X', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {
@@ -1809,6 +1836,9 @@ browserTest('Bookmarks, Likes and Lists can be added to X\'s left menu (under Hi
     await page.waitForFunction(() => document.querySelectorAll('[data-xmc-nav]').length === 3, null, { timeout: 8000 });
     const got = await page.evaluate(() => [...document.querySelectorAll('[data-xmc-nav]')].map((a) => [a.getAttribute('href'), a.textContent.trim()]));
     assert.deepEqual(got, [['/i/bookmarks', 'Bookmarks'], ['/user1/likes', 'Likes'], ['/i/lists', 'Lists']]);
+    // pointing at one of them draws the same pill as X's own entries (X draws that from script, which a copy does not get)
+    await page.locator('[data-xmc-nav="navLikes"]').hover();
+    await page.waitForFunction(() => { const d = document.querySelector('[data-xmc-nav="navLikes"] > div') || document.querySelector('[data-xmc-nav="navLikes"]'); return d && getComputedStyle(d).backgroundColor !== 'rgba(0, 0, 0, 0)' && getComputedStyle(d).backgroundColor !== 'transparent'; }, null, { timeout: 3000 });
     const order = await page.evaluate(() => [...document.querySelectorAll('header nav a')].filter((a) => getComputedStyle(a).display !== 'none').map((a) => a.getAttribute('href')));
     assert.ok(order.indexOf('/i/bookmarks') < order.indexOf('/user1/likes') && order.indexOf('/user1/likes') < order.indexOf('/i/lists'), order.join(' '));
     assert.equal(await page.evaluate(() => [...document.querySelectorAll('header nav a')].filter((a) => !a.dataset.xmcNav && /History/.test(a.textContent) && getComputedStyle(a).display !== 'none').length), 0, 'X\'s History is hidden: Bookmarks and Likes are in its place');
