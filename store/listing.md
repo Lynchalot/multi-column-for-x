@@ -14,9 +14,9 @@ Read X in as many columns as your screen can hold. Multi-Column for X turns the 
 - **Smooth.** Posts load ahead of you as you scroll, and photos are ready by the time you get there.
 
 **What's in it**
-- Video and GIFs play in the post (a video you started pauses when you scroll it away). Photos open in a viewer with Download and Copy link.
+- Video and GIFs play in the post (a video you started pauses when you scroll it away). Pointing at a video plays it muted; pressing it plays it from the start with sound; a speaker button turns sound on or off. Photos open in a viewer with Download and Copy link.
 - **Download** original-size photos and the best-quality video in one click, with your own folder and file-name pattern.
-- **Post panel:** the picture large on one side, the words, actions and comments on the other (like an image viewer); comments load as you scroll, can be sorted by relevance, newest or most liked, and you can like, bookmark and reply to them, open a comment in the same panel, and translate posts and comments with X's own translation.
+- **Post panel:** the picture large on one side, the words, actions and comments on the other (like an image viewer); several pictures show one at a time with arrows and dots (the wheel and the sides of a picture flick between them), a quoted post opens in the panel too, comments load as you scroll, can be sorted by relevance, newest or most liked, and you can like, bookmark and reply to them, open a comment in the same panel, and translate posts and comments with X's own translation.
 - **Filters:** Following by default, hide "For you", only accounts you follow, mute words and accounts, show or hide reposts, quotes and replies, NSFW blur or hide.
 - Profile **Videos / Photos** and Following's **Popular / Recent** work from the top bar.
 - **Reading options (all off by default):** a separate column count for each page, hide or fade posts you've already read, one card when several people repost the same post.
@@ -62,6 +62,7 @@ What it does, and why each piece exists:
 - To show a post's comments the extension clicks x.com's own link to that post (on x.com's hidden copy of the timeline), so that x.com fetches the conversation; it reads it from the same JSON and goes back.
 - While that happens a static copy of x.com's right sidebar and left menu is shown (cloned DOM, inert) so they don't flicker. More comments (as you scroll the panel) are fetched the same way: x.com's hidden page is taken to the post and scrolled, and x.com loads its next page itself. If x.com ignores the link press, the extension asks x.com's own router to go to the post (`history.pushState` plus a `popstate` event on x.com's page); nothing is requested from x.com differently.
 - Translation: the extension presses x.com's own "Translate post" button on the post's page and shows the translated words it finds there; it does not use any other service.
+- Pressing a button in a copy of a profile's header presses x.com's own button; for the "Joined" line, x.com's popup (which x.com draws in its own layer) has its position moved with inline styles so it sits under the button. A post's translation, or its comments, are asked for by taking x.com's hidden page to the post and pressing x.com's own controls, as above; if the post is not in x.com's list the same router request is used. While a video previews, its native controls are switched off (the `controls` property) and switched on again after.
 - The options "Add Bookmarks / Likes / Lists to X's left menu" insert links (cloned from one of x.com's own menu links) to x.com's own pages; pressing one loads that page.
 - `background.js`: saves media with the `downloads` API (only URLs on https://pbs.twimg.com and https://video.twimg.com are accepted).
 
