@@ -228,6 +228,9 @@
       state.latestByRoute.set(rk, state.latestByRoute.get(rk) || f.key);
       if (state.feedByTab.get(slotFor(state.sel)) === undefined) state.feedByTab.set(slotFor(state.sel), f.key);
       if (state.awaiting) { state.cur = { route: rk, key: f.key }; state.feedByTab.set(slotFor(state.sel), f.key); state.awaiting = null; }
+      else if (state.late && Date.now() < state.late.until && slotFor(state.sel) === state.late.slot && state.cur.key !== f.key) { // the feed of the tab you switched to, after we had stopped waiting for it (a slow connection)
+        state.cur = { route: rk, key: f.key }; state.feedByTab.set(state.late.slot, f.key); state.late = null;
+      }
     }
   }
   function addItems(f, items) {
@@ -287,6 +290,7 @@
         state.cur = { route: rk, key: mapped }; state.awaiting = null; return state.feeds.get(mapped);
       }
       if (Date.now() < state.awaiting.until) return null;
+      state.late = { slot: slotFor(state.sel), until: Date.now() + 120000 }; // gave up waiting; if that tab's feed turns up after all, it is taken then
       state.awaiting = null;
     }
     if (state.cur.route === rk && state.cur.key && state.feeds.has(state.cur.key)) return state.feeds.get(state.cur.key);
@@ -2287,6 +2291,21 @@
   function viewSide(t, focusBox, parent) {
     const side = h('div', { className: 'xmc-vside' });
     const ctxHost = h('div', { className: 'xmc-vctx' }, ...(parent ? [] : contextChain(t).filter(usable).map((p) => renderParentContext(p, onlyWords(t)))));
+    // a reply whose parent we do not have yet keeps the room for it (a grey placeholder), so the post's own words do not jump when it arrives
+    if (!parent && t.replyToId && !ctxHost.children.length) {
+      ctxHost.append(h('div', { className: 'xmc-sk xmc-vctx-sk' }, h('i'), h('div', {}, h('b'), h('b'))));
+      let tries = 0; // if nothing else fills it (a post with no comments to load), look for it a few times, then give the room back
+      const look = () => {
+        if (!ctxHost.isConnected || !ctxHost.querySelector('.xmc-vctx-sk')) return;
+        const chain = contextChain(t).filter(usable);
+        if (chain.length || ++tries > 12) {
+          const was = side.scrollHeight;
+          ctxHost.replaceChildren(...chain.map((p) => renderParentContext(p, onlyWords(t))));
+          if (side.scrollTop > 0) side.scrollTop += side.scrollHeight - was;
+        } else setTimeout(look, 500);
+      };
+      setTimeout(look, 500);
+    }
     if (parent) side.append(h('button', { className: 'xmc-vback', type: 'button', title: 'Back to the post (Esc)', onclick: (e) => { e.stopPropagation(); openPostView(parent, true); } }, icon('prev'), h('span', { textContent: 'Back to @' + parent.author.handle + '\u2019s post' })));
     side.append(ctxHost);
     const sub = h('div', { className: 'xmc-sub' }, '@' + t.author.handle + ' \u00b7 ',
@@ -2321,7 +2340,11 @@
         if (!panel.isConnected) return;
         if (!res || !res.data) state.commentFails.push(Date.now());
         const chain = contextChain(t).filter(usable);
-        if (chain.length && !ctxHost.children.length) ctxHost.replaceChildren(...chain.map((p) => renderParentContext(p, onlyWords(t))));
+        if (ctxHost.querySelector('.xmc-vctx-sk') || !ctxHost.children.length) { // the post this answers: in the room kept for it (and the panel scrolled by any difference, so nothing you are reading moves)
+          const was = side.scrollHeight;
+          ctxHost.replaceChildren(...chain.map((p) => renderParentContext(p, onlyWords(t))));
+          if (side.scrollTop > 0) side.scrollTop += side.scrollHeight - was;
+        }
         fillReplies(panel, t, res); updateActions(t);
         if (focusBox) { const box = side.querySelector('.xmc-cbox'); if (box) box.focus({ preventScroll: true }); }
       });
@@ -2775,6 +2798,7 @@
     const name = text.toLowerCase();
     state.sub[key] = name === state.subDefault[key] ? '' : name; // back to what X started on: that feed has no suffix
     state.cur = { route: rk, key: null };
+    state.late = null;
     state.awaiting = { until: Date.now() + 12000, cached: state.feedByTab.has(slotFor(i)) };
     state.routeSince = Date.now();
     fire(el);

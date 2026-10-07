@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.26.2
+- **A tab switch on a slow connection no longer leaves you on the old feed.** If the tab you switched to took more than 12 seconds to load, the extension stopped waiting and, when its posts did arrive, never showed them (X's tab said For you, the columns still showed Following). It now takes that feed when it turns up, for two minutes after giving up.
+- **A reply's panel no longer jumps when the post it answers arrives.** Room is kept for it (a grey placeholder) and the real post swaps in; it was pushing the post's own words down by its height.
+- Privacy notes updated for what has been added (two markers in x.com's page storage, the age-check flag, translation, the diagnostics log). Test fixes for slow machines (a Back counted by the wrong visit, a comments request that could beat the placeholder, a timing assumption in the comments scroll test).
+
 ## 0.26.1
 - **With Bookmarks and Likes both added to the left menu, X's History entry is hidden** and they take its place (it was the two in one). Turn either off and History comes back. History is recognised by its address (`/i/bookmarks`, `/i/history`) or its English name.
 

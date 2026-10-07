@@ -586,3 +586,6 @@ html.xmc-frozen #xmc-pill { visibility: visible !important; }
 /* over a wallpaper or a see-through theme the faint tint is not enough to see a card by */
 #xmc-root.xmc-seethru { --xmc-surface: color-mix(in srgb, var(--xmc-fg) 9%, transparent); --xmc-edge: color-mix(in srgb, var(--xmc-fg) 15%, transparent); }
 #xmc-root.xmc-seethru.xmc-flat { --xmc-surface: transparent; }
+
+/* the room kept above a reply's words for the post it answers, until that arrives */
+.xmc-vctx-sk { min-height: 70px; margin: 0; box-sizing: border-box; padding: 4px 0 8px; }

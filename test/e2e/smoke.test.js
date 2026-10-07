@@ -634,6 +634,20 @@ browserTest('switching to a tab not seen yet keeps the old posts (dimmed) until 
   });
 }, 90000);
 
+browserTest('on a very slow connection the tab you switched to is still shown when its feed finally arrives (after we had stopped waiting)', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 8, hideForYou: false, keepFollowing: false } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(2500);
+    await page.evaluate(() => { window.__delay = 14500; });
+    const before = await page.evaluate(() => window.__xmc.view.feedKey);
+    await page.locator('.xmc-bar button', { hasText: 'For you' }).first().click();
+    await page.waitForFunction((k) => window.__xmc.view.feedKey && window.__xmc.view.feedKey !== k && !document.getElementById('xmc-root').classList.contains('xmc-switching'), before, { timeout: 40000 });
+    assert.ok(await page.evaluate(() => document.documentElement.classList.contains('xmc-on')), 'still columns, not X\'s page');
+  });
+}, 90000);
+
 browserTest('a person\'s thread is one card with the rest folded under it (and ordinary cards when that is off)', async (e) => {
   const h = await e.open('/threads/');
   await checked(h, async () => {
@@ -980,10 +994,18 @@ browserTest('the post panel shows what a reply answers above it, once looked up 
     const { page } = h;
     await e.ready(page);
     const card = page.locator('.xmc-card', { hasText: 'tweet 89995' }).first();
+    await page.route(/TweetDetail/, async (r) => { await new Promise((x) => setTimeout(x, 1200)); await r.continue(); }); // (X is slow to answer)
     await card.scrollIntoViewIfNeeded();
     await card.locator(':scope > .xmc-text').click();
+    await page.waitForSelector('.xmc-vside .xmc-head');
+    const place = () => page.evaluate(() => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); return { top: s.querySelector('.xmc-head').offsetTop - s.offsetTop - s.scrollTop, ctx: s.querySelectorAll('.xmc-vctx .xmc-pctx').length }; });
+    const first = await place();
+    assert.equal(first.ctx, 0, 'the post it answers has not arrived yet');
+    assert.equal(await page.locator('.xmc-vctx-sk').count(), 1, 'room is kept for it');
     await page.waitForSelector('.xmc-vside .xmc-cbox', { timeout: 25000 });
     assert.match(await page.locator('.xmc-vctx .xmc-pctx').first().innerText(), /tweet 555555/);
+    assert.ok(Math.abs((await place()).top - first.top) <= 14, 'the post\'s own words hardly moved when what it answers arrived above them: ' + first.top + ' -> ' + (await place()).top);
+    assert.equal(await page.locator('.xmc-vctx-sk').count(), 0, 'the placeholder is gone');
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => location.pathname === '/user6/with_replies/', null, { timeout: 15000 });
   });
@@ -1108,7 +1130,7 @@ browserTest('closing the panel steps Back once even when the browser is slow to 
     await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
     await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 25000 });
     await page.waitForFunction(() => !window.__xmc.state.peek && location.pathname === '/home/', null, { timeout: 15000 });
-    await page.evaluate(() => { const back = history.back.bind(history); window.__backs = 0; history.back = () => { window.__backs++; setTimeout(back, 2500); }; });
+    await page.evaluate(() => { const back = history.back.bind(history); window.__backs = 0; history.back = () => { if (location.pathname === '/home/') window.__backs++; setTimeout(back, 2500); }; });
     await page.keyboard.press('Escape');
     await page.waitForTimeout(6000);
     assert.equal(await page.evaluate(() => window.__backs), 1, 'one step back for the panel\'s own entry');
@@ -1410,14 +1432,14 @@ browserTest('comments in the panel keep coming as you scroll down, added below w
     const items = () => page.locator('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem').count();
     const first = await items();
     assert.equal(await page.locator('.xmc-rmore').count(), 1, 'a "more" line at the end while X has more');
-    const mark = await page.evaluate(() => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); const it = s.querySelectorAll('.xmc-ritem')[1]; return { it: it.textContent.slice(0, 40), y: Math.round(it.getBoundingClientRect().top - s.getBoundingClientRect().top + s.scrollTop) }; });
+    const mark = await page.evaluate(() => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); const it = s.querySelectorAll('.xmc-ritem')[1]; return { it: it.textContent.slice(0, 40), y: Math.round(it.getBoundingClientRect().top - s.querySelector('.xmc-text').getBoundingClientRect().top) }; }); // (its place relative to the post's words: unaffected by scrolling)
     // scroll to the end of the list: the next pages arrive
     for (let i = 0; i < 12 && (await page.locator('.xmc-rmore').count()); i++) {
       await page.evaluate(() => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); s.scrollTop = s.scrollHeight; });
       await page.waitForTimeout(1500);
     }
     await page.waitForFunction(() => !document.querySelector('.xmc-rmore'), null, { timeout: 30000 });
-    const after = await page.evaluate((m) => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); const it = [...s.querySelectorAll('.xmc-ritem')].find((x) => x.textContent.slice(0, 40) === m.it); return Math.round(it.getBoundingClientRect().top - s.getBoundingClientRect().top + s.scrollTop); }, mark);
+    const after = await page.evaluate((m) => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); const it = [...s.querySelectorAll('.xmc-ritem')].find((x) => x.textContent.slice(0, 40) === m.it); return Math.round(it.getBoundingClientRect().top - s.querySelector('.xmc-text').getBoundingClientRect().top); }, mark);
     assert.equal(after, mark.y, 'a comment already on screen did not move');
     assert.equal(first, 6, 'the first page');
     assert.equal(await items(), first + 8, 'two more pages of four');
