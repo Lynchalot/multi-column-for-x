@@ -944,6 +944,13 @@ browserTest('a profile\'s header is a copy of X\'s own: its links open, and its 
     const opened = h.page.context().waitForEvent('page');
     await page.locator('.xmc-profile a', { hasText: '34 Followers' }).click();
     assert.match((await opened).url(), /\/user7\/verified_followers$/);
+    // pointing at Joined marks it for the underline (whatever :hover does), and pressing it brings X's popup up under it, not where X's hidden header is
+    await page.locator('.xmc-profile [role="button"]', { hasText: 'Joined' }).hover();
+    assert.equal(await page.evaluate(() => !!document.querySelector('.xmc-profile [data-xmc-hover]')), true, 'marked while pointed at');
+    await page.locator('.xmc-profile [role="button"]', { hasText: 'Joined' }).click();
+    await page.waitForSelector('[data-testid="aboutpop"]', { timeout: 5000 });
+    await page.waitForFunction(() => { const p = document.querySelector('[data-testid="aboutpop"]'), j = [...document.querySelectorAll('.xmc-profile [role="button"]')].find((x) => /Joined/.test(x.textContent)); if (!p || !j) return false; const a = p.getBoundingClientRect(), b = j.getBoundingClientRect(); return Math.abs(a.left - b.left) < 20 && a.top >= b.bottom - 2 && a.top < b.bottom + 40; }, null, { timeout: 4000 });
+    await page.mouse.click(5, 5); await page.evaluate(() => document.querySelectorAll('#layers > *').forEach((x) => x.remove()));
     // a button presses X's real one
     await page.locator('.xmc-profile button').click();
     await page.waitForFunction(() => window.__follow === 1, null, { timeout: 8000 });
@@ -1485,6 +1492,7 @@ browserTest('a post\'s ... menu has Copy diagnostics (just the details, no page 
     await e.ready(page);
     await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
     await page.locator('.xmc-card .xmc-moreBtn').first().click({ force: true });
+    await page.waitForSelector('.xmc-menu button'); // (the menu is drawn a moment after the press)
     const items = await page.locator('.xmc-menu button').allInnerTexts();
     assert.ok(items.includes('Copy diagnostics') && items.includes('Report a problem'), items.join(' | '));
     await page.locator('.xmc-menu button', { hasText: 'Copy diagnostics' }).click();
@@ -1651,6 +1659,22 @@ browserTest('in the panel a picture is set on a blurred copy of itself, so a sma
     await page.waitForSelector('.xmc-view .xmc-vmediapane.xmc-car');
     const r = await page.evaluate(() => { const s = document.querySelector('.xmc-view .xmc-vm:not([hidden])'); const b = getComputedStyle(s, '::before'); return { bg: b.backgroundImage, filter: b.filter, content: b.content }; });
     assert.match(r.bg, /url\(/); assert.match(r.filter, /blur/);
+  });
+});
+
+browserTest('in the panel a picture is scaled to the width of its pane, as it is on the feed, not left at its own smaller size', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    // pictures whose own size is small: 200 x 150
+    await page.route(/\/img\/m\d+[0-9]\.svg/, (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect width="200" height="150" fill="#369"/></svg>' }));
+    await page.reload();
+    await e.ready(page);
+    await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 1); c.querySelector('a.xmc-time').click(); });
+    await page.waitForSelector('.xmc-view .xmc-vmediapane img');
+    await page.waitForTimeout(500);
+    const r = await page.evaluate(() => { const pane = document.querySelector('.xmc-view .xmc-vmediapane').getBoundingClientRect(), im = document.querySelector('.xmc-view .xmc-vmediapane img'); return { pane: Math.round(pane.width), img: Math.round(im.getBoundingClientRect().width), natural: im.naturalWidth }; });
+    assert.ok(r.img >= r.pane * 0.95, 'the picture is ' + r.img + 'px (its own size ' + r.natural + ') in a pane of ' + r.pane + 'px');
   });
 });
 

@@ -1331,7 +1331,7 @@
       trace: TRACE.slice(-120),
       commentTimes: state.commentTimes || [],
       commentFailures: state.commentFailures || [],
-      commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, translateProbe: state.translateProbe || null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
+      commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, translateProbe: state.translateProbe || null, popProbe: state.popProbe || null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       floating: floatingReport(),
       corner: cornerReport(),
@@ -1994,20 +1994,39 @@
   }
   // a click in the copy: a link opens as links do here; a button presses X's real one (X's header has to be mounted for that: it is
   // brought back to view first if the loader has moved X's page on)
-  async function pressHeaderButton(position) {
+  // What X puts up when its header button is pressed (the "About this account" popup on Joined) is drawn in its own layer at the place of
+  // its hidden header. The layer is real and works as it does on X (a press outside closes it), so it is kept, and its box is moved to sit
+  // under the button that was pressed here.
+  async function adoptPopup(layers, before, anchor) {
+    const layer = await waitFor(() => [...layers.children].find((c) => !before.has(c) && ((c.innerText || '').trim().length > 8)), 2500);
+    state.popProbe = { found: !!layer, tag: layer ? layer.tagName : '', text: layer ? (layer.innerText || '').trim().slice(0, 50) : '' };
+    if (!layer) return;
+    const box = [layer, ...layer.querySelectorAll('*')].find((n) => /(^|;)\s*(top|left)\s*:/.test(n.getAttribute('style') || '') && ((n.innerText || '').trim().length > 8));
+    state.popProbe.moved = !!box;
+    if (!box) return;
+    const a = anchor.getBoundingClientRect();
+    box.style.position = 'fixed'; box.style.transform = 'none'; box.style.right = 'auto'; box.style.bottom = 'auto'; box.style.margin = '0';
+    box.style.left = Math.round(a.left) + 'px'; box.style.top = Math.round(a.bottom + 6) + 'px';
+    const b = box.getBoundingClientRect();
+    if (b.right > innerWidth - 8) box.style.left = Math.max(8, Math.round(innerWidth - b.width - 8)) + 'px';
+    if (b.bottom > innerHeight - 8) box.style.top = Math.max(8, Math.round(a.top - b.height - 6)) + 'px';
+  }
+  async function pressHeaderButton(position, anchor) {
     state.proxyUntil = Date.now() + 8000;
+    const layers = document.getElementById('layers'), before = new Set(layers ? [...layers.children] : []);
     try {
       let orig = nativeHeader(headerCopy.handle);
       if (!orig) { window.scrollTo(0, 0); orig = await waitFor(() => nativeHeader(headerCopy.handle), 2500); }
       if (!orig || orig.innerHTML !== headerCopy.html) { toast('Couldn’t reach that button just now. Try again in a moment.'); return; }
       const target = [orig, ...orig.querySelectorAll('*')][position];
-      if (target) fire(target);
+      if (target) { fire(target); if (anchor && layers) adoptPopup(layers, before, anchor); }
     } finally { settleProxy(); }
   }
   profileEl.addEventListener('click', (e) => {
     if (!headerCopy || !profileEl.classList.contains('xmc-native') || e.ctrlKey || e.metaKey || e.shiftKey) return;
-    const hit = e.target.closest('a[href], button, [role="button"]');
+    let hit = e.target.closest('a[href], button, [role="button"], [data-testid="UserJoinDate"]');
     if (!hit || !profileEl.contains(hit)) return;
+    if (!hit.matches('a[href], button, [role="button"]')) hit = hit.querySelector('a[href], button, [role="button"]') || hit; // (the Joined line: press the button inside it)
     if (hit.matches('a[href]')) {
       const url = new URL(hit.getAttribute('href'), location.origin);
       if (url.origin !== location.origin) return; // a link out (the bio's): the browser opens it
@@ -2016,8 +2035,22 @@
     }
     e.preventDefault(); e.stopPropagation();
     const position = headerCopy.index.get(hit);
-    if (position !== undefined) pressHeaderButton(position);
+    if (position !== undefined) pressHeaderButton(position, hit);
   });
+  // X underlines Following, Followers, Joined and the links in the bio as you point at them, from script; a copy gets none of that, so
+  // the one under the pointer is marked here (the CSS does the underline) instead of relying on :hover alone
+  let hovered = null;
+  profileEl.addEventListener('pointerover', (e) => {
+    if (!profileEl.classList.contains('xmc-native')) return;
+    const el = e.target.closest && e.target.closest('a[href], [role="button"]');
+    const ok = el && profileEl.contains(el) && !el.querySelector('img, svg') && /[\p{L}\p{N}]{3}/u.test(el.textContent || '')
+      && (el.matches('a[href]') || el.closest('[data-testid="UserProfileHeader_Items"], [data-testid="UserJoinDate"]'));
+    const next = ok ? el : null;
+    if (next === hovered) return;
+    if (hovered) hovered.removeAttribute('data-xmc-hover');
+    hovered = next; if (hovered) hovered.setAttribute('data-xmc-hover', '');
+  });
+  profileEl.addEventListener('pointerleave', () => { if (hovered) { hovered.removeAttribute('data-xmc-hover'); hovered = null; } });
   // the plainer header, from what X sent when the profile opened
   function profileCard(handle) {
     const p = state.profiles.get(handle.toLowerCase());

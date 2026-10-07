@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.27.7
+- **In the panel a picture is scaled to the width of its pane**, as it is on the feed. A picture whose own file was smaller than the pane (yours was 372 wide in a 546 pane) was left at its own size with a blurred margin round it. (A test now serves a 200 px picture into a 724 px pane: it stayed at 210 before.)
+- **X's "About this account" popup on Joined now appears under Joined in the copy of a profile header.** Pressing Joined presses X's real one; X draws its popup in its own layer where its hidden header is, so the page now moves that popup's box to sit under the button you pressed. It is X's own popup, so a press outside closes it. Not tried on real X: the diagnostics have `popProbe` (whether a popup was seen and whether its box could be moved), which says what happened if it doesn't show.
+- **Following, Followers, Joined and the bio's links underline as you point at them**, marked by the page as well as by `:hover` (the CSS-only version did nothing on your X).
+- A flaky test fixed (the "..." menu was read before it was drawn).
+
 ## 0.27.6
 - **The Lists entry in the left menu goes to your own lists** (`/yourname/lists`). It went to `/i/lists`, which is an empty page.
 - **The translated post no longer repeats its own words in the small "Translated from…" line.** The language was read from the page's whole text, where X's line, its "Show original" and the post's words run together, so the line carried the post's text. It is now read from X's line alone ("Translated from Spanish").

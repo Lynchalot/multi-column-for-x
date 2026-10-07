@@ -625,3 +625,8 @@ a[data-xmc-nav]:hover > div, a[data-xmc-nav]:focus-visible > div { background-co
 .xmc-profile.xmc-native :is(a[href$="/following"], a[href$="/followers"], a[href$="/verified_followers"], [data-testid="UserJoinDate"] [role="button"], [data-testid="UserJoinDate"] a):hover,
 .xmc-profile.xmc-native :is(a[href$="/following"], a[href$="/followers"], a[href$="/verified_followers"], [data-testid="UserJoinDate"] [role="button"], [data-testid="UserJoinDate"] a):hover span { text-decoration: underline !important; }
 .xmc-profile.xmc-native [data-testid="UserJoinDate"] [role="button"] { cursor: pointer; }
+
+.xmc-profile [data-xmc-hover], .xmc-profile [data-xmc-hover] * { text-decoration: underline !important; }
+/* in the panel a picture or video takes the width of its pane (the box around a video is otherwise only as wide as the video's own size) */
+.xmc-vm > img, .xmc-vm > .xmc-video { width: 100%; }
+.xmc-vm .xmc-video video { width: 100%; height: auto; }
