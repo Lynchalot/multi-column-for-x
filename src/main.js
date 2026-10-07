@@ -1411,7 +1411,7 @@
   const settleProxy = () => { state.proxyUntil = Date.now() + 800; };
   async function withReal(t, fn) {
     try {
-      const art = await realArticle(t, 1500);
+      const art = await realArticle(t, 4000); // (a press is shown at once, so this can look longer than a comment visit does before it asks X's router)
       if (art) { await fn(art); return true; }
       // a post that is not in X's list (one seen only as a quote, or one X has not drawn): its own page has the same buttons
       if (!t.url) return false;
@@ -1998,7 +1998,7 @@
   // its hidden header. The layer is real and works as it does on X (a press outside closes it), so it is kept, and its box is moved to sit
   // under the button that was pressed here.
   async function adoptPopup(layers, before, anchor) {
-    const layer = await waitFor(() => [...layers.children].find((c) => !before.has(c) && ((c.innerText || '').trim().length > 8)), 2500);
+    const layer = await waitFor(() => [...layers.children].find((c) => !before.has(c) && ((c.innerText || '').trim().length > 8) && !c.querySelector('[aria-modal="true"]')), 2500); // (a modal dialog is left where X centres it)
     state.popProbe = { found: !!layer, tag: layer ? layer.tagName : '', text: layer ? (layer.innerText || '').trim().slice(0, 50) : '' };
     if (!layer) return;
     const box = [layer, ...layer.querySelectorAll('*')].find((n) => /(^|;)\s*(top|left)\s*:/.test(n.getAttribute('style') || '') && ((n.innerText || '').trim().length > 8));
@@ -2019,7 +2019,8 @@
       if (!orig) { window.scrollTo(0, 0); orig = await waitFor(() => nativeHeader(headerCopy.handle), 2500); }
       if (!orig || orig.innerHTML !== headerCopy.html) { toast('Couldn’t reach that button just now. Try again in a moment.'); return; }
       const target = [orig, ...orig.querySelectorAll('*')][position];
-      if (target) { fire(target); if (anchor && layers) adoptPopup(layers, before, anchor); }
+      // only the Joined / location line brings up a popup worth moving: not Follow's confirmation or the ... menu, which are X's own and stay put
+      if (target) { fire(target); if (anchor && layers && anchor.closest('[data-testid="UserProfileHeader_Items"], [data-testid="UserJoinDate"]')) adoptPopup(layers, before, anchor); }
     } finally { settleProxy(); }
   }
   profileEl.addEventListener('click', (e) => {
