@@ -490,7 +490,7 @@ html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
 .xmc-media.sensitive .xmc-hover { display: none; }
 
 /* ---- a post, opened over the columns ---- */
-.xmc-view { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, .6); animation: xmc-fade .08s ease-out; cursor: zoom-out; }
+.xmc-view { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, .7); animation: xmc-fade .08s ease-out; cursor: zoom-out; }
 .xmc-view.xmc-still, .xmc-view.xmc-still .xmc-vpanel { animation: none; }
 .xmc-vpanel { display: flex; width: min(1200px, 100%); height: min(880px, 100%); overflow: hidden; border-radius: 20px; border: 1px solid var(--xmc-edge); background: var(--xmc-solid, var(--xmc-bg)); color: var(--xmc-fg);
   box-shadow: 0 24px 70px rgba(0, 0, 0, .5); cursor: default; animation: xmc-zoom .1s ease-out; }
@@ -514,9 +514,24 @@ html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive v
 .xmc-vclose:hover, .xmc-vnav:hover { background: rgba(255, 255, 255, .28); }
 .xmc-vclose svg, .xmc-vnav svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .xmc-vclose { top: 16px; right: 16px; }
-.xmc-vnav { top: 50%; margin-top: -22px; }
+.xmc-vnav { top: 50%; margin-top: -20px; width: 40px; height: 40px; color: #121212; background: #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, .45); }
+.xmc-vnav:hover { background: #e6e6e6; }
+.xmc-vnav svg { stroke-width: 2.6; }
 .xmc-vnav.prev { left: 16px; } .xmc-vnav.next { right: 16px; }
 .xmc-vnav[hidden] { display: none; }
+/* several pictures: one at a time, an arrow each side and a dot for each */
+.xmc-vm[hidden] { display: none; }
+.xmc-vmediapane.xmc-car { position: relative; overflow: hidden; }
+.xmc-car > .xmc-vm img, .xmc-car > .xmc-vm .xmc-video, .xmc-car > .xmc-vm video { max-height: min(880px, calc(100vh - 50px)); }
+.xmc-car[data-side="l"] .xmc-vm img { cursor: w-resize; } .xmc-car[data-side="r"] .xmc-vm img { cursor: e-resize; }
+.xmc-cnav { position: absolute; top: 50%; margin-top: -16px; width: 32px; height: 32px; padding: 0; appearance: none; border: 0; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(26, 26, 26, .8); z-index: 2; }
+.xmc-cnav:hover { background: rgba(26, 26, 26, .95); }
+.xmc-cnav[hidden] { display: none; }
+.xmc-cnav.prev { left: 10px; } .xmc-cnav.next { right: 10px; }
+.xmc-cnav svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-dots { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; justify-content: center; gap: 5px; z-index: 2; pointer-events: none; }
+.xmc-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .45); box-shadow: 0 0 3px rgba(0, 0, 0, .5); }
+.xmc-dots i.on { background: #fff; }
 @media (max-width: 900px) { .xmc-vpanel { flex-direction: column; overflow-y: auto; } .xmc-vmediapane { flex: 0 0 auto; max-height: 55%; } .xmc-vside { flex: 1 0 auto; overflow: visible; } }
 @media (prefers-reduced-motion: reduce) { .xmc-view, .xmc-vpanel { animation: none; } .xmc-hover { transition: none; } }
 
@@ -573,8 +588,8 @@ html.xmc-on.xmc-peeking [data-testid="sidebarColumn"]:not([data-xmc-style]), htm
 html.xmc-frozen #xmc-pill { visibility: visible !important; }
 
 /* a light blur behind an open post (off in the settings, or by itself if the computer struggles with it) */
-#xmc-root.xmc-blur .xmc-view { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); background: rgba(0, 0, 0, .5); }
-@media (prefers-reduced-transparency: reduce) { #xmc-root.xmc-blur .xmc-view { backdrop-filter: none; background: rgba(0, 0, 0, .6); } }
+#xmc-root.xmc-blur .xmc-view { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); background: rgba(0, 0, 0, .7); }
+@media (prefers-reduced-transparency: reduce) { #xmc-root.xmc-blur .xmc-view { backdrop-filter: none; background: rgba(0, 0, 0, .7); } }
 
 /* the end of the comments list while more are on their way */
 .xmc-rmore { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 18px 0; font-size: 13px; color: var(--xmc-muted); }

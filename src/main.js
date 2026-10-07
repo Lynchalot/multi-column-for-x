@@ -930,7 +930,10 @@
     if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else closePostView(); } }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
     if (lightbox && e.key === 'ArrowLeft') stepLightbox(-1);
-    if (postView && !lightbox && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !/^(input|textarea|select|video)$/i.test((e.target || {}).tagName || '')) { e.preventDefault(); stepPostView(e.key === 'ArrowRight' ? 1 : -1); }
+    if (postView && !lightbox && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !/^(input|textarea|select|video)$/i.test((e.target || {}).tagName || '')) { // in the pictures: the next picture; anywhere else in the panel: the next post
+      e.preventDefault(); const dir = e.key === 'ArrowRight' ? 1 : -1, car = e.target.closest && e.target.closest('.xmc-car');
+      if (car) car._go(dir); else stepPostView(dir);
+    }
   }, true);
 
   // ---------- columns ----------
@@ -2271,6 +2274,47 @@
       return box;
     });
   }
+  // A post with several pictures shows one at a time in the panel, with arrows and a dot for each, so the person can see how many there are
+  function carousel(pane) {
+    const slides = [...pane.querySelectorAll(':scope > .xmc-vm')];
+    if (slides.length < 2) return;
+    let i = 0;
+    const dots = h('div', { className: 'xmc-dots', 'aria-hidden': 'true' }, ...slides.map(() => h('i')));
+    const prev = h('button', { className: 'xmc-cnav prev', type: 'button', title: 'Previous picture', 'aria-label': 'Previous picture', onclick: (e) => { e.stopPropagation(); pane._go(-1); } }, icon('prev'));
+    const next = h('button', { className: 'xmc-cnav next', type: 'button', title: 'Next picture', 'aria-label': 'Next picture', onclick: (e) => { e.stopPropagation(); pane._go(1); } }, icon('next'));
+    pane._go = (d) => {
+      i = Math.max(0, Math.min(slides.length - 1, i + d));
+      slides.forEach((sl, k) => { sl.hidden = k !== i; if (k !== i) for (const v of sl.querySelectorAll('video')) v.pause(); });
+      [...dots.children].forEach((dot, k) => dot.classList.toggle('on', k === i));
+      prev.hidden = i === 0; next.hidden = i === slides.length - 1;
+    };
+    pane.classList.add('xmc-car');
+    pane.append(prev, next, dots);
+    pane._go(0);
+    // the wheel flicks between the pictures (a trackpad sends a burst: one step per flick, not one per event)
+    let wheelAt = 0;
+    pane.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (Math.abs(d) < 4 || e.timeStamp - wheelAt < 380) return;
+      wheelAt = e.timeStamp; pane._go(d > 0 ? 1 : -1);
+    }, { passive: false });
+    // the left or right third of a picture steps to the previous or next one; the middle opens it full size (so does a third with nowhere to go)
+    const side = (e) => {
+      const img = e.target.closest && e.target.closest('img[data-lb]');
+      if (!img || img.closest('.sensitive')) return '';
+      const r = img.getBoundingClientRect(), f = (e.clientX - r.left) / (r.width || 1);
+      const k = slides.findIndex((x) => !x.hidden);
+      return f < 0.3 && k > 0 ? 'l' : f > 0.7 && k < slides.length - 1 ? 'r' : '';
+    };
+    pane.addEventListener('pointermove', (e) => { const sd = side(e); if ((pane.dataset.side || '') !== sd) pane.dataset.side = sd; });
+    pane.addEventListener('pointerleave', () => { pane.dataset.side = ''; });
+    pane.addEventListener('click', (e) => {
+      if (e.detail === 0) return; // Enter on a focused picture opens it
+      const sd = side(e);
+      if (sd) { e.preventDefault(); e.stopPropagation(); pane._go(sd === 'r' ? 1 : -1); }
+    });
+  }
   // a short row of the same person's other posts that we already have (nothing is fetched), to carry on from this one
   function moreFrom(t) {
     const mine = t.author.handle.toLowerCase();
@@ -2396,6 +2440,7 @@
     const shown = t.media.length || !parent || !parent.media.length ? t : parent;
     const media = shown.media.length ? h('div', { className: 'xmc-vmediapane' }, ...viewMedia(shown)) : null;
     if (media && shown !== t) media.dataset.owner = 'parent';
+    if (media) carousel(media);
     const side = viewSide(t, focusBox, parent);
     const panel = h('div', { className: 'xmc-vpanel' + (media ? '' : ' single') }, media, side);
     const idx = view.cards.indexOf(t);

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.0
+- **A post with several pictures is a carousel in the panel.** One picture at a time, an arrow each side, a dot for each picture (the current one lit). The wheel over the pictures flicks between them, as it did before; the left or right third of a picture steps back or on (the pointer shows which way), and the middle opens it full size. Left and Right step the pictures while the focus is in them, and the posts anywhere else in the panel.
+- **The post arrows are solid white circles at the screen edges, and the backdrop behind the panel is darker (70%).**
+
 ## 0.26.3
 - **The panel and the photo viewer work from the keyboard.** Both are now dialogs: Tab and Shift+Tab stay inside them instead of walking into the feed behind, closing one gives the focus back to the button or photo you opened it from, and the viewer takes the focus when it opens. Photos on cards and in the panel can be focused and opened with Enter or Space.
 - Labels set with `aria-*` (the loading placeholders' `aria-hidden` among them) were being set as plain properties and so did nothing; they are now real attributes.

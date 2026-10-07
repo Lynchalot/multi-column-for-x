@@ -276,6 +276,60 @@ browserTest('a photo on a card opens from the keyboard and Esc returns the focus
   });
 });
 
+browserTest('a post with several pictures shows one at a time in the panel, with arrows and a dot for each', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const open = await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelector('a.xmc-time').click(); return true; });
+    assert.ok(open);
+    await page.waitForSelector('.xmc-view .xmc-vmediapane.xmc-car');
+    const st = () => page.evaluate(() => { const pane = document.querySelector('.xmc-view .xmc-vmediapane'); return { shown: [...pane.querySelectorAll(':scope > .xmc-vm')].map((x) => !x.hidden), dots: [...pane.querySelectorAll('.xmc-dots i')].map((d) => d.classList.contains('on')), prev: !pane.querySelector('.xmc-cnav.prev').hidden, next: !pane.querySelector('.xmc-cnav.next').hidden }; });
+    let a = await st();
+    assert.deepEqual(a.shown, [true, false, false]); assert.deepEqual(a.dots, [true, false, false]); assert.equal(a.prev, false); assert.equal(a.next, true);
+    await page.locator('.xmc-view .xmc-cnav.next').click();
+    a = await st(); assert.deepEqual(a.shown, [false, true, false]); assert.deepEqual(a.dots, [false, true, false]); assert.equal(a.prev, true); assert.equal(a.next, true);
+    // the arrow keys step the pictures while the focus is in them, and the posts anywhere else
+    await page.evaluate(() => document.querySelector('.xmc-view .xmc-vm img').closest('.xmc-vmediapane').querySelector('.xmc-vm:not([hidden]) img').focus());
+    await page.keyboard.press('ArrowRight');
+    a = await st(); assert.deepEqual(a.shown, [false, false, true]); assert.equal(a.next, false);
+    await page.keyboard.press('ArrowRight'); // the last picture: stays
+    assert.deepEqual((await st()).shown, [false, false, true]);
+    // the wheel flicks between the pictures, and the sides of a picture step too; the middle opens it full size
+    await page.locator('.xmc-view .xmc-cnav.prev').click(); await page.locator('.xmc-view .xmc-cnav.prev').click();
+    assert.deepEqual((await st()).shown, [true, false, false]);
+    const box = await page.locator('.xmc-view .xmc-vm:not([hidden]) img').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 120);
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-view .xmc-dots i')[1].classList.contains('on'));
+    await page.waitForTimeout(450);
+    await page.mouse.wheel(0, -120);
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-view .xmc-dots i')[0].classList.contains('on'));
+    await page.mouse.click(box.x + box.width * 0.9, box.y + box.height / 2); // right side: next
+    assert.deepEqual((await st()).shown, [false, true, false]);
+    await page.mouse.click(box.x + box.width * 0.1, box.y + box.height / 2); // left side: back
+    assert.deepEqual((await st()).shown, [true, false, false]);
+    await page.mouse.click(box.x + box.width * 0.1, box.y + box.height / 2); // nowhere to go: opens the picture
+    await page.waitForSelector('#xmc-lightbox');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('xmc-lightbox'));
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2); // the middle: opens it
+    await page.waitForSelector('#xmc-lightbox');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('xmc-lightbox'));
+    await page.locator('.xmc-view .xmc-cnav.next').click(); await page.locator('.xmc-view .xmc-cnav.next').click();
+    await page.evaluate(() => document.querySelector('.xmc-view .xmc-vm:not([hidden]) img').focus());
+    // the picture shown is the one the viewer opens
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('#xmc-lightbox');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('xmc-lightbox'));
+    // the backdrop is at Instagram's level
+    const bg = await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-view')).backgroundColor);
+    assert.match(bg, /rgba\(0, 0, 0, 0\.7\)/);
+  });
+});
+
 browserTest('the settings page has no leftovers', async (e) => {
   const h = await e.open('/ext/options.html');
   await checked(h, async () => {
