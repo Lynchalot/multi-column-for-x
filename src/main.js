@@ -487,6 +487,8 @@
     }
     return box;
   }
+  // a picture's own width and height, so its box has its shape (and so its height) before the picture has arrived: nothing below it moves when it does
+  const sized = (m) => (m && m.w > 0 && m.h > 0 ? { width: m.w, height: m.h } : {});
   function renderQuote(q) {
     if (q.unavailable) return h('div', { className: 'xmc-quote xmc-dim', textContent: 'This post is unavailable.' });
     noteQuote(q);
@@ -496,7 +498,7 @@
         h('img', { className: 'xmc-qava', src: q.author.avatar, alt: '', loading: 'lazy' }),
         h('b', { textContent: q.author.name }), h('span', { className: 'xmc-dim', textContent: ' @' + q.author.handle })),
       h('div', { className: 'xmc-text xmc-qtext' }, renderSegs(q.segs)),
-      first ? h('img', { className: 'xmc-qmedia' + (q.sensitive ? ' sens' : ''), src: photoUrl(first.thumb, 'medium'), alt: '', loading: 'lazy' }) : null);
+      first ? h('img', Object.assign({ className: 'xmc-qmedia' + (q.sensitive ? ' sens' : ''), src: photoUrl(first.thumb, 'medium'), alt: '', loading: 'lazy' }, sized(first))) : null);
     box.dataset.href = q.url;
     return box;
   }
@@ -1669,7 +1671,7 @@
     const pics = r.media.filter((m) => m.type === 'photo');
     const photos = r.media.slice(0, 2).map((m) => {
       const a = h('a', { href: photoUrl(m.thumb, 'large'), target: '_blank', rel: 'noopener' },
-        h('img', { className: 'xmc-rmedia', src: photoUrl(m.thumb, 'small'), alt: '', loading: 'lazy' }));
+        h('img', Object.assign({ className: 'xmc-rmedia', src: photoUrl(m.thumb, 'small'), alt: '', loading: 'lazy' }, sized(m))));
       const at = pics.indexOf(m);
       a.addEventListener('click', (e) => { if (at < 0 || a.closest('.sensitive') || e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); e.stopPropagation(); openLightbox(r, at); });
       return a;

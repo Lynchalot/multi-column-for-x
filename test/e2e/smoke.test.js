@@ -1678,6 +1678,52 @@ browserTest('in the panel a picture is scaled to the width of its pane, as it is
   });
 });
 
+browserTest('a quoted post\'s picture and a comment\'s picture have their height before they have loaded, so nothing moves when they arrive', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.route('**/img/**', () => { /* never answered: no picture arrives */ });
+    await page.reload();
+    await e.ready(page);
+    await page.waitForTimeout(800);
+    const q = await page.evaluate(() => [...document.querySelectorAll('.xmc-card .xmc-qmedia')].map((i) => Math.round(i.getBoundingClientRect().height)));
+    assert.ok(q.length > 0 && q.every((x) => x >= 60), 'quote pictures are ' + q.join(',') + 'px high before loading');
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 25000 });
+    const r = await page.evaluate(() => [...document.querySelectorAll('.xmc-view:not(.xmc-out) .xmc-vside .xmc-rmedia')].map((i) => Math.round(i.getBoundingClientRect().height)));
+    assert.ok(r.length > 0 && r.every((x) => x >= 40), 'comment pictures are ' + r.join(',') + 'px high before loading');
+  });
+}, 90000);
+
+browserTest('the button X puts at the foot of a conversation for hidden replies ("Show probable spam") is never pressed, and is named in the diagnostics', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850, settings: { v: 9, fetchContext: false } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { window.__noPages = true; window.__spamCell = true; });
+    await page.evaluate(() => { const t = window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected); t.counts.reply = 500; t.el.querySelector(':scope > .xmc-text').click(); });
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 25000 });
+    await page.evaluate(() => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); s.scrollTop = s.scrollHeight; });
+    await page.waitForFunction(() => /See all comments on X/.test(document.querySelector('.xmc-view:not(.xmc-out) .xmc-rmore').innerText), null, { timeout: 40000 });
+    assert.equal(await page.evaluate(() => window.__spam || 0), 0, 'the spam button was pressed');
+    assert.match(JSON.stringify(await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).moreProbe)), /Show probable spam/);
+  });
+}, 90000);
+
+browserTest('a quoted post opened in the panel can be liked: X\'s own button is pressed on that post\'s own page', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    const id = await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector('.xmc-quote[data-href]')); const q = c.querySelector('.xmc-quote[data-href]'); q.click(); return q.dataset.href.split('/').pop(); });
+    await page.waitForSelector('.xmc-view .xmc-vpanel');
+    await page.locator('.xmc-view .xmc-vside [data-act="like"]').first().click();
+    await page.waitForFunction((i) => (window.__actions || []).includes('liked:' + i), id, { timeout: 30000 });
+  });
+}, 90000);
+
 browserTest('a video: pressing on its preview turns the sound on, and the speaker button over it turns it on and off', async (e) => {
   const h = await e.open('/home/');
   await checked(h, async () => {
@@ -1706,7 +1752,7 @@ browserTest('a video: pressing on its preview turns the sound on, and the speake
 });
 
 browserTest('comments in the panel keep coming as you scroll down, added below without moving what you are reading, until X has no more', async (e) => {
-  const h = await e.open('/home/', { width: 1500, height: 850 });
+  const h = await e.open('/home/', { width: 1500, height: 850, settings: { v: 9, fetchContext: false } });
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
@@ -1731,7 +1777,7 @@ browserTest('comments in the panel keep coming as you scroll down, added below w
     assert.ok(text.includes('Page 2 reply 1') && text.includes('Page 3 reply 4'), 'the later pages are there');
     assert.equal(text.split('Page 2 reply 1').length, 2, 'and not twice');
     await page.waitForFunction(() => !window.__xmc.state.peek && location.pathname === '/home/', null, { timeout: 20000 });
-    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-onpost')), false);
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-onpost'), null, { timeout: 5000 }); // (cleared by the next tick)
   });
 }, 120000);
 

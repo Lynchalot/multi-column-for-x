@@ -88,7 +88,7 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
 .xmc-qhead { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .xmc-qava { width: 20px; height: 20px; border-radius: 50%; }
 .xmc-qtext { font-size: 14px; max-height: 8.4em; overflow: hidden; margin: 6px 0 0; }
-.xmc-qmedia { display: block; width: 100%; margin-top: 8px; border-radius: 10px; max-height: 220px; object-fit: cover; }
+.xmc-qmedia { display: block; width: 100%; height: auto; margin-top: 8px; border-radius: 10px; max-height: 220px; object-fit: cover; }
 
 /* ---- action row ---- */
 .xmc-actions { display: flex; align-items: center; justify-content: space-between; margin: 2px -8px 0; }
@@ -242,7 +242,7 @@ html.xmc-nsfw-show .xmc-qmedia.sens { filter: none; }
 .xmc-rtop .xmc-name { display: inline; font-weight: 700; }
 .xmc-ritem .xmc-text { margin: 2px 0 4px; }
 .xmc-rmedias { display: flex; gap: 6px; margin-top: 4px; }
-.xmc-rmedia { display: block; max-height: 140px; max-width: 100%; border-radius: 10px; border: 1px solid var(--xmc-border); }
+.xmc-rmedia { display: block; height: auto; max-height: 140px; max-width: 100%; border-radius: 10px; border: 1px solid var(--xmc-border); }
 .xmc-rlikes { font-size: 12px; margin-top: 2px; }
 .xmc-ractions { display: flex; align-items: center; gap: 14px; margin: 0 0 0 -6px; }
 .xmc-ract { appearance: none; border: 0; background: none; color: var(--xmc-muted); display: inline-flex; align-items: center; gap: 5px; font: inherit; font-size: 12px;

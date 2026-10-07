@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.27.8
+- **A quoted post's picture, and the pictures in comments, no longer push things down when they load.** They had no height until they arrived, so a card with a quoted picture grew by about 220px (and a comment list shifted) the moment the picture came in. They now have their shape from the start. This is what an occasionally failing test of mine kept catching ("a returned post is 220px off its old height", 5 times in 14 runs under load; 0 in 14 after).
+- Likes, bookmarks and reposts on a post X hasn't drawn in its list now search for it for 4 seconds (not 1.5) before going through a visit to the post's own page; the Joined popup mover acts only on the Joined line and never on a modal dialog (found in a review of the last releases' code).
+- The privacy text said Copy diagnostics holds "no post text"; it can now hold short snippets (about 50 characters) of X's page when a step fails. The text says so. README and the store listing cover the carousel, quoted posts, video sound and the popup.
+- New tests for the mock's "Show probable spam" cell (never pressed), a like on a quoted post in the panel, and a race fixed in one scrolling test.
+
 ## 0.27.7
 - **In the panel a picture is scaled to the width of its pane**, as it is on the feed. A picture whose own file was smaller than the pane (yours was 372 wide in a 546 pane) was left at its own size with a blurred margin round it. (A test now serves a 200 px picture into a 724 px pane: it stayed at 210 before.)
 - **X's "About this account" popup on Joined now appears under Joined in the copy of a profile header.** Pressing Joined presses X's real one; X draws its popup in its own layer where its hidden header is, so the page now moves that popup's box to sit under the button you pressed. It is X's own popup, so a press outside closes it. Not tried on real X: the diagnostics have `popProbe` (whether a popup was seen and whether its box could be moved), which says what happened if it doesn't show.
