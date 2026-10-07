@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.6
+- **The Lists entry in the left menu goes to your own lists** (`/yourname/lists`). It went to `/i/lists`, which is an empty page.
+- **The translated post no longer repeats its own words in the small "Translated from…" line.** The language was read from the page's whole text, where X's line, its "Show original" and the post's words run together, so the line carried the post's text. It is now read from X's line alone ("Translated from Spanish").
+
 ## 0.27.5
 - **Translate finds X's "Show translation" control.** Your probe on yaya's post showed the control worded "Show translation" (not "Translate post") among several other buttons, so neither the label nor the position fallback matched. Both wordings are known now, and the position fallback only counts buttons below the post's words.
 - **In the panel, the empty space around a picture is filled with a blurred, dimmed copy of it, not black.** A small or differently shaped picture no longer sits in a black box. It uses the picture's own address (nothing extra to download) and is hidden on sensitive pictures until you reveal them.

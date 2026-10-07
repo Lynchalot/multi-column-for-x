@@ -1804,6 +1804,19 @@ browserTest('Translate also finds X\'s control when it is worded "Show translati
   });
 }, 120000);
 
+browserTest('the translated post says "Translated from Spanish" once, not the post\'s words again, when X\'s line has no separators', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => { window.__xlReal = true; });
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.lang === 'ja' && x.el && x.el.isConnected && x.el.querySelector('.xmc-translate')).el.querySelector('.xmc-translate').click());
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-xlate:not([hidden])', { timeout: 30000 });
+    assert.equal((await page.locator('.xmc-view:not(.xmc-out) .xmc-vside .xmc-xlfrom').innerText()).trim(), 'Translated from Spanish');
+  });
+}, 120000);
+
 browserTest('when X offers no translation, the button says so and then opens the post on X', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {
@@ -1835,12 +1848,12 @@ browserTest('Bookmarks, Likes and Lists can be added to X\'s left menu (under Hi
     await e.ready(page);
     await page.waitForFunction(() => document.querySelectorAll('[data-xmc-nav]').length === 3, null, { timeout: 8000 });
     const got = await page.evaluate(() => [...document.querySelectorAll('[data-xmc-nav]')].map((a) => [a.getAttribute('href'), a.textContent.trim()]));
-    assert.deepEqual(got, [['/i/bookmarks', 'Bookmarks'], ['/user1/likes', 'Likes'], ['/i/lists', 'Lists']]);
+    assert.deepEqual(got, [['/i/bookmarks', 'Bookmarks'], ['/user1/likes', 'Likes'], ['/user1/lists', 'Lists']]);
     // pointing at one of them draws the same pill as X's own entries (X draws that from script, which a copy does not get)
     await page.locator('[data-xmc-nav="navLikes"]').hover();
     await page.waitForFunction(() => { const d = document.querySelector('[data-xmc-nav="navLikes"] > div') || document.querySelector('[data-xmc-nav="navLikes"]'); return d && getComputedStyle(d).backgroundColor !== 'rgba(0, 0, 0, 0)' && getComputedStyle(d).backgroundColor !== 'transparent'; }, null, { timeout: 3000 });
     const order = await page.evaluate(() => [...document.querySelectorAll('header nav a')].filter((a) => getComputedStyle(a).display !== 'none').map((a) => a.getAttribute('href')));
-    assert.ok(order.indexOf('/i/bookmarks') < order.indexOf('/user1/likes') && order.indexOf('/user1/likes') < order.indexOf('/i/lists'), order.join(' '));
+    assert.ok(order.indexOf('/i/bookmarks') < order.indexOf('/user1/likes') && order.indexOf('/user1/likes') < order.indexOf('/user1/lists'), order.join(' '));
     assert.equal(await page.evaluate(() => [...document.querySelectorAll('header nav a')].filter((a) => !a.dataset.xmcNav && /History/.test(a.textContent) && getComputedStyle(a).display !== 'none').length), 0, 'X\'s History is hidden: Bookmarks and Likes are in its place');
     assert.equal(await page.evaluate(() => { const v = [...document.querySelectorAll('header nav a')].filter((a) => getComputedStyle(a).display !== 'none').map((a) => a.textContent.trim()); return v.indexOf('Explore') + 1 === v.indexOf('Bookmarks') || v.indexOf('Grok') + 1 === v.indexOf('Bookmarks'); }), true, 'in History\'s old place');
     assert.equal(await page.locator('[data-xmc-nav]').count(), 3, 'no duplicates after a few passes');

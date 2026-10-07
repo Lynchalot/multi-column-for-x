@@ -2605,6 +2605,18 @@
     const after = cands.filter((b) => words.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING); // (the control sits below the words)
     return after.length === 1 ? after[0] : null; // not sure which: nothing is pressed
   }
+  // the language X says a post was translated from ("Translated from Spanish", only when X's interface is in English): read from the small
+  // line that says it, not from the page's text as a whole (X's line, its "Show original" and the post's words run together there)
+  function translatedFrom(art) {
+    for (const el of art.querySelectorAll('span, div')) {
+      if (el.children.length > 2 || el.querySelector('[data-testid="tweetText"]')) continue;
+      const m = /^translated from\s+(.+)$/i.exec((el.textContent || '').trim());
+      if (!m || m[1].length > 60) continue;
+      const lang = m[1].replace(/\s*show original.*$/i, '').replace(/\s*·.*$/, '').trim();
+      if (lang && lang.length < 30) return lang;
+    }
+    return '';
+  }
   async function translateOnX(t, root) {
     if (translations.has(t.id)) return { ok: true, ...translations.get(t.id) };
     const attempt = () => inQueue(() => visitPost(root || t, {}, {}, async ({ opened }) => {
@@ -2629,8 +2641,7 @@
       }
       const got = await waitFor(done, 7000);
       if (!got) return { why: 'X didn’t translate it.' };
-      const from = (/translated from\s+([^·\n.]+)/i.exec(art.textContent || '') || [])[1]; // (only when X says it in English)
-      return { ok: true, text: got, from: from ? from.trim() : '' };
+      return { ok: true, text: got, from: translatedFrom(art) };
     }));
     let res = await attempt();
     // X not opening or not drawing the post is usually a passing thing: one more go before the person is told
@@ -3204,7 +3215,7 @@
   const EXTRA_NAV = [
     { key: 'navBookmarks', label: 'Bookmarks', icon: 'bookmark', href: () => '/i/bookmarks' },
     { key: 'navLikes', label: 'Likes', icon: 'like', href: (me) => (me ? '/' + me + '/likes' : '') },
-    { key: 'navLists', label: 'Lists', icon: 'list', href: () => '/i/lists' },
+    { key: 'navLists', label: 'Lists', icon: 'list', href: (me) => (me ? '/' + me + '/lists' : '') }, // (/i/lists is an empty page: your lists are under your own name)
   ];
   function syncExtraNav() {
     const nav = pin.nav.el();
