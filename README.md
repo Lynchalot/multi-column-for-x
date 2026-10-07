@@ -27,10 +27,10 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
   X's reply box is left open with your text for you to finish.
 - **Threads fold into one card.** A person's replies to themselves sit under their first post behind one line ("2 more posts in this thread").
   Tall single pictures are trimmed to a sensible shape (click for the whole picture). The volume you set on a video is kept for the next one.
-- **Posts open in a panel** over the columns (pictures large, words, actions, comments; Esc closes; arrows step to the next post), and like / repost / save / download appear on a picture when you point at it.
+- **Posts open in a panel** over the columns (picture large on one side; words, actions and comments on the other; Esc closes; arrows step to the next post). Comments load as you scroll, can be sorted, and have like, bookmark, views and share; a comment opens in the same panel. Like / repost / save / download appear on a picture when you point at it.
 - **Presets** at the top of the settings page (Just columns, Calm, Media wall); it opens there when the extension is first installed.
 - **Video and GIFs play in the card.** Photos open in a viewer (arrows, **Esc** closes it) with **Download** and **Copy link** buttons.
-  Posts in other languages get a **Translate post** button that opens the post, where X translates it. **NSFW** button in the top bar:
+  Posts and comments in other languages get a **Translate** button that uses X's own translation (in whatever language your X is set to). **NSFW** button in the top bar:
   blur → show → hide those posts.
 - **X's own sidebars are kept** (left nav, right search/trends), or hide the right one in settings. The floating Grok and
   Chat buttons stay, side by side in the corner. Hide any sidebar item (Creator Studio, Chat, Grok…) —
@@ -55,19 +55,22 @@ and separate switches for Trending, Who to follow, Topics, Discover more and Pre
 Following by default, hide *For you*, keep me on Following · Reposts / quotes / replies: show, **own tab**, or hide
 (separately for Home, profiles, Lists) · only accounts I follow · mute words, accounts, and quotes of a post · hide quotes of
 blocked/muted accounts · hide replies from paid-verified accounts · paid checkmark: show / bird / hide · hide view counts,
-all counts, bookmark and share buttons · reduced-interaction mode · "Quotes" link · tweet source · Twitter name & logo
+all counts, bookmark and share buttons · reduced-interaction mode · tweet source · Twitter name & logo
 (bird, "Tweet", "Retweet", favicon, tab title) · hide Trending / Who to follow / Premium box / Verified tabs · sidebar font
 and spacing · system font · custom CSS · Search opens on Latest · turn Home off.
 
 Settings tagged **X page** restyle X's own pages with CSS, so they depend on X's current layout and may need a tweak when X
 redesigns. Everything that changes *what's in the feed* does not.
 
+### Sensitive media and X's age check
+On by default, **Skip X's age check on sensitive media** switches off X's own client-side age-verification flag (`rweb_age_assurance_flow_enabled`, the same one Control Panel for Twitter turns off), so X shows its older "sensitive content" notice, which the NSFW button and X's Show work through. It changes nothing on X's servers and does not verify anything; turn it off in settings to keep X's check.
+
 ### Not included
 Dim theme (X removed it), redirect x.com → twitter.com (twitter.com now redirects back, so it would loop), account-location
-info, age-verification bypass, fast-blocking, and anything inside X's Notifications page beyond hiding the link and the Verified tab.
+info, fast-blocking, and anything inside X's Notifications page beyond hiding the link and the Verified tab.
 
 ## How it works
-`src/hook.js` (runs in the page) watches the timeline responses X already downloads and hands a copy to the extension.
+`src/hook.js` (runs in the page) watches the timeline responses X already downloads and hands a copy to the extension; it also applies the age-check flag above.
 `src/parse.js` turns them into posts, `src/logic.js` decides what each view shows, `src/main.js` draws the columns and
 `src/site.js` applies the sidebar/branding tweaks. Like / repost / bookmark / reply press X's own (hidden) buttons, so they
 behave exactly as on X. No network requests of its own, no analytics. Permissions: `storage`, `downloads` (download button),
