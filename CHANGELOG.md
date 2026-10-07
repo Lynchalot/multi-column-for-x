@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.4
+- **Translate waits for X's Translate control.** Your trace showed four `translate FAILED … X offers no translation` lines, each right as the visit ended: the extension looked for the control the instant X's page opened, and X draws it a moment later (after it has judged the post's language). It now waits up to 5 seconds for it. If there is still no control, Copy diagnostics has `translateProbe` (the post's language, its words, and the buttons X's page showed) so the real cause is visible.
+- **The foot-of-conversation button is never one that reveals hidden replies.** Your `moreProbe` showed X's "Show probable spam" at the foot of a conversation, and 0.27.2 pressed it. Buttons whose words mention spam, offensive, abusive, muted, blocked or sensitive content are now left alone.
+
 ## 0.27.3
 - **Video: no native controls while a video only previews.** Pressing a previewing video still paused it in Zen, so the page now takes the player's own controls away for the preview (nothing native is left to read the press as "pause") and gives them back a moment after the press. The press itself plays the video from the start, with sound. The diagnostics trace now has `video` lines (preview started, press, and any pause that followed it), so if this still misbehaves, Copy diagnostics will show what the browser did.
 

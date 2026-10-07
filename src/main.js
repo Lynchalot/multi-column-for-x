@@ -1331,7 +1331,7 @@
       trace: TRACE.slice(-120),
       commentTimes: state.commentTimes || [],
       commentFailures: state.commentFailures || [],
-      commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
+      commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, translateProbe: state.translateProbe || null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       floating: floatingReport(),
       corner: cornerReport(),
@@ -1631,7 +1631,7 @@
       if (c.querySelector('article, [data-testid="UserCell"], a[href], input, textarea')) continue;
       const btns = [...c.querySelectorAll('[role="button"], button')];
       const txt = (c.innerText || '').trim();
-      if (btns.length === 1 && txt.length >= 4 && txt.length <= 60) return { btn: btns[0], txt };
+      if (btns.length === 1 && txt.length >= 4 && txt.length <= 60 && !/spam|offensive|abusive|muted|blocked|sensitive/i.test(txt)) return { btn: btns[0], txt }; // (never the buttons that show what X has hidden)
     }
     return null;
   }
@@ -2606,7 +2606,7 @@
     if (translations.has(t.id)) return { ok: true, ...translations.get(t.id) };
     const attempt = () => inQueue(() => visitPost(root || t, {}, {}, async ({ opened }) => {
       if (!opened) return { why: 'X didn’t open the post.' };
-      const art = root ? await mountComment(t.id) : await waitFor(() => findArticle(t.id), 6000);
+      let art = root ? await mountComment(t.id) : await waitFor(() => findArticle(t.id), 6000);
       if (!art) return { why: 'Couldn’t find the post on X’s page.' };
       const words = () => art.querySelector('[data-testid="tweetText"]');
       const shownText = () => ((words() && words().innerText) || '').trim();
@@ -2614,8 +2614,14 @@
       // translated = X's words changed after we pressed its control (works in any interface language), or X says so in English
       const done = () => { const w = shownText(); return w && (w !== before || /translated from/i.test(art.textContent || '')) ? w : ''; };
       if (!/translated from/i.test(art.textContent || '')) {
-        const ctl = translateControl(art);
-        if (!ctl) return { why: 'X offers no translation for this one (or its button isn’t one we can tell).' };
+        // X draws its Translate control a moment after the post's page opens (once it has judged the language), so wait for it
+        let ctl = null;
+        await waitFor(() => { if (!root) art = findArticle(t.id) || art; ctl = translateControl(art); return ctl; }, 5000);
+        if (!ctl) {
+          state.translateProbe = { id: t.id, lang: t.lang || '', words: (((art.querySelector('[data-testid="tweetText"]') || {}).innerText) || '').slice(0, 50),
+            controls: [...art.querySelectorAll('[role="button"], button, a[href]')].map((b) => ((b.getAttribute('aria-label') || b.textContent || '').trim()).slice(0, 30)).filter(Boolean).slice(0, 16) };
+          return { why: 'X offers no translation for this one (or its button isn’t one we can tell).' };
+        }
         fire(ctl);
       }
       const got = await waitFor(done, 7000);

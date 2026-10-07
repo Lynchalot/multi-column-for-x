@@ -1765,6 +1765,18 @@ browserTest('translation works when X is in another interface language (its butt
   });
 }, 120000);
 
+browserTest('Translate waits for X to draw its Translate control (it appears a moment after the post opens)', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => { window.__xlLate = 2500; });
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.lang === 'ja' && x.el && x.el.isConnected && x.el.querySelector('.xmc-translate')).el.querySelector('.xmc-translate').click());
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-xlate:not([hidden])', { timeout: 30000 });
+  });
+}, 120000);
+
 browserTest('when X offers no translation, the button says so and then opens the post on X', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {
