@@ -225,6 +225,57 @@ browserTest('Translate post on a card opens that post\'s panel, not a new tab', 
   });
 });
 
+browserTest('the panel and the photo viewer work from the keyboard: Tab stays inside, Enter opens a photo, Esc gives the focus back', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    // open a post's panel from a focused button, as a keyboard user would
+    await page.evaluate(() => { const b = document.querySelector('.xmc-card .xmc-translate'); b.id = 'xmc-test-opener'; b.focus(); });
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.xmc-view .xmc-vpanel');
+    const dlg = await page.evaluate(() => { const v = document.querySelector('.xmc-view'); return { role: v.getAttribute('role'), modal: v.getAttribute('aria-modal'), label: v.getAttribute('aria-label') }; });
+    assert.equal(dlg.role, 'dialog'); assert.equal(dlg.modal, 'true'); assert.match(dlg.label, /^Post by /);
+    // Tab many times: the focus never leaves the panel
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.press(i % 7 === 6 ? 'Shift+Tab' : 'Tab');
+      assert.ok(await page.evaluate(() => !!document.activeElement.closest('.xmc-view')), 'focus left the panel on press ' + i);
+    }
+    // a photo can be opened with Enter, and Esc closes only the viewer, giving the focus back to the photo
+    const hasPhoto = await page.evaluate(() => { const p = document.querySelector('.xmc-view [data-lb]'); if (p) p.focus(); return !!p; });
+    if (hasPhoto) {
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('#xmc-lightbox');
+      assert.equal(await page.evaluate(() => document.getElementById('xmc-lightbox').getAttribute('role')), 'dialog');
+      await page.keyboard.press('Tab'); await page.keyboard.press('Tab'); await page.keyboard.press('Tab');
+      assert.ok(await page.evaluate(() => !!document.activeElement.closest('#xmc-lightbox')), 'Tab left the viewer');
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.getElementById('xmc-lightbox'));
+      assert.ok(await page.evaluate(() => !!document.querySelector('.xmc-view')), 'the panel stayed open');
+    }
+    await page.evaluate(() => document.querySelector('.xmc-vclose').focus());
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
+    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.id), 'xmc-test-opener', 'the focus went back to where it was');
+  });
+});
+
+browserTest('a photo on a card opens from the keyboard and Esc returns the focus to it', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { const p = document.querySelector('.xmc-card [data-lb]'); p.id = 'xmc-test-photo'; p.focus(); });
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('#xmc-lightbox');
+    assert.ok(await page.evaluate(() => !!document.activeElement.closest('#xmc-lightbox')), 'focus moved into the viewer');
+    for (let i = 0; i < 8; i++) { await page.keyboard.press('Tab'); assert.ok(await page.evaluate(() => !!document.activeElement.closest('#xmc-lightbox')), 'Tab left the viewer'); }
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('xmc-lightbox'));
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'xmc-test-photo');
+  });
+});
+
 browserTest('the settings page has no leftovers', async (e) => {
   const h = await e.open('/ext/options.html');
   await checked(h, async () => {

@@ -301,7 +301,8 @@
 
   // ---------- tiny DOM helpers ----------
   const h = (tag, props, ...kids) => {
-    const n = Object.assign(document.createElement(tag), props || {});
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(props || {})) { if (k.startsWith('aria-')) n.setAttribute(k, v); else n[k] = v; } // aria-* are attributes, not properties
     n.append(...kids.filter((k) => k !== null && k !== undefined && k !== false));
     return n;
   };
@@ -471,7 +472,7 @@
       if (m.type === 'photo') {
         box.classList.add('xmc-loading'); // a quiet tint until the picture has arrived, then it fades in
         node = h('img', { src: photoUrl(m.thumb, n === 1 ? 'large' : 'medium'), alt: m.alt, loading: 'eager', decoding: 'async' }); // the card is only drawn a few screens ahead, so loading now keeps photos from sitting black while you scroll
-        node.dataset.lb = String(photoIdx++);
+        node.dataset.lb = String(photoIdx++); node.tabIndex = 0; node.setAttribute('role', 'button'); node.setAttribute('aria-label', 'Open photo');
         const arrived = () => box.classList.remove('xmc-loading');
         node.addEventListener('load', arrived); node.addEventListener('error', arrived); setTimeout(arrived, 8000);
       } else node = renderVideo(m, t);
@@ -914,7 +915,18 @@
     guard('render', renderFeed);
   }
   const setCols = (n) => setLayout({ cols: Math.max(0, Math.min(8, n)) });
+  // Tab stays inside whatever is open over the page (the viewer, else the panel), so it never walks into the covered feed
+  function trapTab(e, box) {
+    const items = [...box.querySelectorAll('button, a[href], textarea, input, select, [tabindex="0"]')].filter((x) => !x.disabled && !x.closest('[hidden]') && x.getClientRects().length);
+    if (!items.length) { e.preventDefault(); return; }
+    const first = items[0], last = items[items.length - 1], now = document.activeElement;
+    if (!box.contains(now)) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && now === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && now === last) { e.preventDefault(); first.focus(); }
+  }
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) { const open = lightbox ? lightbox.el : postView ? postView.el : null; if (open) trapTab(e, open); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.dataset && e.target.dataset.lb !== undefined && e.target.getAttribute('role') === 'button') { e.preventDefault(); e.target.click(); }
     if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else closePostView(); } }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
     if (lightbox && e.key === 'ArrowLeft') stepLightbox(-1);
@@ -2217,10 +2229,12 @@
     const tools = h('div', { className: 'xmc-lb-tools', onclick: (e) => e.stopPropagation() },
       h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Download this image', onclick: () => downloadMedia(t, lightbox && lightbox.photos[lightbox.i]) }, icon('download')),
       h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Copy link to the post', onclick: () => copyLink(t) }, icon('link')));
-    const el = h('div', { id: 'xmc-lightbox', onclick: closeLightbox }, img, prev, next, close, tools);
+    const el = h('div', { id: 'xmc-lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Photo', onclick: closeLightbox }, img, prev, next, close, tools);
+    const was = document.activeElement;
     img.addEventListener('click', (e) => e.stopPropagation());
-    lightbox = { el, img, photos, i: start, prev, next };
+    lightbox = { el, img, photos, i: start, prev, next, was };
     document.body.append(el);
+    close.focus({ preventScroll: true });
     document.documentElement.classList.add('xmc-viewer'); // lets the page hook route Escape/arrows to us
     stepLightbox(0);
   }
@@ -2232,7 +2246,7 @@
     L.prev.hidden = L.i === 0; L.next.hidden = L.i === L.photos.length - 1;
   }
   function closeLightbox() {
-    if (lightbox) { lightbox.el.remove(); lightbox = null; }
+    if (lightbox) { const was = lightbox.was; lightbox.el.remove(); lightbox = null; if (was && was.isConnected) was.focus({ preventScroll: true }); }
     document.documentElement.classList.remove('xmc-viewer');
   }
 
@@ -2240,12 +2254,13 @@
   // Opens a post over the columns: its pictures at full size on one side, the words, actions and comments on the other. Esc, the
   // backdrop or the cross closes it and the columns are exactly as they were; the arrow keys go to the next or previous post.
   let postView = null; // { t, el, panel, side }
+  let panelOpener = null; // what had the keyboard focus when the panel opened, so closing it gives the focus back
   function viewMedia(t) {
     let photo = 0;
     return t.media.map((m) => {
       const box = h('div', { className: 'xmc-vm' + (t.sensitive ? ' sensitive' : '') });
       if (m.type === 'photo') {
-        const img = h('img', { src: photoUrl(m.thumb, 'large'), alt: m.alt || '', decoding: 'async' }); img.dataset.lb = String(photo++);
+        const img = h('img', { src: photoUrl(m.thumb, 'large'), alt: m.alt || '', decoding: 'async' }); img.dataset.lb = String(photo++); img.tabIndex = 0; img.setAttribute('role', 'button'); img.setAttribute('aria-label', 'Open photo full size');
         box.classList.add('xmc-loading');
         const arrived = () => box.classList.remove('xmc-loading');
         img.addEventListener('load', arrived); img.addEventListener('error', arrived); setTimeout(arrived, 8000);
@@ -2374,6 +2389,7 @@
     const parent = opts && opts.parent;
     trace('panel-open', t.id + (parent ? ' (comment)' : '') + (postView ? ' (switch)' : ''));
     const reopen = !!postView;
+    if (!reopen) panelOpener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
     closePostView(reopen, reopen);
     closeMenu();
     // a comment without a picture of its own keeps the post's picture beside it, so the panel does not change shape when you step in and out
@@ -2384,7 +2400,7 @@
     const panel = h('div', { className: 'xmc-vpanel' + (media ? '' : ' single') }, media, side);
     const idx = view.cards.indexOf(t);
     const nav = (d, ic, label) => h('button', { className: 'xmc-vnav ' + (d < 0 ? 'prev' : 'next'), type: 'button', title: label, hidden: idx < 0 || !view.cards[idx + d], onclick: (e) => { e.stopPropagation(); stepPostView(d); } }, icon(ic));
-    const el = h('div', { className: 'xmc-view' + (still ? ' xmc-still' : '') }, panel, nav(-1, 'prev', 'Previous post (\u2190)'), nav(1, 'next', 'Next post (\u2192)'),
+    const el = h('div', { className: 'xmc-view' + (still ? ' xmc-still' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Post by ' + t.author.name }, panel, nav(-1, 'prev', 'Previous post (\u2190)'), nav(1, 'next', 'Next post (\u2192)'),
       h('button', { className: 'xmc-vclose', type: 'button', title: 'Close (Esc)' }, icon('close')));
     el.addEventListener('click', (e) => {
       if (e.target === el || e.target.closest('.xmc-vclose')) { closePostView(); return; }
@@ -2453,6 +2469,8 @@
     pagers.clear(); // no panel, no more comments to fetch for it (a visit under way for them stops at its next step)
     const el = postView.el;
     postView = null;
+    if (!instant && panelOpener && panelOpener.isConnected && el.contains(document.activeElement)) panelOpener.focus({ preventScroll: true }); // keyboard user: back to the button they pressed
+    if (!instant) panelOpener = null;
     if (!instant && !matchMedia('(prefers-reduced-motion: reduce)').matches) { el.classList.add('xmc-out'); setTimeout(() => el.remove(), 90); } else el.remove(); // switching posts or comments inside the panel: no second backdrop while the first fades
     if (!keepHistory && window.history.state && window.history.state.xmcView) stepBack(); // take our own history entry away again
   }

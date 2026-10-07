@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.3
+- **The panel and the photo viewer work from the keyboard.** Both are now dialogs: Tab and Shift+Tab stay inside them instead of walking into the feed behind, closing one gives the focus back to the button or photo you opened it from, and the viewer takes the focus when it opens. Photos on cards and in the panel can be focused and opened with Enter or Space.
+- Labels set with `aria-*` (the loading placeholders' `aria-hidden` among them) were being set as plain properties and so did nothing; they are now real attributes.
+
 ## 0.26.2
 - **A tab switch on a slow connection no longer leaves you on the old feed.** If the tab you switched to took more than 12 seconds to load, the extension stopped waiting and, when its posts did arrive, never showed them (X's tab said For you, the columns still showed Following). It now takes that feed when it turns up, for two minutes after giving up.
 - **A reply's panel no longer jumps when the post it answers arrives.** Room is kept for it (a grey placeholder) and the real post swaps in; it was pushing the post's own words down by its height.
