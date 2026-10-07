@@ -489,6 +489,7 @@
   }
   function renderQuote(q) {
     if (q.unavailable) return h('div', { className: 'xmc-quote xmc-dim', textContent: 'This post is unavailable.' });
+    noteQuote(q);
     const first = q.media[0];
     const box = h('div', { className: 'xmc-quote' },
       h('div', { className: 'xmc-qhead' },
@@ -1330,7 +1331,7 @@
       trace: TRACE.slice(-120),
       commentTimes: state.commentTimes || [],
       commentFailures: state.commentFailures || [],
-      commentsInProgress: state.peek ? state.peek.id : null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
+      commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       floating: floatingReport(),
       corner: cornerReport(),
@@ -1410,19 +1411,28 @@
   const settleProxy = () => { state.proxyUntil = Date.now() + 800; };
   async function withReal(t, fn) {
     try {
-      const art = await realArticle(t);
-      if (!art) return false;
-      await fn(art);
-      return true;
+      const art = await realArticle(t, 3500);
+      if (art) { await fn(art); return true; }
+      // a post that is not in X's list (one seen only as a quote, or one X has not drawn): its own page has the same buttons
+      if (!t.url) return false;
+      let done = false;
+      await inQueue(() => visitPost(t, {}, {}, async ({ opened }) => {
+        if (!opened) return;
+        const page = await waitFor(() => findArticle(t.id), 6000);
+        if (page) { await fn(page); await sleep(500); done = true; }
+      }));
+      return done;
     } finally { settleProxy(); }
   }
   const normHref = (s) => String(s || '').split('?')[0].toLowerCase();
   // the link on a post's time stamp, found by the post's number (exact), not by how X spells the handle
   const timeLinkOf = (art, id) => [...art.querySelectorAll('a[href]')].find((a) => idOfHref(a.getAttribute('href')) === id && a.querySelector('time'));
   // a link to a post we already have opens in the panel; anything else (a profile, a post we haven't seen) in a new tab
+  const quoteById = new Map(); // posts seen only as a quote inside another post: they open in the panel too
+  const noteQuote = (q) => { if (q && q.id && q.author) { quoteById.delete(q.id); quoteById.set(q.id, q); while (quoteById.size > 400) quoteById.delete(quoteById.keys().next().value); } };
   function openHref(href) {
     const m = /^\/[^/]+\/status\/(\d+)\/?$/.exec(new URL(href, location.origin).pathname);
-    const tw = m && state.byId.get(m[1]);
+    const tw = m && (state.byId.get(m[1]) || quoteById.get(m[1]));
     if (tw && tw.author) { openPostView(tw); return true; }
     window.open(new URL(href, location.origin).href, '_blank', 'noopener');
     return false;
@@ -1610,6 +1620,21 @@
   // The next page of a post's comments: X sends one more page of them when its own post page is scrolled down, so the hidden
   // page is taken to the post and scrolled, in steps, until a page arrives (merged into state.details by onResponse).
   const moreInflight = new Map();
+  // X no longer sends the next comments just because its page is scrolled: at the foot of the conversation it puts a button
+  // ("See all comments" and the like). It is found by its place (the last cells of the conversation: no post in it, one button, a few
+  // words), not by its wording, so it works in any interface language; what it says is kept in the diagnostics.
+  function showMoreCell() {
+    const cells = [...document.querySelectorAll('[data-testid="cellInnerDiv"]')];
+    state.moreProbe = cells.slice(-4).map((c) => (c.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 40));
+    for (let i = cells.length - 1; i >= 0 && i >= cells.length - 4; i--) {
+      const c = cells[i];
+      if (c.querySelector('article, [data-testid="UserCell"], a[href], input, textarea')) continue;
+      const btns = [...c.querySelectorAll('[role="button"], button')];
+      const txt = (c.innerText || '').trim();
+      if (btns.length === 1 && txt.length >= 4 && txt.length <= 60) return { btn: btns[0], txt };
+    }
+    return null;
+  }
   function loadMoreReplies(t) {
     const d = state.details.get(t.id);
     if (!d || !d.more) return Promise.resolve({ added: [], more: false });
@@ -1617,13 +1642,18 @@
     const had = d.replies.length;
     const run = inQueue(() => visitPost(t, {}, d, async ({ opened }) => {
       if (!opened) return { why: 'X didn’t open the post.' };
-      const end = Date.now() + 12000; // X sends the first page again, then the later ones: scroll on until one with new comments comes
+      const end = Date.now() + 6000; // X sends the first page again, then the later ones: scroll on until one with new comments comes
       let top = 0;
+      const pressed = new Set();
       while (Date.now() < end && state.peek && !state.peek.fresh && !repliesWaiting && pagers.has(t.id)) { // (gives way if another post's comments are waiting, or the panel has gone)
         top = Math.min(top + innerHeight * 1.2, document.documentElement.scrollHeight);
         window.scrollTo(0, top);
         await sleep(250);
-        if (top >= document.documentElement.scrollHeight - innerHeight) { window.scrollTo(0, document.documentElement.scrollHeight); top = 0; await sleep(400); } // at the foot: let X's own "load more" notice it
+        if (top >= document.documentElement.scrollHeight - innerHeight) { // at the foot: X's own button for the rest, if it has put one there
+          window.scrollTo(0, document.documentElement.scrollHeight); top = 0; await sleep(400);
+          const cell = showMoreCell();
+          if (cell && !pressed.has(cell.txt)) { pressed.add(cell.txt); trace('more', 'pressed X’s “' + cell.txt + '”'); fire(cell.btn); await sleep(400); }
+        }
       }
       return state.peek && state.peek.fresh ? { ok: true } : { why: 'X sent no more comments.' };
     })).then((res) => {
@@ -1669,7 +1699,7 @@
       h('div', { className: 'xmc-rbody' },
         h('div', { className: 'xmc-rtop' },
           h('a', { className: 'xmc-name', href: '/' + r.author.handle, target: '_blank', rel: 'noopener', textContent: r.author.name }), badge(r.author),
-          h('span', { className: 'xmc-dim', textContent: ' @' + r.author.handle + ' \u00b7 ' + relTime(r.createdAt) })),
+          h('span', { className: 'xmc-dim', textContent: ' @' + r.author.handle + ' \u00b7 ' }), h('a', { className: 'xmc-dim xmc-rtime', href: new URL(r.url, location.origin).href, target: '_blank', rel: 'noopener', title: 'Open this comment on X', textContent: relTime(r.createdAt) })),
         text,
         xl,
         medias,
@@ -1702,11 +1732,10 @@
       panel.append(h('div', { className: 'xmc-dim xmc-rempty', textContent: (res && res.why) || 'Try again in a moment.' }));
       panel.append(h('div', { className: 'xmc-rfoot' }, btn('Try again', '', () => reloadComments(panel, t), 'xmc-rbtn'), btn('Report a problem', '', () => reportProblem(), 'xmc-rbtn')));
     }
-    const more = h('button', { className: 'xmc-rbtn', type: 'button', textContent: 'Open conversation' });
-    more.dataset.act = 'conversation';
-    const foot = h('div', { className: 'xmc-rfoot' }, more);
+    const foot = h('div', { className: 'xmc-rfoot', hidden: true }); // (where the "loading more" line goes)
     panel.append(foot);
-    if (d && d.more && !focal) pageComments(panel, t, foot);
+    // X says a post has this many replies (direct ones): once that many are here there is nothing to wait for, whatever its cursor says
+    if (d && d.more && !focal && !(t.counts.reply && d.replies.filter((x) => !(x.depth > 0)).length >= t.counts.reply)) pageComments(panel, t, foot);
   }
   // More comments as you scroll down: when the end of the list comes into view the next page is fetched (see loadMoreReplies) and
   // added below, without disturbing where you are. Whatever has been merged into the stored conversation and is not drawn yet is
@@ -1736,9 +1765,9 @@
       const cur = flush();
       if (!cur) return;
       if (!cur.more) { finish(); return; }
-      if (!res.ok) { // X sent nothing this time
+      if (!res.ok) { // X sent nothing this time: say so, and offer the rest where X keeps it
         if (io) io.disconnect();
-        sent.replaceChildren(h('span', { className: 'xmc-dim', textContent: (res.why || 'Couldn’t load more.') + ' ' }), btn('Try again', '', () => { io.observe(sent); more(); }, 'xmc-rbtn'));
+        sent.replaceChildren(h('span', { className: 'xmc-dim', textContent: 'That is all X sends here. ' }), btn('See all comments on X', '', () => openOnX(t), 'xmc-rbtn'), btn('Try again', '', () => { sent.replaceChildren(...note()); io.observe(sent); more(); }, 'xmc-rbtn'));
         return;
       }
       io.unobserve(sent); io.observe(sent); // still more: asked again if the end is still in view
@@ -2375,8 +2404,9 @@
     }
     if (parent) side.append(h('button', { className: 'xmc-vback', type: 'button', title: 'Back to the post (Esc)', onclick: (e) => { e.stopPropagation(); openPostView(parent, true); } }, icon('prev'), h('span', { textContent: 'Back to @' + parent.author.handle + '\u2019s post' })));
     side.append(ctxHost);
-    const sub = h('div', { className: 'xmc-sub' }, '@' + t.author.handle + ' \u00b7 ',
-      h('a', { className: 'xmc-time xmc-nav', href: t.url, title: new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt) }));
+    const sub = h('div', { className: 'xmc-sub' }, '@' + t.author.handle + ' \u00b7 ', // the time is a real link to the post on X, as on every social site
+      h('a', { className: 'xmc-time', href: new URL(t.url, location.origin).href, target: '_blank', rel: 'noopener', title: 'Open this post on X \u00b7 ' + new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt),
+        onclick: (e) => { if (settings.openIn === 'sametab' && !(e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); openOnX(t); } } }));
     side.append(h('div', { className: 'xmc-head' },
       h('a', { className: 'xmc-avatar xmc-nav', href: '/' + t.author.handle }, h('img', { src: t.author.avatar, alt: '' })),
       h('div', { className: 'xmc-who' }, h('a', { className: 'xmc-name xmc-nav', href: '/' + t.author.handle }, t.author.name, badge(t.author)), sub)));
@@ -2441,6 +2471,11 @@
     const parent = opts && opts.parent;
     trace('panel-open', t.id + (parent ? ' (comment)' : '') + (postView ? ' (switch)' : ''));
     const reopen = !!postView;
+    // a video of this post that is playing (or previewing) behind the panel hands over to the panel's own: the one behind stops, the
+    // panel's starts where it was; any other video that is playing stops too, so two never play at once
+    const live = [...document.querySelectorAll('video')].find((v) => !v.paused && !v.dataset.gif);
+    const carry = live && !reopen && t.el && t.el.contains(live) ? { at: live.currentTime, muted: live.muted && live.dataset.preview !== '1' } : null;
+    for (const v of document.querySelectorAll('video')) if (!v.paused && !v.dataset.gif) { delete v.dataset.preview; v.pause(); }
     if (!reopen) panelOpener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
     closePostView(reopen, reopen);
     closeMenu();
@@ -2491,6 +2526,14 @@
       watchBlur();
     }
     updateActions(t);
+    if (carry) {
+      const pv = el.querySelector('.xmc-vmediapane video:not([data-gif])');
+      if (pv) {
+        try { pv.currentTime = carry.at; } catch { /* not seekable yet */ }
+        pv.muted = carry.muted; if (!carry.muted && !pv.volume) pv.volume = 1;
+        pv.play().catch(() => { pv.muted = true; pv.play().catch(() => {}); }); // (if the browser wants a press first, it plays without sound)
+      }
+    }
     if (opts && opts.translate) { const xb = side.querySelector(':scope > .xmc-translate'); if (xb) setTimeout(() => xb.click(), 0); }
     const first = el.querySelector('.xmc-vclose'); if (first && !focusBox) first.focus({ preventScroll: true });
     if (!settings.hintSeen) dismissHint();
@@ -2561,7 +2604,7 @@
   }
   async function translateOnX(t, root) {
     if (translations.has(t.id)) return { ok: true, ...translations.get(t.id) };
-    const run = inQueue(() => visitPost(root || t, {}, {}, async ({ opened }) => {
+    const attempt = () => inQueue(() => visitPost(root || t, {}, {}, async ({ opened }) => {
       if (!opened) return { why: 'X didn’t open the post.' };
       const art = root ? await mountComment(t.id) : await waitFor(() => findArticle(t.id), 6000);
       if (!art) return { why: 'Couldn’t find the post on X’s page.' };
@@ -2580,13 +2623,15 @@
       const from = (/translated from\s+([^·\n.]+)/i.exec(art.textContent || '') || [])[1]; // (only when X says it in English)
       return { ok: true, text: got, from: from ? from.trim() : '' };
     }));
-    const res = await run;
+    let res = await attempt();
+    // X not opening or not drawing the post is usually a passing thing: one more go before the person is told
+    if (res && !res.ok && /didn’t open|find the post/.test(res.why || '')) { trace('translate', 'retry ' + t.id + ' (' + res.why + ')'); res = await attempt(); }
     if (res && res.ok) translations.set(t.id, { text: res.text, from: res.from });
     return res || { why: 'Something went wrong.' };
   }
   // The button under a post's or comment's words: translates in place, then switches between the translation and the original
   function wireTranslate(button, wordsEl, t, root) {
-    let shown = null, failed = false; // (the translated copy is only made when there is one)
+    let shown = null, failed = false, fails = 0; // (the translated copy is only made when there is one)
     const paint = (on) => { shown.hidden = !on; wordsEl.hidden = on; button.textContent = on ? 'Show original' : 'Show translation'; };
     const show = (tr) => {
       if (!shown) { shown = h('div', { className: wordsEl.className + ' xmc-xlate' }); wordsEl.after(shown); }
@@ -2603,8 +2648,9 @@
       const res = await translateOnX(t, root);
       button.disabled = false;
       if (res.ok) { show(res); return; }
-      failed = true; button.textContent = 'Translate on X'; button.title = res.why + ' This opens the post on X.';
-      toast(res.why || 'Couldn\u2019t translate here.');
+      fails++;
+      if (fails < 2) { button.textContent = 'Try translating again'; button.title = res.why || ''; toast((res.why || 'Couldn\u2019t translate here.') + ' Press the button to try again.'); }
+      else { failed = true; button.textContent = 'Translate on X'; button.title = res.why + ' This opens the post on X.'; toast(res.why || 'Couldn\u2019t translate here.'); }
       trace('translate', 'FAILED ' + t.id + ' ' + (res.why || ''));
     });
   }
@@ -2751,6 +2797,17 @@
   // Sound: pressing on a video that is only previewing keeps it playing and turns the sound ON (you pressed it to watch it);
   // the speaker button over the picture turns it on or off, and starts the video if it was stopped.
   const soundOn = (v) => { v.muted = false; if (!v.volume) v.volume = 1; };
+  // takes a previewing video over: from the beginning, with sound. The player's own controls may also read the press as "pause"
+  // (some browsers do, whatever the page cancels), so for a moment after it a pause is undone.
+  function takeOver(v) {
+    delete v.dataset.preview;
+    soundOn(v);
+    try { v.currentTime = 0; } catch { /* not seekable yet */ }
+    v.play().catch(() => {});
+    const keep = () => { if (v.paused) v.play().catch(() => {}); };
+    v.addEventListener('pause', keep);
+    setTimeout(() => v.removeEventListener('pause', keep), 700);
+  }
   colsEl.addEventListener('click', (e) => {
     const snd = e.target.closest && e.target.closest('.xmc-snd');
     if (snd) {
@@ -2762,7 +2819,7 @@
       return;
     }
     const v = e.target.closest && e.target.closest('video');
-    if (v && v.dataset.preview === '1') { e.preventDefault(); e.stopPropagation(); delete v.dataset.preview; soundOn(v); } // keep playing, now with sound
+    if (v && v.dataset.preview === '1') { e.preventDefault(); e.stopPropagation(); takeOver(v); } // from the beginning, with sound
   }, true);
   colsEl.addEventListener('pointerover', (e) => {
     const card = e.target.closest && e.target.closest('.xmc-card');

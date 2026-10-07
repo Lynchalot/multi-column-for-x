@@ -607,3 +607,4 @@ html.xmc-frozen #xmc-pill { visibility: visible !important; }
 
 /* the speaker button over a video: the one icon for what a press does (off: sound is off, so it shows the crossed speaker) */
 .xmc-snd .snd-on { display: none; } .xmc-snd.on .snd-on { display: block; } .xmc-snd.on .snd-off { display: none; }
+.xmc-vside a.xmc-rtime, .xmc-vside a.xmc-time { color: inherit; } .xmc-vside a.xmc-rtime:hover, .xmc-vside a.xmc-time:hover { text-decoration: underline; }

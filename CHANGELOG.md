@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.27.2
+- **"Loading more comments…" no longer spins for a post whose comments are all there.** Your recording showed a post with 4 comments, all 4 on screen, and the spinner going anyway (X still sent a cursor). The line now appears only while fewer direct replies are shown than the post's own count says it has, and it gives up after 6 seconds, not 12, with "See all comments on X" instead of an endless spinner. If X puts a button at the foot of a conversation for the rest (as you described), it is pressed (found by where it sits, so any language), and what it says goes into Copy diagnostics (`moreProbe`) so it can be matched properly.
+- **The "Open conversation" button is gone. The time on a post in the panel is a link to the post on X**, as on any social site (and the time on a comment is a link to that comment). "Prefer one tab" is respected.
+- **A quoted post opens in the panel**, not a new tab (it was treated as a post we hadn't seen). Its comments load, and like and bookmark work on it, through its own page.
+- **Pressing a previewing video plays it from the start, with sound.** Some browsers' own controls read that press as "pause"; a pause in the moment after it is undone.
+- **Opening a post whose video is playing hands the video over:** the one behind stops and the panel's plays from the same place.
+- **Translate** tries once more by itself when X didn't open or draw the post, and after a failure the button says "Try translating again" before it offers "Translate on X".
+
 ## 0.27.1
 - **Comments and Translate no longer fail on posts X hasn't drawn in its hidden list.** Your diagnostics showed it: X's list is virtual and does not always draw a post far down the feed, and the extension hunted for it for about 11 seconds, then gave up with "Couldn't find this post on X's side" without ever asking X's router to open it. It now looks for 3.5 seconds, then goes straight to the router. A visit that fails is now written to the diagnostics (before, this particular failure left no trace, which is why `commentFailures` was empty).
 - **Videos: pressing on a hover preview now turns the sound on** (it used to keep playing muted, so a second press paused it). A **speaker button** sits with Like, Repost, Bookmark and Download over the picture: sound on or off, and it starts the video if it was stopped. The preview no longer stops when the pointer moves from the video onto those buttons.

@@ -1544,19 +1544,116 @@ browserTest('a post X never draws in its hidden list still gets its comments, th
   });
 }, 90000);
 
+browserTest('when X puts a "see all comments" button at the foot of the conversation, the next page is asked for through it', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { window.__needButton = true; });
+    await page.evaluate(() => { const t = window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected); t.counts.reply = 500; t.el.querySelector(':scope > .xmc-text').click(); }); // (a post with far more replies than the first page)
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 25000 });
+    const items = () => page.locator('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem').count();
+    const first = await items();
+    await page.evaluate(() => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); s.scrollTop = s.scrollHeight; });
+    await page.waitForFunction((n) => document.querySelectorAll('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem').length > n, first, { timeout: 30000 });
+    assert.ok((await page.evaluate(() => window.__btn)) >= 1, 'X\'s button was pressed');
+    assert.match(JSON.stringify(await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).moreProbe)), /See all comments/);
+  });
+}, 90000);
+
+browserTest('when X sends nothing more, the panel says so and offers the rest on X, instead of a spinner that never ends', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { window.__noPages = true; });
+    await page.evaluate(() => { const t = window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected); t.counts.reply = 500; t.el.querySelector(':scope > .xmc-text').click(); }); // (a post with far more replies than the first page)
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 25000 });
+    await page.evaluate(() => { const s = document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside'); s.scrollTop = s.scrollHeight; });
+    await page.waitForFunction(() => /See all comments on X/.test(document.querySelector('.xmc-view:not(.xmc-out) .xmc-rmore').innerText), null, { timeout: 40000 });
+    assert.equal(await page.locator('.xmc-view .xmc-rmore .xmc-spin, .xmc-view .xmc-rmore svg.spin').count(), 0, 'no spinner left');
+  });
+}, 90000);
+
+browserTest('opening a post whose video is playing hands the video over to the panel: the one behind stops, the panel\'s plays from the same place', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { // a player stood in for (this browser can't decode the test videos): what matters is who is asked to play and from where
+      const st = new WeakMap(), ct = new WeakMap(), proto = HTMLMediaElement.prototype;
+      Object.defineProperty(proto, 'paused', { get() { return st.has(this) ? st.get(this) : true; }, configurable: true });
+      Object.defineProperty(proto, 'currentTime', { get() { return ct.get(this) || 0; }, set(x) { ct.set(this, x); }, configurable: true });
+      proto.play = function () { st.set(this, false); return Promise.resolve(); };
+      proto.pause = function () { st.set(this, true); this.dispatchEvent(new Event('pause')); };
+    });
+    const card = await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector('video:not([data-gif])')); c.id = 'xmc-test-vcard'; const v = c.querySelector('video'); v.currentTime = 5; v.play(); return true; });
+    assert.ok(card);
+    await page.evaluate(() => document.querySelector('#xmc-test-vcard a.xmc-time').click());
+    await page.waitForSelector('.xmc-view .xmc-vmediapane video');
+    const r = await page.evaluate(() => ({ behind: document.querySelector('#xmc-test-vcard video').paused, panel: document.querySelector('.xmc-view .xmc-vmediapane video').paused, at: document.querySelector('.xmc-view .xmc-vmediapane video').currentTime }));
+    assert.deepEqual(r, { behind: true, panel: false, at: 5 });
+  });
+});
+
+browserTest('a quoted post inside a card opens in the panel, not a new tab, and its comments load', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
+    const id = await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector('.xmc-quote[data-href]')); const q = c.querySelector('.xmc-quote[data-href]'); q.click(); return q.dataset.href; });
+    assert.ok(id);
+    await page.waitForSelector('.xmc-view .xmc-vpanel');
+    assert.deepEqual(await page.evaluate(() => window.__opened), [], 'no new tab');
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 30000 });
+  });
+}, 90000);
+
+browserTest('the panel has no "Open conversation" button; its time is a link to the post on X, and so is a comment\'s', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 25000 });
+    assert.equal(await page.locator('.xmc-view:not(.xmc-out) .xmc-vside').getByText('Open conversation').count(), 0);
+    const hrefs = await page.evaluate(() => ({ post: document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-head a.xmc-time').href, target: document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-head a.xmc-time').target, comment: document.querySelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem a.xmc-rtime').href }));
+    assert.match(hrefs.post, /\/status\/\d+$/); assert.equal(hrefs.target, '_blank'); assert.match(hrefs.comment, /\/status\/\d+$/);
+  });
+}, 90000);
+
+browserTest('when every comment the post has is already shown, there is no "loading more" line at all', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { const t = window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected); t.counts.reply = 1; t.el.querySelector(':scope > .xmc-text').click(); });
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 25000 });
+    assert.equal(await page.locator('.xmc-view:not(.xmc-out) .xmc-rmore').count(), 0);
+  });
+}, 90000);
+
 browserTest('a video: pressing on its preview turns the sound on, and the speaker button over it turns it on and off', async (e) => {
   const h = await e.open('/home/');
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
-    await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); let paused = true; Object.defineProperty(v, 'paused', { get: () => paused }); v.play = () => { paused = false; return Promise.resolve(); }; v.pause = () => { paused = true; }; v.muted = true; });
+    await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); let paused = true, ct = 7; Object.defineProperty(v, 'paused', { get: () => paused }); Object.defineProperty(v, 'currentTime', { get: () => ct, set: (x) => { ct = x; } }); v.play = () => { paused = false; return Promise.resolve(); }; v.pause = () => { paused = true; v.dispatchEvent(new Event('pause')); }; v.muted = true; });
     const vid = page.locator('.xmc-card video:not([data-gif])').first();
     await vid.scrollIntoViewIfNeeded();
     await page.waitForTimeout(700);
     await vid.hover();
     await page.waitForFunction(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return !v.paused && v.muted; }, null, { timeout: 8000 });
     await vid.click({ position: { x: 20, y: 20 } });
-    assert.deepEqual(await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return { playing: !v.paused, muted: v.muted }; }), { playing: true, muted: false }, 'pressing the preview keeps it playing, with sound');
+    // the player's own controls may read that press as "pause": it is undone
+    await page.evaluate(() => document.querySelector('.xmc-card video:not([data-gif])').pause());
+    assert.deepEqual(await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return { playing: !v.paused, muted: v.muted, from: v.currentTime }; }), { playing: true, muted: false, from: 0 }, 'pressing the preview plays it from the start, with sound, and keeps it playing');
     // the speaker button: off, then on
     const snd = () => page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); const b = v.closest('.xmc-media').querySelector('.xmc-snd'); return { muted: v.muted, on: b.classList.contains('on') }; });
     assert.deepEqual(await snd(), { muted: false, on: true });
@@ -1573,7 +1670,7 @@ browserTest('comments in the panel keep coming as you scroll down, added below w
     const { page } = h;
     await e.ready(page);
     await page.waitForTimeout(1200);
-    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.evaluate(() => { const t = window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected); t.counts.reply = 500; t.el.querySelector(':scope > .xmc-text').click(); }); // (a post with far more replies than the first page)
     await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 25000 });
     const items = () => page.locator('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem').count();
     const first = await items();
@@ -1675,6 +1772,8 @@ browserTest('when X offers no translation, the button says so and then opens the
     await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; window.__noTranslate = true; });
     await page.evaluate(() => window.__xmc.view.cards.find((x) => x.lang === 'ja' && x.el && x.el.isConnected && x.el.querySelector('.xmc-translate')).el.querySelector('.xmc-translate').click());
     const btn = '.xmc-view:not(.xmc-out) .xmc-vside > .xmc-translate';
+    await page.waitForFunction((b) => document.querySelector(b) && document.querySelector(b).textContent === 'Try translating again', btn, { timeout: 30000 }); // the first failure offers another go
+    await page.locator(btn).click();
     await page.waitForFunction((b) => document.querySelector(b) && document.querySelector(b).textContent === 'Translate on X', btn, { timeout: 30000 });
     assert.deepEqual(await page.evaluate(() => window.__opened), [], 'nothing opened by itself');
     await page.locator(btn).click();
