@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Multi-Column for X",
-  "version": "0.27.2",
+  "version": "0.27.3",
   "description": "Your X (Twitter) timeline in multiple columns, with in-card video, filters and media download button.",
   "icons": {
     "48": "icons/icon.svg",

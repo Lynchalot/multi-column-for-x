@@ -1650,7 +1650,9 @@ browserTest('a video: pressing on its preview turns the sound on, and the speake
     await page.waitForTimeout(700);
     await vid.hover();
     await page.waitForFunction(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return !v.paused && v.muted; }, null, { timeout: 8000 });
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-card video:not([data-gif])').controls), false, 'no native controls while it only previews');
     await vid.click({ position: { x: 20, y: 20 } });
+    await page.waitForFunction(() => document.querySelector('.xmc-card video:not([data-gif])').controls === true, null, { timeout: 3000 }); // and they are back after the press
     // the player's own controls may read that press as "pause": it is undone
     await page.evaluate(() => document.querySelector('.xmc-card video:not([data-gif])').pause());
     assert.deepEqual(await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return { playing: !v.paused, muted: v.muted, from: v.currentTime }; }), { playing: true, muted: false, from: 0 }, 'pressing the preview plays it from the start, with sound, and keeps it playing');

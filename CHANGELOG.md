@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.27.3
+- **Video: no native controls while a video only previews.** Pressing a previewing video still paused it in Zen, so the page now takes the player's own controls away for the preview (nothing native is left to read the press as "pause") and gives them back a moment after the press. The press itself plays the video from the start, with sound. The diagnostics trace now has `video` lines (preview started, press, and any pause that followed it), so if this still misbehaves, Copy diagnostics will show what the browser did.
+
 ## 0.27.2
 - **"Loading more comments…" no longer spins for a post whose comments are all there.** Your recording showed a post with 4 comments, all 4 on screen, and the spinner going anyway (X still sent a cursor). The line now appears only while fewer direct replies are shown than the post's own count says it has, and it gives up after 6 seconds, not 12, with "See all comments on X" instead of an endless spinner. If X puts a button at the foot of a conversation for the rest (as you described), it is pressed (found by where it sits, so any language), and what it says goes into Copy diagnostics (`moreProbe`) so it can be matched properly.
 - **The "Open conversation" button is gone. The time on a post in the panel is a link to the post on X**, as on any social site (and the time on a comment is a link to that comment). "Prefer one tab" is respected.

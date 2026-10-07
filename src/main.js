@@ -2475,7 +2475,7 @@
     // panel's starts where it was; any other video that is playing stops too, so two never play at once
     const live = [...document.querySelectorAll('video')].find((v) => !v.paused && !v.dataset.gif);
     const carry = live && !reopen && t.el && t.el.contains(live) ? { at: live.currentTime, muted: live.muted && live.dataset.preview !== '1' } : null;
-    for (const v of document.querySelectorAll('video')) if (!v.paused && !v.dataset.gif) { delete v.dataset.preview; v.pause(); }
+    for (const v of document.querySelectorAll('video')) if (!v.paused && !v.dataset.gif) { delete v.dataset.preview; v.controls = true; v.pause(); }
     if (!reopen) panelOpener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
     closePostView(reopen, reopen);
     closeMenu();
@@ -2782,8 +2782,9 @@
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => {
       if (!v.isConnected || !v.matches(':hover') || !v.paused || v.ended || Date.now() - lastScrollAt < 400) return;
-      v.muted = true; v.dataset.preview = '1';
-      v.play().catch(() => { delete v.dataset.preview; });
+      v.muted = true; v.dataset.preview = '1'; v.controls = false; // (no controls while it only previews: nothing native is left to read a press as "pause")
+      trace('video', 'preview ' + (v.currentSrc || '').slice(-24));
+      v.play().catch(() => { delete v.dataset.preview; v.controls = true; });
     }, 350);
   });
   colsEl.addEventListener('pointerout', (e) => { // the preview lasts while the pointer is anywhere on the picture (the buttons over it included)
@@ -2791,7 +2792,7 @@
     if (!box || (e.relatedTarget && box.contains && box.contains(e.relatedTarget))) return;
     clearTimeout(previewTimer);
     for (const v of box.tagName === 'VIDEO' ? [box] : box.querySelectorAll('video')) {
-      if (v.dataset.preview === '1') { delete v.dataset.preview; v.pause(); v.muted = settings.videoMuted; v.volume = settings.volume; }
+      if (v.dataset.preview === '1') { delete v.dataset.preview; v.pause(); v.muted = settings.videoMuted; v.volume = settings.volume; v.controls = true; }
     }
   });
   // Sound: pressing on a video that is only previewing keeps it playing and turns the sound ON (you pressed it to watch it);
@@ -2804,9 +2805,12 @@
     soundOn(v);
     try { v.currentTime = 0; } catch { /* not seekable yet */ }
     v.play().catch(() => {});
-    const keep = () => { if (v.paused) v.play().catch(() => {}); };
+    const at = Date.now();
+    const keep = () => { trace('video', 'pause ' + (Date.now() - at) + 'ms after the press: undone'); if (v.paused) v.play().catch(() => {}); };
     v.addEventListener('pause', keep);
-    setTimeout(() => v.removeEventListener('pause', keep), 700);
+    trace('video', 'press: from the start, with sound');
+    setTimeout(() => { v.controls = true; }, 150); // the player's own controls come back once the press is over
+    setTimeout(() => v.removeEventListener('pause', keep), 1200);
   }
   colsEl.addEventListener('click', (e) => {
     const snd = e.target.closest && e.target.closest('.xmc-snd');
@@ -2814,7 +2818,7 @@
       e.preventDefault(); e.stopPropagation();
       const v = snd.closest('.xmc-media').querySelector('video:not([data-gif])');
       if (!v) return;
-      delete v.dataset.preview;
+      delete v.dataset.preview; v.controls = true;
       if (v.muted || !v.volume) { soundOn(v); if (v.paused) v.play().catch(() => {}); } else v.muted = true;
       return;
     }
