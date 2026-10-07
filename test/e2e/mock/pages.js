@@ -58,9 +58,9 @@ function render(){ const d=Math.abs(scrollY-lastY); lastY=scrollY; if(d>innerHei
   list.style.minHeight=(items.length*H)+'px';
   const first=Math.max(0,Math.floor((scrollY-600)/H)), last=Math.min(items.length-1,Math.ceil((scrollY+innerHeight+600)/H));
   const want=new Set(); for(let i=first;i<=last;i++) if(items[i]!=='ad') want.add(i);
-  [...list.children].forEach(c=>{ if(!want.has(+c.dataset.i)) c.remove() });
+  [...list.children].forEach(c=>{ if(window.__neverMount||!want.has(+c.dataset.i)) c.remove() });
   const have=new Set([...list.children].map(c=>+c.dataset.i));
-  for(const i of want) if(!have.has(i)) list.append(mk(items[i],i));
+  for(const i of want) if(!have.has(i)&&!window.__neverMount) list.append(mk(items[i],i));
   if(!done && okSteps>=2 && scrollY+innerHeight>=items.length*H-1500) load(false); }
 // a post link opens its page (the page keeps showing the list, like a router that has not repainted yet) and fetches the conversation
 window.__pg={}; const pv=document.createElement('div'); pv.id='postview'; pv.style.display='none'; list.after(pv);

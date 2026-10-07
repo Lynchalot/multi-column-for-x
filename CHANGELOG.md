@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.27.1
+- **Comments and Translate no longer fail on posts X hasn't drawn in its hidden list.** Your diagnostics showed it: X's list is virtual and does not always draw a post far down the feed, and the extension hunted for it for about 11 seconds, then gave up with "Couldn't find this post on X's side" without ever asking X's router to open it. It now looks for 3.5 seconds, then goes straight to the router. A visit that fails is now written to the diagnostics (before, this particular failure left no trace, which is why `commentFailures` was empty).
+- **Videos: pressing on a hover preview now turns the sound on** (it used to keep playing muted, so a second press paused it). A **speaker button** sits with Like, Repost, Bookmark and Download over the picture: sound on or off, and it starts the video if it was stopped. The preview no longer stops when the pointer moves from the video onto those buttons.
+- The pointer over the sides of a carousel picture is the ordinary pointer, not a resize arrow.
+
 ## 0.27.0
 - **A post with several pictures is a carousel in the panel.** One picture at a time, an arrow each side, a dot for each picture (the current one lit). The wheel over the pictures flicks between them, as it did before; the left or right third of a picture steps back or on (the pointer shows which way), and the middle opens it full size. Left and Right step the pictures while the focus is in them, and the posts anywhere else in the panel.
 - **The post arrows are solid white circles at the screen edges, and the backdrop behind the panel is darker (70%).**

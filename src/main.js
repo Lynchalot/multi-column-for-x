@@ -314,6 +314,8 @@
     bookmark: ['M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'],
     download: ['M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4', 'M7 10l5 5 5-5', 'M12 15V3'],
     done: ['M20 6L9 17l-5-5'],
+    sound: ['M11 5L6 9H2v6h4l5 4V5z', 'M15.5 8.5a5 5 0 0 1 0 7', 'M19 5a9 9 0 0 1 0 14'],
+    mute: ['M11 5L6 9H2v6h4l5 4V5z', 'M23 9l-6 6', 'M17 9l6 6'],
     link: ['M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7', 'M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'],
     more: ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'],
     menu: ['M4 6h16', 'M4 12h16', 'M4 18h16'],
@@ -559,6 +561,10 @@
   // like, repost, save and download, on the picture, shown when you point at it
   function hoverBar(t) {
     const bar = h('div', { className: 'xmc-hover' }, actionBtn('like', 'Like'), actionBtn('repost', T('repost')), actionBtn('bookmark', 'Bookmark'), actionBtn('download', 'Download media', 'download'));
+    if (t.media.some((m) => m.type === 'video')) { // sound on or off without touching the player
+      const off = icon('mute'), on = icon('sound'); off.classList.add('snd-off'); on.classList.add('snd-on');
+      bar.append(h('button', { className: 'xmc-act xmc-snd' + (!settings.videoMuted && settings.autoplayVideo !== 'muted' && settings.volume > 0 ? ' on' : ''), type: 'button', title: 'Sound on / off', 'aria-label': 'Sound on or off' }, off, on));
+    }
     return bar;
   }
   // the posts a reply is answering, oldest first (up to three): what X sent with it, what we have seen, or what was looked up
@@ -1379,14 +1385,16 @@
   // Get X to mount a tweet: its list is virtual, so walk the hidden page towards the tweet's position a couple of
   // screens at a time (we know its index in the feed; the distance is corrected by looking at what is mounted).
   // Leaping instead of walking leaves X's measurements of the posts in between wrong.
-  async function realArticle(t) {
+  async function realArticle(t, budget) { // budget: give up after this many ms (visits then ask X's router instead of hunting on)
     state.proxyUntil = Date.now() + 20000;
     let art = findArticle(t.id);
     if (art) return art;
+    const began = Date.now();
     const f = activeFeed();
     const idx = f && f.index.get(t.id);
     if (idx === undefined) return null;
     for (let i = 0; i < 70 && !art; i++) {
+      if (budget && Date.now() - began > budget) break;
       const here = articles().map((a) => f.index.get(articleId(a))).filter((n) => n !== undefined).sort((a, b) => a - b);
       let dy = here.length ? (idx - here[here.length >> 1]) * 520 : idx * 520 - window.scrollY;
       if (Math.abs(dy) < innerHeight * 0.5) dy = Math.sign(dy || 1) * innerHeight * 0.5;
@@ -1538,15 +1546,15 @@
     state.proxyUntil = Date.now() + 40000;
     freezeSidebar();
     try {
-      let art = await realArticle(t);
+      let art = await realArticle(t, 3500); // X's list is virtual and does not always draw a post far down it: after a few seconds, ask X's router instead
       T.found = Date.now();
-      if (!art) { why = 'post not on X’s side'; return { why: 'Couldn’t find this post on X’s side (it may have scrolled out of X’s list).' }; }
+      if (!art) why = 'post not on X’s side';
       const before = location.pathname;
       const opened = () => location.pathname !== before || (state.peek && state.peek.replies && !keep);
       // Press the post's link; X's list swaps its elements as the hidden page scrolls, so the link is found afresh each time.
       let pressed = null;
-      for (let attempt = 0; attempt < 2 && !opened(); attempt++) {
-        if (attempt) { art = findArticle(t.id) || await realArticle(t); if (!art) break; }
+      for (let attempt = 0; art && attempt < 2 && !opened(); attempt++) {
+        if (attempt) { art = findArticle(t.id) || await realArticle(t, 3500); if (!art) break; }
         const link = timeLinkOf(art, t.id);
         if (!link) { why = 'no link on the post'; continue; }
         if (link === pressed) break; // the very same link, already pressed twice: pressing it again would change nothing
@@ -1556,7 +1564,7 @@
         await waitFor(opened, 1800);
         if (!opened()) { link.click(); await waitFor(opened, 1200); } // a plain click as a second try
       }
-      if (!opened()) { // last resort: ask X's own router to go there
+      if (!opened()) { // last resort (and the way for a post X has not drawn): ask X's own router to go there
         try {
           window.history.pushState(null, '', t.url);
           routerPoke = true; // (our own popstate listener must not take this one for you pressing Back)
@@ -2667,6 +2675,8 @@
   colsEl.addEventListener('keydown', startAdjust, true);
   colsEl.addEventListener('pointerup', () => { clearTimeout(adjustTimer); adjustTimer = setTimeout(() => { adjusting = false; }, 400); }, true);
   colsEl.addEventListener('volumechange', (e) => {
+    const box = e.target.closest && e.target.closest('.xmc-media'), sb = box && box.querySelector('.xmc-snd');
+    if (sb) sb.classList.toggle('on', !e.target.muted && e.target.volume > 0);
     const v = e.target;
     if (!adjusting || !v || v.tagName !== 'VIDEO' || v.dataset.gif) return;
     if (settings.volume === v.volume && settings.videoMuted === v.muted) return;
@@ -2730,15 +2740,29 @@
       v.play().catch(() => { delete v.dataset.preview; });
     }, 350);
   });
-  colsEl.addEventListener('pointerout', (e) => {
-    const v = e.target.closest && e.target.closest('video');
-    if (!v || (e.relatedTarget && v.contains && v.contains(e.relatedTarget))) return;
+  colsEl.addEventListener('pointerout', (e) => { // the preview lasts while the pointer is anywhere on the picture (the buttons over it included)
+    const box = e.target.closest && (e.target.closest('.xmc-media') || e.target.closest('video'));
+    if (!box || (e.relatedTarget && box.contains && box.contains(e.relatedTarget))) return;
     clearTimeout(previewTimer);
-    if (v.dataset.preview === '1') { delete v.dataset.preview; v.pause(); v.muted = settings.videoMuted; v.volume = settings.volume; }
+    for (const v of box.tagName === 'VIDEO' ? [box] : box.querySelectorAll('video')) {
+      if (v.dataset.preview === '1') { delete v.dataset.preview; v.pause(); v.muted = settings.videoMuted; v.volume = settings.volume; }
+    }
   });
+  // Sound: pressing on a video that is only previewing keeps it playing and turns the sound ON (you pressed it to watch it);
+  // the speaker button over the picture turns it on or off, and starts the video if it was stopped.
+  const soundOn = (v) => { v.muted = false; if (!v.volume) v.volume = 1; };
   colsEl.addEventListener('click', (e) => {
+    const snd = e.target.closest && e.target.closest('.xmc-snd');
+    if (snd) {
+      e.preventDefault(); e.stopPropagation();
+      const v = snd.closest('.xmc-media').querySelector('video:not([data-gif])');
+      if (!v) return;
+      delete v.dataset.preview;
+      if (v.muted || !v.volume) { soundOn(v); if (v.paused) v.play().catch(() => {}); } else v.muted = true;
+      return;
+    }
     const v = e.target.closest && e.target.closest('video');
-    if (v && v.dataset.preview === '1') { e.preventDefault(); e.stopPropagation(); delete v.dataset.preview; v.muted = settings.videoMuted; v.volume = settings.volume; } // keep playing, now with sound
+    if (v && v.dataset.preview === '1') { e.preventDefault(); e.stopPropagation(); delete v.dataset.preview; soundOn(v); } // keep playing, now with sound
   }, true);
   colsEl.addEventListener('pointerover', (e) => {
     const card = e.target.closest && e.target.closest('.xmc-card');

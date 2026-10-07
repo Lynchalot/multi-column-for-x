@@ -1526,6 +1526,47 @@ browserTest('if X ignores the link press, the comments still load (X\'s router i
   });
 }, 90000);
 
+browserTest('a post X never draws in its hidden list still gets its comments, through X\'s router, in seconds not tens of seconds', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { window.__neverMount = true; });
+    await page.waitForFunction(() => !document.querySelector('[data-testid="primaryColumn"] article'), null, { timeout: 5000 });
+    const t0 = Date.now();
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 30000 });
+    assert.ok(Date.now() - t0 < 12000, 'comments took ' + (Date.now() - t0) + 'ms');
+    await page.waitForFunction(() => !window.__xmc.state.peek && location.pathname === '/home/', null, { timeout: 20000 });
+    const times = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).commentTimes);
+    assert.equal(times[times.length - 1].how, 'router');
+  });
+}, 90000);
+
+browserTest('a video: pressing on its preview turns the sound on, and the speaker button over it turns it on and off', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); let paused = true; Object.defineProperty(v, 'paused', { get: () => paused }); v.play = () => { paused = false; return Promise.resolve(); }; v.pause = () => { paused = true; }; v.muted = true; });
+    const vid = page.locator('.xmc-card video:not([data-gif])').first();
+    await vid.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(700);
+    await vid.hover();
+    await page.waitForFunction(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return !v.paused && v.muted; }, null, { timeout: 8000 });
+    await vid.click({ position: { x: 20, y: 20 } });
+    assert.deepEqual(await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return { playing: !v.paused, muted: v.muted }; }), { playing: true, muted: false }, 'pressing the preview keeps it playing, with sound');
+    // the speaker button: off, then on
+    const snd = () => page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); const b = v.closest('.xmc-media').querySelector('.xmc-snd'); return { muted: v.muted, on: b.classList.contains('on') }; });
+    assert.deepEqual(await snd(), { muted: false, on: true });
+    await page.evaluate(() => document.querySelector('.xmc-card video:not([data-gif])').closest('.xmc-media').querySelector('.xmc-snd').click());
+    assert.deepEqual(await snd(), { muted: true, on: false });
+    await page.evaluate(() => document.querySelector('.xmc-card video:not([data-gif])').closest('.xmc-media').querySelector('.xmc-snd').click());
+    assert.deepEqual(await snd(), { muted: false, on: true });
+  });
+});
+
 browserTest('comments in the panel keep coming as you scroll down, added below without moving what you are reading, until X has no more', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {
