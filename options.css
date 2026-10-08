@@ -20,7 +20,7 @@ h2 { margin: 36px 0 4px; font-size: 18px; padding-top: 8px; }
 .native-tag { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: 11px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; vertical-align: 1px; }
 input[type=text], input[type=number], select, textarea { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 textarea { min-height: 110px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
-input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
+input[type=checkbox], input[type=radio] { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
 .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
 button, .button { font: inherit; font-weight: 600; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: inherit; cursor: pointer; }
 button:hover, .button:hover { border-color: var(--accent); }

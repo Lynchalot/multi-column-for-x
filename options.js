@@ -120,12 +120,12 @@
   }
 
   // starting points: each sets a handful of settings and leaves the rest alone. The box ticked is the one that matches what is
-  // set now; "Custom" is ticked when none does.
+  // set now; "Custom" is the one picked when none does.
   function presetsBlock() {
     const wrap = h('div', { className: 'presets' });
     const current = S.PRESETS.find((p) => S.presetApplies(p, settings));
     const row = (id, label, blurb, on, apply) => {
-      const box = h('input', { type: 'checkbox', id: 'preset-' + id, checked: on });
+      const box = h('input', { type: 'radio', name: 'preset', id: 'preset-' + id, checked: on }); // (one of them: radio buttons, not boxes)
       box.addEventListener('change', () => { if (apply) apply(); else refreshPresets(); });
       return h('div', { className: 'item bool' }, box,
         h('div', {}, h('label', { className: 'name', htmlFor: 'preset-' + id, textContent: label }), blurb ? h('div', { className: 'help', textContent: blurb }) : null));

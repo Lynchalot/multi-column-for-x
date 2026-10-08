@@ -372,7 +372,7 @@ browserTest('a long session: far-off posts give their nodes back, and nothing mo
         firstBack: first.dataset.recycled !== '1' && !!first.querySelector('.xmc-text'), backDrift: Math.max(...back) };
     });
     assert.ok(r.cards >= 300, `only ${r.cards} posts`);
-    assert.ok(r.gone > 100, `only ${r.gone} posts were recycled`);
+    assert.ok(r.gone > r.cards * 0.2, `only ${r.gone} of ${r.cards} posts were recycled`); // (how many are far enough away depends on how far the loading got)
     assert.ok(r.nodes1 < r.nodes0 * 0.8, `nodes ${r.nodes0} -> ${r.nodes1}`);
     assert.ok(r.drift < 0.05, `a recycled post changed height by ${r.drift}px`);
     assert.ok(r.firstGone && r.firstEmpty, 'the first post, far above, was not recycled');
@@ -810,12 +810,12 @@ browserTest('the volume you set on a video is remembered for the next one', asyn
   });
 });
 
-browserTest('the settings page offers starting points as ticked boxes, and one applies', async (e) => {
+browserTest('the settings page offers starting points as radio buttons (one picked), and one applies', async (e) => {
   const h = await e.open('/ext/options.html');
   await checked(h, async () => {
     const { page } = h;
     await page.waitForSelector('#sec-presets #preset-calm');
-    assert.equal(await page.locator('#sec-presets input[type=checkbox]').count(), 4, 'three presets and Custom');
+    assert.equal(await page.locator('#sec-presets input[type=radio]').count(), 4, 'three presets and Custom');
     await page.locator('#preset-calm').check();
     await page.waitForFunction(() => document.getElementById('preset-calm').checked && !document.getElementById('preset-custom').checked);
     assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), true);
@@ -1724,6 +1724,44 @@ browserTest('a quoted post opened in the panel can be liked: X\'s own button is 
   });
 }, 90000);
 
+browserTest('the rows of icons line up from card to card, and a narrow card never cuts its counts off', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 900, settings: { v: 9, cols: 5 } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(800);
+    const r = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('.xmc-card')].filter((c) => c.getClientRects().length).map((c) => {
+        const a = c.querySelector('.xmc-actions'), card = c.getBoundingClientRect(), share = a.querySelector('[data-act="share"]').getBoundingClientRect();
+        return { share: Math.round(share.left - card.left), media: !!c.querySelector('[data-act="download"]'), over: a.scrollWidth > a.clientWidth + 1, quote: !!c.querySelector('.xmc-qlink'), w: Math.round(card.width) };
+      });
+      return rows;
+    });
+    assert.ok(r.length > 6);
+    const withMedia = r.filter((x) => x.media && !x.quote).map((x) => x.share), without = r.filter((x) => !x.media && !x.quote).map((x) => x.share);
+    assert.ok(withMedia.length && without.length, 'both kinds of card are on screen');
+    assert.ok(Math.max(...withMedia, ...without) - Math.min(...withMedia, ...without) <= 8, 'the link icon is in the same place on every card (to within the width of the digits in the counts): ' + [...withMedia, ...without].join(','));
+    assert.equal(r.filter((x) => x.over).length, 0, 'a row is wider than its card');
+    assert.ok(r.some((x) => x.quote), 'a card with a quote count is on screen');
+  });
+}, 90000);
+
+browserTest('in the panel the "More from" heading looks like the "Comments" heading, and the picture keeps a visible ring when the keyboard is on it', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 1); c.querySelector('a.xmc-time').click(); });
+    await page.waitForSelector('.xmc-view .xmc-vpanel');
+    await page.waitForTimeout(700);
+    const col = await page.evaluate(() => { const m = document.querySelector('.xmc-view .xmc-more-head'), c = document.querySelector('.xmc-view .xmc-rhead b'); return m && c ? [getComputedStyle(m).color, getComputedStyle(c).color] : null; });
+    if (col) assert.equal(col[0], col[1], 'the two headings are the same colour');
+    for (let i = 0; i < 40; i++) { await page.keyboard.press('Tab'); if (await page.evaluate(() => document.activeElement.tagName === 'IMG')) break; }
+    assert.equal(await page.evaluate(() => document.activeElement.tagName), 'IMG', 'Tab reached the picture');
+    assert.notEqual(await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle), 'none', 'the picture shows where the keyboard is');
+  });
+}, 90000);
+
 browserTest('a video: pressing on its preview turns the sound on, and the speaker button over it turns it on and off', async (e) => {
   const h = await e.open('/home/');
   await checked(h, async () => {
@@ -2090,7 +2128,7 @@ browserTest('the post panel offers more from the same account, and a tile opens 
     const { page } = h;
     await e.ready(page);
     const id = await page.evaluate(() => { const count = {}; for (const x of window.__xmc.state.byId.values()) if (!x.repostedBy && !x.replyToId) count[x.author.handle] = (count[x.author.handle] || 0) + 1; const t = window.__xmc.view.cards.find((c) => count[c.author.handle] >= 3 && c.el); (t.el.querySelector(':scope > .xmc-text') || t.el.querySelector('.xmc-head')).click(); return t.id; });
-    await page.waitForSelector('.xmc-view .xmc-more .xmc-more-tile');
+    await page.waitForSelector('.xmc-view .xmc-morefrom .xmc-more-tile');
     assert.match(await page.locator('.xmc-more-head').innerText(), /More from @user/);
     assert.ok((await page.locator('.xmc-more-tile').count()) >= 2);
     await page.locator('.xmc-more-tile').first().click();

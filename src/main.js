@@ -648,7 +648,7 @@
     if (t.thread && t.thread.length) card.append(renderThread(t));
     const actions = h('div', { className: 'xmc-actions' });
     actions.append(actionBtn('reply', 'Show comments'), actionBtn('repost', T('repost')), actionBtn('like', 'Like'), actionBtn('bookmark', 'Bookmark'));
-    if (hasMedia(t)) actions.append(actionBtn('download', 'Download media', 'download'));
+    actions.append(hasMedia(t) ? actionBtn('download', 'Download media', 'download') : h('span', { className: 'xmc-act xmc-gap', 'aria-hidden': 'true' }, icon('download'))); // (an empty slot keeps the icons where they are on every card)
     actions.append(actionBtn('share', 'Copy link', 'link'));
     if (t.counts.quote > 0) actions.append(h('a', { className: 'xmc-qlink xmc-nav', href: t.url + '/quotes', textContent: fmt(t.counts.quote) + ' ' + T('quotes') }));
     if (t.counts.views) actions.append(h('span', { className: 'xmc-views xmc-n', textContent: fmt(t.counts.views) + ' views' }));
@@ -2408,7 +2408,7 @@
       if (pic && pic.type !== 'photo') tile.append(h('i', { className: 'xmc-more-play' }));
       return tile;
     });
-    return h('div', { className: 'xmc-more' }, h('div', { className: 'xmc-more-head', textContent: 'More from @' + t.author.handle }), h('div', { className: 'xmc-more-row' }, ...tiles));
+    return h('div', { className: 'xmc-morefrom' }, h('div', { className: 'xmc-more-head', textContent: 'More from @' + t.author.handle }), h('div', { className: 'xmc-more-row' }, ...tiles));
   }
   // the replies to one comment that came with its post's comments (X sends a few of each; the rest are on X)
   function repliesTo(d, id) {
@@ -2458,7 +2458,7 @@
     const actions = h('div', { className: 'xmc-actions' });
     if (parent) actions.append(actionBtn('reply', 'Reply'), actionBtn('like', 'Like'), actionBtn('bookmark', 'Bookmark'));
     else actions.append(actionBtn('reply', 'Comments'), actionBtn('repost', T('repost')), actionBtn('like', 'Like'), actionBtn('bookmark', 'Bookmark'));
-    if (hasMedia(t)) actions.append(actionBtn('download', 'Download media', 'download'));
+    actions.append(hasMedia(t) ? actionBtn('download', 'Download media', 'download') : h('span', { className: 'xmc-act xmc-gap', 'aria-hidden': 'true' }, icon('download'))); // (an empty slot keeps the icons where they are on every card)
     actions.append(actionBtn('share', 'Copy link', 'link'));
     if (t.counts.views) actions.append(h('span', { className: 'xmc-views xmc-n', textContent: fmt(t.counts.views) + ' views' }));
     side.append(actions);

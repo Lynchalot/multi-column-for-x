@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.27.9
+A pass over how things look, from rendering the screens and reading the stylesheet.
+- **The "More from @user" heading in the panel was blue and clickable-looking.** Its container shared a class name with the "Show more" link, so it took the link's colour and pointer. It is now the same as the "Comments" heading.
+- **The row of icons under a post lines up from card to card.** A post with no media used to drop the download button, so its icons sat further apart than the next card's. The empty slot is kept (the remaining difference is the width of the digits in the counts).
+- **Counts are no longer cut off or broken mid-word in narrow cards.** In your five-column screenshot "Quote Tweets" wrapped to three lines and "views" was clipped. Those counts stay whole, move to a second line if they must, and the view count gives way when a quote count is there and the card is narrow.
+- **Everything the keyboard can reach shows a ring**: pictures in the panel, links, and the photo viewer's buttons had none (the pictures and viewer buttons became reachable in 0.26.3 without one).
+- The close cross in the panel is the same size as the arrows beside it (40 px).
+- **Settings: the presets are radio buttons**, not tick boxes (only one can be on).
+- Tests: the recycling test's count is relative to how far loading got.
+
 ## 0.27.8
 - **A quoted post's picture, and the pictures in comments, no longer push things down when they load.** They had no height until they arrived, so a card with a quoted picture grew by about 220px (and a comment list shifted) the moment the picture came in. They now have their shape from the start. This is what an occasionally failing test of mine kept catching ("a returned post is 220px off its old height", 5 times in 14 runs under load; 0 in 14 after).
 - Likes, bookmarks and reposts on a post X hasn't drawn in its list now search for it for 4 seconds (not 1.5) before going through a visit to the post's own page; the Joined popup mover acts only on the Joined line and never on a modal dialog (found in a review of the last releases' code).
