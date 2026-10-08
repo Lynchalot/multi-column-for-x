@@ -1,41 +1,55 @@
 # Add-on listing (addons.mozilla.org): copy and paste from here
 
 **Name:** Multi-Column for X
+(Option: "Multi-Column for X (Twitter)". Many people still search for "Twitter", and the add-on this listing is modelled on keeps the word in its name. Your call on the name.)
 
 **Summary (max 250 characters):**
-Your X (Twitter) timeline in multiple columns, with in-card video, filters and media download button.
+TweetDeck-style columns for X (Twitter): read your feed across the whole screen, open posts in a panel with their comments, download media in one click, and keep “For you” out of the way.
 
 **Description:** (the first 250 characters matter most; Markdown: bold, lists and links work)
-Read X in as many columns as your screen can hold. Multi-Column for X turns the single narrow feed into a smooth, scrolling wall of posts you can actually scan, with video that plays in the post, one-click media downloads, filters, and a panel that opens any post with its picture large and its comments beside it.
+Multi-Column for X has three aims: let you see far more of X at once, let you open a post without losing your place, and keep the algorithm out of the way.
 
-**Why you might want it**
-- **Use the whole screen.** Columns fit your window and keep a comfortable width. Shrink the window and columns drop away, down to one.
-- **Nothing jumps around.** New posts wait behind a "N new" button instead of shoving your feed down. A post opens in a panel over the columns (Esc closes it and you are exactly where you were), so you never lose your place.
+By default your feed shows in columns that fit your window (up to eight), on the "Following" timeline, with "For you" hidden. Most settings apply the moment you change them, so open the settings page (the gear in the top bar) and make it yours.
+
+**Columns and layout**
+- Columns fit your window and keep a comfortable width, down to one when the window is narrow. Pick your own number, or a different one for each page.
+- **Nothing jumps around.** New posts wait behind a "N new" button instead of shoving your feed down.
+- **More room:** a menu button folds X's left menu to icons, and a tab on the edge slides the right panel away; the columns grow into the space (Alt+[ and Alt+]).
 - **Smooth.** Posts load ahead of you as you scroll, and photos are ready by the time you get there.
 
-**What's in it**
-- Video and GIFs play in the post (a video you started pauses when you scroll it away). Pointing at a video plays it muted; pressing it plays it from the start with sound; a speaker button turns sound on or off. Photos open in a viewer with Download and Copy link.
+**Reading a post**
+- A panel opens over the columns with the picture large on one side and the words, actions and comments on the other. Esc closes it and you are exactly where you were.
+- Several pictures show one at a time with arrows and dots (the wheel and the sides of a picture flick between them). A quoted post opens in the panel too.
+- Comments load as you scroll and can be sorted by relevance, newest or most liked. Like, bookmark and reply to posts and to comments, and translate them with X's own translation.
+
+**Video and media**
+- Video and GIFs play in the post. Pointing at a video plays it muted; pressing it plays it from the start with sound; a speaker button turns sound on or off.
+- Photos open in a viewer with Download and Copy link.
 - **Download** original-size photos and the best-quality video in one click, with your own folder and file-name pattern.
-- **Post panel:** the picture large on one side, the words, actions and comments on the other (like an image viewer); several pictures show one at a time with arrows and dots (the wheel and the sides of a picture flick between them), a quoted post opens in the panel too, comments load as you scroll, can be sorted by relevance, newest or most liked, and you can like, bookmark and reply to them, open a comment in the same panel, and translate posts and comments with X's own translation.
-- **Filters:** Following by default, hide "For you", only accounts you follow, mute words and accounts, show or hide reposts, quotes and replies, NSFW blur or hide.
-- Profile **Videos / Photos** and Following's **Popular / Recent** work from the top bar.
-- **Reading options (all off by default):** a separate column count for each page, hide or fade posts you've already read, one card when several people repost the same post.
-- **More room:** a menu button folds X's left menu to icons, and a tab on the edge slides the right panel away; the columns widen into the space (Alt+[ and Alt+]).
-- **Tidy-ups:** hide Trending, Who to follow, Topics and Premium boxes, adjust the sidebar, add Bookmarks, Likes and Lists to X's left menu, use the bird logo and "Tweet" wording, custom CSS.
-- **Sensitive media:** blur, show or hide it, on the columns and on X's own pages. An option (on by default) turns off X's own age-verification flag in your browser, so X shows its older "sensitive content" notice instead of asking for verification; switch it off in the settings if you would rather keep X's check.
+
+**Filters (defaults marked)**
+- Following timeline, "For you" hidden (default).
+- Only accounts you follow, mute words and accounts, show or hide reposts, quotes and replies, sensitive media blurred (default), shown or hidden.
+- Profile Videos / Photos and Following's Popular / Recent work from the top bar.
+- Reading options, all off by default: a separate column count for each page, hide or fade posts you have already read, one card when several people repost the same post.
+
+**Tidy-ups**
+- Hide Trending, Who to follow, Topics and Premium boxes; hide any item in X's left menu; add Bookmarks, Likes and Lists to it.
+- Use the bird logo and "Tweet" wording, or X's own; custom CSS.
+- Sensitive media: an option (on by default) turns off X's own age-verification flag in your browser, so X shows its older "sensitive content" notice instead of asking for verification. Switch it off in the settings if you would rather keep X's check.
 
 **Private by design**
-No data collected. No analytics, no accounts, no remote code. Everything stays in your browser. Open source (MIT): https://github.com/Lynchalot/multi-column-for-x
+No data collected. No analytics, no accounts, no remote code. Everything stays in your browser (a short log for Copy diagnostics is kept there too, and can be switched off). Open source (MIT): https://github.com/Lynchalot/multi-column-for-x
 
 **Good to know**
-It works with what X's own page already loads, so if X redesigns something, a small piece may need an update: report it on GitHub and it gets fixed. Press the Columns button in X's left menu to switch back to X's normal feed at any time.
+It works with what X's own page already loads, so if X redesigns something a small piece may need an update: report it on GitHub (Copy diagnostics, in a post's ... menu, says what happened) and it gets fixed. Press the Columns button in X's left menu to switch back to X's normal feed at any time. It needs a window wide enough for at least two columns to be worth using; it does not run on phones.
 
-Not affiliated with, endorsed by, or sponsored by X Corp.
+X and Twitter are trademarks of X Corp. This add-on is not affiliated with, endorsed by, or sponsored by X Corp.
 
 **Release notes (current version):**
 Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its picture, comments (loading as you scroll), like, bookmark, reply and translate; video in the post; one-click media downloads; filters; sensitive-media handling; Bookmarks, Likes and Lists in the left menu; a menu for narrow windows; a settings page.
 
-**Screenshot captions** (upload in this order; `node store/make-screenshots.js` makes them: 1280x800, invented accounts and posts, nothing from X):
+**Screenshots** (upload the headline slides in `store/screenshots/slides/`, in this order; `node store/make-screenshots.js` then `node store/make-slides.js` makes them: 1280x800, invented accounts and posts, nothing from X; the plain shots are in `store/screenshots/` if you want any without a headline):
 1. `01-columns.png` Your feed in columns, using the whole screen.
 2. `02-post-panel.png` A post open in the panel: its picture large, comments beside it, reply and like right there.
 3. `03-photo-viewer.png` Photos open in a viewer with one-click Download and Copy link.
@@ -48,7 +62,8 @@ Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its pi
 **Support site:** https://github.com/Lynchalot/multi-column-for-x/issues
 
 **Categories:** Social & Communication; Appearance
-**Tags:** twitter, x, columns, multi-column, timeline, media download, video, filters, layout
+**Tags:** twitter, x, columns, multi-column, tweetdeck, timeline, social media, layout, feed, chronological, media download, video, filters
+(Naming TweetDeck is descriptive use of someone else's mark, as "for Twitter" is. Strike it if you would rather not.)
 **License:** MIT
 **Privacy policy:** paste the text of PRIVACY.md into the privacy-policy field (or link to it once the repository is public)
 **Compatibility:** tick Firefox for desktop; untick Firefox for Android (the layout is built for wide screens)
@@ -72,6 +87,6 @@ Permissions: `storage` (settings, download history and a short event log for Cop
 
 Everything user-visible in the options page is generated from `src/settings.js`.
 
-**Screenshots:** `store/screenshots/` (made by `node store/make-screenshots.js`, which needs ImageMagick and the dev dependencies). They use the test stand-in for x.com with invented people and generated pictures, so no real post, name or logo is shown. To add one of your own feed, take it with the window about 1600x1000, public posts only, blur your own name, and size it with `store/frame-screenshots.sh`.
+**Screenshots:** `store/screenshots/slides/` (made by `node store/make-screenshots.js` then `node store/make-slides.js`; the first needs ImageMagick and the dev dependencies). They use the test stand-in for x.com with invented people and generated pictures, so no real post, name or logo is shown. To add one of your own feed, take it with the window about 1600x1000, public posts only, blur your own name, and size it with `store/frame-screenshots.sh`.
 
 **Icon:** store/icon-128.png (the extension itself ships icons/icon.svg).
