@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.28.3
+- **Pictures in comments are no longer stretched.** Since 0.27.8 (the change that gave comment pictures their shape before they load) a comment's picture was capped at 140 px high but kept the width of the pane, so a 4:3 picture showed squashed to roughly 4:1 (a test now catches it: 4.00:1 before, 1.33:1 after). A comment's picture is now sized from its own proportions: as wide as that needs, up to 140 px high, cropped to fit at the edges and never stretched, and still the right size before it arrives. Found while making the store screenshots: a generated picture came out with black bars, which an ordinary photo would have shown as stretching.
+- **Store screenshots** (`store/screenshots/`, six, 1280x800) and the script that makes them (`node store/make-screenshots.js`): the test stand-in for x.com with invented accounts and posts and generated pictures, so no real post or name is shown. Listing captions updated.
+
 ## 0.28.2
 - **The log of what the extension did survives a reload.** Copy diagnostics used to carry only the events since the page last loaded, so a problem you saw before a reload (or while the laptop was shut and the page was refreshed) was gone. The last 300 or so events are now kept in the browser's extension storage, written every few seconds and when the page goes away, and Copy diagnostics has them as `log.earlier` (with this computer's date and time, and a short id for each page load, so other tabs show up as their own). Page loads, the tab going into the background and back, the page going away, and any error the extension caught are logged too.
 - **What is kept:** the same events as before (kinds, post numbers, widths), plus the kind of page (home, profile, search…) instead of the address. No post text. **Settings, Troubleshooting: "Keep a short log for Copy diagnostics"** (on) turns it off and deletes it. PRIVACY.md says so.

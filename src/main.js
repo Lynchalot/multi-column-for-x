@@ -1719,7 +1719,7 @@
     const pics = r.media.filter((m) => m.type === 'photo');
     const photos = r.media.slice(0, 2).map((m) => {
       const a = h('a', { href: photoUrl(m.thumb, 'large'), target: '_blank', rel: 'noopener' },
-        h('img', Object.assign({ className: 'xmc-rmedia', src: photoUrl(m.thumb, 'small'), alt: '', loading: 'lazy' }, sized(m))));
+        h('img', { className: 'xmc-rmedia', src: photoUrl(m.thumb, 'small'), alt: '', loading: 'lazy', style: m.w > 0 && m.h > 0 ? '--ar:' + (m.w / m.h).toFixed(4) : '' })); // (its shape is set from the picture's size, so nothing moves when it arrives and it is never stretched)
       const at = pics.indexOf(m);
       a.addEventListener('click', (e) => { if (at < 0 || a.closest('.sensitive') || e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); e.stopPropagation(); openLightbox(r, at); });
       return a;

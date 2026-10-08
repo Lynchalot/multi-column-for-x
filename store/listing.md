@@ -35,12 +35,13 @@ Not affiliated with, endorsed by, or sponsored by X Corp.
 **Release notes (current version):**
 Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its picture, comments (loading as you scroll), like, bookmark, reply and translate; video in the post; one-click media downloads; filters; sensitive-media handling; Bookmarks, Likes and Lists in the left menu; a menu for narrow windows; a settings page.
 
-**Screenshot captions** (upload 4 or 5, 1280x800, in this order; `store/frame-screenshots.sh` sizes them):
-1. Your feed in five columns, using the whole screen.
-2. A post open in the panel: its picture large, comments beside it, reply and like right there.
-3. Photos open in a viewer with one-click Download and Copy link.
-4. Filter by posts, reposts, quotes or media; switch a profile between Videos and Photos.
-5. Every setting on one page: filters, sidebar, downloads and more.
+**Screenshot captions** (upload in this order; `node store/make-screenshots.js` makes them: 1280x800, invented accounts and posts, nothing from X):
+1. `01-columns.png` Your feed in columns, using the whole screen.
+2. `02-post-panel.png` A post open in the panel: its picture large, comments beside it, reply and like right there.
+3. `03-photo-viewer.png` Photos open in a viewer with one-click Download and Copy link.
+4. `04-filters.png` Filter by posts, reposts, quotes or media.
+5. `05-more-room.png` Fold the menu to icons and slide the side panel away: five columns.
+6. `06-settings.png` Every setting on one page: filters, sidebar, downloads and more.
 
 **Support link ("Support" / contributions field):** https://ko-fi.com/falsehamartia
 **Homepage:** https://github.com/Lynchalot/multi-column-for-x
@@ -71,12 +72,6 @@ Permissions: `storage` (settings, download history and a short event log for Cop
 
 Everything user-visible in the options page is generated from `src/settings.js`.
 
-**Screenshots to take (1280x800 or larger, PNG):**
-1. Home in 4-5 columns (hero shot).
-2. A card's comments open, sorted Most liked.
-3. The image viewer with Download / Copy link.
-4. The settings page (Algorithmic content + Downloads).
-5. A narrow window: top bar wrapping, 1-2 columns.
-Use public posts only; blur or crop anything personal (your own account name, DMs, notifications).
+**Screenshots:** `store/screenshots/` (made by `node store/make-screenshots.js`, which needs ImageMagick and the dev dependencies). They use the test stand-in for x.com with invented people and generated pictures, so no real post, name or logo is shown. To add one of your own feed, take it with the window about 1600x1000, public posts only, blur your own name, and size it with `store/frame-screenshots.sh`.
 
 **Icon:** store/icon-128.png (the extension itself ships icons/icon.svg).

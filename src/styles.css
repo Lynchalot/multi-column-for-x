@@ -242,7 +242,8 @@ html.xmc-nsfw-show .xmc-qmedia.sens { filter: none; }
 .xmc-rtop .xmc-name { display: inline; font-weight: 700; }
 .xmc-ritem .xmc-text { margin: 2px 0 4px; }
 .xmc-rmedias { display: flex; gap: 6px; margin-top: 4px; }
-.xmc-rmedia { display: block; height: auto; max-height: 140px; max-width: 100%; border-radius: 10px; border: 1px solid var(--xmc-border); }
+.xmc-rmedia { display: block; height: auto; max-height: 140px; max-width: 100%; object-fit: cover; border-radius: 10px; border: 1px solid var(--xmc-border); }
+.xmc-rmedia[style*="--ar"] { width: calc(140px * var(--ar)); aspect-ratio: var(--ar); } /* (a width of its own, not a share of the box: that is nothing until the picture arrives) */
 .xmc-rlikes { font-size: 12px; margin-top: 2px; }
 .xmc-ractions { display: flex; align-items: center; gap: 14px; margin: 0 0 0 -6px; }
 .xmc-ract { appearance: none; border: 0; background: none; color: var(--xmc-muted); display: inline-flex; align-items: center; gap: 5px; font: inherit; font-size: 12px;

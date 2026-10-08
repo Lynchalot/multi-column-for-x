@@ -1695,6 +1695,20 @@ browserTest('a quoted post\'s picture and a comment\'s picture have their height
   });
 }, 90000);
 
+browserTest('a picture in a comment keeps its shape: never stretched to fill the box it is limited to', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-rmedia', { timeout: 25000 });
+    await page.waitForFunction(() => [...document.querySelectorAll('.xmc-vside .xmc-rmedia')].every((i) => i.complete && i.naturalWidth), null, { timeout: 8000 });
+    const r = await page.evaluate(() => [...document.querySelectorAll('.xmc-vside .xmc-rmedia')].map((i) => { return { box: i.offsetWidth / i.offsetHeight, own: 800 / 600, h: i.offsetHeight }; })); // (the stand-in says its comment picture is 800 by 600; offset sizes, as a blurred picture is also scaled up)
+    assert.ok(r.length > 0);
+    for (const x of r) { assert.ok(Math.abs(x.box - x.own) / x.own < 0.04, 'shown at ' + x.box.toFixed(2) + ':1 but the picture is ' + x.own.toFixed(2) + ':1 (X says 800 by 600)'); assert.ok(x.h <= 142, 'no taller than its limit: ' + x.h); }
+  });
+}, 90000);
+
 browserTest('the button X puts at the foot of a conversation for hidden replies ("Show probable spam") is never pressed, and is named in the diagnostics', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850, settings: { v: 9, fetchContext: false } });
   await checked(h, async () => {
