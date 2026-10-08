@@ -9,7 +9,17 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci
       - run: npm test
-      - run: npm run test:e2e   # the real extension scripts in headless Chrome against a stand-in x.com
+      - name: End-to-end tests (the real extension scripts in headless Chrome against a stand-in x.com)
+        run: |
+          set +e
+          npm run test:e2e 2>&1 | tee e2e.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" != 0 ]; then
+            # the job log is not always readable from outside: put what failed in an annotation
+            msg=$(grep -E "^not ok|^ +error:|^ +[+-] |Timeout|expected|actual" e2e.log | head -60 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=e2e failed::${msg}"
+          fi
+          exit $code
       - run: npm run lint
       - run: npm run build
       - uses: actions/upload-artifact@v4
