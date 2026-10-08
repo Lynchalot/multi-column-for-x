@@ -2058,6 +2058,92 @@ browserTest('everything that can be pressed is at least 24 px each way and has a
   });
 }, 120000);
 
+// A stand-in for the browser's own extension API (browser.storage.local and friends), kept in the page's localStorage so it survives a reload.
+// The other tests run the scripts as plain page scripts; this makes them take the path they take in Firefox, where the settings, the read-posts
+// list and the log live in storage.local and every change is announced by storage.onChanged.
+const FAKE_EXT = (seed) => {
+  const KEY = '__fake_ext_storage';
+  if (seed && localStorage.getItem(KEY) === null) localStorage.setItem(KEY, JSON.stringify(seed));
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
+  const write = (o) => localStorage.setItem(KEY, JSON.stringify(o));
+  const listeners = [];
+  const pick = (all, keys) => { if (keys == null) return JSON.parse(JSON.stringify(all)); const ks = typeof keys === 'string' ? [keys] : Array.isArray(keys) ? keys : Object.keys(keys); const out = {}; for (const k of ks) if (k in all) out[k] = JSON.parse(JSON.stringify(all[k])); return out; };
+  const fire = (ch) => setTimeout(() => listeners.forEach((fn) => fn(ch, 'local')), 0);
+  window.browser = {
+    runtime: { id: 'fake@test', getManifest: () => ({ version: '9.9.9' }), sendMessage: async () => ({ ok: true }) },
+    storage: {
+      onChanged: { addListener: (fn) => listeners.push(fn) },
+      local: {
+        get: async (keys) => pick(read(), keys),
+        set: async (obj) => { const all = read(), ch = {}; for (const [k, v] of Object.entries(obj)) { ch[k] = { oldValue: all[k], newValue: JSON.parse(JSON.stringify(v)) }; all[k] = JSON.parse(JSON.stringify(v)); } write(all); fire(ch); },
+        remove: async (keys) => { const all = read(), ch = {}; for (const k of [].concat(keys)) if (k in all) { ch[k] = { oldValue: all[k] }; delete all[k]; } write(all); fire(ch); },
+      },
+    },
+  };
+  window.__stored = () => read();
+};
+
+browserTest('with the browser\'s own storage API: settings load from it, change live, reset when removed, and the log is kept there', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.context().addInitScript(FAKE_EXT, { v: 9, hintSeen: true, textSize: 'large' });
+    await page.reload();
+    await e.ready(page);
+    const size = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.xmc-card')).fontSize));
+    assert.ok(Math.abs(await size() - 17.25) < 0.05, 'read from storage.local: ' + await size());
+    // the settings page (another context) writes: it applies at once
+    await page.evaluate(() => window.browser.storage.local.set({ textSize: 'xlarge' }));
+    await page.waitForFunction(() => Math.abs(parseFloat(getComputedStyle(document.querySelector('.xmc-card')).fontSize) - 19.5) < 0.05, null, { timeout: 4000 });
+    // Reset on the settings page removes the key: the default is back
+    await page.evaluate(() => window.browser.storage.local.remove('textSize'));
+    await page.waitForFunction(() => Math.abs(parseFloat(getComputedStyle(document.querySelector('.xmc-card')).fontSize) - 15) < 0.05, null, { timeout: 4000 });
+    // what the page itself changes is saved there, and only what differs from the default
+    await page.evaluate(() => document.querySelector('.xmc-nsfw').click());
+    await page.waitForFunction(() => 'nsfw' in window.__stored(), null, { timeout: 4000 });
+    const kept = await page.evaluate(() => window.__stored());
+    assert.ok(!('textSize' in kept), 'the default is not stored');
+    assert.ok(!('xmcLog' in kept) || Array.isArray(kept.xmcLog));
+    // the log: written when the page goes away, found again after a reload, and never mistaken for a setting
+    const first = await page.evaluate(() => { window.dispatchEvent(new Event('pagehide')); return JSON.parse(window.__xmc.diagnostics()).log.thisLoad; });
+    await page.waitForFunction(() => Array.isArray(window.__stored().xmcLog) && window.__stored().xmcLog.length > 3, null, { timeout: 4000 });
+    assert.equal(await page.evaluate(() => 'xmcLog' in window.__xmc.settings), false, 'the log is not a setting');
+    await page.reload();
+    await e.ready(page);
+    const d = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()));
+    assert.ok(d.log.earlier.some((l) => l.includes(' ' + first + ' load home v9.9.9')), 'the earlier load is read back from storage.local: ' + JSON.stringify(d.log.earlier.slice(-3)));
+    assert.equal(d.version, '9.9.9');
+    // switching the log off removes it from storage
+    await page.evaluate(() => window.browser.storage.local.set({ keepLog: false }));
+    await page.waitForFunction(() => !('xmcLog' in window.__stored()), null, { timeout: 4000 });
+  });
+}, 90000);
+
+browserTest('the settings page with the browser\'s own storage API: a change is saved, marked, and Reset takes the key out of storage', async (e) => {
+  const o = await e.open('/ext/options.html');
+  await checked(o, async () => {
+    const { page } = o;
+    await page.context().addInitScript(FAKE_EXT, { v: 9, cols: 3, xmcLog: [[Date.now(), 'abc', 'load', 'home']] });
+    await page.reload();
+    await page.waitForSelector('#opt-cols');
+    assert.equal(await page.inputValue('#opt-cols'), '3', 'read from storage.local');
+    assert.equal(await page.locator('#changed-count').innerText(), '1');
+    await page.locator('#opt-cols').fill('5'); await page.keyboard.press('Tab');
+    await page.waitForFunction(() => window.__stored().cols === 5, null, { timeout: 3000 });
+    await page.selectOption('#opt-textSize', 'large');
+    await page.waitForFunction(() => window.__stored().textSize === 'large', null, { timeout: 3000 });
+    assert.equal(await page.locator('#changed-count').innerText(), '2');
+    await page.locator('.item[data-key="cols"] button.reset').click();
+    await page.waitForFunction(() => !('cols' in window.__stored()), null, { timeout: 3000 });
+    assert.equal(await page.inputValue('#opt-cols'), '0');
+    assert.equal(await page.locator('#changed-count').innerText(), '1');
+    // a write from a page of x.com (the log) does not upset it
+    await page.evaluate(() => window.browser.storage.local.set({ xmcLog: [[Date.now(), 'def', 'load', 'home']] }));
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator('#changed-count').innerText(), '1');
+  });
+}, 90000);
+
 browserTest('the right panel slides away behind a tab on its edge, the columns take its room, and the tab brings it back', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {
