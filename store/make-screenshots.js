@@ -211,7 +211,7 @@ async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch({ executablePath: process.env.XMC_BROWSER, headless: true });
   const server = await start({ pages: 12 });
-  const SETTINGS = { v: 9, hintSeen: true, branding: 'x', cardStyle: 'raised' };
+  const SETTINGS = { v: 10, hintSeen: true, branding: 'x', cardStyle: 'raised' };
 
   async function context(width, height, settings) {
     const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
@@ -283,6 +283,21 @@ async function main() {
   await page.evaluate(() => { document.getElementById('sec-algorithm').scrollIntoView(); window.scrollBy(0, -104); });
   await page.waitForTimeout(800);
   await save(page, '06-settings', { scale: false });
+  await ctx.close();
+
+  // 7. the settings panel, over the columns (the gear in the bar), with the presets open and the other sections folded below
+  const S = require('../src/settings.js');
+  ctx = await context(1920, 1200, Object.assign({ cols: 4 }, S.PRESETS.find((p) => p.id === 'plain').set));
+  page = await ctx.newPage();
+  await page.goto(server.origin + '/home/');
+  await ready(page);
+  await page.locator('.xmc-gear').click();
+  await page.waitForSelector('#xmc-settings iframe', { timeout: 8000 });
+  const frame = page.frames().find((f) => /popup\.html/.test(f.url()));
+  await frame.waitForSelector('#sections h2 button.fold', { timeout: 8000 });
+  await frame.locator('#sections h2 button.fold', { hasText: 'Presets' }).click();
+  await page.waitForTimeout(900);
+  await save(page, '07-settings-panel');
   await ctx.close();
 
   await browser.close(); await server.close();

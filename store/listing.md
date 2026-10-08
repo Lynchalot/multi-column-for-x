@@ -57,7 +57,8 @@ Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its pi
 3. `03-photo-viewer.png` Photos open in a viewer with one-click Download and Copy link.
 4. `04-filters.png` Filter by posts, reposts, quotes or media.
 5. `05-more-room.png` Fold the menu to icons and slide the side panel away: five columns.
-6. `06-settings.png` Every setting on one page: filters, sidebar, downloads and more.
+6. `06-settings-panel.png` The settings in a panel over the page, from the gear or the toolbar button: presets, and every section folded below.
+7. `07-settings.png` Every setting on one page: filters, sidebar, downloads and more.
 
 **Support link ("Support" / contributions field):** https://ko-fi.com/falsehamartia
 **Homepage:** https://github.com/Lynchalot/multi-column-for-x

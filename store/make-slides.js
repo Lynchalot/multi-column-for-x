@@ -16,6 +16,7 @@ const SLIDES = [
   ['03-photo-viewer', 'Photos and video, done properly', ['Open photos in a viewer, with Download and Copy link', 'Original-size photos and the best video quality, one click', 'Point at a video for a muted preview']],
   ['04-filters', 'Show only what you came for', ['Following by default, “For you” hidden', 'Posts, reposts, quotes or media only', 'Mute words and accounts, read posts fade away']],
   ['05-more-room', 'More room when you want it', ['Fold the menu to icons, slide the side panel away', 'The columns grow into the space', 'Alt+[ and Alt+] from the keyboard']],
+  ['07-settings-panel', 'Settings without leaving the page', ['Open them from the gear in the bar or the toolbar button', 'Each section folds out of a list, and search finds any setting', 'Changes apply as you make them']],
   ['06-settings', 'You decide, and it applies as you go', ['Presets: Just columns, Calm, Media wall', 'Hide Trending, Who to follow, Premium boxes', 'Most changes apply straight away, nothing leaves your browser']],
 ];
 
