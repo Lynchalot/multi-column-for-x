@@ -632,7 +632,7 @@
       h('a', { className: 'xmc-time xmc-nav', href: t.url, title: new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt) }));
     if (settings.showSource && t.source) sub.append(h('span', { className: 'xmc-src', textContent: ' · via ' + t.source }));
     card.append(h('div', { className: 'xmc-head' },
-      h('a', { className: 'xmc-avatar xmc-nav', href: '/' + t.author.handle }, h('img', { src: t.author.avatar, alt: '', loading: 'lazy' })),
+      h('a', { className: 'xmc-avatar xmc-nav', href: '/' + t.author.handle, tabIndex: -1, 'aria-hidden': 'true' }, h('img', { src: t.author.avatar, alt: '', loading: 'lazy' })), // (the name beside it goes to the same place: this one is for the pointer only)
       h('div', { className: 'xmc-who' },
         h('a', { className: 'xmc-name xmc-nav', href: '/' + t.author.handle }, t.author.name, badge(t.author)), sub),
       moreButton()));
@@ -691,7 +691,7 @@
   function estimate(t, w) {
     const density = pageLayout().density;
     let hh = (density === 'normal' ? 100 : 84) + (t.repostedBy ? 22 : 0);
-    hh += Math.ceil(textLength(t.segs) / Math.max(20, w / 7.4)) * 21 + 8;
+    hh += Math.ceil(textLength(t.segs) / Math.max(20, w / (7.4 * textScale()))) * 21 * textScale() + 8;
     if (t.media.length) hh += density === 'text' && !t.revealed ? 36 : (t.media.length === 1 ? w * Math.min(1 / clampRatio(t.media[0].w, t.media[0].h, photoFloor(t.media[0])), 1.67) : w * 0.5625) * (density === 'compact' ? 0.7 : 1);
     if (t.card) hh += density === 'normal' ? 200 : density === 'compact' ? 150 : 70;
     if (t.quoted) hh += density === 'text' ? 100 : 130;
@@ -891,6 +891,7 @@
     try { window.localStorage.setItem('xmcSkipAge', settings.skipAgeCheck ? '1' : '0'); } catch { /* storage blocked */ } // so the hook knows it at the next page load, before X draws anything
     XMCSite.apply(settings);
     root.classList.toggle('xmc-flat', settings.cardStyle === 'flat');
+    root.style.setProperty('--xmc-ts', String(textScale()));
     root.classList.toggle('xmc-blur', !!settings.blurBehind && !blurGuard.off);
     applyBar();
     if (columns.length && (colCount() !== columns.length || layoutSig() !== view.layoutSig)) relayout(); // column or post-size settings changed
@@ -934,7 +935,7 @@
   const setCols = (n) => setLayout({ cols: Math.max(0, Math.min(8, n)) });
   // Tab stays inside whatever is open over the page (the viewer, else the panel), so it never walks into the covered feed
   function trapTab(e, box) {
-    const items = [...box.querySelectorAll('button, a[href], textarea, input, select, [tabindex="0"]')].filter((x) => !x.disabled && !x.closest('[hidden]') && x.getClientRects().length);
+    const items = [...box.querySelectorAll('button, a[href], textarea, input, select, [tabindex="0"]')].filter((x) => !x.disabled && x.tabIndex >= 0 && !x.closest('[hidden]') && x.getClientRects().length); // (a tabindex of -1 is not reached by Tab, so it cannot be where the walk starts or ends)
     if (!items.length) { e.preventDefault(); return; }
     const first = items[0], last = items[items.length - 1], now = document.activeElement;
     if (!box.contains(now)) { e.preventDefault(); first.focus(); }
@@ -974,7 +975,9 @@
   const FILTER_KEYS = ['filter', 'repostsHome', 'quotesHome', 'repliesHome', 'repostsProfile', 'repostsLists', 'onlyFollowed',
     'hideBlueReplies', 'hideMutedQuotes', 'mutedWords', 'mutedAccounts', 'nsfw', 'seen', 'collapseReposts', 'foldThreads'];
   // everything that changes how a card is built
-  const RENDER_KEYS = ['branding', 'showSource', 'autoplayVideo', 'tallPhotos', 'hoverActions', 'bigText'];
+  const RENDER_KEYS = ['branding', 'showSource', 'autoplayVideo', 'tallPhotos', 'hoverActions', 'bigText', 'textSize'];
+  const TEXT_SCALE = { small: 0.92, normal: 1, large: 1.15, xlarge: 1.3 }; // the stylesheet multiplies every text size in posts and the panel by --xmc-ts
+  const textScale = () => TEXT_SCALE[settings.textSize] || 1;
   const sigOf = (keys) => keys.map((k) => String(settings[k])).join('|') + '|' + where() + '|' + settings.mutedQuoteIds.length;
   const filterSig = () => sigOf(FILTER_KEYS) + '|' + (state.showSeen ? 1 : 0) + '|' + seenEpoch;
   const renderSig = () => RENDER_KEYS.map((k) => String(settings[k])).join('|') + '|' + pageLayout().density;
@@ -1057,9 +1060,16 @@
     if (feed) enterCols();
   }
   // the columns fade up a little when a new set of posts is drawn (a tab, a filter, a new page), not as you scroll
+  let booted = false;
   function enterCols() {
-    colsEl.classList.remove('xmc-enter');
+    colsEl.classList.remove('xmc-enter', 'xmc-first');
     void colsEl.offsetWidth;
+    if (!booted) { // the first draw of this page load: the columns settle in one after another (see the stylesheet), and how long it took is logged
+      booted = true;
+      colsEl.classList.add('xmc-first');
+      trace('first-draw', Math.round(performance.now()) + ' ms after the page began');
+      setTimeout(() => colsEl.classList.remove('xmc-enter', 'xmc-first'), 300); // (a timer, not animationend: a tab in the background never runs the animation)
+    }
     colsEl.classList.add('xmc-enter');
   }
   colsEl.addEventListener('animationend', (e) => { if (e.target === colsEl) colsEl.classList.remove('xmc-enter'); });
@@ -1718,7 +1728,7 @@
     for (const a of text.querySelectorAll('a.xmc-nav')) { a.classList.remove('xmc-nav'); a.target = '_blank'; a.rel = 'noopener'; }
     const pics = r.media.filter((m) => m.type === 'photo');
     const photos = r.media.slice(0, 2).map((m) => {
-      const a = h('a', { href: photoUrl(m.thumb, 'large'), target: '_blank', rel: 'noopener' },
+      const a = h('a', { href: photoUrl(m.thumb, 'large'), target: '_blank', rel: 'noopener', 'aria-label': 'Open the picture' },
         h('img', { className: 'xmc-rmedia', src: photoUrl(m.thumb, 'small'), alt: '', loading: 'lazy', style: m.w > 0 && m.h > 0 ? '--ar:' + (m.w / m.h).toFixed(4) : '' })); // (its shape is set from the picture's size, so nothing moves when it arrives and it is never stretched)
       const at = pics.indexOf(m);
       a.addEventListener('click', (e) => { if (at < 0 || a.closest('.sensitive') || e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); e.stopPropagation(); openLightbox(r, at); });
@@ -1745,7 +1755,7 @@
     const medias = photos.length ? h('div', { className: 'xmc-rmedias' + (r.sensitive ? ' sensitive' : '') }, ...photos) : null;
     if (medias && r.sensitive) medias.append(h('button', { className: 'xmc-reveal', type: 'button', textContent: 'Sensitive content \u2014 click to view', onclick: (e) => { e.stopPropagation(); medias.classList.remove('sensitive'); e.currentTarget.remove(); } }));
     const item = h('div', { className: 'xmc-ritem d' + (r.depth || 0) },
-      h('a', { className: 'xmc-ravatar', href: '/' + r.author.handle, target: '_blank', rel: 'noopener' }, h('img', { src: r.author.avatar, alt: '', loading: 'lazy' })),
+      h('a', { className: 'xmc-ravatar', href: '/' + r.author.handle, target: '_blank', rel: 'noopener', tabIndex: -1, 'aria-hidden': 'true' }, h('img', { src: r.author.avatar, alt: '', loading: 'lazy' })),
       h('div', { className: 'xmc-rbody' },
         h('div', { className: 'xmc-rtop' },
           h('a', { className: 'xmc-name', href: '/' + r.author.handle, target: '_blank', rel: 'noopener', textContent: r.author.name }), badge(r.author),
@@ -2037,6 +2047,11 @@
     const copies = [clone, ...clone.querySelectorAll('*')];
     const index = new Map(copies.map((el, i) => [el, i]));
     for (const el of copies) el.removeAttribute('id');
+    for (const el of clone.querySelectorAll('a[href], [role="button"]')) { // a link that is only a picture needs a name for a screen reader to say
+      if (el.getAttribute('aria-label') || (el.textContent || '').trim() || el.querySelector('img[alt]:not([alt=""])')) continue;
+      const href = el.getAttribute('href') || '';
+      el.setAttribute('aria-label', /header_photo$/.test(href) ? 'Header picture' : /\/photo$/.test(href) ? 'Profile picture' : 'Open');
+    }
     headerCopy = { handle: handle.toLowerCase(), html, index };
     profileEl.className = 'xmc-profile xmc-native';
     profileEl.replaceChildren(clone);
@@ -2347,8 +2362,8 @@
     if (!photos.length) return;
     closeLightbox();
     const img = h('img', { alt: '' });
-    const prev = h('button', { className: 'xmc-lb-nav prev', type: 'button', onclick: (e) => { e.stopPropagation(); stepLightbox(-1); } }, icon('prev'));
-    const next = h('button', { className: 'xmc-lb-nav next', type: 'button', onclick: (e) => { e.stopPropagation(); stepLightbox(1); } }, icon('next'));
+    const prev = h('button', { className: 'xmc-lb-nav prev', type: 'button', title: 'Previous picture', 'aria-label': 'Previous picture', onclick: (e) => { e.stopPropagation(); stepLightbox(-1); } }, icon('prev'));
+    const next = h('button', { className: 'xmc-lb-nav next', type: 'button', title: 'Next picture', 'aria-label': 'Next picture', onclick: (e) => { e.stopPropagation(); stepLightbox(1); } }, icon('next'));
     const close = h('button', { className: 'xmc-lb-close', type: 'button', title: 'Close (Esc)', onclick: closeLightbox }, icon('close'));
     const tools = h('div', { className: 'xmc-lb-tools', onclick: (e) => e.stopPropagation() },
       h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Download this image', onclick: () => downloadMedia(t, lightbox && lightbox.photos[lightbox.i]) }, icon('download')),
@@ -2494,7 +2509,7 @@
       h('a', { className: 'xmc-time', href: new URL(t.url, location.origin).href, target: '_blank', rel: 'noopener', title: 'Open this post on X \u00b7 ' + new Date(t.createdAt).toLocaleString(), textContent: relTime(t.createdAt),
         onclick: (e) => { if (settings.openIn === 'sametab' && !(e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); openOnX(t); } } }));
     side.append(h('div', { className: 'xmc-head' },
-      h('a', { className: 'xmc-avatar xmc-nav', href: '/' + t.author.handle }, h('img', { src: t.author.avatar, alt: '' })),
+      h('a', { className: 'xmc-avatar xmc-nav', href: '/' + t.author.handle, tabIndex: -1, 'aria-hidden': 'true' }, h('img', { src: t.author.avatar, alt: '' })),
       h('div', { className: 'xmc-who' }, h('a', { className: 'xmc-name xmc-nav', href: '/' + t.author.handle }, t.author.name, badge(t.author)), sub)));
     const wordsEl = h('div', { className: 'xmc-text' + (onlyWords(t) ? ' big' : '') }, renderSegs(t.segs));
     if (t.segs.length) side.append(wordsEl);
@@ -3293,7 +3308,7 @@
       p.fails = ok ? 0 : p.fails + 1;
       if (p.fails >= 3) { p.fallback = true; p.retryAt = Date.now() + 10000; unpin('side'); root.style.right = '0px'; return; }
     }
-    root.style.right = rightAway() ? Math.max(floatStrip(), 24) + 'px' : (p.width + 8 + 16) + 'px'; // (away: only the tab's strip, and room for Grok and Chat)
+    root.style.right = rightAway() ? Math.max(floatStrip(), 24) + 'px' : (p.width + 8 + 24) + 'px'; // (away: only the tab's strip, and room for Grok and Chat)
   }
 
   // ---------- folding the side panels ----------
@@ -3774,7 +3789,14 @@
     state.shown = active;
     if (!active) { navRestore(); wasActive = false; }
     document.documentElement.classList.toggle('xmc-on', active);
-    document.documentElement.classList.remove('xmc-veil'); // decided: X's page is either hidden by the columns or meant to be seen
+    if (document.documentElement.classList.contains('xmc-veil')) { // decided: X's page is either hidden by the columns or meant to be seen
+      document.documentElement.classList.remove('xmc-veil');
+      if (active) { // (the columns are up: X's menu and sidebar come through with a short fade, not a pop)
+        document.documentElement.classList.add('xmc-boot');
+        trace('veil-lifted', Math.round(performance.now()) + ' ms after the page began');
+        setTimeout(() => document.documentElement.classList.remove('xmc-boot'), 300);
+      }
+    }
     document.documentElement.classList.toggle('xmc-peeking', !!state.peek || !!state.posting);
     if (active && tickN % 12 === 0 && Date.now() - lastScrollAt > 1500 && !document.documentElement.classList.contains('xmc-viewer')) { // something of X's showing through the columns
       const shows = (el) => { if (!el) return false; const cs = getComputedStyle(el), r = el.getBoundingClientRect(); return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05 && r.width > 40 && r.height > 40 && r.right > 0 && r.left < innerWidth; };

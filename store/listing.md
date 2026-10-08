@@ -16,6 +16,7 @@ By default your feed shows in columns that fit your window (up to eight), on the
 - **Nothing jumps around.** New posts wait behind a "N new" button instead of shoving your feed down.
 - **More room:** a menu button folds X's left menu to icons, and a tab on the edge slides the right panel away; the columns grow into the space (Alt+[ and Alt+]).
 - **Smooth.** Posts load ahead of you as you scroll, and photos are ready by the time you get there.
+- **Easy to read and to press.** A text-size setting for posts and the panel, targets at least 24 px with names for screen readers, nothing moves when you ask for reduced motion, and the settings page has a search box and a Reset for anything you have changed.
 
 **Reading a post**
 - A panel opens over the columns with the picture large on one side and the words, actions and comments on the other. Esc closes it and you are exactly where you were.

@@ -22,6 +22,7 @@
   function persist(partial) {
     Object.assign(settings, partial);
     setTimeout(refreshPresets, 0);
+    setTimeout(refreshMarks, 0);
     if (storage) storage.set(Object.assign({ v: S.VERSION }, partial)).catch((e) => say('Could not save: ' + e));
     else { try { localStorage.setItem('xmc.settings', JSON.stringify(S.diff(settings).set)); } catch { /* ignore */ } }
   }
@@ -139,6 +140,62 @@
     if (old) old.replaceWith(presetsBlock());
   }
 
+  // ---- what has been changed, and the search ----
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const changedKeys = () => [...document.querySelectorAll('.item[data-key]')].map((el) => el.dataset.key).filter((k) => !same(settings[k], S.DEFAULTS[k]));
+  function refreshMarks() { // a dot and a Reset under every setting that is not at its default, and the count beside the search
+    let n = 0;
+    for (const el of document.querySelectorAll('.item[data-key]')) {
+      const on = !same(settings[el.dataset.key], S.DEFAULTS[el.dataset.key]);
+      el.classList.toggle('changed', on);
+      const chg = el.querySelector('.chg');
+      if (chg && chg.hidden === on) chg.hidden = !on;
+      if (on) n++;
+    }
+    const c = $('#changed-count'); if (c && c.textContent !== String(n)) c.textContent = String(n);
+    applyFind();
+  }
+  function resetItem(it) {
+    const def = JSON.parse(JSON.stringify(S.DEFAULTS[it.key]));
+    settings[it.key] = def;
+    const el = document.getElementById('opt-' + it.key);
+    if (el) { if (el.type === 'checkbox') el.checked = !!def; else el.value = def; }
+    if (storage) storage.remove(it.key).catch((e) => say('Could not save: ' + e));
+    else { try { localStorage.setItem('xmc.settings', JSON.stringify(S.diff(settings).set)); } catch { /* ignore */ } }
+    setTimeout(refreshPresets, 0);
+    refreshMarks();
+    say('\u201c' + it.label + '\u201d is back to its default.');
+  }
+  function applyFind() {
+    const box = $('#opt-search'), only = $('#only-changed');
+    if (!box) return;
+    const words = box.value.trim().toLowerCase().split(/\s+/).filter(Boolean), onlyChanged = !!only && only.checked, filtering = words.length > 0 || onlyChanged;
+    let shown = 0;
+    for (const sec of document.querySelectorAll('section[data-nav]')) {
+      const title = (sec.dataset.nav || '').toLowerCase(), titleHit = words.length > 0 && words.every((w) => title.includes(w)) && !onlyChanged;
+      let any = false;
+      for (const it of sec.querySelectorAll('.item[data-key]')) {
+        const hit = (!words.length || titleHit || words.every((w) => it.dataset.find.includes(w))) && (!onlyChanged || it.classList.contains('changed'));
+        if (it.hidden === hit) it.hidden = !hit;
+        if (hit) { any = true; shown++; }
+      }
+      for (const blk of sec.querySelectorAll('.presets, .navlist, .readblock, .dlexample')) blk.hidden = filtering && !titleHit; // (the extras that belong to a section show only when the section itself is what was asked for)
+      sec.hidden = filtering && !any && !titleHit;
+    }
+    for (const a of document.querySelectorAll('#nav a')) { const target = document.getElementById(a.getAttribute('href').slice(1)); a.hidden = !!target && target.hidden; }
+    const st = $('#find-status');
+    if (st) st.textContent = !filtering ? '' : shown ? shown + (shown === 1 ? ' setting' : ' settings') : 'No settings match.';
+  }
+  function wireFind() {
+    const box = $('#opt-search'), only = $('#only-changed');
+    box.addEventListener('input', applyFind);
+    only.addEventListener('change', applyFind);
+    box.addEventListener('keydown', (e) => { if (e.key === 'Escape' && box.value) { e.preventDefault(); box.value = ''; applyFind(); } });
+    document.addEventListener('keydown', (e) => { // "/" jumps to the search, as on most sites
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(input|textarea|select)$/i.test((e.target || {}).tagName || '')) { e.preventDefault(); box.focus(); box.select(); }
+    });
+  }
+
   function build() {
     const host = $('#sections');
     host.replaceChildren();
@@ -152,8 +209,14 @@
         const c = control(it);
         const label = h('label', { className: 'name', htmlFor: 'opt-' + it.key, textContent: it.label },
           it.native ? h('span', { className: 'native-tag', title: 'Restyles X’s own pages, so it depends on X’s current layout', textContent: 'X page' }) : null);
-        const text = h('div', {}, label, it.help ? h('div', { className: 'help', textContent: it.help }) : null);
-        section.append(it.type === 'bool' ? h('div', { className: 'item bool' }, c, text) : h('div', { className: 'item' }, text, c));
+        const reset = h('button', { type: 'button', className: 'reset', textContent: 'Reset', title: 'Back to the default', 'aria-label': 'Reset \u201c' + it.label + '\u201d to its default' });
+        reset.addEventListener('click', () => resetItem(it));
+        const changed = h('div', { className: 'chg', hidden: true }, h('span', { className: 'dot', 'aria-hidden': 'true' }), h('span', { textContent: 'Changed from the default' }), reset);
+        const text = h('div', {}, label, it.help ? h('div', { className: 'help', textContent: it.help }) : null, changed);
+        const row = it.type === 'bool' ? h('div', { className: 'item bool' }, c, text) : h('div', { className: 'item' }, text, c);
+        row.dataset.key = it.key;
+        row.dataset.find = [it.label, it.help || '', it.key, ...(it.options ? it.options.map((o) => o[1]) : [])].join(' ').toLowerCase(); // what the search looks in
+        section.append(row);
       }
       if (sec.custom === 'presets') section.append(presetsBlock());
       if (sec.custom === 'nav') section.append(navBlock());
@@ -167,6 +230,7 @@
       const a = h('a', { href: '#' + s.id, textContent: s.dataset.nav });
       return a;
     }));
+    refreshMarks(); // (after the links exist: it hides the ones whose section the search has taken out)
   }
 
   function renderHistory() {
@@ -196,6 +260,7 @@
     $('#nav').replaceChildren(...[...document.querySelectorAll('section[data-nav]')].map((s) => h('a', { href: '#' + s.id, textContent: s.dataset.nav })));
     renderHistory();
     watchScroll();
+    wireFind();
     const sup = $('#support');
     const bits = [];
     if (XMCMeta.donate) bits.push(h('a', { href: XMCMeta.donate, textContent: 'Support', target: '_blank', rel: 'noopener' }));

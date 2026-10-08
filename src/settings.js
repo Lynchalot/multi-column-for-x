@@ -106,6 +106,7 @@ var XMCSettings = (function () {
     {
       id: 'look', title: 'Look', items: [
         { key: 'branding', type: 'select', def: 'twitter', label: 'Name and logo', native: true, options: [['twitter', 'Twitter (bird logo, “Tweet”, “Retweet”)'], ['x', 'X (as X ships it)']] },
+        { key: 'textSize', type: 'select', def: 'normal', label: 'Text size in posts and the post panel', options: [['small', 'Smaller'], ['normal', 'Normal'], ['large', 'Larger'], ['xlarge', 'Largest']] },
         { key: 'cardStyle', type: 'select', def: 'raised', label: 'Card background', options: [['raised', 'Slightly lighter (or darker) than the page'], ['flat', 'None']] },
         { key: 'customCss', type: 'textarea', def: '', label: 'Custom CSS', help: 'Added to every x.com page.', native: true },
       ],

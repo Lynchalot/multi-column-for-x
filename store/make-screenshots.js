@@ -279,7 +279,7 @@ async function main() {
   page = await ctx.newPage();
   await page.goto(server.origin + '/ext/options.html');
   await page.waitForSelector('#opt-cols', { timeout: 8000 }).catch(() => {});
-  await page.evaluate(() => { document.getElementById('sec-algorithm').scrollIntoView(); window.scrollBy(0, -28); });
+  await page.evaluate(() => { document.getElementById('sec-algorithm').scrollIntoView(); window.scrollBy(0, -104); });
   await page.waitForTimeout(800);
   await save(page, '06-settings', { scale: false });
   await ctx.close();

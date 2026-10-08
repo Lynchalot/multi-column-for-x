@@ -15,6 +15,11 @@
         <h1><img class="logo" src="icons/icon.svg" alt="" width="40" height="40"><span>Multi-Column for X</span></h1>
         <p id="support" class="support" hidden></p>
       </header>
+      <div class="find" role="search">
+        <input id="opt-search" type="search" placeholder="Search settings   ( / )" aria-label="Search settings" autocomplete="off" spellcheck="false">
+        <label class="only"><input type="checkbox" id="only-changed"><span>Only changed (<span id="changed-count">0</span>)</span></label>
+        <span id="find-status" class="muted" role="status" aria-live="polite"></span>
+      </div>
       <div id="sections"></div>
       <section id="history-section" data-nav="Download history">
         <h2>Download history</h2>

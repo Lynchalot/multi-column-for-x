@@ -35,6 +35,7 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
 - **X's own sidebars are kept** (left nav, right search/trends), or hide the right one in settings. The floating Grok and
   Chat buttons stay, side by side in the corner. Hide any sidebar item (Creator Studio, Chat, Grok…) —
   the settings page lists whatever your sidebar actually shows.
+  **Text size** (smaller to largest) is in the settings, and the settings page has a search box (press `/`) and marks and resets whatever you have changed.
   **More room:** a menu button at the top of the left menu folds it to icons, and a tab on the window's edge slides the right panel away (Alt+[ and Alt+]). Both are remembered.
 - **Downloads** — original-size photos and the best video quality, saved into an **`X` folder inside Downloads** as
   `account-postnumber-1-twitter.jpg`, so you can always tell where a file came from. A browser extension can't write outside the

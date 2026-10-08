@@ -4,6 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { setup } = require('./harness.js');
+const { OURS, auditInPage } = require('./a11y.js');
 
 let env = null;
 test.before(async () => { env = await setup({ pages: 40 }); });
@@ -1877,6 +1878,185 @@ browserTest('the event log survives a reload, is capped, and goes when it is swi
     assert.deepEqual(d.log.earlier, []);
   });
 }, 90000);
+
+// records, from the very start of a page load, when the start-up classes come and go, and what the browser is animating at that moment
+const WATCH_START = () => {
+  window.__boot = { first: [], boot: [], inflight: [] };
+  let wasFirst = false, wasBoot = false;
+  new MutationObserver(() => {
+    const cols = document.querySelector('.xmc-cols'), isFirst = !!cols && cols.classList.contains('xmc-first'), isBoot = document.documentElement.classList.contains('xmc-boot');
+    if (isFirst && !wasFirst) window.__boot.first.push([...document.querySelectorAll('.xmc-col')].map((c) => getComputedStyle(c).animationName + '@' + getComputedStyle(c).animationDelay));
+    if (isBoot && !wasBoot) { const hd = document.querySelector('header[role="banner"]'); window.__boot.boot.push(hd ? getComputedStyle(hd).animationName : 'no header'); }
+    wasFirst = isFirst; wasBoot = isBoot;
+  }).observe(document, { subtree: true, attributes: true, attributeFilter: ['class'] });
+};
+
+browserTest('start-up: the columns settle in one after another once per page load, and not at all for reduced motion', async (e) => {
+  const h = await e.open('/home/', { width: 1900, height: 850, settings: { v: 9, cols: 4 } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.context().addInitScript(WATCH_START);
+    await page.reload();
+    await e.ready(page);
+    await page.waitForFunction(() => !document.querySelector('.xmc-cols').classList.contains('xmc-first'), null, { timeout: 3000 }); // taken off again by itself
+    const b = await page.evaluate(() => window.__boot.first);
+    assert.equal(b.length, 1, 'once: ' + JSON.stringify(b));
+    assert.deepEqual(b[0].slice(0, 4), ['xmc-settle@0s', 'xmc-settle@0.012s', 'xmc-settle@0.024s', 'xmc-settle@0.036s'], 'each column a little after the one before');
+    // switching what is shown fades the whole block as before, and does not start it over
+    await page.evaluate(() => { document.querySelector('.xmc-showbtn').click(); document.querySelectorAll('.xmc-menu button')[1].click(); });
+    await page.waitForTimeout(500);
+    assert.equal(await page.evaluate(() => window.__boot.first.length), 1, 'not again');
+    const log = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).trace.filter((x) => x[1] === 'first-draw'));
+    assert.equal(log.length, 1, 'the time of the first draw is in the log');
+    assert.match(log[0][2], /^\d+ ms after the page began$/);
+    // for people who ask for less motion there is none
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.reload();
+    await e.ready(page);
+    await page.waitForTimeout(600);
+    const r = await page.evaluate(() => window.__boot.first);
+    assert.ok(r.every((x) => x.every((n) => /^none@/.test(n))), 'no animation: ' + JSON.stringify(r));
+  });
+}, 90000);
+
+browserTest('start-up: when X\'s page is let through, its menu and sidebar fade in over 0.1 s rather than appear at once', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.context().addInitScript(WATCH_START);
+    await page.evaluate(() => localStorage.setItem('xmcVeil', location.pathname)); // as the last visit left it
+    await page.reload();
+    await e.ready(page);
+    await page.waitForTimeout(500);
+    const b = await page.evaluate(() => window.__boot.boot);
+    assert.deepEqual(b, ['xmc-fade'], 'the menu is fading when the veil lifts: ' + JSON.stringify(b));
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-boot')), false, 'and it is taken off again');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('header[role="banner"]')).visibility), 'visible');
+  });
+}, 90000);
+
+browserTest('text size: the posts and the panel follow it, live, and the top bar does not', async (e) => {
+  const big = await e.open('/home/', { width: 1700, height: 850, settings: { v: 9, textSize: 'large' } });
+  await checked(big, async () => {
+    const { page } = big;
+    await e.ready(page);
+    const px = () => page.evaluate(() => ({ card: parseFloat(getComputedStyle(document.querySelector('.xmc-card')).fontSize), text: parseFloat(getComputedStyle(document.querySelector('.xmc-card .xmc-text')).fontSize), chip: parseFloat(getComputedStyle(document.querySelector('.xmc-bar .xmc-chip, .xmc-bar .xmc-showlabel')).fontSize) }));
+    const large = await px();
+    assert.ok(Math.abs(large.card - 15 * 1.15) < 0.05, 'cards at 115%: ' + large.card);
+    const h0 = await page.evaluate(() => Math.round(document.querySelector('.xmc-card').getBoundingClientRect().height));
+    // live, as the settings page would change it
+    await page.evaluate(() => window.dispatchEvent(new StorageEvent('storage', { key: 'xmc.settings', newValue: JSON.stringify({ v: 9, textSize: 'xlarge' }) })));
+    await page.waitForFunction(() => Math.abs(parseFloat(getComputedStyle(document.querySelector('.xmc-card')).fontSize) - 15 * 1.3) < 0.05, null, { timeout: 4000 });
+    const xl = await px();
+    assert.equal(xl.chip, large.chip, 'the top bar keeps its size');
+    await page.waitForTimeout(600);
+    const h1 = await page.evaluate(() => Math.round(document.querySelector('.xmc-card').getBoundingClientRect().height));
+    assert.ok(h1 > h0 - 2, 'a card is not shorter with bigger text: ' + h0 + ' -> ' + h1);
+    // the panel too
+    await page.evaluate(() => document.querySelector('.xmc-card .xmc-text').click());
+    await page.waitForSelector('.xmc-view .xmc-vside .xmc-text', { timeout: 8000 });
+    const panel = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.xmc-vside .xmc-text')).fontSize));
+    assert.ok(panel > 22, 'panel text scaled too: ' + panel);
+  });
+}, 90000);
+
+browserTest('settings page: search narrows the list, a changed setting is marked, and Reset puts it back', async (e) => {
+  const o = await e.open('/ext/options.html');
+  await checked(o, async () => {
+    const { page } = o;
+    await page.waitForSelector('#opt-cols');
+    const vis = () => page.evaluate(() => [...document.querySelectorAll('.item[data-key]')].filter((x) => !x.hidden).map((x) => x.dataset.key));
+    const status = () => page.locator('#find-status').innerText();
+    const all = await vis();
+    assert.ok(all.length > 30, 'a long list: ' + all.length);
+    await page.keyboard.press('/');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'opt-search', '/ goes to the search');
+    await page.keyboard.type('download');
+    const d = await vis();
+    assert.ok(d.includes('dlFolder') && !d.includes('cols') && d.length < all.length / 2, 'only the matching ones: ' + d.length + ' of ' + all.length);
+    assert.equal(await page.evaluate(() => document.getElementById('sec-columns').hidden), true, 'a section with none left goes');
+    assert.equal(await page.evaluate(() => document.querySelector('#nav a[href="#sec-columns"]').hidden), true, 'and its link');
+    assert.match(await status(), /^\d+ settings?$/);
+    await page.fill('#opt-search', 'save folder'); // words in any order
+    assert.ok((await vis()).includes('dlFolder'));
+    await page.fill('#opt-search', 'zzzzqq');
+    assert.equal((await vis()).length, 0);
+    assert.match(await status(), /No settings match/);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.inputValue('#opt-search'), '', 'Esc clears it');
+    assert.equal((await vis()).length, all.length, 'and the whole list is back');
+    // a changed setting is marked, counted, listed on its own, and can be put back
+    assert.equal(await page.locator('#changed-count').innerText(), '0');
+    await page.locator('#opt-cols').fill('3');
+    await page.keyboard.press('Tab');
+    await page.waitForSelector('.item[data-key="cols"] .chg:not([hidden])', { timeout: 3000 });
+    assert.equal(await page.locator('#changed-count').innerText(), '1');
+    await page.check('#only-changed');
+    assert.deepEqual(await vis(), ['cols'], 'only the changed one');
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('xmc.settings')).cols), 3);
+    await page.locator('.item[data-key="cols"] button.reset').click();
+    assert.equal(await page.inputValue('#opt-cols'), '0', 'the box shows the default again');
+    assert.equal(await page.locator('#changed-count').innerText(), '0');
+    assert.equal(await page.evaluate(() => 'cols' in JSON.parse(localStorage.getItem('xmc.settings') || '{}')), false, 'and it is no longer stored');
+    assert.deepEqual(await vis(), [], 'nothing changed, so nothing listed');
+    await page.uncheck('#only-changed');
+    assert.equal((await vis()).length, all.length);
+  });
+}, 90000);
+
+browserTest('everything that can be pressed is at least 24 px each way and has a name a screen reader can say', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 9, hintSeen: false, navBookmarks: true, navLikes: true, navLists: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(600);
+    const audit = async (state, scope = OURS) => {
+      const r = await page.evaluate(auditInPage, scope);
+      assert.ok(r.checked > 10, state + ': ' + r.checked + ' things looked at');
+      assert.deepEqual({ small: r.small, unnamed: r.unnamed }, { small: [], unnamed: [] }, state);
+    };
+    await audit('the feed');
+    await page.evaluate(() => document.querySelector('.xmc-showbtn').click());
+    await audit('the filter menu');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Alt+BracketLeft'); await page.waitForTimeout(600);
+    await audit('folded to icons');
+    await page.keyboard.press('Alt+BracketLeft'); await page.waitForTimeout(600);
+    // the panel, with its comments
+    await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector('[data-lb]') && x.querySelector(':scope > .xmc-text')); c.querySelector(':scope > .xmc-text').click(); });
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 25000 });
+    await page.waitForTimeout(500);
+    await audit('the post panel and its comments');
+    await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
+    // the viewer
+    await page.evaluate(() => document.querySelector('.xmc-card [data-lb]').focus());
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('#xmc-lightbox');
+    await audit('the photo viewer');
+    await page.keyboard.press('Escape');
+    // several pictures in the panel
+    await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelector('a.xmc-time').click(); });
+    await page.waitForSelector('.xmc-view .xmc-vmediapane.xmc-car');
+    await page.waitForTimeout(400);
+    await audit('the pictures in the panel');
+  });
+  const prof = await e.open('/user7/', { width: 1700, height: 900 });
+  await checked(prof, async () => {
+    await e.ready(prof.page);
+    await prof.page.waitForSelector('.xmc-profile.xmc-native', { timeout: 8000 });
+    const r = await prof.page.evaluate(auditInPage, OURS);
+    assert.deepEqual({ small: r.small, unnamed: r.unnamed }, { small: [], unnamed: [] }, 'a profile header');
+  });
+  const opt = await e.open('/ext/options.html', { width: 1280, height: 900 });
+  await checked(opt, async () => {
+    await opt.page.waitForSelector('#opt-cols');
+    const r = await opt.page.evaluate(auditInPage, null);
+    assert.ok(r.checked > 60);
+    assert.deepEqual({ small: r.small, unnamed: r.unnamed }, { small: [], unnamed: [] }, 'the settings page');
+  });
+}, 120000);
 
 browserTest('the right panel slides away behind a tab on its edge, the columns take its room, and the tab brings it back', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
