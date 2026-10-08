@@ -1297,7 +1297,7 @@ browserTest('the post panel shows what a reply answers above it, once looked up 
 }, 90000);
 
 browserTest('first run: a short tip says what you can do, and "Got it" keeps it away for good', async (e) => {
-  const h = await e.open('/home/');
+  const h = await e.open('/home/', { settings: { hintSeen: false } });
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
