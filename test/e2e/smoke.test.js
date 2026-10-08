@@ -1831,7 +1831,9 @@ browserTest('the logo at the top of the menu folds it to icons (the names fade, 
     assert.ok(rail.left < full.left - 40, 'the columns start further left: ' + full.left + ' -> ' + rail.left);
     assert.ok(Math.abs(rail.left - (rail.linksRight + 20)) <= 10, 'and just clear of the icons: ' + rail.left + ' vs ' + (rail.linksRight + 20));
     assert.ok(rail.tweetW <= 52, 'the Post button is round: ' + rail.tweetW);
-    assert.ok(rail.hdrRight <= rail.left, 'the menu\'s box ends before the columns, or it would cover them: ' + rail.hdrRight + ' vs ' + rail.left);
+    const overhang = await page.evaluate(() => { const hd = document.querySelector('header[role="banner"]'), x = parseFloat(document.getElementById('xmc-root').style.left) + 30, el = document.elementFromPoint(x, 400); return { shownTo: Math.round(hd.getBoundingClientRect().right - parseFloat(hd.style.getPropertyValue('--xmc-clip'))), cols: !!(el && el.closest('#xmc-root')) }; });
+    assert.ok(overhang.shownTo <= rail.left, 'the part of the menu that shows ends before the columns: ' + overhang.shownTo + ' vs ' + rail.left);
+    assert.equal(overhang.cols, true, 'and a press just inside the columns reaches them, not the menu\'s box');
     assert.equal(await page.evaluate(() => document.querySelector('header[role="banner"] h1 a').getAttribute('aria-expanded')), 'false');
     assert.equal(await page.evaluate(() => window.__xmc.settings.leftPanel), 'rail', 'remembered');
     await page.keyboard.press('Alt+BracketLeft'); // and back, from the keyboard
@@ -1863,9 +1865,9 @@ browserTest('the menu folds by the words of its names, whatever the markup round
     await page.waitForFunction(() => document.querySelectorAll('header [data-xmc-label]').length >= 5, null, { timeout: 8000 });
     await page.locator('header[role="banner"] h1 a').click();
     await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
-    const r = await page.evaluate(() => ({ shown: [...document.querySelectorAll('header [data-xmc-label]')].filter((x) => x.getBoundingClientRect().width > 1).length, hdrRight: Math.round(document.querySelector('header[role="banner"]').getBoundingClientRect().right), left: parseFloat(document.getElementById('xmc-root').style.left), probe: JSON.parse(window.__xmc.diagnostics()).panels }));
+    const r = await page.evaluate(() => ({ shown: [...document.querySelectorAll('header [data-xmc-label]')].filter((x) => x.getBoundingClientRect().width > 1).length, hdrRight: Math.round(document.querySelector('header[role="banner"]').getBoundingClientRect().right - parseFloat(document.querySelector('header[role="banner"]').style.getPropertyValue('--xmc-clip'))), left: parseFloat(document.getElementById('xmc-root').style.left), probe: JSON.parse(window.__xmc.diagnostics()).panels }));
     assert.equal(r.shown, 0, 'no name is left showing');
-    assert.ok(r.hdrRight <= r.left, 'and the menu ends before the columns: ' + r.hdrRight + ' vs ' + r.left);
+    assert.ok(r.hdrRight <= r.left, 'and what shows of the menu ends before the columns: ' + r.hdrRight + ' vs ' + r.left);
     assert.equal(r.probe.failed, null);
     assert.match(r.probe.linkShape, /\*\(b"/, 'the diagnostics outline a link, with the name marked: ' + r.probe.linkShape);
     assert.equal(r.probe.namesStillShowing, 0);
@@ -2358,11 +2360,98 @@ browserTest('folded to icons, the columns start by the icons even when the links
     const r = await page.evaluate(() => { const hd = document.querySelector('header[role="banner"]').getBoundingClientRect(); const probe = JSON.parse(window.__xmc.diagnostics()).panels; return { left: parseFloat(document.getElementById('xmc-root').style.left), hdrRight: Math.round(hd.right), failed: probe.failed, widest: probe.widestLinks }; });
     assert.ok(r.left < full - 100, 'the columns moved left to take the room: ' + full + ' -> ' + r.left + ' (widest boxes: ' + r.widest + ')');
     assert.ok(r.left < 140, 'and start by the icons, not by the widest box: ' + r.left);
-    assert.ok(r.hdrRight <= r.left, 'the menu\'s box ends before them');
     assert.equal(r.failed, null, 'the names are gone, so it is not reported as unable to fold');
     // pressing the columns' left edge reaches the columns, not an overhanging link
     const hit = await page.evaluate((x) => { const el = document.elementFromPoint(x, 400); return !!(el && el.closest('#xmc-root')); }, Math.round(r.left + 30));
     assert.equal(hit, true, 'a press just inside the columns lands on them');
+  });
+}, 90000);
+
+browserTest('folded to icons, the icons stay where they are and in view when X\'s menu sits at the right of a wide header (as it does on a wide window), and the empty part of the header catches no presses', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('header[role="banner"] h1 a[data-xmc-logo]', { timeout: 10000 });
+    // X's header takes the free room at the left of the page and keeps its menu against its right edge, in a box of its own width
+    await page.evaluate(() => {
+      const hd = document.querySelector('header[role="banner"]');
+      hd.dataset.xmcStyle = 'position:fixed;left:200px;top:0;bottom:0;width:700px;display:flex;flex-direction:column;align-items:flex-end';
+      hd.querySelector('nav').style.width = '260px';
+      window.dispatchEvent(new Event('resize'));
+    });
+    await page.waitForTimeout(900);
+    const look = () => page.evaluate(() => {
+      const hd = document.querySelector('header[role="banner"]');
+      const svgs = [...hd.querySelectorAll('nav a[href] svg')].filter((s) => s.getBoundingClientRect().width);
+      const b = svgs[0].getBoundingClientRect(), rootLeft = parseFloat(document.getElementById('xmc-root').style.left);
+      const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2), beside = document.elementFromPoint(rootLeft + 30, 500);
+      return { iconLeft: Math.round(b.left), iconRight: Math.round(b.right), rootLeft, iconHit: !!(hit && hd.contains(hit)), besideIsColumns: !!(beside && beside.closest('#xmc-root')), seen: JSON.parse(window.__xmc.diagnostics()).panels.menuGone };
+    });
+    const full = await look();
+    assert.ok(full.iconLeft >= 0 && full.iconHit, 'with the names, the icons are in view: ' + JSON.stringify(full));
+    await page.locator('header[role="banner"] h1 a').click();
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
+    await page.waitForTimeout(700);
+    const rail = await look();
+    assert.ok(rail.iconLeft >= 0 && rail.iconRight <= rail.rootLeft, 'folded, the icons are in view and before the columns: ' + JSON.stringify(rail));
+    assert.equal(rail.iconHit, true, 'and nothing else is on top of them: ' + JSON.stringify(rail));
+    assert.equal(rail.besideIsColumns, true, 'a press just inside the columns reaches them, not the empty part of the header: ' + JSON.stringify(rail));
+    await page.waitForTimeout(2500);
+    const later = await look();
+    assert.deepEqual({ iconLeft: later.iconLeft, iconHit: later.iconHit, seen: later.seen }, { iconLeft: rail.iconLeft, iconHit: true, seen: null }, 'and it stays, with nothing to repair: ' + JSON.stringify(later));
+  });
+}, 90000);
+
+browserTest('while X\'s hidden page is away on a post, the still copy that stands in for a folded menu is folded too (no names showing, no wider than the icons)', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850, settings: { v: 9, commentsIn: 'card', hintSeen: true, leftPanel: 'rail' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 8000 });
+    await page.waitForTimeout(600);
+    await page.route('**/TweetDetail**', async (route) => { await new Promise((r) => setTimeout(r, 2500)); await route.continue().catch(() => {}); });
+    await page.evaluate(() => { const card = [...document.querySelectorAll('.xmc-card')].find((c) => c.querySelector('[data-act="reply"]')); card.querySelector('[data-act="reply"]').click(); });
+    await page.waitForSelector('#xmc-navfreeze', { timeout: 5000 });
+    const r = await page.evaluate(() => {
+      const copy = document.getElementById('xmc-navfreeze'), real = document.querySelector('header[role="banner"]');
+      const labels = [...copy.querySelectorAll('[data-xmc-label]')];
+      const post = copy.querySelector('[data-xmc-tid="SideNav_NewTweet_Button"]');
+      return { labels: labels.length, showing: labels.filter((x) => x.getBoundingClientRect().width > 1 && Number(getComputedStyle(x).opacity) > 0.05).length,
+        copyRight: Math.round(copy.getBoundingClientRect().right), realRight: Math.round(real.getBoundingClientRect().right), rootLeft: parseFloat(document.getElementById('xmc-root').style.left),
+        clip: getComputedStyle(copy).clipPath, copyClipped: Math.round(copy.getBoundingClientRect().right - parseFloat(copy.style.getPropertyValue('--xmc-clip'))), post: post ? Math.round(post.getBoundingClientRect().width) : null };
+    });
+    assert.ok(r.labels > 0, 'the copy has the names to fold');
+    assert.equal(r.showing, 0, 'no name shows in the copy: ' + JSON.stringify(r));
+    assert.equal(r.copyRight, r.realRight, 'and the copy is where the real menu is: ' + JSON.stringify(r));
+    assert.notEqual(r.clip, 'none', 'and is clipped to the icons as the real one is: ' + JSON.stringify(r));
+    assert.ok(r.copyClipped <= r.rootLeft, 'so it ends before the columns do: ' + JSON.stringify(r));
+    if (r.post !== null) assert.ok(r.post <= 52, 'the Post button is round in the copy: ' + r.post);
+  });
+}, 90000);
+
+browserTest('if the menu is not showing (hidden, clipped, covered) it is pinned again within a second or two, then again without the clip, and the diagnostics say what was found', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850, settings: { v: 9, hintSeen: true, leftPanel: 'rail' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 8000 });
+    await page.waitForTimeout(1200);
+    const seen = () => page.evaluate(() => { const hd = document.querySelector('header[role="banner"]'); const a = [...hd.querySelectorAll('nav a[href]')].find((x) => x.querySelector('svg')); const b = a.querySelector('svg').getBoundingClientRect(); const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return !!(hit && hd.contains(hit)); });
+    assert.equal(await seen(), true, 'to begin with, the menu is there');
+    // 1: something on its inline style hides it (X rewriting it): pinning again puts X's own style back, and ours on top
+    await page.evaluate(() => document.querySelector('header[role="banner"]').style.setProperty('visibility', 'hidden', 'important'));
+    await page.waitForFunction(() => { const hd = document.querySelector('header[role="banner"]'); return getComputedStyle(hd).visibility !== 'hidden'; }, null, { timeout: 6000 });
+    assert.equal(await seen(), true, 'back after one repair');
+    // 2: a rule that only the clip-free pin gets round (the clip stands in for the thing that went wrong on X)
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { const st = document.createElement('style'); st.id = 'zz-test-rule'; st.textContent = 'html.xmc-rail:not(.xmc-noclip) header[role="banner"][data-xmc-style] { visibility: hidden !important; }'; document.head.append(st); });
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-noclip'), null, { timeout: 8000 });
+    await page.waitForTimeout(400);
+    assert.equal(await seen(), true, 'back after the second, without the clip');
+    const d = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()));
+    assert.ok(d.panels.menuGone && /visibility:hidden/.test(d.panels.menuGone.why), 'the diagnostics say what was found: ' + JSON.stringify(d.panels.menuGone));
+    assert.ok(JSON.stringify(d.trace).includes('menu gone'), 'and the trace has it');
   });
 }, 90000);
 

@@ -3283,7 +3283,11 @@
       if (!el || el.dataset.xmcStyle === undefined || !el.getBoundingClientRect().width) continue;
       const clone = el.cloneNode(true);
       for (const mine of clone.querySelectorAll('#xmc-pill')) mine.remove(); // our own button stays where it is (below), never copied
-      for (const x of [clone, ...clone.querySelectorAll('[data-testid], [id]')]) { x.removeAttribute('data-testid'); x.removeAttribute('id'); }
+      for (const x of [clone, ...clone.querySelectorAll('[data-testid], [id]')]) { // (the fold rules need to know the Post button and the account button, so those two are kept under another name)
+        const tid = x.getAttribute('data-testid');
+        if (tid === 'SideNav_NewTweet_Button' || tid === 'SideNav_AccountSwitcher_Button') x.setAttribute('data-xmc-tid', tid);
+        x.removeAttribute('data-testid'); x.removeAttribute('id');
+      }
       clone.id = id;
       clone.removeAttribute('role'); // or the page's own menu lookups would find the copy
       clone.setAttribute('inert', ''); clone.setAttribute('aria-hidden', 'true');
@@ -3337,11 +3341,12 @@
       nav.dataset.xmcStyle = nav.getAttribute('style') || '';
       p.width = Math.round(m.maxR - m.minL);
       if (!railOn()) p.fullW = p.width; // (what the menu measures with its names showing, for when it is folded and opened again)
-      // (folded to icons the header keeps its old width, so it would sit over the columns: end it where the icons end)
-      const hw = railOn() ? Math.min(r.width, m.maxR - r.left) : r.width;
+      // (the header keeps its width: X lays its menu out against the header's right edge, so a narrower box moves the icons, off the screen on a wide
+      // window. The part that hangs over the columns past the icons is clipped away instead (--xmc-clip, in the stylesheet): it shows nothing and catches no press)
+      const hw = r.width, clipR = railOn() ? Math.max(0, Math.round(r.width - (m.maxR - r.left))) : 0;
       nav.style.cssText += `;position:fixed !important;top:0 !important;height:100vh !important;margin:0 !important;` +
         `transform:none !important;z-index:6 !important;width:${Math.round(hw)}px !important;` +
-        `left:${Math.round(-(m.minL - r.left))}px !important`;
+        `left:${Math.round(-(m.minL - r.left))}px !important;--xmc-clip:${clipR}px`;
       if (acct) { acct.style.maxWidth = p.width + 'px'; acct.style.overflow = 'hidden'; }
     } else if (!sideFreeze) { // (while a still copy stands in for it there is nothing to probe)
       const link = nav.querySelector('a[href="/home"], a[href^="/notifications"]');
@@ -3465,6 +3470,45 @@
     trace('rail FAILED', showing + ' names still showing, menu ' + state.railFail.width + 'px wide, icons end at ' + want);
     toast('X’s menu would not fold here. Copy diagnostics shows why.');
   }
+  // Is the menu there to be seen and pressed? Looked at twice a second while it is pinned. If its first icon is hidden, clipped away or
+  // under something that is not ours for a second, the pin is done again; if that does not bring it back, again without the clip that
+  // keeps a folded menu's overhang off the columns. What was found goes in the trace and the diagnostics (menuGone).
+  let menuBad = 0, menuHealAt = 0, menuHeals = 0;
+  function menuSeen(hdr) {
+    const a = [...hdr.querySelectorAll('nav a[href]')].find((x) => x.querySelector('svg') && getComputedStyle(x).display !== 'none');
+    const svg = a && a.querySelector('svg');
+    if (!svg) return null;
+    const b = svg.getBoundingClientRect();
+    const at = [b.left, b.top, b.width, b.height].map(Math.round).join(',');
+    if (!b.width || !b.height) return { why: 'the first icon has no size', at };
+    for (let el = svg; el && el !== document.documentElement; el = el.parentElement) {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) < 0.05) return { why: (el === svg ? 'icon' : el.tagName.toLowerCase()) + ' is ' + (cs.display === 'none' ? 'display:none' : cs.visibility === 'hidden' ? 'visibility:hidden' : 'opacity ' + cs.opacity), at };
+    }
+    if (b.right <= 0 || b.left >= innerWidth) return { why: 'the first icon is off the screen sideways', at };
+    if (b.bottom <= 0 || b.top >= innerHeight) return null; // (a short window: nothing to judge by)
+    const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+    if (!hit || hdr.contains(hit) || hit.closest('#layers, #xmc-toast, #xmc-lightbox, #xmc-navfreeze, #xmc-pill') || (postView && hit.closest('#xmc-root'))) return null;
+    const cs = getComputedStyle(hdr);
+    return { why: 'something else is on top of the first icon: ' + (hit.id ? '#' + hit.id : hit.tagName.toLowerCase() + (typeof hit.className === 'string' && hit.className ? '.' + hit.className.trim().split(/\s+/)[0] : '')), at, clip: cs.clipPath, box: [hdr.getBoundingClientRect().left, hdr.getBoundingClientRect().width].map(Math.round).join(',') };
+  }
+  function menuWatch() {
+    const html = document.documentElement, hdr = pin.nav.el();
+    const calm = html.classList.contains('xmc-on') && hdr && hdr.dataset.xmcStyle !== undefined && !pin.nav.fallback && !sideFreeze && !state.peek && !state.posting && !root.hidden && !html.classList.contains('xmc-panelanim') && !html.classList.contains('xmc-boot');
+    const bad = calm ? menuSeen(hdr) : null;
+    if (!bad) { menuBad = 0; return; }
+    state.menuGone = Object.assign({ rail: html.classList.contains('xmc-rail'), pinW: pin.nav.width, heals: menuHeals }, bad);
+    if (++menuBad < 2) return;
+    menuBad = 0;
+    if (Date.now() - menuHealAt > 60000) menuHeals = 0;
+    menuHealAt = Date.now();
+    if (menuHeals >= 2) { traceOnce('menu gone', 'still not showing after two repairs: ' + JSON.stringify(state.menuGone), 30000); return; }
+    menuHeals++;
+    if (menuHeals === 2) html.classList.add('xmc-noclip');
+    trace('menu gone', JSON.stringify(state.menuGone) + (menuHeals === 2 ? ': pinned again without the clip' : ': pinned again'));
+    html.classList.remove('xmc-frozen'); // (it is only ever on while a still copy stands in; with none it would hide the menu for good)
+    unpin('nav'); positionNav();
+  }
   const shape = (el, d = 0) => { // an outline of a link's markup: tags, roles and the words of the name, nothing else
     const tag = el.tagName.toLowerCase();
     if (tag === 'svg') return 'svg';
@@ -3482,10 +3526,10 @@
     const widest = links.map((a) => ({ a, w: Math.round(a.getBoundingClientRect().width) })).sort((x, y) => y.w - x.w).slice(0, 4)
       .map((x) => (x.a.getAttribute('data-testid') || x.a.getAttribute('aria-label') || (x.a.getAttribute('href') || '').slice(0, 24) || x.a.tagName.toLowerCase()) + ' ' + x.w);
     return {
-      left: settings.leftPanel, right: settings.rightPanel, classes: ['xmc-rail', 'xmc-sidehide', 'xmc-panelanim'].filter((c) => html.classList.contains(c)).join(' '),
+      left: settings.leftPanel, right: settings.rightPanel, classes: ['xmc-rail', 'xmc-sidehide', 'xmc-panelanim', 'xmc-noclip', 'xmc-frozen'].filter((c) => html.classList.contains(c)).join(' '),
       navLinks: links.length, namesFound: marked.length, namesStillShowing: html.classList.contains('xmc-rail') ? marked.filter((x) => x.getBoundingClientRect().width > 1).length : null,
       header: box(hdr), icons: m ? [Math.round(m.minL), Math.round(m.maxR)] : null, iconsClamped: mc ? [Math.round(mc.minL), Math.round(mc.maxR)] : null, widestLinks: widest, columnsFrom: root.style.left, columnsTo: root.style.right, side: box(side),
-      tab: sideTab.hidden ? 'hidden' : sideTab.style.right, failed: state.railFail || null, linkShape: tpl ? shape(tpl) : '',
+      tab: sideTab.hidden ? 'hidden' : sideTab.style.right, failed: state.railFail || null, menuGone: state.menuGone || null, menuHeals, linkShape: tpl ? shape(tpl) : '',
     };
   }
   // The logo (the bird, or the X) at the top of X's menu folds and unfolds it: Home already goes home, so the logo is free for this, and
@@ -3891,6 +3935,7 @@
     if (tickN % 4 === 0) { guard('logo toggle', syncLogoToggle); guard('menu names', markNavLabels); }
     if (tickN % 15 === 7) guard('translations', harvestTranslations);
     guard('side panels', applyPanels);
+    if (tickN % 5 === 4) guard('menu watch', menuWatch);
     if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
     if (tickN % 10 === 5 && Date.now() - lastScrollAt > 500) guard('recycle', () => recycleCards(false));
