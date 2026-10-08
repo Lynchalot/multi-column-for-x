@@ -3415,7 +3415,7 @@
   function probeOk(b, container) {
     if (!b || !b.width || b.top < 0 || b.bottom > innerHeight || b.left < 0 || b.right > innerWidth) return true;
     const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-    return !hit || container.contains(hit) || !!hit.closest('#layers, #xmc-root, #xmc-toast, #xmc-lightbox, #xmc-navfreeze, #xmc-sidefreeze'); // our own panel, toast and still copies may cover them: that is not a broken pin
+    return !hit || container.contains(hit) || !!hit.closest('#layers, #xmc-root, #xmc-toast, #xmc-lightbox, .xmc-swrap, #xmc-navfreeze, #xmc-sidefreeze'); // our own panel, settings, toast and still copies may cover them: that is not a broken pin
   }
   function positionNav() {
     const p = pin.nav, nav = p.el();
@@ -3576,7 +3576,7 @@
     if (b.right <= 0 || b.left >= innerWidth) return { why: 'the first icon is off the screen sideways', at };
     if (b.bottom <= 0 || b.top >= innerHeight) return null; // (a short window: nothing to judge by)
     const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-    if (!hit || hdr.contains(hit) || hit.closest('#layers, #xmc-toast, #xmc-lightbox, #xmc-navfreeze, #xmc-pill') || (postView && hit.closest('#xmc-root'))) return null;
+    if (!hit || hdr.contains(hit) || hit.closest('#layers, #xmc-toast, #xmc-lightbox, .xmc-swrap, #xmc-navfreeze, #xmc-pill') || (postView && hit.closest('#xmc-root'))) return null;
     const cs = getComputedStyle(hdr);
     return { why: 'something else is on top of the first icon: ' + (hit.id ? '#' + hit.id : hit.tagName.toLowerCase() + (typeof hit.className === 'string' && hit.className ? '.' + hit.className.trim().split(/\s+/)[0] : '')), at, clip: cs.clipPath, box: [hdr.getBoundingClientRect().left, hdr.getBoundingClientRect().width].map(Math.round).join(',') };
   }

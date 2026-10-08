@@ -886,6 +886,31 @@ browserTest('the gear opens the settings in a panel over the page (no new tab); 
   });
 }, 90000);
 
+browserTest('with the settings panel open, the menu, the columns and the right panel stay exactly where they are (it lies over them; the pin check does not take it for a broken pin)', async (e) => {
+  const h = await e.open('/home/', { width: 1900, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(1500);
+    const look = () => page.evaluate(() => {
+      const r = document.getElementById('xmc-root'), raw = window.__xmc.diagnostics();
+      const d = { navFallback: /"navFallback":true/.test(raw), sideFallback: /"sideFallback":true/.test(raw) };
+      return { left: r.style.left, right: r.style.right, cols: document.querySelectorAll('.xmc-col').length, colw: Math.round(document.querySelector('.xmc-col').getBoundingClientRect().width), root: Math.round(r.getBoundingClientRect().width), navFallback: d.navFallback, sideFallback: d.sideFallback, pinnedNav: document.querySelector('header[role="banner"]').dataset.xmcStyle !== undefined, pinnedSide: document.querySelector('[data-testid="sidebarColumn"]').dataset.xmcStyle !== undefined };
+    });
+    const before = await look();
+    assert.equal(before.navFallback, false); assert.equal(before.sideFallback, false);
+    await page.locator('.xmc-gear').click();
+    await page.waitForSelector('#xmc-settings iframe');
+    await page.waitForTimeout(4500); // (the pin check looks every half second and gives up after three misses)
+    const during = await look();
+    assert.deepEqual(during, before, 'nothing moved or resized while the panel was open');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('#xmc-settings', { state: 'detached' });
+    await page.waitForTimeout(800);
+    assert.deepEqual(await look(), before, 'and nothing after it closed');
+  });
+}, 90000);
+
 browserTest('if the settings panel does not come up, the settings page opens in a tab as before', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
   await checked(h, async () => {
