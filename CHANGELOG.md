@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.28.2
+- **The log of what the extension did survives a reload.** Copy diagnostics used to carry only the events since the page last loaded, so a problem you saw before a reload (or while the laptop was shut and the page was refreshed) was gone. The last 300 or so events are now kept in the browser's extension storage, written every few seconds and when the page goes away, and Copy diagnostics has them as `log.earlier` (with this computer's date and time, and a short id for each page load, so other tabs show up as their own). Page loads, the tab going into the background and back, the page going away, and any error the extension caught are logged too.
+- **What is kept:** the same events as before (kinds, post numbers, widths), plus the kind of page (home, profile, search…) instead of the address. No post text. **Settings, Troubleshooting: "Keep a short log for Copy diagnostics"** (on) turns it off and deletes it. PRIVACY.md says so.
+- Not tried on real Firefox: the mock stores the log in the page's own storage, the real extension in `storage.local`. If a log is missing after a reload, say so.
+
 ## 0.28.1
 Hardening the folding menu against X's real markup, which nobody working on this has seen.
 - **The menu's names are found by their words, not by X's nesting.** 0.28.0 faded "the link's second box after the icon", which is how the stand-in x.com is built and how I remember X's. Each name is now found as the biggest piece of text in a link that has an icon, and marked; the stylesheet fades the marked boxes as well as the old guess. A test nests the links differently (spans, the name two boxes deep) and the menu still folds (it did not with only the old rule).

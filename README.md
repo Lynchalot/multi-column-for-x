@@ -95,7 +95,7 @@ Permanent: submit the zip to addons.mozilla.org, or `npx web-ext sign --channel=
   for `[xmc]`: it lists which timeline requests it saw (`Seen: {}` means the page hook didn't run; `Seen: {HomeTimeline: n}` with no posts means
   X changed its data format: fix `src/parse.js`, adding a fixture to `test/fixtures.js` first). `window.__xmc` shows the live state.
 - **Loading never finishes, or comments won't load:** open a post's **...** menu, choose **Copy diagnostics**, and paste it into a
-  [bug report](https://github.com/Lynchalot/multi-column-for-x/issues/new/choose). It holds request names and counts, no post text, names or cookies.
+  [bug report](https://github.com/Lynchalot/multi-column-for-x/issues/new/choose). It holds request names and counts, and a short log (kept across reloads; switch it off under Settings, Troubleshooting), no post text, names or cookies.
 
 ## Support
 Free and open source (MIT). If it saves you time, you can [buy me a coffee on Ko-fi](https://ko-fi.com/falsehamartia). Bugs and ideas: [GitHub issues](https://github.com/Lynchalot/multi-column-for-x/issues).

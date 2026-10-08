@@ -22,6 +22,8 @@
   const ext = typeof browser !== 'undefined' && browser.runtime && browser.runtime.id ? browser : null;
   const storage = ext && ext.storage && ext.storage.local;
   let ready = false;
+  let logCache = [], logPending = []; // the event log kept across reloads (see trace)
+  const LOG_KEY = 'xmcLog', LOG_MAX = 300;
   let savedDownloads = new Map(); // tweet id -> {id, handle, n, at}   (what has been downloaded)
 
   function save() {
@@ -38,6 +40,8 @@
       Object.assign(settings, XMCSettings.normalize(v));
       loadHistory(v.dlHistory);
       loadSeen(storage ? v.seenPosts : JSON.parse(localStorage.getItem('xmc.seen') || '[]'));
+      logCache = validLog(storage ? v[LOG_KEY] : JSON.parse(localStorage.getItem('xmc.log') || '[]'));
+      if (!settings.keepLog) clearLog();
     } catch { /* defaults */ }
   }
   function onExternalChange(next, hist) {
@@ -49,7 +53,8 @@
     ext.storage.onChanged.addListener((changes, area) => {
       if (area !== 'local') return;
       const next = {};
-      for (const k in changes) if (k !== 'dlHistory' && k !== 'seenPosts') next[k] = changes[k].newValue;
+      if (changes[LOG_KEY]) logCache = validLog(changes[LOG_KEY].newValue);
+      for (const k in changes) if (k !== 'dlHistory' && k !== 'seenPosts' && k !== LOG_KEY) next[k] = changes[k].newValue;
       if (changes.seenPosts) mergeSeen(changes.seenPosts.newValue);
       if (Object.keys(next).length || changes.dlHistory) onExternalChange(next, changes.dlHistory ? changes.dlHistory.newValue : undefined);
     });
@@ -57,6 +62,7 @@
     window.addEventListener('storage', (e) => {
       if (e.key === 'xmc.settings') { try { onExternalChange(JSON.parse(e.newValue || '{}')); } catch { /* ignore */ } }
       if (e.key === 'xmc.seen') { try { mergeSeen(JSON.parse(e.newValue || '[]')); } catch { /* ignore */ } }
+      if (e.key === 'xmc.log') { try { logCache = validLog(JSON.parse(e.newValue || '[]')); } catch { /* ignore */ } }
     });
   }
 
@@ -880,6 +886,7 @@
 
   // settings that change what's drawn
   function settingsChanged() {
+    if (!settings.keepLog && (logCache.length || logPending.length)) clearLog(); // (turned off: what was kept goes)
     window.postMessage({ source: 'xmc-flags', skipAge: !!settings.skipAgeCheck }, location.origin); // the page hook turns X's age-verification flag off or on
     try { window.localStorage.setItem('xmcSkipAge', settings.skipAgeCheck ? '1' : '0'); } catch { /* storage blocked */ } // so the hook knows it at the next page load, before X draws anything
     XMCSite.apply(settings);
@@ -1335,6 +1342,7 @@
       theme: (() => { const c = document.querySelector('.xmc-card'); const ccs = c && getComputedStyle(c); const rcs = getComputedStyle(root); return { cardStyle: settings.cardStyle, seeThrough: root.classList.contains('xmc-seethru'), fg: rcs.getPropertyValue('--xmc-fg').trim(), bg: rcs.getPropertyValue('--xmc-bg').trim(), cardBg: ccs && ccs.backgroundColor, cardEdge: ccs && ccs.borderTopColor, bodyBg: getComputedStyle(document.body).backgroundColor, htmlBg: getComputedStyle(document.documentElement).backgroundColor }; })(),
       ageFlag: state.ageFlag || null,
       trace: TRACE.slice(-120),
+      log: { thisLoad: loadId, kept: !!settings.keepLog, earlier: earlierLog() }, // (from before this page load, and from other x.com tabs; the times are this computer's)
       commentTimes: state.commentTimes || [],
       commentFailures: state.commentFailures || [],
       commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, translateProbe: state.translateProbe || null, popProbe: state.popProbe || null, panels: panelProbe(), cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
@@ -1503,15 +1511,51 @@
   // A rolling log of what the extension did and anything that looked wrong (X's own page showing through, things shifting), kept
   // for Copy diagnostics so a problem can be read from it without a recording. No post text, only ids and kinds of event.
   const TRACE = [], traceAt = Date.now(), traceSeen = {};
+  // The same events are kept in the browser's own storage, so a problem is still there after a reload (a page that flickered and
+  // then reloaded is otherwise forgotten). [time, page-load id, kind, info]; the newest 300 are kept, shared by every x.com tab.
+  const loadId = Math.random().toString(36).slice(2, 5);
+  let logTimer = 0;
+  const validLog = (v) => (Array.isArray(v) ? v.filter((e) => Array.isArray(e) && typeof e[0] === 'number' && typeof e[2] === 'string') : []);
+  function writeLog(list) {
+    logCache = list;
+    if (storage) storage.set({ [LOG_KEY]: list }).catch(() => {});
+    else { try { localStorage.setItem('xmc.log', JSON.stringify(list)); } catch { /* private mode */ } }
+  }
+  function clearLog() {
+    logPending = []; logCache = [];
+    if (storage) storage.remove(LOG_KEY).catch(() => {});
+    else { try { localStorage.removeItem('xmc.log'); } catch { /* private mode */ } }
+  }
+  async function flushLog(fast) { // fast: the page is going away, so there is no time to read the stored log first
+    logTimer = 0;
+    if (!logPending.length) return;
+    const mine = logPending; logPending = [];
+    if (!settings.keepLog) return;
+    try {
+      const base = fast === true ? logCache : validLog(storage ? (await storage.get(LOG_KEY))[LOG_KEY] : JSON.parse(localStorage.getItem('xmc.log') || '[]'));
+      writeLog(base.concat(mine).slice(-LOG_MAX));
+    } catch { /* storage unavailable */ }
+  }
+  function earlierLog() { // what was kept from before this page load (and from other x.com tabs), oldest first
+    const p = (n) => String(n).padStart(2, '0');
+    return logCache.filter((e) => e[1] !== loadId).slice(-150).map((e) => { const d = new Date(e[0]); return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + ' ' + e[1] + ' ' + e[2] + (e[3] ? ' ' + e[3] : ''); });
+  }
   function trace(kind, info) {
-    TRACE.push([Date.now() - traceAt, kind, info === undefined ? '' : String(info).slice(0, 80)]);
+    const text = info === undefined ? '' : String(info).slice(0, 80);
+    TRACE.push([Date.now() - traceAt, kind, text]);
     if (TRACE.length > 160) TRACE.shift();
+    if (settings.keepLog) { logPending.push([Date.now(), loadId, kind, text]); if (!logTimer) logTimer = setTimeout(flushLog, 4000); }
   }
   const traceOnce = (kind, info, gapMs) => { const n = Date.now(); if (n - (traceSeen[kind] || 0) > (gapMs || 3000)) { traceSeen[kind] = n; trace(kind, info); } };
+  trace('load', where() + ' v' + (ext ? ext.runtime.getManifest().version : '?'));
+  window.addEventListener('pagehide', () => { trace('pagehide'); flushLog(true); });
+  document.addEventListener('visibilitychange', () => { trace('tab', document.visibilityState); if (document.visibilityState === 'hidden') flushLog(true); });
+  window.addEventListener('error', (e) => traceOnce('error', (e.message || '') + ' ' + String(e.filename || '').split('/').pop() + ':' + e.lineno, 20000));
+  window.addEventListener('unhandledrejection', (e) => traceOnce('rejection', e.reason && e.reason.message ? e.reason.message : String(e.reason), 20000));
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput && e.value > 0.02) trace('layout-shift', e.value.toFixed(3) + ' ' + (e.sources || []).slice(0, 2).map((x) => x.node && (x.node.id || String(x.node.className).slice(0, 24) || x.node.nodeName)).join(' | ')); }).observe({ type: 'layout-shift', buffered: false }); } catch { /* not supported */ }
   let routerPoke = false;
   const ownBacks = []; // when each Back we pressed ourselves was pressed; the browser may take seconds to answer (Zen does)
-  function stepBack() { ownBackAt = Date.now(); ownBacks.push(ownBackAt); trace('back', 'ours, at ' + location.pathname); window.history.back(); }
+  function stepBack() { ownBackAt = Date.now(); ownBacks.push(ownBackAt); trace('back', 'ours, on a ' + where() + ' page'); window.history.back(); }
 
   // ---------- comments ----------
   // X only sends a post's replies when its own page is opened. So we open that page on X's hidden side (nothing
@@ -3696,7 +3740,7 @@
     }
   }
 
-  const guard = (name, fn) => { try { fn(); } catch (err) { console.error('[xmc]', name, err); } };
+  const guard = (name, fn) => { try { fn(); } catch (err) { console.error('[xmc]', name, err); traceOnce('error ' + name, err && err.message, 30000); } };
   let veilPath = null;
   let tickN = 0;
   let wasActive = false;

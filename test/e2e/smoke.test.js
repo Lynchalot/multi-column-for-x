@@ -1831,6 +1831,39 @@ browserTest('the menu folds by the words of its names, whatever the markup round
   });
 }, 90000);
 
+browserTest('the event log survives a reload, is capped, and goes when it is switched off', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const first = await page.evaluate(() => { const d = JSON.parse(window.__xmc.diagnostics()); window.dispatchEvent(new Event('pagehide')); return d.log.thisLoad; }); // (the page going away writes the log)
+    await page.reload();
+    await e.ready(page);
+    const d = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()));
+    assert.notEqual(d.log.thisLoad, first);
+    assert.ok(d.log.earlier.some((l) => l.includes(' ' + first + ' load home v')), 'the earlier load is there: ' + JSON.stringify(d.log.earlier.slice(-4)));
+    assert.ok(d.log.earlier.some((l) => l.includes(' ' + first + ' pagehide')), 'and its end');
+    assert.match(d.log.earlier[0], /^\d\d\/\d\d \d\d:\d\d:\d\d /, 'with the time it happened');
+    // never more than 300 entries
+    await page.evaluate(() => { const v = JSON.stringify(Array.from({ length: 500 }, (_, i) => [Date.now() - 1000 + i, 'zzz', 'filler', String(i)])); localStorage.setItem('xmc.log', v); window.dispatchEvent(new StorageEvent('storage', { key: 'xmc.log', newValue: v })); }); // (as another tab's write would arrive)
+    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('xmc.log')).length), 300);
+  });
+  const off = await e.open('/home/', { settings: { keepLog: false } });
+  await checked(off, async () => {
+    const { page } = off;
+    await e.ready(page);
+    await page.evaluate(() => { localStorage.setItem('xmc.log', JSON.stringify([[Date.now(), 'old', 'load', '/home/']])); });
+    await page.reload(); // (it is read at the start, found switched off, and deleted)
+    await e.ready(page);
+    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    assert.equal(await page.evaluate(() => localStorage.getItem('xmc.log')), null, 'nothing kept, and what was there is deleted');
+    const d = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()));
+    assert.equal(d.log.kept, false);
+    assert.deepEqual(d.log.earlier, []);
+  });
+}, 90000);
+
 browserTest('the right panel slides away behind a tab on its edge, the columns take its room, and the tab brings it back', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {

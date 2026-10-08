@@ -121,6 +121,11 @@ var XMCSettings = (function () {
         { key: 'dlHistory', type: 'bool', def: true, label: 'Remember what I’ve downloaded', help: 'Marks the button on posts you have already saved.' },
       ],
     },
+    {
+      id: 'trouble', title: 'Troubleshooting', items: [
+        { key: 'keepLog', type: 'bool', def: true, label: 'Keep a short log for Copy diagnostics', help: 'The last 300 or so events (kinds and post numbers, no post text) stay in your browser, so a problem is still there after a reload. Nothing is sent anywhere. Turning this off deletes the log.' },
+      ],
+    },
   ];
 
   // saved state that isn't edited on the options page

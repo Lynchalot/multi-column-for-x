@@ -67,7 +67,7 @@ What it does, and why each piece exists:
 - The options "Add Bookmarks / Likes / Lists to X's left menu" insert links (cloned from one of x.com's own menu links) to x.com's own pages; pressing one loads that page.
 - `background.js`: saves media with the `downloads` API (only URLs on https://pbs.twimg.com and https://video.twimg.com are accepted).
 
-Permissions: `storage` (settings and download history, local only), `downloads` (the Download button), host access to x.com / twitter.com (the site it enhances) and pbs.twimg.com / video.twimg.com (the media files).
+Permissions: `storage` (settings, download history and a short event log for Copy diagnostics that can be switched off; local only), `downloads` (the Download button), host access to x.com / twitter.com (the site it enhances) and pbs.twimg.com / video.twimg.com (the media files).
 
 Everything user-visible in the options page is generated from `src/settings.js`.
 
