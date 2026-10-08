@@ -773,7 +773,10 @@
   const profileEl = h('section', { className: 'xmc-profile', hidden: true });
   const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, colsEl, loaderEl, caughtEl, endEl, statusEl);
   const hintEl = h('div', { className: 'xmc-hint', hidden: true },
-    h('span', { textContent: 'Click a post to open it; Esc closes it and the arrow keys move between posts. Point at a picture to like, repost or save it. Settings are under the gear.' }),
+    h('ul', {},
+      ...['Click a post to open it.', 'Esc closes posts and the arrow keys move between posts.', 'Point at a picture to like, repost or save it.',
+        'Move between opened pictures with your mouse scroll wheel.', 'Settings are under the gear in the upper right.'].map((t) => h('li', { textContent: t })),
+      h('li', {}, 'Support us ', h('a', { href: (typeof XMCMeta !== 'undefined' && XMCMeta.donate) || 'https://ko-fi.com/falsehamartia', target: '_blank', rel: 'noopener noreferrer', textContent: 'here' }), '.')),
     h('button', { type: 'button', textContent: 'Got it', onclick: () => dismissHint() }));
   const root = h('div', { id: 'xmc-root', hidden: true }, bar, hintEl, scroller);
   const toastEl = h('div', { id: 'xmc-toast', hidden: true });
@@ -870,10 +873,44 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { toastEl.hidden = true; }, undo ? 5000 : 2800);
   }
-  function openOptions() {
+  // The gear opens the settings in a panel over the page: the settings page itself, in a frame (it is the same page the toolbar button
+  // opens, so there is one thing to keep right). If the frame has not said it is up within three seconds (a page that will not frame it),
+  // the page opens in a tab as it used to.
+  let settingsPanel = null;
+  function openOptionsTab() {
     if (ext && ext.runtime && ext.runtime.sendMessage) ext.runtime.sendMessage({ type: 'xmc-open-options' }).catch(() => {});
-    else toast('Settings are in the extension’s options page.');
+    else window.open(new URL('/ext/options.html', location.origin).href, '_blank', 'noopener');
   }
+  function closeSettings() {
+    if (!settingsPanel) return;
+    clearTimeout(settingsPanel.timer);
+    settingsPanel.wrap.remove();
+    settingsPanel = null;
+    if (!root.hidden && !postView) setTimeout(() => { if (!settingsPanel) focusScroller(); }, 0);
+  }
+  function openOptions(section) {
+    const was = settingsPanel;
+    closeSettings();
+    if (was && !section) return; // (the gear again puts it away)
+    const base = ext && ext.runtime && ext.runtime.getURL ? ext.runtime.getURL('popup.html') : new URL('/ext/popup.html', location.origin).href;
+    const rgb = /(\d+)[, ]+(\d+)[, ]+(\d+)/.exec(root.style.getPropertyValue('--xmc-solid') || '');
+    const dark = !rgb || (0.299 * rgb[1] + 0.587 * rgb[2] + 0.114 * rgb[3]) < 140; // (the panel is in X's colours, not the system's)
+    const frame = h('iframe', { className: 'xmc-sframe', title: 'Settings', src: base + '?framed=1&theme=' + (dark ? 'dark' : 'light') + (section ? '#sec-' + section : '') });
+    const panel = h('div', { id: 'xmc-settings', role: 'dialog', 'aria-label': 'Settings' }, frame);
+    const wrap = h('div', { className: 'xmc-swrap' }, h('div', { className: 'xmc-sback', onpointerdown: closeSettings }), panel);
+    document.body.append(wrap);
+    settingsPanel = { wrap, frame, ready: false, timer: setTimeout(() => {
+      if (!settingsPanel || settingsPanel.ready) return;
+      trace('settings panel', 'did not come up in 3 s: the settings page was opened in a tab instead');
+      closeSettings(); openOptionsTab();
+    }, 3000) };
+  }
+  window.addEventListener('message', (e) => {
+    if (!settingsPanel || e.source !== settingsPanel.frame.contentWindow || !e.data || typeof e.data !== 'object') return;
+    if (e.data.xmc === 'settings-ready') { settingsPanel.ready = true; settingsPanel.frame.focus(); }
+    else if (e.data.xmc === 'settings-close') closeSettings();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && settingsPanel) { e.preventDefault(); e.stopImmediatePropagation(); closeSettings(); } }, true);
 
   const NSFW = { blur: ['eyeoff', 'NSFW blurred'], show: ['eye', 'NSFW shown'], hide: ['ban', 'NSFW hidden'] };
   function cycleNsfw() {
@@ -1273,7 +1310,58 @@
     state.parkedAt = Date.now();
     window.scrollTo(0, 0);
   }
-  new ResizeObserver(() => { if (!root.hidden && !document.documentElement.classList.contains('xmc-panelanim') && colCount() !== columns.length) relayout(); }).observe(scroller); // (not while a side panel is sliding: the posts are laid out once, when it has stopped)
+  // Laying the columns out again moves every post into new columns, and a video that is moved leaves full screen: so while one is in full
+  // screen (or has just been pressed, the window not yet full), a change of width waits. The window growing to the whole screen is
+  // exactly such a change.
+  let lastVideoPress = 0, layoutCatchUp = 0;
+  document.addEventListener('pointerdown', (e) => { if (e.target.closest && e.target.closest('video')) lastVideoPress = Date.now(); }, true);
+  const layoutHeld = () => !!document.fullscreenElement || Date.now() - lastVideoPress < 2500;
+  function relayoutIfNeeded() {
+    clearTimeout(layoutCatchUp);
+    if (root.hidden || document.documentElement.classList.contains('xmc-panelanim') || colCount() === columns.length) return; // (not while a side panel is sliding: the posts are laid out once, when it has stopped)
+    if (layoutHeld()) { layoutCatchUp = setTimeout(relayoutIfNeeded, 600); return; }
+    relayout();
+  }
+  new ResizeObserver(relayoutIfNeeded).observe(scroller);
+
+  // ---------- keys that scroll the page behind the columns ----------
+  // Vimium (j, k, d, u, gg, G) scrolls the element last clicked, or the whole page when that is not inside something that scrolls: before any
+  // click, or after one on the menu or the top bar, that is X's own page, hidden behind the columns, and nothing seems to happen. So when a
+  // plain key has just been pressed and X's page moves that nobody here moved, the columns move by the same amount and X's page goes back
+  // where it was. (Only letters, Space and the paging keys count: Esc closes a post, and X scrolls its own page back when we go back.)
+  // X's page is also kept a little way from its top and bottom while it is idle, or "up" and "back to the top" would have no room to move.
+  let ownScrollAt = 0, keyAt = 0, hiddenY = window.scrollY;
+  const nativeScrollTo = window.scrollTo.bind(window), nativeScrollBy = window.scrollBy.bind(window);
+  window.scrollTo = (...a) => { ownScrollAt = Date.now(); return nativeScrollTo(...a); }; // (what this script does to X's page is not a key's doing)
+  window.scrollBy = (...a) => { ownScrollAt = Date.now(); return nativeScrollBy(...a); };
+  document.addEventListener('keydown', (e) => {
+    const t = e.target, editable = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''));
+    if (e.isTrusted && !editable && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key.length === 1 || /^(PageUp|PageDown|Home|End)$/.test(e.key))) keyAt = Date.now();
+  }, true);
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY, dy = y - hiddenY, now = Date.now();
+    if (!dy) return;
+    const keyed = now - keyAt < 700 && now - ownScrollAt > 60 && state.shown && !root.hidden && !state.peek && !state.posting && now - (state.lastPeekEnd || 0) > 1500 && !document.getElementById('xmc-lightbox');
+    if (!keyed) { hiddenY = y; return; }
+    const target = postView ? postView.side : scroller; // (with a post open, the keys are for its comments)
+    if (target && target.scrollHeight > target.clientHeight) {
+      const jump = Math.abs(dy) > innerHeight * 1.2; // gg and G go the whole way: so do the columns
+      if (jump && y <= 60) target.scrollTop = 0;
+      else if (jump && y >= document.documentElement.scrollHeight - innerHeight - 60) target.scrollTop = target.scrollHeight;
+      else target.scrollTop += dy;
+      traceOnce('keys', 'a key scrolled the page behind the columns by ' + Math.round(dy) + ': the columns moved instead', 20000);
+    }
+    nativeScrollTo(0, hiddenY); // (X's page goes back: hiddenY is left as it was, so that this scroll comes out as no change)
+  }, { passive: true });
+  function keepHiddenPageRoom() {
+    if (!state.shown || root.hidden || state.peek || state.posting || document.hidden || postView) return;
+    const now = Date.now();
+    if (now - ownScrollAt < 2000 || now - keyAt < 2000 || now - (state.lastPeekEnd || 0) < 2000) return;
+    const max = document.documentElement.scrollHeight - innerHeight;
+    if (max < 300) return; // (too short to give room both ways)
+    const y = window.scrollY, want = Math.max(60, Math.min(max - 60, y));
+    if (Math.abs(want - y) > 1) { window.scrollTo(0, want); hiddenY = want; }
+  }
 
   // Refresh only ever happens when you press the button.
   function refresh() {
@@ -2293,7 +2381,7 @@
     openMenu(button, [
       ['Mute @' + t.author.handle, () => muteAccount(t.author.handle)],
       ['Hide quotes of this post', () => muteQuotesOf(t)],
-      ['Mute words…', () => openOptions()],
+      ['Mute words…', () => openOptions('muting')],
       ['Copy post text', async () => {
         const plain = t.segs.map((s) => (s.t === 'text' ? s.v : s.t === 'url' ? s.href : s.t === 'mention' ? '@' + s.handle : '#' + s.tag)).join('');
         try { await navigator.clipboard.writeText(plain); toast('Copied'); } catch { toast('Couldn’t copy'); }
@@ -3318,7 +3406,7 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => { // once you stop: X may have swapped layouts, so re-measure the sidebars
       navRestore();
-      if (!root.hidden) { guard('position', position); if (colCount() !== columns.length) relayout(); }
+      if (!root.hidden) { guard('position', position); relayoutIfNeeded(); }
     }, 200);
   });
 
@@ -3584,7 +3672,8 @@
     unpin('nav'); positionNav(); positionSide();
     if (pill.isConnected && !pill.hidden) placePill();
     railCheck();
-    if (!root.hidden && colCount() !== columns.length) { // (a different number of columns fits now: a short fade, not a jump)
+    if (!root.hidden && colCount() !== columns.length && layoutHeld()) relayoutIfNeeded();
+    else if (!root.hidden && colCount() !== columns.length) { // (a different number of columns fits now: a short fade, not a jump)
       colsEl.classList.add('xmc-fade');
       setTimeout(() => { relayout(); requestAnimationFrame(() => colsEl.classList.remove('xmc-fade')); }, 140);
     }
@@ -3644,10 +3733,15 @@
     const profile = nav.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
     const me = profile ? (profile.getAttribute('href') || '').replace(/^\//, '').split('/')[0] : '';
     const after = links.find((a) => /^\/i\/bookmarks\b/.test(a.getAttribute('href'))) || links.find((a) => /^\/notifications\b/.test(a.getAttribute('href'))) || template;
+    // X draws its menu with the names only when it has room (a narrow window, or the first moment before it has measured, shows icons alone).
+    // An entry made then has no name for good, so one made from a menu that has since changed is made again.
+    const named = template.textContent.trim() ? '1' : '0';
+    for (const old of nav.querySelectorAll('[data-xmc-nav]')) if (old.dataset.xmcNamed !== named) old.remove();
     for (const x of want) {
       const href = x.href(me);
       if (!href || nav.querySelector(`[data-xmc-nav="${x.key}"]`)) continue;
       const a = template.cloneNode(true);
+      a.dataset.xmcNamed = named;
       for (const el of [a, ...a.querySelectorAll('[data-testid], [id]')]) { el.removeAttribute('data-testid'); el.removeAttribute('id'); }
       a.setAttribute('href', href); a.setAttribute('aria-label', x.label); a.removeAttribute('aria-current'); a.dataset.xmcNav = x.key;
       const svg = a.querySelector('svg');
@@ -3936,6 +4030,7 @@
     if (tickN % 15 === 7) guard('translations', harvestTranslations);
     guard('side panels', applyPanels);
     if (tickN % 5 === 4) guard('menu watch', menuWatch);
+    if (tickN % 10 === 6) guard('keys room', keepHiddenPageRoom);
     if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
     if (tickN % 10 === 5 && Date.now() - lastScrollAt > 500) guard('recycle', () => recycleCards(false));

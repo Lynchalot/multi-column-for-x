@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Multi-Column for X",
-  "version": "0.30.1",
+  "version": "0.30.2",
   "description": "Your X (Twitter) timeline in multiple columns, with in-card video, filters and media download button.",
   "icons": {
     "48": "icons/icon.svg",
@@ -68,6 +68,31 @@
       "strict_min_version": "142.0"
     }
   },
+  "action": {
+    "default_title": "Multi-Column for X: settings",
+    "default_icon": {
+      "48": "icons/icon.svg",
+      "96": "icons/icon.svg"
+    },
+    "default_popup": "popup.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup.html",
+        "options.css",
+        "options.js",
+        "src/settings.js",
+        "src/meta.js",
+        "src/logic.js",
+        "icons/icon.svg"
+      ],
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ]
+    }
+  ],
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true

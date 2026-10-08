@@ -8,6 +8,11 @@
   let history = [];
   let readCount = 0; // posts remembered as read (only their ids, on this device)
 
+  const POPUP = document.body.classList.contains('popup'); // the toolbar button's panel: the same settings, each section folding out of a list
+  const FRAMED = POPUP && window.parent !== window; // the same page over x.com, from the gear in the columns' bar
+  if (FRAMED) document.body.classList.add('framed');
+  { const th = new URLSearchParams(location.search).get('theme'); if (POPUP && (th === 'dark' || th === 'light')) document.documentElement.dataset.theme = th; } // (X's colours, passed by the page that frames it)
+  const toParent = (type) => { try { window.parent.postMessage({ xmc: type }, '*'); } catch { /* nobody to tell */ } };
   const $ = (sel) => document.querySelector(sel);
   const h = (tag, props, ...kids) => { const n = Object.assign(document.createElement(tag), props || {}); n.append(...kids.filter(Boolean)); return n; };
   const say = (msg) => { $('#status').textContent = msg; };
@@ -122,12 +127,13 @@
 
   // starting points: each sets a handful of settings and leaves the rest alone. The box ticked is the one that matches what is
   // set now; "Custom" is the one picked when none does.
+  let customPicked = false; // ("Custom" chosen by hand while the settings still match a preset: it stays ticked until a preset is picked)
   function presetsBlock() {
     const wrap = h('div', { className: 'presets' });
-    const current = S.PRESETS.find((p) => S.presetApplies(p, settings));
+    const current = customPicked ? undefined : S.PRESETS.find((p) => S.presetApplies(p, settings));
     const row = (id, label, blurb, on, apply) => {
       const box = h('input', { type: 'radio', name: 'preset', id: 'preset-' + id, checked: on }); // (one of them: radio buttons, not boxes)
-      box.addEventListener('change', () => { if (apply) apply(); else refreshPresets(); });
+      box.addEventListener('change', () => { customPicked = !apply; if (apply) apply(); else refreshPresets(); });
       return h('div', { className: 'item bool' }, box,
         h('div', {}, h('label', { className: 'name', htmlFor: 'preset-' + id, textContent: label }), blurb ? h('div', { className: 'help', textContent: blurb }) : null));
     };
@@ -183,6 +189,8 @@
       sec.hidden = filtering && !any && !titleHit;
     }
     for (const a of document.querySelectorAll('#nav a')) { const target = document.getElementById(a.getAttribute('href').slice(1)); a.hidden = !!target && target.hidden; }
+    document.body.classList.toggle('finding', filtering);
+    if (POPUP) for (const b of document.querySelectorAll('#sections h2 > button.fold')) b.setAttribute('aria-expanded', String(filtering ? !b.closest('section').hidden : b.closest('section').classList.contains('open')));
     const st = $('#find-status');
     if (st) st.textContent = !filtering ? '' : shown ? shown + (shown === 1 ? ' setting' : ' settings') : 'No settings match.';
   }
@@ -194,6 +202,29 @@
     document.addEventListener('keydown', (e) => { // "/" jumps to the search, as on most sites
       if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(input|textarea|select)$/i.test((e.target || {}).tagName || '')) { e.preventDefault(); box.focus(); box.select(); }
     });
+  }
+
+  // In the panel each section is a heading that unfolds (one at a time, and the last one left open is open next time); while there is a
+  // search, every section with a match is open.
+  const OPEN_KEY = 'xmc.popupOpen';
+  function nestSections() {
+    let last = ''; try { last = localStorage.getItem(OPEN_KEY) || ''; } catch { /* storage blocked */ }
+    if (/^#sec-[\w-]+$/.test(location.hash)) last = location.hash.slice(1); // (asked for: "Mute words" opens that section)
+    for (const sec of document.querySelectorAll('#sections section[data-nav]')) {
+      const head = sec.querySelector('h2');
+      if (!head || sec.querySelector('h2 > button.fold')) continue;
+      const btn = h('button', { type: 'button', className: 'fold', ariaExpanded: 'false' }, h('span', { textContent: sec.dataset.nav }), h('span', { className: 'chev', textContent: '\u203a' }));
+      btn.setAttribute('aria-expanded', 'false');
+      btn.addEventListener('click', () => setOpen(sec, !sec.classList.contains('open')));
+      head.replaceChildren(btn);
+      if (sec.id === last) setOpen(sec, true, true);
+    }
+  }
+  function setOpen(sec, open, quiet) {
+    if (open) for (const other of document.querySelectorAll('#sections section.open')) if (other !== sec) setOpen(other, false, true); // (one at a time)
+    sec.classList.toggle('open', open);
+    const btn = sec.querySelector('h2 > button.fold'); if (btn) btn.setAttribute('aria-expanded', String(open));
+    if (!quiet) { try { localStorage.setItem(OPEN_KEY, open ? sec.id : ''); } catch { /* storage blocked */ } if (open) sec.scrollIntoView({ block: 'nearest' }); }
   }
 
   function build() {
@@ -225,6 +256,7 @@
       host.append(section);
     }
     wireFolderHint();
+    if (POPUP) nestSections();
     const nav = $('#nav');
     nav.replaceChildren(...[...document.querySelectorAll('section[data-nav]')].map((s) => {
       const a = h('a', { href: '#' + s.id, textContent: s.dataset.nav });
@@ -235,6 +267,7 @@
 
   function renderHistory() {
     const list = $('#history-list');
+    if (!list) return; // (the panel has no download history)
     $('#history-summary').textContent = history.length
       ? `${history.length} post${history.length === 1 ? '' : 's'} with saved media. Stored on this device only.`
       : 'Nothing downloaded yet.';
@@ -267,17 +300,18 @@
     if (XMCMeta.repo) bits.push(document.createTextNode(bits.length ? ' \u00b7 ' : ''), h('a', { href: XMCMeta.repo, textContent: 'Source & issues', target: '_blank', rel: 'noopener' }));
     if (bits.length) { sup.replaceChildren(...bits); sup.hidden = false; }
 
-    $('#history-clear').addEventListener('click', () => {
+    const on = (sel, type, fn) => { const el = $(sel); if (el) el.addEventListener(type, fn); }; // (the panel has no history or backup buttons)
+    on('#history-clear', 'click', () => {
       history = [];
       if (storage) storage.set({ dlHistory: [] }); 
       renderHistory(); say('Download history cleared.');
     });
-    $('#export').addEventListener('click', () => {
+    on('#export', 'click', () => {
       const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
       const a = h('a', { href: URL.createObjectURL(blob), download: 'multi-column-for-x-settings.json' });
       document.body.append(a); a.click(); a.remove();
     });
-    $('#import').addEventListener('change', async (e) => {
+    on('#import', 'change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       try {
@@ -286,10 +320,18 @@
       } catch { say('That file is not a settings export.'); }
       e.target.value = '';
     });
-    $('#reset').addEventListener('click', () => {
+    on('#reset', 'click', () => {
       if (!confirm('Put every setting back to its default?')) return;
       persist(S.normalize()); build(); say('All settings reset.');
     });
+    on('#open-full', 'click', () => { // the whole page, in a tab (the panel closes as it opens)
+      if (ext) ext.runtime.openOptionsPage().then(() => { if (FRAMED) toParent('settings-close'); else window.close(); }, () => {}); else window.open('options.html', '_blank');
+    });
+    if (FRAMED) {
+      const close = $('#close-panel'); close.hidden = false; close.addEventListener('click', () => toParent('settings-close'));
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.defaultPrevented && !$('#opt-search').value) toParent('settings-close'); }); // (Esc clears a search first)
+      toParent('settings-ready');
+    }
     if (storage && ext.storage.onChanged) {
       ext.storage.onChanged.addListener((ch, area) => {
         if (area !== 'local') return;

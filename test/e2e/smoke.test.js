@@ -500,7 +500,7 @@ browserTest('repost folding: several people reposting the same post make one car
 });
 
 browserTest('read posts: hidden on the next visit (not while you read), counted, shown on request, faded on request', async (e) => {
-  const h = await e.open('/home/', { settings: { v: 8, seen: 'hide' } });
+  const h = await e.open('/home/', { settings: { v: 8, seen: 'hide', hintSeen: true } }); // (the first-run tip is six lines tall and would take room that reading needs)
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
@@ -830,8 +830,120 @@ browserTest('the settings page offers starting points as radio buttons (one pick
     await page.locator('#preset-plain').check();
     await page.waitForFunction(() => document.getElementById('preset-plain').checked && !document.getElementById('preset-calm').checked);
     assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), false);
+    await page.locator('#preset-media').check(); // Media wall is picked and stays picked (it used to fall back to the first preset that still matched)
+    await page.waitForFunction(() => document.getElementById('preset-media').checked && !document.getElementById('preset-plain').checked && !document.getElementById('preset-calm').checked);
+    assert.equal(await page.locator('#opt-maxAutoCols').inputValue(), '8');
+    assert.equal(await page.locator('#opt-autoplayVideo').inputValue(), 'muted');
+    await page.locator('#preset-calm').check(); // and Calm takes the wall away again
+    await page.waitForFunction(() => document.getElementById('preset-calm').checked && !document.getElementById('preset-media').checked);
+    assert.equal(await page.locator('#opt-maxAutoCols').inputValue(), '5');
+    await page.locator('#preset-custom').check(); // Custom can be chosen by hand, and changes nothing
+    await page.waitForFunction(() => document.getElementById('preset-custom').checked && !document.getElementById('preset-calm').checked);
+    assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), true, 'the settings are as they were');
+    await page.locator('#preset-plain').check();
+    await page.waitForFunction(() => document.getElementById('preset-plain').checked && !document.getElementById('preset-custom').checked);
     await page.locator('#opt-hideTrending').check(); // now it matches none of them
     await page.waitForFunction(() => document.getElementById('preset-custom').checked && !document.getElementById('preset-plain').checked);
+  });
+});
+
+browserTest('the gear opens the settings in a panel over the page (no new tab); a change in it applies at once; Esc, the Close button, the gear and a press outside put it away', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const tabs = () => page.context().pages().length;
+    const before = tabs();
+    const frameOf = () => page.frames().find((f) => /popup\.html/.test(f.url()));
+    await page.locator('.xmc-gear').click();
+    await page.waitForSelector('#xmc-settings iframe');
+    await page.waitForFunction(() => { const f = document.querySelector('#xmc-settings iframe'); return f && f.contentDocument && f.contentDocument.querySelector('#sections section h2 button.fold'); }, null, { timeout: 8000 });
+    assert.equal(tabs(), before, 'no new tab');
+    const box = await page.evaluate(() => { const r = document.getElementById('xmc-settings').getBoundingClientRect(); return { right: Math.round(innerWidth - r.right), top: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; });
+    assert.ok(box.w >= 400 && box.h >= 500 && box.top < 80 && box.right < 40, 'a panel at the top right: ' + JSON.stringify(box));
+    const f = frameOf();
+    assert.ok(f, 'the settings page is in the frame');
+    await f.locator('#sections h2 button.fold', { hasText: 'Algorithmic content' }).click();
+    await f.locator('#opt-onlyFollowed').check();
+    await page.waitForFunction(() => window.__xmc.settings.onlyFollowed === true, null, { timeout: 5000 });
+    // Esc with the keyboard in the panel
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('#xmc-settings', { state: 'detached', timeout: 4000 });
+    // the gear again opens it, and again puts it away
+    await page.locator('.xmc-gear').click(); await page.waitForSelector('#xmc-settings iframe');
+    await page.locator('.xmc-gear').click({ force: true }); // (the gear is under the backdrop now: the press is outside the panel too)
+    await page.waitForSelector('#xmc-settings', { state: 'detached', timeout: 4000 });
+    // the Close button in the panel
+    await page.locator('.xmc-gear').click(); await page.waitForSelector('#xmc-settings iframe');
+    await page.waitForFunction(() => { const f = document.querySelector('#xmc-settings iframe'); return f && f.contentDocument && f.contentDocument.querySelector('#close-panel') && !f.contentDocument.querySelector('#close-panel').hidden; }, null, { timeout: 8000 });
+    await frameOf().locator('#close-panel').click();
+    await page.waitForSelector('#xmc-settings', { state: 'detached', timeout: 4000 });
+    // a press on the page outside it
+    await page.locator('.xmc-gear').click(); await page.waitForSelector('#xmc-settings iframe');
+    await page.mouse.click(300, 600);
+    await page.waitForSelector('#xmc-settings', { state: 'detached', timeout: 4000 });
+    assert.equal(tabs(), before, 'and still no new tab');
+  });
+}, 90000);
+
+browserTest('if the settings panel does not come up, the settings page opens in a tab as before', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.route('**/ext/popup.html**', (r) => r.abort());
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
+    await page.locator('.xmc-gear').click();
+    await page.waitForFunction(() => window.__opened.length === 1, null, { timeout: 8000 });
+    assert.match(await page.evaluate(() => window.__opened[0]), /options\.html/);
+    assert.equal(await page.locator('#xmc-settings').count(), 0, 'the empty panel is gone');
+  });
+}, 60000);
+
+browserTest('the panel can be opened at a section (Mute words opens Muting & filtering)', async (e) => {
+  const h = await e.open('/ext/popup.html?framed=1&theme=dark#sec-muting', { width: 440, height: 600 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#sections section.open');
+    assert.equal(await page.locator('#sections section.open').getAttribute('id'), 'sec-muting');
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark', 'in X\'s colours');
+  });
+});
+
+browserTest('the toolbar button\'s panel has the settings in sections that fold out, one at a time, and a search that opens the ones with a match', async (e) => {
+  const h = await e.open('/ext/popup.html', { width: 440, height: 600 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#sections section h2 button.fold');
+    const folds = await page.locator('#sections h2 button.fold').allInnerTexts();
+    assert.ok(folds.length >= 9, 'a heading for each section: ' + folds.join(' | '));
+    assert.ok(folds.some((t) => /Presets/.test(t)) && folds.some((t) => /Home timeline/.test(t)) && folds.some((t) => /Posts/.test(t)), 'the sections of the settings page: ' + folds.join(' | '));
+    assert.equal(await page.locator('#sections section.open').count(), 0, 'all folded to begin with');
+    assert.equal(await page.locator('#opt-onlyFollowed').isVisible(), false, 'and what is inside them is not in the way');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('nav#nav')).display), 'none', 'no side list: the headings are the list');
+    await page.locator('#sections h2 button.fold', { hasText: 'Algorithmic content' }).click();
+    await page.waitForSelector('#opt-onlyFollowed', { state: 'visible' });
+    assert.equal(await page.locator('#sections h2 button.fold[aria-expanded="true"]').count(), 1);
+    await page.locator('#opt-onlyFollowed').check();
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('xmc.settings')));
+    assert.equal(saved.onlyFollowed, true, 'a change in the panel is saved as on the settings page');
+    await page.locator('#sections h2 button.fold', { hasText: 'Home timeline' }).click(); // another one: the first folds
+    await page.waitForSelector('#opt-onlyFollowed', { state: 'hidden' });
+    assert.equal(await page.locator('#sections section.open').count(), 1, 'one open at a time');
+    // the search: every section with a match is open, and folds back when it is cleared
+    await page.locator('#opt-search').fill('trending');
+    await page.waitForFunction(() => [...document.querySelectorAll('#sections .item[data-key]')].some((i) => !i.hidden && i.offsetHeight > 0 && /trending/i.test(i.textContent)), null, { timeout: 4000 });
+    assert.ok((await page.locator('#sections section:not([hidden])').count()) >= 1);
+    await page.locator('#opt-search').fill('');
+    await page.waitForFunction(() => document.querySelectorAll('#sections section.open').length === 1 && !document.body.classList.contains('finding'));
+    // the one left open is open next time
+    await page.reload();
+    await page.waitForSelector('#sections section.open h2 button.fold');
+    assert.match(await page.locator('#sections section.open h2 button.fold').innerText(), /Home timeline/);
+    assert.equal(await page.locator('#open-full').count(), 1, 'a way to the whole page');
+    // what is pressed in it is big enough and has a name
+    const audit = await page.evaluate((fn) => (0, eval)('(' + fn + ')')('body'), auditInPage.toString());
+    assert.deepEqual({ small: audit.small, unnamed: audit.unnamed }, { small: [], unnamed: [] }, 'targets in the panel: ' + JSON.stringify(audit));
   });
 });
 
@@ -840,7 +952,7 @@ browserTest('a list page: the list\'s name is in the tab title and at the left o
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
-    await page.waitForFunction(() => document.title === 'Psyop / Twitter', null, { timeout: 8000 });
+    await page.waitForFunction(() => document.title === 'Psyop / X', null, { timeout: 8000 });
     assert.equal((await page.locator('.xmc-pagetitle').innerText()).trim(), 'Psyop');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-scroller')).scrollbarWidth), 'auto');
   });
@@ -1159,13 +1271,19 @@ browserTest('the post panel shows what a reply answers above it, once looked up 
   });
 }, 90000);
 
-browserTest('first run: a one-line hint says what you can do, and "Got it" keeps it away for good', async (e) => {
+browserTest('first run: a short tip says what you can do, and "Got it" keeps it away for good', async (e) => {
   const h = await e.open('/home/');
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
     await page.waitForSelector('.xmc-hint:not([hidden])', { timeout: 8000 });
-    assert.match(await page.locator('.xmc-hint').innerText(), /Click a post to open it/);
+    const tip = await page.locator('.xmc-hint').innerText();
+    for (const line of ['Click a post to open it.', 'Esc closes posts and the arrow keys move between posts.', 'Point at a picture to like, repost or save it.', 'Move between opened pictures with your mouse scroll wheel.', 'Settings are under the gear in the upper right.', 'Support us here.']) assert.ok(tip.includes(line), line + ' in: ' + tip);
+    assert.equal(await page.locator('.xmc-hint li').count(), 6, 'six lines');
+    const look = await page.evaluate(() => { const hint = document.querySelector('.xmc-hint'), r = hint.getBoundingClientRect(), u = hint.querySelector('ul').getBoundingClientRect(), a = hint.querySelector('a'); return { align: getComputedStyle(hint).textAlign, off: Math.round(Math.abs((u.left + u.right) / 2 - (r.left + r.right) / 2)), href: a.href, target: a.target, rel: a.rel }; });
+    assert.equal(look.align, 'center');
+    assert.ok(look.off <= 2, 'the list is in the middle of the bar: ' + look.off);
+    assert.deepEqual({ href: look.href, target: look.target, rel: look.rel }, { href: 'https://ko-fi.com/falsehamartia', target: '_blank', rel: 'noopener noreferrer' });
     await page.locator('.xmc-hint button').click();
     await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('xmc.settings')).hintSeen === true; } catch { return false; } });
     await page.reload();
@@ -1520,7 +1638,7 @@ browserTest('comments show the moment they arrive, not after the hidden page has
 }, 90000);
 
 browserTest('a post\'s ... menu has Copy diagnostics (just the details, no page opened) next to Report a problem', async (e) => {
-  const h = await e.open('/home/');
+  const h = await e.open('/home/', { settings: { v: 10, hintSeen: true } }); // (the first-run tip appearing a moment after the first posts would move the card under the press)
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
@@ -2454,6 +2572,108 @@ browserTest('if the menu is not showing (hidden, clipped, covered) it is pinned 
     assert.ok(JSON.stringify(d.trace).includes('menu gone'), 'and the trace has it');
   });
 }, 90000);
+
+browserTest('Bookmarks, Likes and Lists made while X shows its menu as icons alone get their names once X shows them (and the other way about)', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850, settings: { v: 10, hintSeen: true, navBookmarks: true, navLikes: true, navLists: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const words = () => page.evaluate(() => [...document.querySelectorAll('header [data-xmc-nav]')].map((a) => a.textContent.trim()));
+    await page.waitForFunction(() => document.querySelectorAll('header [data-xmc-nav]').length === 3, null, { timeout: 8000 });
+    assert.deepEqual(await words(), ['Bookmarks', 'Likes', 'Lists']);
+    // X's compact layout: its links lose their names (as they do in a narrow window); the entries of ours are made again, without
+    await page.evaluate(() => {
+      window.__zzLabels = [];
+      for (const a of document.querySelectorAll('header nav a[href]:not([data-xmc-nav])')) for (const l of a.querySelectorAll('div[dir="ltr"]')) { window.__zzLabels.push([l.parentElement, l, l.nextSibling]); l.remove(); }
+    });
+    await page.waitForFunction(() => { const x = [...document.querySelectorAll('header [data-xmc-nav]')]; return x.length === 3 && x.every((a) => !a.textContent.trim()); }, null, { timeout: 8000 });
+    // and X comes back with room: its names return, and so must theirs
+    await page.evaluate(() => { for (const [parent, l, next] of window.__zzLabels) parent.insertBefore(l, next && next.parentNode === parent ? next : null); });
+    await page.waitForFunction(() => { const x = [...document.querySelectorAll('header [data-xmc-nav]')].map((a) => a.textContent.trim()); return x.join() === 'Bookmarks,Likes,Lists'; }, null, { timeout: 8000 });
+    assert.deepEqual(await words(), ['Bookmarks', 'Likes', 'Lists']);
+  });
+}, 90000);
+
+browserTest('a video taken full screen stays full screen when the window grows (the columns are laid out again after it, not under it)', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const cols = () => page.evaluate(() => document.querySelectorAll('.xmc-col').length);
+    const before = await cols();
+    await page.evaluate(() => { const v = document.querySelector('.xmc-card video'); v.scrollIntoView({ block: 'center' }); window.__zzv = v; });
+    await page.waitForTimeout(400);
+    assert.equal(await page.evaluate(async () => { await window.__zzv.requestFullscreen(); return document.fullscreenElement === window.__zzv; }), true, 'in full screen');
+    await page.setViewportSize({ width: 2300, height: 900 }); // (the window grows to the whole screen: more room for columns)
+    await page.waitForTimeout(1800);
+    const during = await page.evaluate(() => ({ fs: document.fullscreenElement === window.__zzv, connected: window.__zzv.isConnected }));
+    assert.deepEqual(during, { fs: true, connected: true }, 'still full screen, and the video was not moved');
+    assert.equal(await cols(), before, 'the columns are left alone meanwhile');
+    await page.evaluate(() => document.exitFullscreen());
+    await page.waitForFunction((n) => document.querySelectorAll('.xmc-col').length > n, before, { timeout: 5000 });
+  });
+}, 90000);
+
+browserTest('keys that scroll the page behind the columns (Vimium: j k d u gg G) scroll the columns, wherever the last click was', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    // what Vimium does when what it last clicked is not inside something that scrolls: it scrolls the page itself (here, X's hidden page)
+    await page.evaluate(() => {
+      let lastG = 0;
+      const fr = document.createElement('iframe'); fr.style.display = 'none'; document.body.append(fr); // (the page's own scroll calls: in Firefox the extension's are a separate thing, here they are the same window's)
+      const by = (x, y) => fr.contentWindow.scrollBy.call(window, x, y), to = (x, y) => fr.contentWindow.scrollTo.call(window, x, y);
+      document.addEventListener('keydown', (ev) => {
+        const k = ev.key, d = document.documentElement;
+        if (k === 'j') by(0, 60); else if (k === 'k') by(0, -60);
+        else if (k === 'd') by(0, innerHeight / 2); else if (k === 'u') by(0, -innerHeight / 2);
+        else if (k === 'G') to(0, d.scrollHeight);
+        else if (k === 'g') { if (Date.now() - lastG < 500) to(0, 0); lastG = Date.now(); }
+        else if (k === 'Escape') by(0, 300); // (X putting its own page back where it was: not a key's doing)
+      }, true);
+      document.activeElement && document.activeElement.blur();
+    });
+    const top = () => page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop);
+    // (X's page is left alone for a while once the posts are in, and keeps some room at its top and bottom: "up" and "down" have somewhere to go)
+    const settle = () => page.waitForFunction(() => { const w = window.__zzIdle = window.__zzIdle || { y: -1, at: Date.now() }; if (Math.round(window.scrollY) !== w.y) { w.y = Math.round(window.scrollY); w.at = Date.now(); } const max = document.documentElement.scrollHeight - innerHeight; return Date.now() - w.at > 2800 && window.scrollY >= 60 && window.scrollY <= max - 60 && max > 300; }, null, { timeout: 30000, polling: 200 });
+    for (let i = 0; i < 3; i++) {
+      await settle();
+      const before = await top();
+      await page.keyboard.press('j'); await page.waitForTimeout(300);
+      assert.ok((await top()) - before >= 50, 'j ' + (i + 1) + ': the columns moved: ' + before + ' -> ' + (await top()));
+    }
+    await settle();
+    const t1 = await top();
+    await page.keyboard.press('k'); await page.waitForTimeout(300);
+    assert.ok(t1 - (await top()) >= 50, 'k moves them back up');
+    await settle();
+    const t2 = await top();
+    await page.keyboard.press('d'); await page.waitForTimeout(300);
+    assert.ok((await top()) - t2 >= 300, 'd moves them half a screen down: ' + t2 + ' -> ' + (await top()));
+    await settle();
+    await page.keyboard.press('Escape'); await page.waitForTimeout(400); // (Esc is not a scroll key: whatever X does to its page is left to it)
+    const t3 = await top();
+    await settle();
+    await page.keyboard.press('u'); await page.waitForTimeout(300);
+    assert.ok(t3 - (await top()) >= 300, 'u moves them half a screen up');
+    await settle();
+    const tg = await top();
+    await page.keyboard.press('G'); await page.waitForTimeout(500);
+    assert.ok((await top()) - tg >= 1500, 'G goes to the end (more posts load as it arrives): ' + tg + ' -> ' + (await top()));
+    await settle();
+    await page.keyboard.press('g'); await page.waitForTimeout(100); await page.keyboard.press('g'); await page.waitForTimeout(500);
+    assert.ok((await top()) <= 5, 'gg goes to the top: ' + (await top()));
+    // and a key typed into a box is the box's
+    const before = await top();
+    await page.evaluate(() => { const i = document.createElement('input'); i.id = 'zz-box'; i.style.cssText = 'position:fixed;left:5px;bottom:5px;z-index:99999'; document.body.append(i); i.focus(); });
+    await page.waitForTimeout(300);
+    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.id), 'zz-box', 'the box has the keyboard');
+    await page.keyboard.type('jjjdd'); await page.waitForTimeout(400);
+    const after = await top();
+    assert.equal(after, before, 'typing in a box moves nothing: ' + before + ' -> ' + after);
+  });
+}, 120000);
 
 browserTest('the logo folds the menu from the keyboard too, and goes back to being a link to Home when the columns are off', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });

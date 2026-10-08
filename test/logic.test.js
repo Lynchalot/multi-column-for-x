@@ -432,6 +432,23 @@ test('settings: volume is kept as a number between 0 and 1, and the presets only
   assert.ok(!S.presetApplies(S.PRESETS[1], S.DEFAULTS));
 });
 
+test('settings: each preset matches alone, whichever was picked before it, and Custom is what is left', () => {
+  const pick = (from, p) => Object.assign({}, S.DEFAULTS, from, p.set);
+  for (const before of [{}, ...S.PRESETS.map((p) => p.set)]) for (const p of S.PRESETS) {
+    const now = pick(before, p);
+    assert.deepEqual(S.PRESETS.filter((q) => S.presetApplies(q, now)).map((q) => q.id), [p.id], p.id + ' picked after another is the only one that matches');
+  }
+  assert.deepEqual(S.PRESETS.filter((q) => S.presetApplies(q, Object.assign(pick({}, S.PRESETS[0]), { hideTrending: true }))), [], 'one change and none matches');
+  assert.equal(S.PRESETS.find((p) => p.id === 'media').set.maxAutoCols, 8);
+  assert.equal(S.PRESETS.find((p) => p.id === 'calm').set.maxAutoCols, S.DEFAULTS.maxAutoCols, 'Calm puts the media wall back');
+});
+
+test('settings: the name and logo are X\'s own unless chosen; an older save of the old default does not hold it', () => {
+  assert.equal(S.normalize({}).branding, 'x');
+  assert.equal(S.normalize({ v: 9, branding: 'twitter' }).branding, 'x', 'saved by a version that stored everything: never a choice');
+  assert.equal(S.normalize({ v: S.VERSION, branding: 'twitter' }).branding, 'twitter', 'a choice made now is kept');
+});
+
 test('a fresh install starts on Calm, stored as choices, so Calm is what shows as ticked', () => {
   const stored = S.freshInstall();
   assert.equal(stored.v, S.VERSION);

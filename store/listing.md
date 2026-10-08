@@ -15,6 +15,7 @@ By default your feed shows in columns that fit your window (up to eight), on the
 - Columns fit your window and keep a comfortable width, down to one when the window is narrow. Pick your own number, or a different one for each page.
 - **Nothing jumps around.** New posts wait behind a "N new" button instead of shoving your feed down.
 - **More room:** pressing X's logo folds its left menu to icons, and a tab on the edge slides the right panel away; the columns grow into the space (Alt+[ and Alt+]).
+- **Settings in a panel:** from the toolbar button, or from the gear in the columns' bar over the page; every section folds out of a list, and there is a search.
 - **Smooth.** Posts load ahead of you as you scroll, and photos are ready by the time you get there.
 - **Easy to read and to press.** A text-size setting for posts and the panel, targets at least 24 px with names for screen readers, nothing moves when you ask for reduced motion, and the settings page has a search box and a Reset for anything you have changed.
 
@@ -87,6 +88,8 @@ What it does, and why each piece exists:
 Permissions: `storage` (settings, download history and a short event log for Copy diagnostics that can be switched off; local only), `downloads` (the Download button), host access to x.com / twitter.com (the site it enhances) and pbs.twimg.com / video.twimg.com (the media files).
 
 Everything user-visible in the options page is generated from `src/settings.js`.
+
+`popup.html` is the toolbar button's panel (the same generator as the options page, in a narrow layout). It and the files it loads are listed in `web_accessible_resources` for x.com and twitter.com only, because the gear in the columns' bar shows it in a frame over the page; it grants x.com's own scripts nothing but the ability to load those pages (they hold no secrets: the settings live in `storage.local`, which only the extension can read). If the frame does not load, the options page opens in a tab instead. The tip shown on first run has one link, to the Ko-fi page, opened in a new tab only when pressed.
 
 **Screenshots:** `store/screenshots/slides/` (made by `node store/make-screenshots.js` then `node store/make-slides.js`; the first needs ImageMagick and the dev dependencies). They use the test stand-in for x.com with invented people and generated pictures, so no real post, name or logo is shown. To add one of your own feed, take it with the window about 1600x1000, public posts only, blur your own name, and size it with `store/frame-screenshots.sh`.
 

@@ -553,8 +553,11 @@ html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive v
 @media (prefers-reduced-motion: reduce) { .xmc-view, .xmc-vpanel { animation: none; } .xmc-hover { transition: none; } }
 
 /* a one-time line saying what you can do here */
-.xmc-hint { display: flex; align-items: center; gap: 14px; padding: 8px 14px; font-size: calc(14px * var(--xmc-ts, 1)); color: var(--xmc-muted); border-bottom: 1px solid var(--xmc-border); }
-.xmc-hint span { flex: 1; }
+.xmc-hint { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 14px; text-align: center; font-size: calc(14px * var(--xmc-ts, 1)); color: var(--xmc-muted); border-bottom: 1px solid var(--xmc-border); }
+.xmc-hint ul { margin: 0; padding: 0; list-style: disc inside; }
+.xmc-hint li { line-height: calc(24px * var(--xmc-ts, 1)); }
+.xmc-hint a { color: var(--xmc-accent); font-weight: 700; text-decoration: none; }
+.xmc-hint a:hover { text-decoration: underline; }
 .xmc-hint button { appearance: none; border: 0; background: none; color: var(--xmc-accent); font: inherit; font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 999px; white-space: nowrap; }
 .xmc-hint button:hover { background: var(--xmc-hover); }
 .xmc-hint[hidden] { display: none; }
@@ -699,3 +702,10 @@ html.xmc-panelanim #xmc-sidetab { transition: right .28s var(--xmc-ease); }
 /* folded to icons: the header keeps its own width (X lays the menu out against its right edge) but is clipped to the icons, so what hangs over the columns past them
    (the empty part of the box, a link stretched past its icon) shows nothing and catches no press; --xmc-clip is how much to cut off the right, set when it is pinned */
 html.xmc-rail:not(.xmc-panelanim):not(.xmc-noclip) :is(header[role="banner"][data-xmc-style], #xmc-navfreeze) { clip-path: inset(0 var(--xmc-clip, 0px) 0 0) !important; }
+
+/* the settings, in a panel over the page (the settings page in a frame) */
+.xmc-swrap { position: fixed; inset: 0; z-index: 100000; }
+.xmc-sback { position: absolute; inset: 0; }
+#xmc-settings { position: absolute; top: 52px; right: 16px; width: min(460px, calc(100vw - 32px)); height: min(720px, calc(100vh - 68px)); border-radius: 16px; overflow: hidden;
+  background: var(--xmc-solid, #000); border: 1px solid var(--xmc-border, #2f3336); box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
+#xmc-settings iframe { display: block; width: 100%; height: 100%; border: 0; }

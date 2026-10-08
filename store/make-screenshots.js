@@ -224,6 +224,7 @@ async function main() {
   }
   async function ready(page, n = 10) {
     await page.waitForFunction((k) => window.__xmc && window.__xmc.view.cards.length >= k, n, { timeout: 20000 });
+    await page.waitForFunction(() => { const r = document.getElementById('xmc-root'); const c = r && r.querySelector('.xmc-card'); return r && !r.hidden && c && c.getBoundingClientRect().height > 20 && getComputedStyle(r.querySelector('.xmc-cols')).opacity === '1'; }, null, { timeout: 20000 }); // (the columns are on screen, not just built: the first shot of a cold browser was black)
     await page.waitForLoadState('networkidle').catch(() => {});
     await page.waitForTimeout(1200);
   }

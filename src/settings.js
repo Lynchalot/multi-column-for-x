@@ -106,7 +106,7 @@ var XMCSettings = (function () {
     },
     {
       id: 'look', title: 'Look', items: [
-        { key: 'branding', type: 'select', def: 'twitter', label: 'Name and logo', native: true, options: [['twitter', 'Twitter (bird logo, “Tweet”, “Retweet”)'], ['x', 'X (as X ships it)']] },
+        { key: 'branding', type: 'select', def: 'x', label: 'Name and logo', native: true, options: [['x', 'X (as X ships it)'], ['twitter', 'Twitter (bird logo, “Tweet”, “Retweet”)']] },
         { key: 'textSize', type: 'select', def: 'normal', label: 'Text size in posts and the post panel', options: [['small', 'Smaller'], ['normal', 'Normal'], ['large', 'Larger'], ['xlarge', 'Largest']] },
         { key: 'cardStyle', type: 'select', def: 'raised', label: 'Card background', options: [['raised', 'Slightly lighter (or darker) than the page'], ['flat', 'None']] },
         { key: 'customCss', type: 'textarea', def: '', label: 'Custom CSS', help: 'Added to every x.com page.', native: true },
@@ -167,8 +167,8 @@ var XMCSettings = (function () {
 
   // Bump when a default changes: values saved by older versions for those keys were never a choice
   // (older versions saved everything), so they're dropped rather than allowed to pin the old default.
-  const VERSION = 9;
-  const DEFAULT_CHANGED_IN = { 2: ['hideDmDrawer'], 6: ['hideDmDrawer', 'hideGrokDrawer'], 7: ['hideDmDrawer', 'hideGrokDrawer'], 8: ['hideDmDrawer', 'hideGrokDrawer'], 9: ['openIn'] };
+  const VERSION = 10;
+  const DEFAULT_CHANGED_IN = { 2: ['hideDmDrawer'], 6: ['hideDmDrawer', 'hideGrokDrawer'], 7: ['hideDmDrawer', 'hideGrokDrawer'], 8: ['hideDmDrawer', 'hideGrokDrawer'], 9: ['openIn'], 10: ['branding'] };
   // the old default of a setting, as older versions saved it: dropped (it was never a choice) so the new default applies
   const OLD_DEFAULTS = { 3: { dlPattern: 'X/{account}/{tweetId}-{serial}' }, 4: { dlFolder: '' }, 5: { minColWidth: 440 } };
 
@@ -207,16 +207,19 @@ var XMCSettings = (function () {
     return out;
   }
 
-  // Starting points offered on the settings page (and on first install). Each only sets the keys it names.
+  // Starting points offered on the settings page (and on first install). Each one sets every key that any of them touches, so exactly one
+  // of them can match at a time (a preset that named only a few keys went on matching after another was picked, and the box ticked was
+  // always the first of them: Media wall and Custom could not be chosen).
+  const CONTENT_PLAIN = { hideForYou: false, homeDefault: 'remember', keepFollowing: false, onlyFollowed: false, hideTrending: false, hideWhoToFollow: false, hideTopics: false,
+    hideDiscoverMore: false, hidePremiumPromo: false, seen: 'off', collapseReposts: false, foldThreads: false };
+  const CONTENT_CALM = { hideForYou: true, homeDefault: 'following', keepFollowing: true, onlyFollowed: true, hideTrending: true, hideWhoToFollow: true, hideTopics: true,
+    hideDiscoverMore: true, hidePremiumPromo: true, seen: 'dim', collapseReposts: true, foldThreads: true };
+  const MEDIA_WALL = { autoplayVideo: 'muted', minColWidth: 380, maxAutoCols: 8, tallPhotos: 'cap', hideViews: true };
+  const MEDIA_OFF = Object.fromEntries(Object.keys(MEDIA_WALL).map((k) => [k, DEFAULTS[k]]));
   const PRESETS = [
-    { id: 'plain', label: 'Just columns', blurb: 'Default X but laid out in columns.',
-      set: { hideForYou: false, homeDefault: 'remember', keepFollowing: false, onlyFollowed: false, hideTrending: false, hideWhoToFollow: false, hideTopics: false,
-        hideDiscoverMore: false, hidePremiumPromo: false, seen: 'off', collapseReposts: false, foldThreads: false } },
-    { id: 'calm', label: 'Calm', blurb: 'All algorithmic content disabled (only people you follow, no trends or suggestions.) Threads and reposts are folded and posts you have read are visibly faded.',
-      set: { hideForYou: true, homeDefault: 'following', keepFollowing: true, onlyFollowed: true, hideTrending: true, hideWhoToFollow: true, hideTopics: true,
-        hideDiscoverMore: true, hidePremiumPromo: true, seen: 'dim', collapseReposts: true, foldThreads: true } },
-    { id: 'media', label: 'Media wall', blurb: 'Narrower layout with more columns. Videos play muted as you scroll.',
-      set: { autoplayVideo: 'muted', minColWidth: 380, maxAutoCols: 8, tallPhotos: 'cap', hideViews: true } },
+    { id: 'plain', label: 'Just columns', blurb: 'Default X but laid out in columns.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF) },
+    { id: 'calm', label: 'Calm', blurb: 'All algorithmic content disabled (only people you follow, no trends or suggestions).', set: Object.assign({}, CONTENT_CALM, MEDIA_OFF) },
+    { id: 'media', label: 'Media wall', blurb: 'Narrower layout with more columns. Videos play muted as you scroll.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_WALL) },
   ];
   // What a fresh install starts with: the Calm preset, stored as a person's own choices (so what is ticked on the settings page is Calm,
   // not "Custom"), and only what differs from the defaults
