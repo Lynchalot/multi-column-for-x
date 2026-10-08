@@ -641,3 +641,37 @@ a[data-xmc-nav]:hover > div, a[data-xmc-nav]:focus-visible > div { background-co
 #xmc-lightbox button:focus-visible { outline-color: #fff; }
 /* the close cross is the same size as the arrows beside the panel */
 .xmc-vclose { width: 40px; height: 40px; }
+
+/* ---- folding the side panels (left menu to icons, right panel away) ---- */
+:root { --xmc-ease: cubic-bezier(.2, .8, .2, 1); }
+/* the columns' edges slide with the panels */
+html.xmc-panelanim #xmc-root { transition: left .28s var(--xmc-ease), right .28s var(--xmc-ease); }
+/* left: the names of the menu fade and fold away (only a link that has an icon and then a name: X's own, and the ones added here) */
+html.xmc-rail header[role="banner"] nav :is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2),
+html.xmc-panelanim header[role="banner"] nav :is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2) { max-width: 260px; overflow: hidden; }
+html.xmc-panelanim header[role="banner"] nav :is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2) { transition: max-width .28s var(--xmc-ease), opacity .24s ease, margin .28s var(--xmc-ease); }
+html.xmc-rail header[role="banner"] nav :is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2) { max-width: 0 !important; opacity: 0 !important; margin-left: 0 !important; margin-right: 0 !important; }
+html.xmc-rail header[role="banner"] [data-testid="SideNav_AccountSwitcher_Button"] > div:not(:first-child) { display: none !important; }
+/* the Post button becomes a round button, as X makes it in a narrow window; ours beneath it the same */
+html.xmc-rail header[role="banner"] a[data-testid="SideNav_NewTweet_Button"] { width: 50px !important; min-width: 0 !important; max-width: 50px !important; padding: 0 !important; display: flex !important; align-items: center; justify-content: center; overflow: hidden; color: var(--xmc-postfg, #0f1419); }
+html.xmc-rail header[role="banner"] a[data-testid="SideNav_NewTweet_Button"] > * { display: none !important; }
+html.xmc-rail header[role="banner"] a[data-testid="SideNav_NewTweet_Button"]::after { content: ""; width: 24px; height: 24px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center / contain no-repeat; }
+html.xmc-rail #xmc-pill { width: 50px !important; min-width: 0 !important; min-height: 50px; padding: 0; margin-left: 0 !important; margin-right: 0 !important; } /* (in line with the icons above it, not centred in a menu that is still wide) */
+html.xmc-rail #xmc-pill .xmc-pill-label { display: none; }
+/* right: the whole panel slides off the edge */
+html.xmc-on [data-testid="sidebarColumn"][data-xmc-style] { transition: none; }
+html.xmc-panelanim [data-testid="sidebarColumn"][data-xmc-style] { transition: transform .28s var(--xmc-ease); }
+html.xmc-sidehide { --xmc-sx: calc(100% + 24px); }
+html.xmc-sidehide [data-testid="sidebarColumn"][data-xmc-style] { visibility: hidden; pointer-events: none; transition: transform .28s var(--xmc-ease), visibility 0s .28s; }
+/* the tab on the panel's edge */
+#xmc-sidetab { position: fixed; top: 50%; right: 0; translate: 0 -50%; width: 16px; height: 46px; padding: 0; border: 0; border-radius: 9px 0 0 9px; z-index: 7; display: grid; place-items: center; cursor: pointer;
+  background: var(--xmc-tab, #f4f6f8); color: #0f1419; box-shadow: 0 1px 6px rgba(0, 0, 0, .5); }
+html.xmc-panelanim #xmc-sidetab { transition: right .28s var(--xmc-ease); }
+#xmc-sidetab svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; transition: rotate .28s var(--xmc-ease); }
+#xmc-sidetab[data-away="1"] svg { rotate: 180deg; }
+#xmc-sidetab:hover { background: #ffffff; }
+#xmc-sidetab:focus-visible, header[role="banner"] [data-xmc-menu]:focus-visible { outline: 2px solid #1d9bf0; outline-offset: 2px; }
+#xmc-sidetab[hidden] { display: none !important; }
+/* the posts re-flow for a new number of columns behind a short fade, not a jump */
+#xmc-root .xmc-cols.xmc-fade { opacity: 0; transition: opacity .13s ease; }
+@media (prefers-reduced-motion: reduce) { html.xmc-panelanim #xmc-root, html.xmc-panelanim #xmc-sidetab, html.xmc-panelanim [data-testid="sidebarColumn"][data-xmc-style], html.xmc-panelanim header[role="banner"] nav * { transition: none !important; } }

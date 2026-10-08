@@ -1762,6 +1762,82 @@ browserTest('in the panel the "More from" heading looks like the "Comments" head
   });
 }, 90000);
 
+browserTest('the left menu folds to icons: a menu button lines up with the other icons, the names fade, the columns take the room, and it unfolds again', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('[data-xmc-menu]', { timeout: 10000 });
+    const geo = () => page.evaluate(() => { const r = document.getElementById('xmc-root'); const links = [...document.querySelectorAll('header nav a[href]')].filter((a) => getComputedStyle(a).display !== 'none'); return { left: parseFloat(r.style.left), linksRight: Math.max(...links.map((a) => a.getBoundingClientRect().right)), homeLabel: getComputedStyle(document.querySelector('[data-testid="AppTabBar_Home_Link"] > div > div:nth-child(2)')).opacity, tweetW: Math.round(document.querySelector('[data-testid="SideNav_NewTweet_Button"]').getBoundingClientRect().width), hdrRight: Math.round(document.querySelector('header[role="banner"]').getBoundingClientRect().right) }; });
+    const al = await page.evaluate(() => ({ menu: document.querySelector('[data-xmc-menu] svg').getBoundingClientRect().left, home: document.querySelector('[data-testid="AppTabBar_Home_Link"] svg').getBoundingClientRect().left, role: document.querySelector('[data-xmc-menu]').getAttribute('role'), expanded: document.querySelector('[data-xmc-menu]').getAttribute('aria-expanded'), first: document.querySelector('header nav').firstElementChild === document.querySelector('[data-xmc-menu]') }));
+    assert.ok(Math.abs(al.menu - al.home) <= 1, 'the menu button\'s icon is in the icons\' column: ' + al.menu + ' vs ' + al.home);
+    assert.equal(al.role, 'button'); assert.equal(al.expanded, 'true'); assert.ok(al.first, 'at the top of the menu');
+    const full = await geo();
+    assert.equal(full.homeLabel, '1');
+    await page.locator('[data-xmc-menu]').click();
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
+    const rail = await geo();
+    assert.equal(rail.homeLabel, '0', 'names are gone');
+    assert.ok(rail.left < full.left - 40, 'the columns start further left: ' + full.left + ' -> ' + rail.left);
+    assert.ok(Math.abs(rail.left - (rail.linksRight + 20)) <= 10, 'and just clear of the icons: ' + rail.left + ' vs ' + (rail.linksRight + 20));
+    assert.ok(rail.tweetW <= 52, 'the Post button is round: ' + rail.tweetW);
+    assert.ok(rail.hdrRight <= rail.left, 'the menu\'s box ends before the columns, or it would cover them: ' + rail.hdrRight + ' vs ' + rail.left);
+    assert.equal(await page.evaluate(() => document.querySelector('[data-xmc-menu]').getAttribute('aria-expanded')), 'false');
+    assert.equal(await page.evaluate(() => window.__xmc.settings.leftPanel), 'rail', 'remembered');
+    await page.keyboard.press('Alt+BracketLeft'); // and back, from the keyboard
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
+    const back = await geo();
+    assert.equal(back.homeLabel, '1');
+    assert.ok(Math.abs(back.left - full.left) <= 8, 'the columns are back where they were: ' + full.left + ' vs ' + back.left);
+  });
+}, 90000);
+
+browserTest('the right panel slides away behind a tab on its edge, the columns take its room, and the tab brings it back', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('#xmc-sidetab:not([hidden])', { timeout: 10000 });
+    const geo = () => page.evaluate(() => { const r = document.getElementById('xmc-root'), sd = document.querySelector('[data-testid="sidebarColumn"]'), tab = document.getElementById('xmc-sidetab').getBoundingClientRect(); return { right: parseFloat(r.style.right), sideLeft: Math.round(sd.getBoundingClientRect().left), vis: getComputedStyle(sd).visibility, tabRight: Math.round(innerWidth - tab.right), cols: document.querySelectorAll('.xmc-col').length, w: innerWidth }; });
+    const shown = await geo();
+    assert.ok(shown.sideLeft < shown.w - 100 && shown.vis === 'visible');
+    assert.ok(Math.abs(shown.tabRight - (shown.w - shown.sideLeft - 1)) <= 12, 'the tab is on the panel\'s inner edge: ' + shown.tabRight + ' vs ' + (shown.w - shown.sideLeft));
+    await page.locator('#xmc-sidetab').click();
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-sidehide') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
+    await page.waitForTimeout(500); await page.waitForFunction(() => !document.querySelector('.xmc-cols.xmc-fade'), null, { timeout: 3000 }); // (the posts are laid out again behind a short fade)
+    const away = await geo();
+    assert.ok(away.sideLeft >= away.w, 'the panel is off the edge: ' + away.sideLeft);
+    assert.equal(away.vis, 'hidden');
+    assert.ok(away.right <= 110 && away.right < shown.right - 100, 'the columns reach nearly to the edge: ' + shown.right + ' -> ' + away.right);
+    assert.ok(away.tabRight <= 2, 'the tab is on the window\'s edge');
+    assert.equal(await page.evaluate(() => document.getElementById('xmc-sidetab').dataset.away), '1');
+    assert.ok(away.cols >= shown.cols, 'never fewer columns for more room: ' + shown.cols + ' -> ' + away.cols);
+    assert.equal(await page.evaluate(() => document.querySelectorAll('.xmc-cols.xmc-fade').length), 0, 'no fade left on');
+    await page.keyboard.press('Alt+BracketRight');
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-sidehide') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
+    const again = await geo();
+    assert.ok(again.sideLeft < again.w - 100 && again.vis === 'visible', 'the panel is back');
+    assert.ok(Math.abs(again.right - shown.right) <= 6, 'and the columns are where they were');
+  });
+}, 90000);
+
+browserTest('what was chosen is there on arrival, with no slide, and the settings page offers both', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850, settings: { v: 9, leftPanel: 'rail', rightPanel: 'hidden' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && document.documentElement.classList.contains('xmc-sidehide'), null, { timeout: 8000 });
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-panelanim')), false, 'no slide on arrival');
+    assert.ok((await page.evaluate(() => parseFloat(document.getElementById('xmc-root').style.left))) < 150, 'the columns start by the rail');
+  });
+  const o = await e.open('/ext/options.html');
+  await checked(o, async () => {
+    await o.page.waitForSelector('#opt-leftPanel');
+    assert.equal(await o.page.locator('#opt-leftPanel option').count(), 2);
+    assert.equal(await o.page.locator('#opt-rightPanel option').count(), 2);
+  });
+}, 90000);
+
 browserTest('a video: pressing on its preview turns the sound on, and the speaker button over it turns it on and off', async (e) => {
   const h = await e.open('/home/');
   await checked(h, async () => {

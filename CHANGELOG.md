@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.28.0
+**The side panels fold away for more room** (from the Google Maps mock-ups, variant A).
+- **A menu button (three lines) sits at the top of X's left menu**, in line with the other icons. Pressing it folds the menu to icons: the names fade out, the Post button turns round, the Columns pill becomes an icon and the columns slide left to take the room. Pressing it again brings the names back. On a narrow window X already shows icons only, so there is nothing to fold.
+- **The right panel (search, trends, who to follow) slides off the edge**, and a small tab on the window's edge brings it back. The columns widen into the space; on the way back they narrow again. If the new width means a different number of columns the posts are laid out once more behind a short fade, never jumping.
+- **Keyboard: Alt+[ folds the left menu, Alt+] slides the right panel** (while the columns are showing).
+- **Settings: "Left menu, while the columns are showing" and "Right panel"** hold the choice, which is remembered and is there on arrival with no slide.
+- The menu's own box ends where the icons end, so a folded menu never sits over the first column.
+- Nothing is new on X's side: the menu and sidebar are still X's own, pinned as before; the button is a copy of one of X's menu links (so it lines up exactly), and the folding is our own CSS. Not tried on real X: whether X's menu links have the same inner structure as the stand-in (the names are found as the link's second box), and where the Post button and the Columns pill land when folded. Copy diagnostics will show the menu's state if it looks wrong.
+
 ## 0.27.9
 A pass over how things look, from rendering the screens and reading the stylesheet.
 - **The "More from @user" heading in the panel was blue and clickable-looking.** Its container shared a class name with the "Show more" link, so it took the link's colour and pointer. It is now the same as the "Comments" heading.

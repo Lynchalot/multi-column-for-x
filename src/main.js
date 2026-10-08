@@ -838,6 +838,7 @@
     if (pill.style.fontFamily !== family) pill.style.fontFamily = family;
     const size = cs.fontSize;
     if (size && pill.style.fontSize !== size) pill.style.fontSize = size;
+    if (cs.color && document.documentElement.style.getPropertyValue('--xmc-postfg') !== cs.color) document.documentElement.style.setProperty('--xmc-postfg', cs.color); // (the round Post button's plus takes it)
     const height = box.height > 30 ? Math.round(box.height) + 'px' : '';
     if (pill.style.minHeight !== height) pill.style.minHeight = height;
     const wide = !compact && box.width > 140 ? Math.round(box.width) + 'px' : ''; // as wide as the Post button
@@ -934,6 +935,9 @@
     else if (!e.shiftKey && now === last) { e.preventDefault(); first.focus(); }
   }
   window.addEventListener('keydown', (e) => {
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.code === 'BracketLeft' || e.code === 'BracketRight') && !/^(input|textarea|select)$/i.test((e.target || {}).tagName || '') && !(e.target && e.target.isContentEditable) && document.documentElement.classList.contains('xmc-on') && !root.hidden) {
+      e.preventDefault(); e.stopPropagation(); setPanel(e.code === 'BracketLeft' ? 'left' : 'right'); return; // Alt+[ the menu, Alt+] the right panel
+    }
     if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) { const open = lightbox ? lightbox.el : postView ? postView.el : null; if (open) trapTab(e, open); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.dataset && e.target.dataset.lb !== undefined && e.target.getAttribute('role') === 'button') { e.preventDefault(); e.target.click(); }
     if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else closePostView(); } }
@@ -1252,7 +1256,7 @@
     state.parkedAt = Date.now();
     window.scrollTo(0, 0);
   }
-  new ResizeObserver(() => { if (!root.hidden && colCount() !== columns.length) relayout(); }).observe(scroller);
+  new ResizeObserver(() => { if (!root.hidden && !document.documentElement.classList.contains('xmc-panelanim') && colCount() !== columns.length) relayout(); }).observe(scroller); // (not while a side panel is sliding: the posts are laid out once, when it has stopped)
 
   // Refresh only ever happens when you press the button.
   function refresh() {
@@ -3103,7 +3107,7 @@
   function freezeSidebar() {
     if (sideFreeze) return;
     const parts = [];
-    for (const [el, id] of [[settings.hideSidebar ? null : pin.side.el(), 'xmc-sidefreeze'], [pin.nav.el(), 'xmc-navfreeze']]) { // the right column and the menu on the left
+    for (const [el, id] of [[settings.hideSidebar || rightAway() ? null : pin.side.el(), 'xmc-sidefreeze'], [pin.nav.el(), 'xmc-navfreeze']]) { // the right column and the menu on the left
       if (!el || el.dataset.xmcStyle === undefined || !el.getBoundingClientRect().width) continue;
       const clone = el.cloneNode(true);
       for (const mine of clone.querySelectorAll('#xmc-pill')) mine.remove(); // our own button stays where it is (below), never copied
@@ -3160,8 +3164,11 @@
       const r = nav.getBoundingClientRect();
       nav.dataset.xmcStyle = nav.getAttribute('style') || '';
       p.width = Math.round(m.maxR - m.minL);
+      if (!railOn()) p.fullW = p.width; // (what the menu measures with its names showing, for when it is folded and opened again)
+      // (folded to icons the header keeps its old width, so it would sit over the columns: end it where the icons end)
+      const hw = railOn() ? Math.min(r.width, m.maxR - r.left) : r.width;
       nav.style.cssText += `;position:fixed !important;top:0 !important;height:100vh !important;margin:0 !important;` +
-        `transform:none !important;z-index:6 !important;width:${Math.round(r.width)}px !important;` +
+        `transform:none !important;z-index:6 !important;width:${Math.round(hw)}px !important;` +
         `left:${Math.round(-(m.minL - r.left))}px !important`;
       if (acct) { acct.style.maxWidth = p.width + 'px'; acct.style.overflow = 'hidden'; }
     } else if (!sideFreeze) { // (while a still copy stands in for it there is nothing to probe)
@@ -3206,7 +3213,7 @@
   // strip of their own down the right edge instead (kept while the chat panel is open, so the columns don't jump)
   let lastStrip = 0;
   function floatStrip() {
-    if (!settings.hideSidebar || (settings.hideGrokDrawer && settings.hideDmDrawer)) return (lastStrip = 0);
+    if (!(settings.hideSidebar || rightAway()) || (settings.hideGrokDrawer && settings.hideDmDrawer)) return (lastStrip = 0);
     let w = 0, found = false;
     for (const el of document.querySelectorAll('[data-xmc-grok], [data-xmc-dm]')) {
       if (el.hasAttribute('data-xmc-grok') ? settings.hideGrokDrawer : settings.hideDmDrawer) continue;
@@ -3229,7 +3236,7 @@
       side.dataset.xmcStyle = side.getAttribute('style') || '';
       p.width = Math.round(r.width);
       side.style.cssText += `;position:fixed !important;top:0 !important;right:8px !important;left:auto !important;height:${sideHeight()} !important;` +
-        `overflow-y:auto !important;scrollbar-width:none !important;margin:0 !important;transform:none !important;z-index:6 !important;width:${p.width}px !important`;
+        `overflow-y:auto !important;scrollbar-width:none !important;margin:0 !important;transform:translateX(var(--xmc-sx, 0px)) !important;z-index:6 !important;width:${p.width}px !important`;
     } else if (!p.fallback) {
       const hh = sideHeight();
       if (side.style.getPropertyValue('height') !== hh) side.style.setProperty('height', hh, 'important');
@@ -3242,7 +3249,106 @@
       p.fails = ok ? 0 : p.fails + 1;
       if (p.fails >= 3) { p.fallback = true; p.retryAt = Date.now() + 10000; unpin('side'); root.style.right = '0px'; return; }
     }
-    root.style.right = (p.width + 8 + 16) + 'px';
+    root.style.right = rightAway() ? Math.max(floatStrip(), 24) + 'px' : (p.width + 8 + 16) + 'px'; // (away: only the tab's strip, and room for Grok and Chat)
+  }
+
+  // ---------- folding the side panels ----------
+  // Left: the menu folds to a rail of icons (its names fade out), by a menu button at the top of it that is a copy of one of X's own
+  // menu links, so it lines up with the rest. Right: the whole panel slides off the edge, and a tab on its edge brings it back.
+  // Alt+[ and Alt+] do the same. The choice is kept. Both only while the columns are showing.
+  const rightAway = () => settings.rightPanel === 'hidden';
+  const navHasNames = () => { const hdr = pin.nav.el(); return !!hdr && [...hdr.querySelectorAll('nav a[href]')].some((a) => a.textContent.trim()); }; // (X's narrow layout already shows icons only)
+  function railOn() { return settings.leftPanel === 'rail' && document.documentElement.classList.contains('xmc-on') && navHasNames(); }
+  function railWidth() { // where the right edge of the menu is when only the icons are left
+    const hdr = pin.nav.el();
+    const a = hdr && [...hdr.querySelectorAll('nav a[href]')].find((x) => x.querySelector('svg') && !x.matches('[data-testid="SideNav_NewTweet_Button"]'));
+    const svg = a && a.querySelector('svg');
+    if (!svg) return 76;
+    const pad = parseFloat(getComputedStyle(a.firstElementChild || a).paddingLeft) || 12;
+    return Math.round(svg.getBoundingClientRect().right + pad);
+  }
+  function updateMenuToggle(a) {
+    const rail = settings.leftPanel === 'rail';
+    const t = (rail ? 'Show the menu with names' : 'Fold the menu to icons') + ' (Alt+[)';
+    if (a.title !== t) { a.title = t; a.setAttribute('aria-label', rail ? 'Show the menu with names' : 'Fold the menu to icons'); }
+    a.setAttribute('aria-expanded', String(!rail));
+  }
+  function syncMenuToggle() {
+    const hdr = pin.nav.el(), old = hdr && hdr.querySelector('[data-xmc-menu]');
+    if (!hdr || !document.documentElement.classList.contains('xmc-on')) { if (old) old.remove(); return; }
+    if (old) { updateMenuToggle(old); return; }
+    const navEl = hdr.querySelector('nav');
+    if (!navEl) return;
+    const links = [...navEl.querySelectorAll('a[href]')].filter((a) => !a.dataset.xmcNav && !a.matches('[data-testid="SideNav_NewTweet_Button"]'));
+    const template = links.find((a) => /^\/explore\b/.test(a.getAttribute('href'))) || links.find((a) => a.querySelector('svg') && a.textContent.trim());
+    const tl = template && template.textContent.trim();
+    if (!template || !tl) return; // no names to fold (X's narrow layout)
+    const a = template.cloneNode(true);
+    for (const el of [a, ...a.querySelectorAll('[data-testid], [id]')]) { el.removeAttribute('data-testid'); el.removeAttribute('id'); }
+    a.removeAttribute('href'); a.removeAttribute('aria-current'); a.setAttribute('role', 'button'); a.tabIndex = 0; a.dataset.xmcMenu = '1'; a.style.cursor = 'pointer';
+    const svg = a.querySelector('svg');
+    if (svg) { svg.setAttribute('viewBox', '0 0 24 24'); svg.replaceChildren(...[...icon('menu').children]); svg.style.cssText = 'fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round'; }
+    const word = [...a.querySelectorAll('span')].reverse().find((sp) => sp.children.length === 0 && sp.textContent.trim() === tl);
+    if (word) word.textContent = 'Menu';
+    const go = (e) => { e.preventDefault(); e.stopPropagation(); setPanel('left'); };
+    a.addEventListener('click', (e) => { if (!e.button) go(e); });
+    a.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') go(e); });
+    navEl.insertBefore(a, navEl.firstChild);
+    updateMenuToggle(a);
+  }
+  const sideTab = h('button', { id: 'xmc-sidetab', type: 'button', hidden: true, onclick: () => setPanel('right') }, icon('next'));
+  document.body.append(sideTab);
+  function positionTab() {
+    const p = pin.side, side = p.el();
+    const show = document.documentElement.classList.contains('xmc-on') && !root.hidden && !settings.hideSidebar && !!side && !p.fallback && side.dataset.xmcStyle !== undefined && p.width > 0 && !!side.getBoundingClientRect().width;
+    if (sideTab.hidden === show) sideTab.hidden = !show;
+    if (!show) return;
+    const away = rightAway();
+    sideTab.dataset.away = away ? '1' : '';
+    const right = away ? 0 : p.width + 8 - 1; // on the inner edge of the panel, or on the edge of the window
+    if (sideTab.style.right !== right + 'px') sideTab.style.right = right + 'px';
+    const t = (away ? 'Show the right panel' : 'Slide the right panel away') + ' (Alt+])';
+    if (sideTab.title !== t) { sideTab.title = t; sideTab.setAttribute('aria-label', away ? 'Show the right panel' : 'Slide the right panel away'); }
+    sideTab.setAttribute('aria-expanded', String(!away));
+  }
+  let panelsSeen = '', panelTimer = 0;
+  function settlePanels() { // the slide has stopped: measure the menu again, and lay the posts out for the room there now is
+    const html = document.documentElement;
+    html.classList.remove('xmc-panelanim');
+    unpin('nav'); positionNav(); positionSide();
+    if (pill.isConnected && !pill.hidden) placePill();
+    if (!root.hidden && colCount() !== columns.length) { // (a different number of columns fits now: a short fade, not a jump)
+      colsEl.classList.add('xmc-fade');
+      setTimeout(() => { relayout(); requestAnimationFrame(() => colsEl.classList.remove('xmc-fade')); }, 140);
+    }
+  }
+  function applyPanels() {
+    const html = document.documentElement;
+    if (!html.classList.contains('xmc-on') || !pin.nav.el()) { html.classList.remove('xmc-rail', 'xmc-sidehide'); return; }
+    const rail = railOn(), away = rightAway();
+    const sig = (rail ? 'R' : 'F') + (away ? 'A' : 'S');
+    if (html.classList.contains('xmc-rail') !== rail) html.classList.toggle('xmc-rail', rail);
+    if (html.classList.contains('xmc-sidehide') !== away) html.classList.toggle('xmc-sidehide', away);
+    if (sig === panelsSeen) return;
+    const first = panelsSeen === '';
+    panelsSeen = sig;
+    if (first) return; // as the page was left: no slide on arrival
+    html.classList.add('xmc-panelanim');
+    clearTimeout(panelTimer);
+    panelTimer = setTimeout(settlePanels, 360);
+  }
+  function setPanel(side) {
+    const html = document.documentElement;
+    html.classList.add('xmc-panelanim'); void html.offsetWidth; // (the slide is switched on before what slides is changed)
+    if (side === 'left') {
+      settings.leftPanel = settings.leftPanel === 'rail' ? 'full' : 'rail';
+      const target = settings.leftPanel === 'rail' ? railWidth() : (pin.nav.fullW || 270);
+      pin.nav.width = target; root.style.left = (target + 20) + 'px'; // the columns' edge goes where it will end up, and slides there
+    } else settings.rightPanel = settings.rightPanel === 'hidden' ? 'shown' : 'hidden';
+    save();
+    applyPanels();
+    html.classList.add('xmc-panelanim'); // (applyPanels has already started the timer when the state changed)
+    positionSide(); positionTab();
   }
 
   // Which sidebar entries exist right now; remembered so the settings page can offer to hide any of them.
@@ -3480,7 +3586,7 @@
   function dockGrok() {
     const chat = document.querySelector('[data-xmc-dm]'), grok = document.querySelector('[data-xmc-grok]');
     if (!grok) return;
-    if (settings.hideGrokDrawer || settings.hideDmDrawer || settings.hideSidebar || !chat || chat === grok || chat.contains(grok) || grok.contains(chat)) { undockGrok(grok); return; }
+    if (settings.hideGrokDrawer || settings.hideDmDrawer || settings.hideSidebar || rightAway() || !chat || chat === grok || chat.contains(grok) || grok.contains(chat)) { undockGrok(grok); return; }
     const c = chat.getBoundingClientRect();
     if (!c.width || !c.height) return;
     const set = (k, v) => grok.style.setProperty(k, v, 'important');
@@ -3519,8 +3625,10 @@
 
   // ---------- main loop ----------
   function position() {
+    applyPanels();
     positionNav();
     positionSide();
+    positionTab();
     const cs = getComputedStyle(document.body);
     // use the sidebar's own label font ("Home"); the sans fallbacks keep it from ever dropping to serif
     const nav = pin.nav.el();
@@ -3556,6 +3664,8 @@
     }
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
+    if (tickN % 4 === 0) guard('menu toggle', syncMenuToggle);
+    guard('side panels', applyPanels);
     if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
     if (tickN % 10 === 5 && Date.now() - lastScrollAt > 500) guard('recycle', () => recycleCards(false));
