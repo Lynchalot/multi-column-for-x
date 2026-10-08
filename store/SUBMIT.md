@@ -46,6 +46,17 @@ Note: an unlisted add-on does not update itself. After the public listing is app
   upload the new zip to the same listing (Developer Hub -> the add-on -> Upload New Version). Users get it automatically.
 - Add `docs/` screenshots to the README if you like; link the AMO page from the README and from Ko-fi.
 
+## 7. Chrome Web Store and Edge (0.31.0 and on)
+1. `npm run build:chrome` -> `web-ext-artifacts/multi_column_for_x-chrome-<version>.zip` (the same version number as the Firefox one).
+2. Chrome Web Store developer account (a one-off registration fee), then **New item** -> upload the zip. Edge Add-ons takes the same zip (free account).
+3. The dashboard asks for, and these are the answers:
+   - **Single purpose:** shows the X (Twitter) timeline in several columns and gives controls for reading it (filters, a post panel with comments, media download).
+   - **Permission justifications:** `storage`: settings, download history, which posts you have read and a short event log, all kept on the device. `downloads`: the Download button saves the post's pictures or video. Host access to x.com and twitter.com: the site it enhances. pbs.twimg.com and video.twimg.com: the media files the Download button and the original-size view fetch.
+   - **Remote code:** none. **Data usage:** collects none; tick the three certifications. Privacy policy URL: the raw `PRIVACY.md` on GitHub.
+   - **Graphics:** the 128 px icon (`store/icon-128.png`), the 1280x800 slides (`store/screenshots/slides/`), and a small promo tile (440x280), which the dashboard asks for and is not made yet.
+4. Chrome takes an unpacked folder for your own use at once: chrome://extensions -> Developer mode -> **Load unpacked** -> `dist/chrome`.
+5. Review is usually a few days; a broad host permission on a big site gets read by a person.
+
 ## 6. Questions reviewers tend to ask (answers are already in the notes to reviewer)
 - Why a script in the page's own world (`world: "MAIN"`)? To receive a copy of the JSON x.com already downloads. It changes nothing.
 - How are comments loaded? x.com's own link to the post is clicked on its hidden copy of the timeline, the conversation is read from the JSON x.com downloads, and the page goes straight back.

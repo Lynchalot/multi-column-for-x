@@ -9,10 +9,12 @@ const { pageFor } = require('./pages.js');
 const ROOT = path.resolve(__dirname, '..', '..', '..');
 const TYPES = { '.js': 'application/javascript; charset=utf-8', '.css': 'text/css', '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.png': 'image/png' };
 
-function start({ pages = 30, port = 0 } = {}) {
+// tls: { key, cert } serves https. bare: pages without the extension's scripts and stylesheet (an installed extension puts them there itself).
+// publicOrigin: what the pages call themselves (e.g. https://x.com, when the browser maps that name to this server).
+function start({ pages = 30, port = 0, tls = null, bare = false, publicOrigin = '' } = {}) {
   let origin = '';
   let api = null;
-  const server = http.createServer((req, res) => {
+  const handler = (req, res) => {
     const u = new URL(req.url, 'http://localhost');
     const send = (code, type, body) => { res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' }); res.end(body); };
     const gql = /^\/i\/api\/graphql\/[^/]+\/(\w+)/.exec(u.pathname);
@@ -35,14 +37,16 @@ function start({ pages = 30, port = 0 } = {}) {
       return send(404, 'text/plain', 'not found');
     }
     if (u.pathname === '/favicon.ico') return send(204, 'image/x-icon', '');
-    const html = pageFor(u.pathname);
+    let html = pageFor(u.pathname);
+    if (html && bare) html = html.replace(/<script src="\/ext\/src\/[^"]+"><\/script>/g, '').replace('<link rel="stylesheet" href="/ext/src/styles.css">', '');
     return html ? send(200, 'text/html; charset=utf-8', html) : send(404, 'text/plain', 'not found');
-  });
+  };
+  const server = tls ? require('node:https').createServer(tls, handler) : http.createServer(handler);
   return new Promise((resolve) => {
     server.listen(port, '127.0.0.1', () => {
-      origin = 'http://127.0.0.1:' + server.address().port;
+      origin = publicOrigin || ('http://127.0.0.1:' + server.address().port);
       api = makeApi(origin, pages);
-      resolve({ origin, close: () => new Promise((r) => server.close(r)) });
+      resolve({ origin, port: server.address().port, close: () => new Promise((r) => server.close(r)) });
     });
   });
 }

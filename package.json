@@ -1,6 +1,6 @@
 {
   "name": "multi-column-for-x",
-  "version": "0.30.3",
+  "version": "0.31.0",
   "private": true,
   "description": "Your X (Twitter) timeline in multiple columns, with in-card video, filters and media download button.",
   "scripts": {
@@ -9,7 +9,9 @@
     "build": "npx --yes web-ext build --config web-ext-config.cjs --overwrite-dest",
     "start": "npx --yes web-ext run",
     "test:e2e": "node --test --test-concurrency=1 \"test/e2e/*.test.js\"",
-    "mock": "node test/e2e/mock/server.js"
+    "mock": "node test/e2e/mock/server.js",
+    "build:chrome": "node scripts/build-chrome.js",
+    "test:chrome": "node --test --test-concurrency=1 \"test/real/*.test.js\""
   },
   "license": "MIT",
   "repository": {

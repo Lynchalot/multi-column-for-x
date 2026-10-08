@@ -22,5 +22,17 @@ jobs:
           exit $code
       - run: npm run lint
       - run: npm run build
+      - run: npm run build:chrome
+      - name: Chrome package (the built extension, loaded into Chromium against the stand-in)
+        run: |
+          set +e
+          npx --yes playwright-core install --with-deps chromium
+          npm run test:chrome 2>&1 | tee chrome.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" != 0 ]; then
+            msg=$(grep -E "^not ok|^ +error:|Timeout|expected|actual" chrome.log | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=chrome package failed::${msg}"
+          fi
+          exit $code
       - uses: actions/upload-artifact@v4
         with: { name: extension, path: web-ext-artifacts/*.zip }

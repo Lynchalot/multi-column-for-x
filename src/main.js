@@ -19,7 +19,7 @@
 
   // ---------- settings ----------
   const settings = XMCSettings.normalize();
-  const ext = typeof browser !== 'undefined' && browser.runtime && browser.runtime.id ? browser : null;
+  const ext = (() => { const a = typeof browser !== 'undefined' ? browser : typeof chrome !== 'undefined' ? chrome : null; return a && a.runtime && a.runtime.id ? a : null; })(); // (Firefox's `browser`, or Chrome's `chrome`: both give promises; null on a page that is not an extension's, as in the tests)
   const storage = ext && ext.storage && ext.storage.local;
   let ready = false;
   let logCache = [], logPending = []; // the event log kept across reloads (see trace)
