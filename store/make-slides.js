@@ -2,7 +2,8 @@
 // Turns the six plain screenshots into headline slides for the Firefox Add-ons page: a short headline, a few plain outcomes, and the
 // screen below it running off the bottom edge. (The page's own thumbnails are small; a headline says what to look at.)
 //   XMC_BROWSER=/path/to/chrome node store/make-slides.js        ->  store/screenshots/slides/01.png ... 06.png (1280x800)
-// Run `node store/make-screenshots.js` first.
+// Run `node store/make-screenshots.js` first. To use a shot of your own, save it as store/screenshots/own/<same name>.png (e.g. own/01-columns.png)
+// and run this again; the generator never touches that folder. Any shape works, 1920x1200 or 1600x1000 (16:10) looks best.
 const path = require('node:path');
 const fs = require('node:fs');
 const { chromium } = require('playwright-core');
@@ -33,7 +34,9 @@ const html = (title, bullets, img) => `<!doctype html><meta charset="utf-8"><sty
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   let n = 1;
   for (const [file, title, bullets] of SLIDES) {
-    const src = path.join(DIR, file + '.png');
+    const own = path.join(DIR, 'own', file + '.png'); // your own shot of the same name, if there is one, wins over the generated one
+    const src = fs.existsSync(own) ? own : path.join(DIR, file + '.png');
+    if (src === own) console.log('using your own', file);
     const img = 'data:image/png;base64,' + fs.readFileSync(src).toString('base64');
     await page.setContent(html(title, bullets, img));
     await page.waitForTimeout(150);
