@@ -24,7 +24,7 @@ By default your feed shows in columns that fit your window (up to eight), on the
 - Comments load as you scroll and can be sorted by relevance, newest or most liked. Like, bookmark and reply to posts and to comments, and translate them with X's own translation.
 
 **Video and media**
-- Video and GIFs play in the post. Pointing at a video plays it muted; pressing it plays it from the start with sound; a speaker button turns sound on or off.
+- Video and GIFs play in the post. Pointing at a video plays it muted; pressing it turns the sound on and carries on; a speaker button turns sound on or off.
 - Photos open in a viewer with Download and Copy link.
 - **Download** original-size photos and the best-quality video in one click, with your own folder and file-name pattern.
 

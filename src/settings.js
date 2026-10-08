@@ -78,6 +78,7 @@ var XMCSettings = (function () {
         { key: 'nativeTools', type: 'bool', def: true, label: 'Download and Copy-link buttons on X\u2019s own pages', native: true },
         { key: 'reducedInteraction', type: 'bool', def: false, label: 'Reduced interaction mode', help: 'Hides the reply, repost and like buttons and all counts.' },
         { key: 'showSource', type: 'bool', def: false, label: 'Show which app a post was sent from' },
+        { key: 'autoTranslate', type: 'bool', def: true, label: 'Show X\u2019s own translations of posts in other languages', help: 'When X has already translated a post on its page it is shown translated here, with \u201cShow original\u201d.' },
         { key: 'nsfw', type: 'select', def: 'blur', label: 'Sensitive media', options: [['blur', 'Blur until I click'], ['show', 'Show'], ['hide', 'Hide those posts']], help: 'Also applies on X\u2019s own pages (a post, a profile), where Hide leaves the picture out.' },
         { key: 'skipAgeCheck', type: 'bool', def: true, label: 'Skip X\u2019s age check on sensitive media', help: 'Turns off the flag that makes X ask for age verification, so its older \u201csensitive content\u201d notice (which the setting above handles) shows instead. Reload X after changing it.' },
         { key: 'autoplayVideo', type: 'select', def: 'off', label: 'Videos', options: [['off', 'Play when I click'], ['muted', 'Autoplay muted while on screen']] },

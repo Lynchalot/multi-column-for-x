@@ -2155,6 +2155,82 @@ browserTest('the settings page with the browser\'s own storage API: a change is 
   });
 }, 90000);
 
+browserTest('the Columns pill stays where it is while X\'s hidden page is away on a post (comments, translating, liking), instead of vanishing and coming back', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 9, commentsIn: 'card', hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => { const p = document.getElementById('xmc-pill'); return p && !p.hidden; }, null, { timeout: 5000 });
+    await page.route('**/TweetDetail**', async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue().catch(() => {}); }); // (X takes a moment, as it does: the hidden page stays on the post)
+    const seen = await page.evaluate(async () => {
+      const pill = document.getElementById('xmc-pill'), log = { samples: 0, hidden: 0, onPost: 0, texts: new Set(), gone: 0 };
+      const card = [...document.querySelectorAll('.xmc-card')].find((c) => c.querySelector('[data-act="reply"]'));
+      card.querySelector('[data-act="reply"]').click(); // X's hidden page goes to the post to fetch its comments
+      for (let i = 0; i < 90; i++) {
+        await new Promise((r) => setTimeout(r, 25));
+        log.samples++;
+        if (/\/status\//.test(location.pathname)) log.onPost++;
+        if (pill.hidden || getComputedStyle(pill).display === 'none') log.hidden++;
+        if (!pill.isConnected) log.gone++;
+        log.texts.add((pill.textContent || '').trim());
+      }
+      return Object.assign(log, { texts: [...log.texts] });
+    });
+    assert.ok(seen.onPost > 20, 'the hidden page really was on the post for a while: ' + seen.onPost + ' of ' + seen.samples);
+    assert.deepEqual({ hidden: seen.hidden, gone: seen.gone }, { hidden: 0, gone: 0 }, 'the pill was hidden for ' + seen.hidden + ' of ' + seen.samples + ' looks');
+    assert.deepEqual(seen.texts, ['Turn Columns Off']);
+  });
+  // and on a post's own page, which X shows as itself, there is none
+  const post = await e.open('/user/status/90001/');
+  await checked(post, async () => {
+    await post.page.waitForTimeout(1200);
+    assert.equal(await post.page.evaluate(() => { const p = document.getElementById('xmc-pill'); return !p || p.hidden || getComputedStyle(p).display === 'none'; }), true);
+  });
+}, 90000);
+
+browserTest('a post X has already translated on its own page is shown translated in the panel, with Show original, with no visit to X', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 9, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    // X's hidden page translates the post (this is what its own markup looks like once it has: the words changed, "Translated from", "Show original").
+    // The stand-in redraws its posts as the page scrolls, so the change is made again until it has been taken.
+    const id = await page.evaluate(() => {
+      const mark = () => {
+        for (const x of document.querySelectorAll('article[data-testid="tweet"]')) {
+          const l = x.querySelector('a[href*="/status/"]'), c = l && window.__xmc.view.cards.find((k) => k.lang === 'ja' && l.getAttribute('href').endsWith('/status/' + k.id));
+          if (!c || x.querySelector('.fake-xl')) continue;
+          x.querySelector('[data-testid="tweetText"]').textContent = 'Words that X translated';
+          const n = document.createElement('div'); n.className = 'fake-xl'; n.innerHTML = '<span>Translated from Japanese</span> <div role="button">Show original</div>'; x.append(n);
+          window.__xlId = c.id;
+        }
+      };
+      mark(); window.__xlTimer = setInterval(mark, 100);
+      return window.__xlId;
+    });
+    await page.waitForFunction(() => { const p = JSON.parse(window.__xmc.diagnostics()).autoTranslate; return p && p.taken >= 1; }, null, { timeout: 6000 });
+    await page.evaluate(() => clearInterval(window.__xlTimer));
+    const taken = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).autoTranslate.ids);
+    assert.ok(taken.length >= 1);
+    const pick = await page.evaluate((ids) => ids.find((i) => { const c = window.__xmc.view.cards.find((k) => k.id === i); return c && c.el && c.el.isConnected && c.el.querySelector('.xmc-translate'); }), taken);
+    assert.ok(pick, 'one of them has its card on screen: ' + taken.join(','));
+    await page.evaluate((i) => { window.__xmc.view.cards.find((c) => c.id === i).el.querySelector('.xmc-translate').click(); }, pick);
+    const side = '.xmc-view:not(.xmc-out) .xmc-vside';
+    await page.waitForSelector(side + ' .xmc-xlate:not([hidden])', { timeout: 8000 });
+    const shown = await page.locator(side + ' .xmc-xlate').first().innerText();
+    assert.match(shown, /Translated from Japanese[\s\S]*Words that X translated/);
+    assert.equal(await page.locator(side + ' > .xmc-translate').first().innerText(), 'Show original', 'as on X');
+    assert.equal(await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).translateTimes.length), 0, 'no visit was made to translate it');
+  });
+  // switched off, nothing is taken
+  const off = await e.open('/home/', { settings: { v: 9, hintSeen: true, autoTranslate: false } });
+  await checked(off, async () => {
+    await e.ready(off.page);
+    await off.page.waitForTimeout(2500);
+    assert.equal(await off.page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).autoTranslate), null);
+  });
+}, 90000);
+
 browserTest('the right panel slides away behind a tab on its edge, the columns take its room, and the tab brings it back', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {
@@ -2217,7 +2293,7 @@ browserTest('a video: pressing on its preview turns the sound on, and the speake
     await page.waitForFunction(() => document.querySelector('.xmc-card video:not([data-gif])').controls === true, null, { timeout: 3000 }); // and they are back after the press
     // the player's own controls may read that press as "pause": it is undone
     await page.evaluate(() => document.querySelector('.xmc-card video:not([data-gif])').pause());
-    assert.deepEqual(await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return { playing: !v.paused, muted: v.muted, from: v.currentTime }; }), { playing: true, muted: false, from: 0 }, 'pressing the preview plays it from the start, with sound, and keeps it playing');
+    assert.deepEqual(await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return { playing: !v.paused, muted: v.muted, from: v.currentTime }; }), { playing: true, muted: false, from: 7 }, 'pressing the preview turns the sound on and carries on from where it was (7 s), and keeps it playing');
     // the speaker button: off, then on
     const snd = () => page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); const b = v.closest('.xmc-media').querySelector('.xmc-snd'); return { muted: v.muted, on: b.classList.contains('on') }; });
     assert.deepEqual(await snd(), { muted: false, on: true });
@@ -2298,6 +2374,10 @@ browserTest('Translate post on a card opens the panel and translates there (X\'s
     const side = '.xmc-view:not(.xmc-out) .xmc-vside';
     await page.waitForSelector(side + ' .xmc-xlate:not([hidden])', { timeout: 30000 });
     assert.match(await page.locator(side + ' .xmc-xlate').innerText(), /Translated from Japanese[\s\S]*Translated: Post /);
+    const times = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).translateTimes);
+    assert.equal(times.length, 1, 'where the time went is in the diagnostics');
+    const z = times[0];
+    assert.ok(z.ok && z.open <= z.post && z.post <= z.control && z.control <= z.translated && z.translated <= z.total, 'in order: ' + JSON.stringify(z));
     assert.equal(await page.locator(side + ' > .xmc-text:not(.xmc-xlate)').first().isHidden(), true, 'the original is out of the way');
     assert.equal((await page.locator(side + ' > .xmc-translate').innerText()).trim(), 'Show original');
     await page.locator(side + ' > .xmc-translate').click();

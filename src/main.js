@@ -1355,7 +1355,7 @@
       log: { thisLoad: loadId, kept: !!settings.keepLog, earlier: earlierLog() }, // (from before this page load, and from other x.com tabs; the times are this computer's)
       commentTimes: state.commentTimes || [],
       commentFailures: state.commentFailures || [],
-      commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, translateProbe: state.translateProbe || null, popProbe: state.popProbe || null, panels: panelProbe(), cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
+      commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, translateProbe: state.translateProbe || null, translateTimes: state.translateTimes || [], autoTranslate: state.autoXlate || null, popProbe: state.popProbe || null, panels: panelProbe(), cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       floating: floatingReport(),
       corner: cornerReport(),
@@ -2635,7 +2635,7 @@
         pv.play().catch(() => { pv.muted = true; pv.play().catch(() => {}); }); // (if the browser wants a press first, it plays without sound)
       }
     }
-    if (opts && opts.translate) { const xb = side.querySelector(':scope > .xmc-translate'); if (xb) setTimeout(() => xb.click(), 0); }
+    if (opts && opts.translate) { const xb = side.querySelector(':scope > .xmc-translate'); if (xb && xb.textContent !== 'Show original') setTimeout(() => xb.click(), 0); } // (already translated, as X had it: nothing to press)
     const first = el.querySelector('.xmc-vclose'); if (first && !focusBox) first.focus({ preventScroll: true });
     if (!settings.hintSeen) dismissHint();
   }
@@ -2716,11 +2716,38 @@
     }
     return '';
   }
+  // X translates posts in other languages by itself now, with "Show original": when its (hidden) page has already done it for a post, its
+  // words are taken from there, so a press on Translate is answered at once and needs no visit. Only what X has translated is taken.
+  function harvestTranslations() {
+    if (!settings.autoTranslate && !state.autoXlate) return;
+    const probe = state.autoXlate = state.autoXlate || { taken: 0, ids: [], foreignOnPage: 0, lastAt: 0 };
+    let foreign = 0;
+    for (const art of articles()) {
+      const id = articleId(art);
+      if (!id) continue;
+      const t = state.byId.get(id);
+      if (t && needsTranslation(t)) foreign++;
+      if (translations.has(id)) continue;
+      const words = art.querySelector('[data-testid="tweetText"]');
+      if (!words) continue;
+      const from = translatedFrom(art);
+      if (!from && ![...art.querySelectorAll('[role="button"], button')].some((b) => /^show original$/i.test((b.textContent || '').trim()))) continue; // (X says it is translated)
+      const text = (words.innerText || '').trim();
+      if (!text) continue;
+      translations.set(id, { text, from });
+      probe.taken++; probe.lastAt = Date.now();
+      if (probe.ids.length < 6) probe.ids.push(id);
+    }
+    probe.foreignOnPage = foreign; // (foreign-language posts X's page has drawn just now: next to "taken", says whether X is translating them)
+  }
   async function translateOnX(t, root) {
     if (translations.has(t.id)) return { ok: true, ...translations.get(t.id) };
+    const T0 = Date.now(), lap = {}; // where the time goes, in milliseconds from the press: the queue and opening the post, finding it, X's Translate control, X's answer
     const attempt = () => inQueue(() => visitPost(root || t, {}, {}, async ({ opened }) => {
+      lap.open = Date.now() - T0;
       if (!opened) return { why: 'X didn’t open the post.' };
       let art = root ? await mountComment(t.id) : await waitFor(() => findArticle(t.id), 6000);
+      lap.post = Date.now() - T0;
       if (!art) return { why: 'Couldn’t find the post on X’s page.' };
       const words = () => art.querySelector('[data-testid="tweetText"]');
       const shownText = () => ((words() && words().innerText) || '').trim();
@@ -2736,9 +2763,11 @@
             controls: [...art.querySelectorAll('[role="button"], button, a[href]')].map((b) => ((b.getAttribute('aria-label') || b.textContent || '').trim()).slice(0, 30)).filter(Boolean).slice(0, 16) };
           return { why: 'X offers no translation for this one (or its button isn’t one we can tell).' };
         }
+        lap.control = Date.now() - T0;
         fire(ctl);
       }
       const got = await waitFor(done, 7000);
+      lap.translated = Date.now() - T0;
       if (!got) return { why: 'X didn’t translate it.' };
       return { ok: true, text: got, from: translatedFrom(art) };
     }));
@@ -2746,6 +2775,8 @@
     // X not opening or not drawing the post is usually a passing thing: one more go before the person is told
     if (res && !res.ok && /didn’t open|find the post/.test(res.why || '')) { trace('translate', 'retry ' + t.id + ' (' + res.why + ')'); res = await attempt(); }
     if (res && res.ok) translations.set(t.id, { text: res.text, from: res.from });
+    (state.translateTimes = state.translateTimes || []).push(Object.assign({ id: t.id, ok: !!(res && res.ok), total: Date.now() - T0 }, lap)); // (in the diagnostics: the last few)
+    if (state.translateTimes.length > 8) state.translateTimes.shift();
     return res || { why: 'Something went wrong.' };
   }
   // The button under a post's or comment's words: translates in place, then switches between the translation and the original
@@ -2757,6 +2788,7 @@
       shown.replaceChildren(h('div', { className: 'xmc-dim xmc-xlfrom', textContent: 'Translated' + (tr.from ? ' from ' + tr.from : '') }), document.createTextNode(tr.text));
       paint(true);
     };
+    if (settings.autoTranslate && translations.has(t.id)) show(translations.get(t.id)); // X has already translated it: shown as X shows it, with "Show original"
     button.addEventListener('click', async (e) => {
       e.preventDefault(); e.stopPropagation();
       if (failed) { openOnX(t); return; }
@@ -2917,17 +2949,17 @@
   // Sound: pressing on a video that is only previewing keeps it playing and turns the sound ON (you pressed it to watch it);
   // the speaker button over the picture turns it on or off, and starts the video if it was stopped.
   const soundOn = (v) => { v.muted = false; if (!v.volume) v.volume = 1; };
-  // takes a previewing video over: from the beginning, with sound. The player's own controls may also read the press as "pause"
-  // (some browsers do, whatever the page cancels), so for a moment after it a pause is undone.
+  // takes a previewing video over: the sound comes on and it carries on from where it is (a restart under your finger is jarring).
+  // The player's own controls may also read the press as "pause" (some browsers do, whatever the page cancels), so for a moment after it
+  // a pause is undone.
   function takeOver(v) {
     delete v.dataset.preview;
     soundOn(v);
-    try { v.currentTime = 0; } catch { /* not seekable yet */ }
     v.play().catch(() => {});
     const at = Date.now();
     const keep = () => { trace('video', 'pause ' + (Date.now() - at) + 'ms after the press: undone'); if (v.paused) v.play().catch(() => {}); };
     v.addEventListener('pause', keep);
-    trace('video', 'press: from the start, with sound');
+    trace('video', 'press: sound on, carries on at ' + Math.round(v.currentTime) + ' s');
     setTimeout(() => { v.controls = true; }, 150); // the player's own controls come back once the press is over
     setTimeout(() => v.removeEventListener('pause', keep), 1200);
   }
@@ -2942,7 +2974,7 @@
       return;
     }
     const v = e.target.closest && e.target.closest('video');
-    if (v && v.dataset.preview === '1') { e.preventDefault(); e.stopPropagation(); takeOver(v); } // from the beginning, with sound
+    if (v && v.dataset.preview === '1') { e.preventDefault(); e.stopPropagation(); takeOver(v); } // sound on, carrying on
   }, true);
   colsEl.addEventListener('pointerover', (e) => {
     const card = e.target.closest && e.target.closest('.xmc-card');
@@ -3771,6 +3803,7 @@
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
     if (tickN % 4 === 0) { guard('menu toggle', syncMenuToggle); guard('menu names', markNavLabels); }
+    if (tickN % 15 === 7) guard('translations', harvestTranslations);
     guard('side panels', applyPanels);
     if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
@@ -3808,7 +3841,7 @@
     if (!state.peek && !state.posting && !onPostPage() && !isModalRoute()) { const want = active ? location.pathname : ''; if (want !== veilPath) { veilPath = want; try { if (want) window.localStorage.setItem('xmcVeil', want); else window.localStorage.removeItem('xmcVeil'); } catch { /* ignore */ } } }
     root.hidden = !active;
     root.classList.toggle('xmc-under', modal);
-    const pillShown = eligible() || canTry();
+    const pillShown = eligible() || canTry() || active; // (while X's hidden page is away on a post for us, the address is the post's and nothing is "eligible", but the columns are up, so the pill stays)
     if (pillShown && (tickN % 10 === 0 || !pill.isConnected)) placePill();
     updatePill(pillShown, active);
     document.documentElement.classList.toggle('xmc-onpost', onPostPage());
