@@ -78,7 +78,9 @@ browserTest('comments for several posts load one after another, and scrolling me
       return { replies: cards.map((c) => c.querySelectorAll('.xmc-ritem').length), path: location.pathname, wiped, copy: !!document.getElementById('xmc-sidefreeze') };
     });
     assert.deepEqual(r.replies, [6, 6, 6]);
-    assert.equal(r.path, '/home/', 'the page went back to the feed');
+    // (the comments are shown the moment X answers; the hidden page steps back a moment later, so the address is waited for, not read at once)
+    await page.waitForFunction(() => location.pathname === '/home/', null, { timeout: 5000 }).catch(() => {});
+    assert.equal(await page.evaluate(() => location.pathname), '/home/', 'the page went back to the feed (it was at ' + r.path + ' when the last comments arrived)');
     assert.equal(r.wiped, false);
     await h.page.waitForFunction(() => !document.getElementById('xmc-sidefreeze'), null, { timeout: 5000 });
   });
@@ -282,6 +284,9 @@ browserTest('a post with several pictures shows one at a time in the panel, with
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
+    // (the stand-in's answer for this post has one picture and replaces the feed's three when it arrives: held back, so that a slow machine
+    // is not asked to be quicker than it)
+    await page.route('**/TweetDetail**', async (route) => { await new Promise((r) => setTimeout(r, 8000)); await route.continue().catch(() => {}); });
     const open = await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelector('a.xmc-time').click(); return true; });
     assert.ok(open);
     await page.waitForSelector('.xmc-view .xmc-vmediapane.xmc-car');
@@ -1050,7 +1055,7 @@ browserTest('clicking a post opens it in a panel over the columns: pictures, wor
     const id = await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector('.xmc-media img') && x.querySelector(':scope > .xmc-text')); const t = window.__xmc.view.cards.find((x) => x.el === c); c.querySelector(':scope > .xmc-text').click(); return t.id; });
     await page.waitForSelector('.xmc-view .xmc-vpanel');
     assert.equal(await page.locator('.xmc-vmediapane img').count() >= 1, true, 'its picture at full size');
-    assert.ok((await page.locator('.xmc-vside .xmc-text').innerText()).includes(id), 'its words');
+    assert.ok((await page.locator('.xmc-vside .xmc-text').first().innerText()).includes(id), 'its words'); // (the first: the comments may already be there on a slow machine)
     assert.equal(await page.locator('.xmc-vside [data-act="like"]').count(), 1, 'its actions');
     await page.waitForSelector('.xmc-vside .xmc-cbox', { timeout: 20000 }); // and its comments box
     assert.deepEqual(await page.evaluate(() => window.__opened), [], 'no new tab');
@@ -2018,6 +2023,16 @@ browserTest('everything that can be pressed is at least 24 px each way and has a
       assert.deepEqual({ small: r.small, unnamed: r.unnamed }, { small: [], unnamed: [] }, state);
     };
     await audit('the feed');
+    // several pictures in the panel. (The stand-in's answer for this post has one picture, so the arrows would be there only until it
+    // arrives: it is held back for a few seconds so that they can be looked at.)
+    await page.route('**/TweetDetail**', async (route) => { await new Promise((r) => setTimeout(r, 4000)); await route.continue().catch(() => {}); });
+    await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelector('a.xmc-time').click(); });
+    await page.waitForSelector('.xmc-view .xmc-vmediapane.xmc-car', { timeout: 10000 });
+    await page.waitForTimeout(400);
+    await audit('the pictures in the panel');
+    await page.unroute('**/TweetDetail**');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)') && !window.__xmc.state.peek && location.pathname === '/home/', null, { timeout: 15000 }); // (the visit for the comments is over, so the next post opens as the first did)
     await page.evaluate(() => document.querySelector('.xmc-showbtn').click());
     await audit('the filter menu');
     await page.keyboard.press('Escape');
@@ -2036,11 +2051,7 @@ browserTest('everything that can be pressed is at least 24 px each way and has a
     await page.waitForSelector('#xmc-lightbox');
     await audit('the photo viewer');
     await page.keyboard.press('Escape');
-    // several pictures in the panel
-    await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelector('a.xmc-time').click(); });
-    await page.waitForSelector('.xmc-view .xmc-vmediapane.xmc-car');
-    await page.waitForTimeout(400);
-    await audit('the pictures in the panel');
+    await page.waitForFunction(() => !document.getElementById('xmc-lightbox'), null, { timeout: 5000 }); // (closed, before the next post is opened)
   });
   const prof = await e.open('/user7/', { width: 1700, height: 900 });
   await checked(prof, async () => {
