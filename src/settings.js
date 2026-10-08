@@ -90,7 +90,7 @@ var XMCSettings = (function () {
     },
     {
       id: 'sidebar', title: 'Navigation & sidebar', blurb: 'These restyle X\u2019s own pages, so they depend on X\u2019s current layout.', custom: 'nav', items: [
-        { key: 'leftPanel', type: 'select', def: 'full', label: 'Left menu, while the columns are showing', options: [['full', 'With names'], ['rail', 'Icons only (a menu button at its top folds it)']] },
+        { key: 'leftPanel', type: 'select', def: 'full', label: 'Left menu, while the columns are showing', options: [['full', 'With names'], ['rail', 'Icons only (the logo at its top folds it)']] },
         { key: 'rightPanel', type: 'select', def: 'shown', label: 'Right panel (search, trends, who to follow)', options: [['shown', 'Shown'], ['hidden', 'Slid away (a tab on the edge brings it back)']] },
         { key: 'hideSidebar', type: 'bool', def: false, label: 'Hide X\u2019s right-hand sidebar (search, trends, who to follow)', native: true },
         { key: 'hideTweetButton', type: 'bool', def: false, label: 'Hide the big \u201cPost\u201d button', native: true },

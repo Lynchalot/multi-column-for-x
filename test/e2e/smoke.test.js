@@ -379,7 +379,7 @@ browserTest('a long session: far-off posts give their nodes back, and nothing mo
     });
     assert.ok(r.cards >= 300, `only ${r.cards} posts`);
     assert.ok(r.gone > r.cards * 0.2, `only ${r.gone} of ${r.cards} posts were recycled`); // (how many are far enough away depends on how far the loading got)
-    assert.ok(r.nodes1 < r.nodes0 * 0.8, `nodes ${r.nodes0} -> ${r.nodes1}`);
+    assert.ok(r.nodes0 - r.nodes1 > r.gone * 15, `nodes ${r.nodes0} -> ${r.nodes1} with ${r.gone} posts recycled`); // (a card is dozens of nodes; how many of the page's nodes that is depends on how far the loading got, so it is per post recycled, not a share of the page)
     assert.ok(r.drift < 0.05, `a recycled post changed height by ${r.drift}px`);
     assert.ok(r.firstGone && r.firstEmpty, 'the first post, far above, was not recycled');
     assert.ok(r.firstBack, 'the first post did not come back');
@@ -983,6 +983,33 @@ browserTest('a profile\'s header is the first card of the first column, with the
   });
 });
 
+browserTest('a profile\'s header stays up while X\'s hidden page is away on a post (comments, translating, liking), instead of going and not coming back', async (e) => {
+  const h = await e.open('/user7/', { width: 1900, height: 900, settings: { v: 9, commentsIn: 'card', hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('.xmc-profile.xmc-native:not([hidden])', { timeout: 8000 });
+    await page.route('**/TweetDetail**', async (route) => { await new Promise((r) => setTimeout(r, 1800)); await route.continue().catch(() => {}); }); // (X takes a moment, as it does)
+    const seen = await page.evaluate(async () => {
+      const log = { samples: 0, onPost: 0, hidden: 0, gone: 0, emptied: 0 };
+      const card = [...document.querySelectorAll('.xmc-card')].find((c) => c.querySelector('[data-act="reply"]'));
+      card.querySelector('[data-act="reply"]').click(); // X's hidden page goes to the post to fetch its comments
+      for (let i = 0; i < 110; i++) {
+        await new Promise((r) => setTimeout(r, 25));
+        log.samples++;
+        if (/\/status\//.test(location.pathname)) log.onPost++;
+        const p = document.querySelector('.xmc-profile');
+        if (!p || !p.isConnected) log.gone++; else { if (p.hidden) log.hidden++; if (!p.querySelector('[data-testid="UserName"]')) log.emptied++; }
+      }
+      return log;
+    });
+    assert.ok(seen.onPost > 20, 'the hidden page really was on the post for a while: ' + seen.onPost + ' of ' + seen.samples);
+    assert.deepEqual({ gone: seen.gone, hidden: seen.hidden, emptied: seen.emptied }, { gone: 0, hidden: 0, emptied: 0 }, 'the header was missing or hidden during the visit: ' + JSON.stringify(seen));
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator('.xmc-profile.xmc-native:not([hidden]) [data-testid="UserName"]').count(), 1, 'and it is still there once the hidden page is back');
+  });
+}, 90000);
+
 browserTest('the post a reply answers is set in the same size as the reply', async (e) => {
   const h = await e.open('/user6/with_replies/');
   await checked(h, async () => {
@@ -1411,6 +1438,7 @@ browserTest('while comments are fetched on X\'s hidden side, the menu and the si
     await page.waitForSelector('header[role="banner"][data-xmc-style]');
     const rect = () => page.evaluate(() => { const r = document.querySelector('header[role="banner"][data-xmc-style], #xmc-navfreeze').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; });
     const before = await rect();
+    await page.route('**/TweetDetail**', async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue().catch(() => {}); }); // (X takes a moment, as it does: the visit lasts long enough to be looked at on a busy machine)
     await page.evaluate(() => window.__xmc.view.cards.find((x) => x.counts.reply > 0 && x.el && x.el.isConnected).el.querySelector(':scope > .xmc-text').click());
     await page.waitForFunction(() => !!window.__xmc.state.peek && /status/.test(location.pathname), null, { timeout: 15000, polling: 'raf' });
     const during = await page.evaluate(() => { const c = document.getElementById('xmc-navfreeze'); if (!c) return null; const r = c.getBoundingClientRect(); return { left: Math.round(r.left), top: Math.round(r.top), visible: getComputedStyle(c).visibility }; });
@@ -1782,19 +1810,21 @@ browserTest('in the panel the "More from" heading looks like the "Comments" head
   });
 }, 90000);
 
-browserTest('the left menu folds to icons: a menu button lines up with the other icons, the names fade, the columns take the room, and it unfolds again', async (e) => {
+browserTest('the logo at the top of the menu folds it to icons (the names fade, the columns take the room) and unfolds it again; no extra button takes a row', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
-    await page.waitForSelector('[data-xmc-menu]', { timeout: 10000 });
+    await page.waitForSelector('header[role="banner"] h1 a[data-xmc-logo]', { timeout: 10000 });
     const geo = () => page.evaluate(() => { const r = document.getElementById('xmc-root'); const links = [...document.querySelectorAll('header nav a[href]')].filter((a) => getComputedStyle(a).display !== 'none'); return { left: parseFloat(r.style.left), linksRight: Math.max(...links.map((a) => a.getBoundingClientRect().right)), homeLabel: getComputedStyle(document.querySelector('[data-testid="AppTabBar_Home_Link"] > div > div:nth-child(2)')).opacity, tweetW: Math.round(document.querySelector('[data-testid="SideNav_NewTweet_Button"]').getBoundingClientRect().width), hdrRight: Math.round(document.querySelector('header[role="banner"]').getBoundingClientRect().right) }; });
-    const al = await page.evaluate(() => ({ menu: document.querySelector('[data-xmc-menu] svg').getBoundingClientRect().left, home: document.querySelector('[data-testid="AppTabBar_Home_Link"] svg').getBoundingClientRect().left, role: document.querySelector('[data-xmc-menu]').getAttribute('role'), expanded: document.querySelector('[data-xmc-menu]').getAttribute('aria-expanded'), first: document.querySelector('header nav').firstElementChild === document.querySelector('[data-xmc-menu]') }));
-    assert.ok(Math.abs(al.menu - al.home) <= 1, 'the menu button\'s icon is in the icons\' column: ' + al.menu + ' vs ' + al.home);
-    assert.equal(al.role, 'button'); assert.equal(al.expanded, 'true'); assert.ok(al.first, 'at the top of the menu');
+    const lg = await page.evaluate(() => { const a = document.querySelector('header[role="banner"] h1 a'); return { role: a.getAttribute('role'), expanded: a.getAttribute('aria-expanded'), label: a.getAttribute('aria-label'), title: a.title, extra: !!document.querySelector('[data-xmc-menu]'), navFirst: ([...document.querySelectorAll('header nav a[href]')].map((x) => (x.textContent || '').trim()).find(Boolean) || '') }; });
+    assert.deepEqual({ role: lg.role, expanded: lg.expanded, label: lg.label, extra: lg.extra }, { role: 'button', expanded: 'true', label: 'Fold the menu to icons', extra: false });
+    assert.match(lg.title, /Alt\+\[/);
+    assert.equal(lg.navFirst, 'Home', 'the first row of the menu is Home: nothing was added above it');
     const full = await geo();
     assert.equal(full.homeLabel, '1');
-    await page.locator('[data-xmc-menu]').click();
+    await page.locator('header[role="banner"] h1 a').click();
+    assert.equal(await page.evaluate(() => location.pathname), '/home/', 'pressing the logo did not leave the page');
     await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
     const rail = await geo();
     assert.equal(rail.homeLabel, '0', 'names are gone');
@@ -1802,7 +1832,7 @@ browserTest('the left menu folds to icons: a menu button lines up with the other
     assert.ok(Math.abs(rail.left - (rail.linksRight + 20)) <= 10, 'and just clear of the icons: ' + rail.left + ' vs ' + (rail.linksRight + 20));
     assert.ok(rail.tweetW <= 52, 'the Post button is round: ' + rail.tweetW);
     assert.ok(rail.hdrRight <= rail.left, 'the menu\'s box ends before the columns, or it would cover them: ' + rail.hdrRight + ' vs ' + rail.left);
-    assert.equal(await page.evaluate(() => document.querySelector('[data-xmc-menu]').getAttribute('aria-expanded')), 'false');
+    assert.equal(await page.evaluate(() => document.querySelector('header[role="banner"] h1 a').getAttribute('aria-expanded')), 'false');
     assert.equal(await page.evaluate(() => window.__xmc.settings.leftPanel), 'rail', 'remembered');
     await page.keyboard.press('Alt+BracketLeft'); // and back, from the keyboard
     await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
@@ -1817,10 +1847,10 @@ browserTest('the menu folds by the words of its names, whatever the markup round
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
-    await page.waitForSelector('[data-xmc-menu]', { timeout: 10000 });
+    await page.waitForSelector('header[role="banner"] h1 a[data-xmc-logo]', { timeout: 10000 });
     // X may nest its links differently from the stand-in: here every link is spans, with the name one box inside another
     await page.evaluate(() => {
-      for (const a of document.querySelectorAll('header nav a[href]:not([data-testid="SideNav_NewTweet_Button"]), header nav [data-xmc-menu]')) {
+      for (const a of document.querySelectorAll('header nav a[href]:not([data-testid="SideNav_NewTweet_Button"])')) {
         const svg = a.querySelector('svg'), word = a.textContent.trim();
         if (!svg || !word) continue;
         a.replaceChildren();
@@ -1831,7 +1861,7 @@ browserTest('the menu folds by the words of its names, whatever the markup round
       }
     });
     await page.waitForFunction(() => document.querySelectorAll('header [data-xmc-label]').length >= 5, null, { timeout: 8000 });
-    await page.locator('[data-xmc-menu]').click();
+    await page.locator('header[role="banner"] h1 a').click();
     await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
     const r = await page.evaluate(() => ({ shown: [...document.querySelectorAll('header [data-xmc-label]')].filter((x) => x.getBoundingClientRect().width > 1).length, hdrRight: Math.round(document.querySelector('header[role="banner"]').getBoundingClientRect().right), left: parseFloat(document.getElementById('xmc-root').style.left), probe: JSON.parse(window.__xmc.diagnostics()).panels }));
     assert.equal(r.shown, 0, 'no name is left showing');
@@ -1840,10 +1870,10 @@ browserTest('the menu folds by the words of its names, whatever the markup round
     assert.match(r.probe.linkShape, /\*\(b"/, 'the diagnostics outline a link, with the name marked: ' + r.probe.linkShape);
     assert.equal(r.probe.namesStillShowing, 0);
     // a menu whose names stay put (here pinned open by force) is reported, once, rather than left looking broken
-    await page.locator('[data-xmc-menu]').click();
+    await page.locator('header[role="banner"] h1 a').click();
     await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
     await page.evaluate(() => { for (const x of document.querySelectorAll('header [data-xmc-label]')) { x.style.setProperty('max-width', 'none', 'important'); x.style.setProperty('opacity', '1', 'important'); x.style.setProperty('margin-left', '20px', 'important'); } });
-    await page.locator('[data-xmc-menu]').click();
+    await page.locator('header[role="banner"] h1 a').click();
     await page.waitForFunction(() => /would not fold/.test((document.getElementById('xmc-toast') || {}).textContent || ''), null, { timeout: 5000 });
     const bad = await page.evaluate(() => { const d = JSON.parse(window.__xmc.diagnostics()); return { failed: d.panels.failed, trace: d.trace.some((x) => /rail FAILED/.test(JSON.stringify(x))) }; });
     assert.ok(bad.failed && bad.failed.width > bad.failed.expected + 30, JSON.stringify(bad));
@@ -2231,6 +2261,160 @@ browserTest('a post X has already translated on its own page is shown translated
   });
 }, 90000);
 
+// the foreign-language post (the stand-in marks every seventh post as Japanese) whose card has a Translate button, and a way to count the visits made for it
+const XL = {
+  card: () => { const t = window.__xmc.view.cards.find((c) => c.lang === 'ja' && c.el && c.el.isConnected && c.el.querySelector('.xmc-translate')); return t ? t.id : null; },
+};
+
+browserTest('pointing at Translate starts it before you press it, in the one visit that fetches the comments; then pressing shows it at once', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 9, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const id = await page.evaluate(XL.card);
+    assert.ok(id, 'a foreign-language post with a button');
+    const btn = page.locator('.xmc-card:has(a.xmc-time[href$="/status/' + id + '"]) .xmc-translate');
+    await btn.scrollIntoViewIfNeeded();
+    await btn.hover();
+    // nothing has been pressed: no panel, yet X's hidden page goes to the post
+    await page.waitForFunction((i) => JSON.parse(window.__xmc.diagnostics()).trace.some((x) => x[1] === 'visit' && x[2].startsWith('start ' + i)), id, { timeout: 5000 });
+    assert.equal(await page.evaluate(() => !!document.querySelector('.xmc-view')), false, 'no panel: the button has not been pressed');
+    await page.waitForFunction((i) => { const d = JSON.parse(window.__xmc.diagnostics()).translateTimes; return d.some((x) => x.id === i && x.ok); }, id, { timeout: 15000 });
+    const z = await page.evaluate((i) => JSON.parse(window.__xmc.diagnostics()).translateTimes.find((x) => x.id === i), id);
+    assert.deepEqual({ via: z.via, warm: z.warm }, { via: 'comments', warm: true }, JSON.stringify(z));
+    // now the press: the panel opens with it already translated, and its comments are there from the same visit
+    await btn.click();
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-xlate:not([hidden])', { timeout: 4000 });
+    assert.equal(await page.locator('.xmc-view:not(.xmc-out) .xmc-vside > .xmc-translate').first().innerText(), 'Show original');
+    await page.waitForTimeout(1500);
+    assert.equal(await page.evaluate((i) => JSON.parse(window.__xmc.diagnostics()).trace.filter((x) => x[1] === 'visit' && x[2].startsWith('start ' + i)).length, id), 1, 'one visit in all: the comments and the translation came together');
+  });
+}, 90000);
+
+browserTest('passing the pointer over Translate without stopping starts nothing', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 9, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const id = await page.evaluate(XL.card);
+    const btn = page.locator('.xmc-card:has(a.xmc-time[href$="/status/' + id + '"]) .xmc-translate');
+    await btn.scrollIntoViewIfNeeded();
+    const b = await btn.boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.move(b.x + b.width / 2, b.y - 80); // away again within a moment
+    await page.waitForTimeout(900);
+    assert.equal(await page.evaluate((i) => JSON.parse(window.__xmc.diagnostics()).trace.filter((x) => x[1] === 'visit' && x[2].startsWith('start ' + i)).length, id), 0, 'no visit');
+  });
+}, 90000);
+
+browserTest('pressing Translate while the one begun by pointing at it is still on its way waits for that, and makes no second visit', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 9, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.route('**/TweetDetail**', async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue().catch(() => {}); }); // (X takes a moment)
+    const id = await page.evaluate(XL.card);
+    const btn = page.locator('.xmc-card:has(a.xmc-time[href$="/status/' + id + '"]) .xmc-translate');
+    await btn.scrollIntoViewIfNeeded();
+    await btn.hover();
+    await page.waitForFunction((i) => JSON.parse(window.__xmc.diagnostics()).trace.some((x) => x[1] === 'visit' && x[2].startsWith('start ' + i)), id, { timeout: 5000 });
+    await btn.click(); // still on its way
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-xlate:not([hidden])', { timeout: 20000 });
+    assert.equal(await page.evaluate((i) => JSON.parse(window.__xmc.diagnostics()).trace.filter((x) => x[1] === 'visit' && x[2].startsWith('start ' + i)).length, id), 1, 'one visit');
+  });
+}, 90000);
+
+browserTest('over a post the cursor is the ordinary arrow; the hand is for links and buttons only', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 9, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const c = await page.evaluate(() => {
+      const card = document.querySelector('.xmc-card'), cur = (el) => getComputedStyle(el).cursor;
+      return { card: cur(card), words: cur(card.querySelector('.xmc-text')), head: cur(card.querySelector('.xmc-head')), name: cur(card.querySelector('a.xmc-name')), time: cur(card.querySelector('a.xmc-time')), like: cur(card.querySelector('[data-act="like"]')), reply: cur(card.querySelector('[data-act="reply"]')) };
+    });
+    assert.deepEqual({ card: c.card, words: c.words, head: c.head }, { card: 'default', words: 'default', head: 'default' }, 'arrow over the post itself');
+    assert.deepEqual({ name: c.name, time: c.time, like: c.like, reply: c.reply }, { name: 'pointer', time: 'pointer', like: 'pointer', reply: 'pointer' }, 'hand over links and buttons');
+    // and it is still clickable: pressing the words opens the panel
+    await page.locator('.xmc-card:has(.xmc-media) .xmc-text').first().click();
+    await page.waitForSelector('.xmc-view', { timeout: 8000 });
+  });
+}, 90000);
+
+browserTest('folded to icons, the columns start by the icons even when the links in X\'s menu stay as wide as they were', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('header[role="banner"] h1 a[data-xmc-logo]', { timeout: 10000 });
+    // as seen on X: each link is as wide as the whole menu (stretched, or holding room for a name that is hidden), so its box does not shrink with its icon
+    await page.evaluate(() => { for (const a of document.querySelectorAll('header nav a[href]')) a.style.setProperty('min-width', '240px'); });
+    await page.waitForTimeout(300);
+    const left = () => page.evaluate(() => parseFloat(document.getElementById('xmc-root').style.left));
+    const full = await left();
+    await page.locator('header[role="banner"] h1 a').click();
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => { const hd = document.querySelector('header[role="banner"]').getBoundingClientRect(); const probe = JSON.parse(window.__xmc.diagnostics()).panels; return { left: parseFloat(document.getElementById('xmc-root').style.left), hdrRight: Math.round(hd.right), failed: probe.failed, widest: probe.widestLinks }; });
+    assert.ok(r.left < full - 100, 'the columns moved left to take the room: ' + full + ' -> ' + r.left + ' (widest boxes: ' + r.widest + ')');
+    assert.ok(r.left < 140, 'and start by the icons, not by the widest box: ' + r.left);
+    assert.ok(r.hdrRight <= r.left, 'the menu\'s box ends before them');
+    assert.equal(r.failed, null, 'the names are gone, so it is not reported as unable to fold');
+    // pressing the columns' left edge reaches the columns, not an overhanging link
+    const hit = await page.evaluate((x) => { const el = document.elementFromPoint(x, 400); return !!(el && el.closest('#xmc-root')); }, Math.round(r.left + 30));
+    assert.equal(hit, true, 'a press just inside the columns lands on them');
+  });
+}, 90000);
+
+browserTest('the logo folds the menu from the keyboard too, and goes back to being a link to Home when the columns are off', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const logo = 'header[role="banner"] h1 a';
+    await page.waitForSelector(logo + '[data-xmc-logo]', { timeout: 10000 });
+    await page.focus(logo);
+    await page.keyboard.press(' ');
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail'), null, { timeout: 5000 });
+    assert.equal(await page.evaluate(() => location.pathname), '/home/');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
+    // columns off: the logo is X's own again (a link home), and presses reach X's page
+    await page.locator('#xmc-pill').click();
+    await page.waitForFunction((sel) => { const a = document.querySelector(sel); return a && !a.dataset.xmcLogo && !a.hasAttribute('role') && !a.hasAttribute('aria-expanded'); }, logo, { timeout: 5000 });
+    assert.equal(await page.evaluate((sel) => document.querySelector(sel).getAttribute('href'), logo), '/home');
+  });
+}, 90000);
+
+browserTest('in the full-size viewer the wheel steps between the pictures, one step for each flick, and does not scroll the columns', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 9, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelectorAll('[data-lb]')[0].click(); });
+    await page.waitForSelector('#xmc-lightbox');
+    const state = () => page.evaluate(() => ({ src: document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0], prevHidden: document.querySelector('#xmc-lightbox .xmc-lb-nav.prev').hidden, nextHidden: document.querySelector('#xmc-lightbox .xmc-lb-nav.next').hidden, top: document.querySelector('.xmc-scroller').scrollTop }));
+    const first = await state();
+    assert.equal(first.prevHidden, true);
+    await page.mouse.move(850, 450);
+    await page.mouse.wheel(0, 120);
+    await page.waitForFunction((s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] !== s, first.src, { timeout: 3000 });
+    const second = await state();
+    assert.equal(second.prevHidden, false, 'one step forward');
+    await page.mouse.wheel(0, 120); await page.mouse.wheel(0, 120); // the rest of a burst: no more steps
+    await page.waitForTimeout(150);
+    assert.equal((await state()).src, second.src, 'a burst is one flick');
+    await page.waitForTimeout(450);
+    await page.mouse.wheel(0, 120);
+    await page.waitForFunction((s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] !== s, second.src, { timeout: 3000 });
+    assert.equal((await state()).nextHidden, true, 'the last picture');
+    await page.waitForTimeout(450);
+    await page.mouse.wheel(0, -120); // and back
+    await page.waitForFunction((s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] === s, second.src, { timeout: 3000 });
+    assert.equal((await state()).top, first.top, 'the columns behind did not scroll');
+  });
+}, 90000);
+
 browserTest('the right panel slides away behind a tab on its edge, the columns take its room, and the tab brings it back', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {
@@ -2377,7 +2561,8 @@ browserTest('Translate post on a card opens the panel and translates there (X\'s
     const times = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).translateTimes);
     assert.equal(times.length, 1, 'where the time went is in the diagnostics');
     const z = times[0];
-    assert.ok(z.ok && z.open <= z.post && z.post <= z.control && z.control <= z.translated && z.translated <= z.total, 'in order: ' + JSON.stringify(z));
+    assert.ok(z.ok && z.control <= z.translated && z.translated <= z.total, 'in order: ' + JSON.stringify(z));
+    assert.equal(z.via, 'comments', 'done in the visit that loads the comments, not a second one: ' + JSON.stringify(z));
     assert.equal(await page.locator(side + ' > .xmc-text:not(.xmc-xlate)').first().isHidden(), true, 'the original is out of the way');
     assert.equal((await page.locator(side + ' > .xmc-translate').innerText()).trim(), 'Show original');
     await page.locator(side + ' > .xmc-translate').click();

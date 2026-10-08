@@ -3,7 +3,7 @@
 // Runs inside the page, over the extension's own elements only (X's are X's). Returns what fails, as short strings.
 'use strict';
 
-const OURS = '#xmc-root, #xmc-sidetab, #xmc-lightbox, #xmc-toast, [data-xmc-menu], [data-xmc-nav], #xmc-pill';
+const OURS = '#xmc-root, #xmc-sidetab, #xmc-lightbox, #xmc-toast, [data-xmc-logo], [data-xmc-nav], #xmc-pill';
 
 function auditInPage(scope) {
   const PRESSABLE = 'button, a[href], [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="checkbox"], [role="switch"], input:not([type="hidden"]), select, textarea, summary, [tabindex="0"]';
@@ -41,7 +41,7 @@ function auditInPage(scope) {
     const im = el.querySelector('img[alt]:not([alt=""])'); if (im) return im.alt;
     return (el.getAttribute('title') || '').trim();
   };
-  const desc = (el) => { const id = el.id ? '#' + el.id : ''; const cls = (typeof el.className === 'string' ? el.className : '').trim().split(/\s+/).slice(0, 2).join('.'); return el.tagName.toLowerCase() + id + (cls ? '.' + cls : '') + (el.getAttribute('data-xmc-menu') ? '[menu]' : '') + (el.tagName === 'A' && el.getAttribute('href') ? ' -> ' + el.getAttribute('href').slice(0, 40) : ''); };
+  const desc = (el) => { const id = el.id ? '#' + el.id : ''; const cls = (typeof el.className === 'string' ? el.className : '').trim().split(/\s+/).slice(0, 2).join('.'); return el.tagName.toLowerCase() + id + (cls ? '.' + cls : '') + (el.getAttribute('data-xmc-logo') ? '[logo]' : '') + (el.tagName === 'A' && el.getAttribute('href') ? ' -> ' + el.getAttribute('href').slice(0, 40) : ''); };
   const inSentence = (el) => el.tagName === 'A' && getComputedStyle(el).display === 'inline' && !!el.closest('.xmc-text, .xmc-qtext, .xmc-rbody, .xmc-pctx-text, .xmc-pbio, .xmc-profile p, .help, .muted, .blurb, p, li');
   const rects = targets.map((el) => el.getBoundingClientRect());
   const small = [], unnamed = [];

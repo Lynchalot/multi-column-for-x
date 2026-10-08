@@ -37,7 +37,8 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
 .xmc-status { padding: 40px 12px; text-align: center; color: var(--xmc-muted); }
 
 /* ---- cards ---- */
-.xmc-card { position: relative; border: 1px solid var(--xmc-edge); background: var(--xmc-surface); border-radius: 16px; padding: 12px 14px 4px; cursor: pointer;
+/* (whole-area clicks, a post, a comment, a thread's post, the post a reply answers, keep the ordinary arrow: the hand is for links and buttons, as on any page, so a link in the words tells itself apart) */
+.xmc-card { position: relative; border: 1px solid var(--xmc-edge); background: var(--xmc-surface); border-radius: 16px; padding: 12px 14px 4px; cursor: default;
   content-visibility: auto; contain-intrinsic-size: auto 420px; font-size: calc(15px * var(--xmc-ts, 1)); line-height: 1.35; }
 .xmc-card:hover { background: var(--xmc-hover); }
 .xmc-card a { color: inherit; text-decoration: none; }
@@ -426,7 +427,7 @@ html.xmc-on [data-testid="sidebarColumn"] { overscroll-behavior: contain; }
 .xmc-thread-toggle { appearance: none; border: 0; background: none; color: var(--xmc-accent); font: inherit; font-size: calc(13px * var(--xmc-ts, 1)); padding: 2px 0; cursor: pointer; }
 .xmc-thread-toggle:hover { text-decoration: underline; }
 .xmc-thread-list { margin-top: 6px; padding-left: 12px; border-left: 2px solid var(--xmc-border); }
-.xmc-tpost { padding: 6px 0; cursor: pointer; }
+.xmc-tpost { padding: 6px 0; cursor: default; }
 .xmc-tpost .xmc-time { font-size: calc(12px * var(--xmc-ts, 1)); color: var(--xmc-muted); text-decoration: none; }
 .xmc-tpost .xmc-text { margin: 2px 0 4px; }
 .xmc-tpost .xmc-media { margin: 4px 0; }
@@ -444,7 +445,7 @@ html.xmc-nsfw-show .xmc-rmedias .xmc-reveal { display: none !important; }
 .xmc-pagetitle { font-size: 16px; font-weight: 700; padding: 0 14px 0 8px; white-space: nowrap; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; }
 
 /* the post a reply answers, above the reply */
-.xmc-pctx { margin: 0 0 8px; padding: 2px 0 2px 12px; border-left: 2px solid var(--xmc-border); cursor: pointer; }
+.xmc-pctx { margin: 0 0 8px; padding: 2px 0 2px 12px; border-left: 2px solid var(--xmc-border); cursor: default; }
 .xmc-pctx b { font-weight: 700; }
 .xmc-pctx-text { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 /* who a profile is (the plainer header) */
@@ -588,7 +589,7 @@ html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive v
 .xmc-vback { appearance: none; border: 0; background: none; color: inherit; opacity: .75; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; margin: -4px 0 8px; border-radius: 999px; font: inherit; font-size: calc(13px * var(--xmc-ts, 1)); }
 .xmc-vback:hover { background: var(--xmc-hover); opacity: 1; }
 .xmc-vback svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-.xmc-vside .xmc-rbody { cursor: pointer; }
+.xmc-vside .xmc-rbody { cursor: default; }
 
 .xmc-rmark:hover, .xmc-rmark.on { color: #1d9bf0; }
 .xmc-rmark:hover { background: rgba(29, 155, 240, .12); }
@@ -686,7 +687,7 @@ html.xmc-panelanim #xmc-sidetab { transition: right .28s var(--xmc-ease); }
 #xmc-sidetab svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; transition: rotate .28s var(--xmc-ease); }
 #xmc-sidetab[data-away="1"] svg { rotate: 180deg; }
 #xmc-sidetab:hover { background: #ffffff; }
-#xmc-sidetab:focus-visible, header[role="banner"] [data-xmc-menu]:focus-visible { outline: 2px solid #1d9bf0; outline-offset: 2px; }
+#xmc-sidetab:focus-visible, header[role="banner"] [data-xmc-logo]:focus-visible { outline: 2px solid #1d9bf0; outline-offset: 2px; }
 #xmc-sidetab[hidden] { display: none !important; }
 /* the posts re-flow for a new number of columns behind a short fade, not a jump */
 #xmc-root .xmc-cols.xmc-fade { opacity: 0; transition: opacity .13s ease; }
@@ -694,3 +695,6 @@ html.xmc-panelanim #xmc-sidetab { transition: right .28s var(--xmc-ease); }
 
 /* the profile header is a copy of X's: its links get room above and below to be pressed, without moving anything */
 .xmc-profile a:not(:has(img)), .xmc-profile [role="button"]:not(:has(img)) { padding-block: 4px; }
+
+/* folded to icons: the menu's box is no wider than its icons, and what overflows it (a link stretched past it) catches no clicks meant for the columns */
+html.xmc-rail:not(.xmc-panelanim) header[role="banner"][data-xmc-style] { clip-path: inset(0) !important; }

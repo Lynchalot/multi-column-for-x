@@ -1591,8 +1591,8 @@
     const run = replyQueue.then(async () => {
       repliesWaiting--;
       const again = state.details.get(t.id); // an earlier request for the same post may have fetched it meanwhile
-      if (again) return { data: again };
-      if (opts.wanted && !opts.wanted()) return { why: 'Closed before it loaded.' };
+      if (again) { settleXlate(t.id, null); return { data: again }; }
+      if (opts.wanted && !opts.wanted()) { settleXlate(t.id, null); return { why: 'Closed before it loaded.' }; }
       if (opts.onStart) opts.onStart();
       await waitFor(() => !state.posting, 15000);
       try { return await fetchReplies(t, Object.assign({}, opts, { early, asked })); } catch (err) {
@@ -1659,6 +1659,9 @@
   }
   async function fetchReplies(t, opts) {
     opts = opts || {};
+    try { return await fetchRepliesVisit(t, opts); } finally { settleXlate(t.id, null); } // (a translation that was waiting for this visit and was not served goes on its own)
+  }
+  async function fetchRepliesVisit(t, opts) {
     return visitPost(t, opts, null, async ({ before, how, why, T, opened }) => {
       const got = await waitFor(() => state.peek && state.peek.replies, opened ? 9000 : 1500); // (if X never left the timeline there is nothing more to wait for)
       if (got) {
@@ -1666,6 +1669,10 @@
         (state.commentTimes = state.commentTimes || []).push({ queueMs: T.start - (opts.asked || T.start), findMs: T.found - T.start, openMs: T.opened - T.found, answerMs: T.data - T.opened, totalMs: T.data - (opts.asked || T.start), how, background: !!opts.background });
         if (state.commentTimes.length > 12) state.commentTimes.shift();
         if (opts.early) opts.early({ data: got });
+        if (xlateWaiting.has(t.id)) { // its translation was asked for while the comments were on their way: done here, on the page that is already open
+          if (translations.has(t.id)) settleXlate(t.id, { ok: true, ...translations.get(t.id) });
+          else { const w = xlateWaiting.get(t.id); xlateWaiting.delete(t.id); const art = findArticle(t.id); w.resolve(art ? await translateHere(t, art, null, w.lap, w.T0) : null); }
+        }
         return { data: got };
       }
       (state.commentFailures = state.commentFailures || []).push({ id: t.id, how, why, pageOpened: opened, sawDetail: !!(state.seenOps && state.seenOps.TweetDetail), background: !!opts.background, ms: Date.now() - T.start });
@@ -2131,6 +2138,9 @@
   let profileSig = '';
   function placeProfile() { if (columns.length && profileEl.parentElement !== columns[0]) relayout(); } // it joins the first column, and the posts are placed again around it
   function updateProfile() {
+    // While X's hidden page is away on a post for us (comments, translating, liking) the address is the post's and no profile's: the header
+    // stays as it is, with its copy of X's markup, which X may not have mounted again by the time the page is back
+    if (state.shown && !root.hidden && ((!!state.peek && onPostPage()) || (state.posting && isModalRoute()))) return;
     const handle = settings.profileHeader && state.shown && !root.hidden ? profileHandle() : '';
     if (!handle) { profileEl.hidden = true; profileEl.remove(); profileSig = ''; headerCopy = null; if (!listNameOnBar) pageTitleEl.hidden = true; return; }
     if (headerCopy && headerCopy.handle !== handle.toLowerCase()) { headerCopy = null; profileSig = ''; profileEl.replaceChildren(); profileEl.className = 'xmc-profile'; }
@@ -2371,6 +2381,13 @@
     const el = h('div', { id: 'xmc-lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Photo', onclick: closeLightbox }, img, prev, next, close, tools);
     const was = document.activeElement;
     img.addEventListener('click', (e) => e.stopPropagation());
+    let wheelAt = 0; // the wheel steps between the pictures, as it does in the panel (a trackpad sends a burst: one step per flick)
+    el.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (!lightbox || lightbox.photos.length < 2 || Math.abs(d) < 4 || e.timeStamp - wheelAt < 380) return;
+      wheelAt = e.timeStamp; stepLightbox(d > 0 ? 1 : -1);
+    }, { passive: false });
     lightbox = { el, img, photos, i: start, prev, next, was };
     document.body.append(el);
     close.focus({ preventScroll: true });
@@ -2685,7 +2702,6 @@
   // Posts and comments in another language get a "Translate post" button. X offers translation only on a post's own page, so the
   // hidden page is taken there, X's own button is pressed, and the translated words are read off its page and shown here (with
   // "Show original"). Nothing is sent anywhere else. If X's page offers nothing we can read, the button opens the post on X instead.
-  const translations = new Map(); // post id -> { text, from } once translated
   const TRANSLATE_LABEL = /^(translate (post|tweet|reply|comment)|show translation)$/i; // (X has used both)
   // X's control is found by its English label when X is in English; in any other interface language by where it sits: the one plain
   // button beside the post's words (not one of the post's action buttons, nothing with a test id, nothing in the action row).
@@ -2740,45 +2756,85 @@
     }
     probe.foreignOnPage = foreign; // (foreign-language posts X's page has drawn just now: next to "taken", says whether X is translating them)
   }
-  async function translateOnX(t, root) {
-    if (translations.has(t.id)) return { ok: true, ...translations.get(t.id) };
-    const T0 = Date.now(), lap = {}; // where the time goes, in milliseconds from the press: the queue and opening the post, finding it, X's Translate control, X's answer
+  // What is done on X's page once it is on the post: find X's Translate control (it is drawn a moment after the page opens, once X has
+  // judged the language), press it, and read what X's page then shows. lap is filled with where the time went (milliseconds from T0).
+  async function translateHere(t, art, root, lap, T0) {
+    const words = () => art.querySelector('[data-testid="tweetText"]');
+    const shownText = () => ((words() && words().innerText) || '').trim();
+    const before = shownText();
+    // translated = X's words changed after we pressed its control (works in any interface language), or X says so in English
+    const done = () => { const w = shownText(); return w && (w !== before || /translated from/i.test(art.textContent || '')) ? w : ''; };
+    if (!/translated from/i.test(art.textContent || '')) {
+      let ctl = null;
+      await waitFor(() => { if (!root) art = findArticle(t.id) || art; ctl = translateControl(art); return ctl; }, 5000);
+      if (!ctl) {
+        state.translateProbe = { id: t.id, lang: t.lang || '', words: (((art.querySelector('[data-testid="tweetText"]') || {}).innerText) || '').slice(0, 50),
+          controls: [...art.querySelectorAll('[role="button"], button, a[href]')].map((b) => ((b.getAttribute('aria-label') || b.textContent || '').trim()).slice(0, 30)).filter(Boolean).slice(0, 16) };
+        return { why: 'X offers no translation for this one (or its button isn’t one we can tell).' };
+      }
+      lap.control = Date.now() - T0;
+      fire(ctl);
+    }
+    const got = await waitFor(done, 7000);
+    lap.translated = Date.now() - T0;
+    if (!got) return { why: 'X didn’t translate it.' };
+    return { ok: true, text: got, from: translatedFrom(art) };
+  }
+  // On its own: the hidden page is taken to the post (or, for a comment, to its post and then the comment) just for this.
+  async function translateVisit(t, root, lap, T0) {
     const attempt = () => inQueue(() => visitPost(root || t, {}, {}, async ({ opened }) => {
       lap.open = Date.now() - T0;
       if (!opened) return { why: 'X didn’t open the post.' };
-      let art = root ? await mountComment(t.id) : await waitFor(() => findArticle(t.id), 6000);
+      const art = root ? await mountComment(t.id) : await waitFor(() => findArticle(t.id), 6000);
       lap.post = Date.now() - T0;
       if (!art) return { why: 'Couldn’t find the post on X’s page.' };
-      const words = () => art.querySelector('[data-testid="tweetText"]');
-      const shownText = () => ((words() && words().innerText) || '').trim();
-      const before = shownText();
-      // translated = X's words changed after we pressed its control (works in any interface language), or X says so in English
-      const done = () => { const w = shownText(); return w && (w !== before || /translated from/i.test(art.textContent || '')) ? w : ''; };
-      if (!/translated from/i.test(art.textContent || '')) {
-        // X draws its Translate control a moment after the post's page opens (once it has judged the language), so wait for it
-        let ctl = null;
-        await waitFor(() => { if (!root) art = findArticle(t.id) || art; ctl = translateControl(art); return ctl; }, 5000);
-        if (!ctl) {
-          state.translateProbe = { id: t.id, lang: t.lang || '', words: (((art.querySelector('[data-testid="tweetText"]') || {}).innerText) || '').slice(0, 50),
-            controls: [...art.querySelectorAll('[role="button"], button, a[href]')].map((b) => ((b.getAttribute('aria-label') || b.textContent || '').trim()).slice(0, 30)).filter(Boolean).slice(0, 16) };
-          return { why: 'X offers no translation for this one (or its button isn’t one we can tell).' };
-        }
-        lap.control = Date.now() - T0;
-        fire(ctl);
-      }
-      const got = await waitFor(done, 7000);
-      lap.translated = Date.now() - T0;
-      if (!got) return { why: 'X didn’t translate it.' };
-      return { ok: true, text: got, from: translatedFrom(art) };
+      return translateHere(t, art, root, lap, T0);
     }));
     let res = await attempt();
     // X not opening or not drawing the post is usually a passing thing: one more go before the person is told
     if (res && !res.ok && /didn’t open|find the post/.test(res.why || '')) { trace('translate', 'retry ' + t.id + ' (' + res.why + ')'); res = await attempt(); }
-    if (res && res.ok) translations.set(t.id, { text: res.text, from: res.from });
-    (state.translateTimes = state.translateTimes || []).push(Object.assign({ id: t.id, ok: !!(res && res.ok), total: Date.now() - T0 }, lap)); // (in the diagnostics: the last few)
-    if (state.translateTimes.length > 8) state.translateTimes.shift();
-    return res || { why: 'Something went wrong.' };
+    return res;
   }
+  // Translating a post (not a comment) that has not had its comments fetched yet: the visit that fetches them translates it too, on the
+  // page that is already open, instead of a second visit afterwards. A post asked about while its comments are on their way is
+  // served by that same visit (fetchReplies looks in xlateWaiting once the comments are handed over).
+  const translations = new Map(); // post id -> { text, from } once translated
+  const xlateRuns = new Map(); // post id -> the translation being fetched (asked for by a press, or begun when the button was pointed at)
+  const xlateWaiting = new Map(); // post id -> { resolve, lap }: asked for while its comments are on their way
+  function settleXlate(id, res) { const w = xlateWaiting.get(id); if (w) { xlateWaiting.delete(id); w.resolve(res); } }
+  function translateOnX(t, root, opts) {
+    if (translations.has(t.id)) return Promise.resolve({ ok: true, ...translations.get(t.id) });
+    if (xlateRuns.has(t.id)) return xlateRuns.get(t.id); // already on its way (you pointed at the button, or pressed it twice)
+    const T0 = Date.now(), lap = {}; // where the time goes: the queue and opening the post, finding it, X's Translate control, X's answer
+    const run = (async () => {
+      let res = null, via = 'visit';
+      if (!root && !state.details.has(t.id)) {
+        const waiting = new Promise((resolve) => xlateWaiting.set(t.id, { resolve, lap, T0 }));
+        const giveUp = setTimeout(() => settleXlate(t.id, null), 40000);
+        loadReplies(t, { translate: true }).then(() => { if (xlateWaiting.has(t.id)) settleXlate(t.id, null); }); // (comments in, or not coming, and the visit did not take it: on its own then)
+        res = await waiting;
+        clearTimeout(giveUp);
+        if (res) via = 'comments';
+      }
+      if (!res || (!res.ok && /find the post/.test(res.why || ''))) { res = await translateVisit(t, root, lap, T0); via = 'visit'; }
+      if (res && res.ok) translations.set(t.id, { text: res.text, from: res.from });
+      (state.translateTimes = state.translateTimes || []).push(Object.assign({ id: t.id, ok: !!(res && res.ok), via, warm: !!(opts && opts.warm), total: Date.now() - T0 }, lap)); // (in the diagnostics: the last few)
+      if (state.translateTimes.length > 8) state.translateTimes.shift();
+      res = res || { why: 'Something went wrong.' };
+      return opts && opts.warm ? Object.assign({}, res, { warm: true }) : res;
+    })().finally(() => xlateRuns.delete(t.id));
+    xlateRuns.set(t.id, run);
+    return run;
+  }
+  // Pointing at a Translate button for a moment starts the translation before you press it, in the same visit that fetches the post's
+  // comments; if you do not press, nothing is shown and nothing is kept but the translation. It shares the small budget of lookups that
+  // are done only in case you want them.
+  function warmTranslate(t, root) {
+    if (!t || !needsTranslation(t) || translations.has(t.id) || xlateRuns.has(t.id) || xlateWarmed.has(t.id) || !bgAllowed()) return;
+    xlateWarmed.add(t.id); bgUsed();
+    translateOnX(t, root || null, { warm: true }).catch(() => {});
+  }
+  const xlateWarmed = new Set(); // (once per post: a failed try is not repeated just because the pointer passes again; pressing the button always tries)
   // The button under a post's or comment's words: translates in place, then switches between the translation and the original
   function wireTranslate(button, wordsEl, t, root) {
     let shown = null, failed = false, fails = 0; // (the translated copy is only made when there is one)
@@ -2789,6 +2845,12 @@
       paint(true);
     };
     if (settings.autoTranslate && translations.has(t.id)) show(translations.get(t.id)); // X has already translated it: shown as X shows it, with "Show original"
+    let pointed = 0;
+    button.addEventListener('pointerenter', () => { // pointing at it for a moment starts the translation (see warmTranslate)
+      clearTimeout(pointed);
+      pointed = setTimeout(() => { if (button.isConnected && button.matches(':hover') && !shown && !failed && !button.disabled) warmTranslate(t, root); }, 150);
+    });
+    button.addEventListener('pointerleave', () => clearTimeout(pointed));
     button.addEventListener('click', async (e) => {
       e.preventDefault(); e.stopPropagation();
       if (failed) { openOnX(t); return; }
@@ -2796,7 +2858,8 @@
       if (shown) { paint(shown.hidden); return; } // back and forth between the two, without asking X again
       if (translations.has(t.id)) { show(translations.get(t.id)); return; }
       button.disabled = true; button.textContent = 'Translating\u2026';
-      const res = await translateOnX(t, root);
+      let res = await translateOnX(t, root);
+      if (!res.ok && res.warm) res = await translateOnX(t, root); // (a try begun by pointing at the button failed quietly: this one is the press's own)
       button.disabled = false;
       if (res.ok) { show(res); return; }
       fails++;
@@ -2976,6 +3039,16 @@
     const v = e.target.closest && e.target.closest('video');
     if (v && v.dataset.preview === '1') { e.preventDefault(); e.stopPropagation(); takeOver(v); } // sound on, carrying on
   }, true);
+  let xlatePoint = 0;
+  colsEl.addEventListener('pointerover', (e) => { // the Translate button on a card opens the panel: pointing at it for a moment already starts the translation
+    const b = e.target.closest && e.target.closest('.xmc-translate');
+    if (!b) return;
+    const card = b.closest('.xmc-card'), t = card && tweetOf.get(card);
+    if (!t) return;
+    clearTimeout(xlatePoint);
+    xlatePoint = setTimeout(() => { if (b.isConnected && b.matches(':hover') && !postView) warmTranslate(t, null); }, 150);
+  });
+  colsEl.addEventListener('pointerout', (e) => { if (e.target.closest && e.target.closest('.xmc-translate')) clearTimeout(xlatePoint); });
   colsEl.addEventListener('pointerover', (e) => {
     const card = e.target.closest && e.target.closest('.xmc-card');
     if (!card) return;
@@ -3167,7 +3240,9 @@
     nav: { el: () => document.querySelector('header[role="banner"]'), width: 0, fails: 0, fallback: false, retryAt: 0 },
     side: { el: () => document.querySelector('[data-testid="sidebarColumn"]'), width: 0, fails: 0, fallback: false, retryAt: 0 },
   };
-  function navMeasure(nav) { // bounding box of the nav's links (the <header> itself is wider than what you see)
+  // clamp: folded to icons, a link is as wide as its icon and the padding round it, however wide X's own box for it is (a link can be
+  // stretched, or keep room for a name that is hidden): the columns must start by the icons, not by the widest of those boxes
+  function navMeasure(nav, clamp) { // bounding box of the nav's links (the <header> itself is wider than what you see)
     const acct = nav.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
     let minL = Infinity, maxR = -Infinity;
     for (const n of nav.querySelectorAll('a, button, [role="button"]')) {
@@ -3175,7 +3250,13 @@
       if (getComputedStyle(n).display === 'none') continue;
       const b = n.getBoundingClientRect();
       if (!b.width || !b.height) continue;
-      minL = Math.min(minL, b.left); maxR = Math.max(maxR, b.right);
+      let right = b.right;
+      if (clamp) {
+        const svg = n.querySelector('svg'), sb = svg && svg.getBoundingClientRect();
+        if (sb && sb.width) right = Math.min(right, sb.right + (parseFloat(getComputedStyle(n.firstElementChild || n).paddingLeft) || 12));
+        else right = Math.min(right, b.left + 56); // (the round Post button, our own button: 50 px)
+      }
+      minL = Math.min(minL, b.left); maxR = Math.max(maxR, right);
     }
     if (minL === Infinity) { const b = nav.getBoundingClientRect(); minL = b.left; maxR = b.right; }
     return { minL, maxR };
@@ -3248,10 +3329,10 @@
     const p = pin.nav, nav = p.el();
     if (!nav) { root.style.left = '0px'; return; }
     if (p.fallback && Date.now() > p.retryAt) { p.fallback = false; p.fails = 0; }
-    if (p.fallback) { root.style.left = (navMeasure(nav).maxR + 20) + 'px'; return; }
+    if (p.fallback) { root.style.left = (navMeasure(nav, railOn()).maxR + 20) + 'px'; return; }
     const acct = nav.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
     if (nav.dataset.xmcStyle === undefined) {
-      const m = navMeasure(nav);
+      const m = navMeasure(nav, railOn());
       const r = nav.getBoundingClientRect();
       nav.dataset.xmcStyle = nav.getAttribute('style') || '';
       p.width = Math.round(m.maxR - m.minL);
@@ -3344,8 +3425,8 @@
   }
 
   // ---------- folding the side panels ----------
-  // Left: the menu folds to a rail of icons (its names fade out), by a menu button at the top of it that is a copy of one of X's own
-  // menu links, so it lines up with the rest. Right: the whole panel slides off the edge, and a tab on its edge brings it back.
+  // Left: the menu folds to a rail of icons (its names fade out) when X's logo at the top of it is pressed (the logo is otherwise a second
+  // link to Home, so it costs no row). Right: the whole panel slides off the edge, and a tab on its edge brings it back.
   // Alt+[ and Alt+] do the same. The choice is kept. Both only while the columns are showing.
   const rightAway = () => settings.rightPanel === 'hidden';
   const navHasNames = () => { const hdr = pin.nav.el(); return !!hdr && [...hdr.querySelectorAll('nav a[href]')].some((a) => a.textContent.trim()); }; // (X's narrow layout already shows icons only)
@@ -3376,10 +3457,12 @@
   function railCheck() {
     const hdr = pin.nav.el();
     if (!railOn() || !hdr || state.railFail) return;
-    const m = navMeasure(hdr), want = railWidth();
-    if (m.maxR - m.minL <= want + 30) return;
-    state.railFail = { width: Math.round(m.maxR - m.minL), expected: want };
-    trace('rail FAILED', 'menu is ' + state.railFail.width + 'px wide, icons end at ' + want);
+    const marked = [...hdr.querySelectorAll('[data-xmc-label]')];
+    const showing = marked.filter((x) => x.getBoundingClientRect().width > 1 && Number(getComputedStyle(x).opacity) > 0.05).length;
+    const raw = navMeasure(hdr), want = railWidth(), wide = raw.maxR - raw.minL > want + 30;
+    if (showing === 0 && (marked.length || !wide)) return; // the names are gone: folded (a box of X's that is wider than its icon is not something you see)
+    state.railFail = { width: Math.round(raw.maxR - raw.minL), expected: want, namesShowing: showing, namesFound: marked.length };
+    trace('rail FAILED', showing + ' names still showing, menu ' + state.railFail.width + 'px wide, icons end at ' + want);
     toast('X’s menu would not fold here. Copy diagnostics shows why.');
   }
   const shape = (el, d = 0) => { // an outline of a link's markup: tags, roles and the words of the name, nothing else
@@ -3393,45 +3476,48 @@
     const hdr = pin.nav.el(), side = pin.side.el(), html = document.documentElement;
     const box = (el) => { if (!el) return null; const b = el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.right)]; };
     const links = hdr ? [...hdr.querySelectorAll('nav a[href], nav [role="button"]')] : [];
-    const tpl = links.find((a) => !a.dataset.xmcMenu && a.querySelector('svg') && a.textContent.trim());
+    const tpl = links.find((a) => a.querySelector('svg') && a.textContent.trim());
     const marked = hdr ? [...hdr.querySelectorAll('[data-xmc-label]')] : [];
-    const m = hdr ? navMeasure(hdr) : null;
+    const m = hdr ? navMeasure(hdr) : null, mc = hdr ? navMeasure(hdr, true) : null;
+    const widest = links.map((a) => ({ a, w: Math.round(a.getBoundingClientRect().width) })).sort((x, y) => y.w - x.w).slice(0, 4)
+      .map((x) => (x.a.getAttribute('data-testid') || x.a.getAttribute('aria-label') || (x.a.getAttribute('href') || '').slice(0, 24) || x.a.tagName.toLowerCase()) + ' ' + x.w);
     return {
       left: settings.leftPanel, right: settings.rightPanel, classes: ['xmc-rail', 'xmc-sidehide', 'xmc-panelanim'].filter((c) => html.classList.contains(c)).join(' '),
       navLinks: links.length, namesFound: marked.length, namesStillShowing: html.classList.contains('xmc-rail') ? marked.filter((x) => x.getBoundingClientRect().width > 1).length : null,
-      header: box(hdr), icons: m ? [Math.round(m.minL), Math.round(m.maxR)] : null, columnsFrom: root.style.left, columnsTo: root.style.right, side: box(side),
+      header: box(hdr), icons: m ? [Math.round(m.minL), Math.round(m.maxR)] : null, iconsClamped: mc ? [Math.round(mc.minL), Math.round(mc.maxR)] : null, widestLinks: widest, columnsFrom: root.style.left, columnsTo: root.style.right, side: box(side),
       tab: sideTab.hidden ? 'hidden' : sideTab.style.right, failed: state.railFail || null, linkShape: tpl ? shape(tpl) : '',
     };
   }
-  function updateMenuToggle(a) {
+  // The logo (the bird, or the X) at the top of X's menu folds and unfolds it: Home already goes home, so the logo is free for this, and
+  // there is no extra button taking a row of the menu. Only while the columns are up and there are names to fold (X's narrow layout is
+  // icons already); X's own attributes are put back when it stops.
+  const logoLink = () => { const hdr = pin.nav.el(); return hdr && (hdr.querySelector('h1 a[href="/home"]') || hdr.querySelector('h1 a[href]')); };
+  function syncLogoToggle() {
+    const a = logoLink();
+    if (!a) return;
+    const on = document.documentElement.classList.contains('xmc-on') && (navHasNames() || settings.leftPanel === 'rail');
+    if (!on) {
+      if (a.dataset.xmcLogo) { // put X's own back
+        const was = JSON.parse(a.dataset.xmcWas || '{}');
+        for (const k of ['role', 'aria-label', 'title']) { if (was[k] === null || was[k] === undefined) a.removeAttribute(k); else a.setAttribute(k, was[k]); }
+        a.removeAttribute('aria-expanded'); delete a.dataset.xmcLogo; delete a.dataset.xmcWas;
+      }
+      return;
+    }
+    if (!a.dataset.xmcLogo) { a.dataset.xmcWas = JSON.stringify({ role: a.getAttribute('role'), 'aria-label': a.getAttribute('aria-label'), title: a.getAttribute('title') }); a.dataset.xmcLogo = '1'; a.setAttribute('role', 'button'); }
     const rail = settings.leftPanel === 'rail';
-    const t = (rail ? 'Show the menu with names' : 'Fold the menu to icons') + ' (Alt+[)';
-    if (a.title !== t) { a.title = t; a.setAttribute('aria-label', rail ? 'Show the menu with names' : 'Fold the menu to icons'); }
+    const name = rail ? 'Show the menu with names' : 'Fold the menu to icons';
+    if (a.getAttribute('aria-label') !== name) { a.setAttribute('aria-label', name); a.title = name + ' (Alt+[)'; }
     a.setAttribute('aria-expanded', String(!rail));
   }
-  function syncMenuToggle() {
-    const hdr = pin.nav.el(), old = hdr && hdr.querySelector('[data-xmc-menu]');
-    if (!hdr || !document.documentElement.classList.contains('xmc-on')) { if (old) old.remove(); return; }
-    if (old) { updateMenuToggle(old); return; }
-    const navEl = hdr.querySelector('nav');
-    if (!navEl) return;
-    const links = [...navEl.querySelectorAll('a[href]')].filter((a) => !a.dataset.xmcNav && !a.matches('[data-testid="SideNav_NewTweet_Button"]'));
-    const template = links.find((a) => /^\/explore\b/.test(a.getAttribute('href'))) || links.find((a) => a.querySelector('svg') && a.textContent.trim());
-    const tl = template && template.textContent.trim();
-    if (!template || !tl) return; // no names to fold (X's narrow layout)
-    const a = template.cloneNode(true);
-    for (const el of [a, ...a.querySelectorAll('[data-testid], [id]')]) { el.removeAttribute('data-testid'); el.removeAttribute('id'); }
-    a.removeAttribute('href'); a.removeAttribute('aria-current'); a.setAttribute('role', 'button'); a.tabIndex = 0; a.dataset.xmcMenu = '1'; a.style.cursor = 'pointer';
-    const svg = a.querySelector('svg');
-    if (svg) { svg.setAttribute('viewBox', '0 0 24 24'); svg.replaceChildren(...[...icon('menu').children]); svg.style.cssText = 'fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round'; }
-    const word = [...a.querySelectorAll('span')].reverse().find((sp) => sp.children.length === 0 && sp.textContent.trim() === tl);
-    if (word) word.textContent = 'Menu';
-    const go = (e) => { e.preventDefault(); e.stopPropagation(); setPanel('left'); };
-    a.addEventListener('click', (e) => { if (!e.button) go(e); });
-    a.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') go(e); });
-    navEl.insertBefore(a, navEl.firstChild);
-    updateMenuToggle(a);
-  }
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('[data-xmc-logo="1"]');
+    if (!a || e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return; // (a modified press still opens Home as a link does)
+    e.preventDefault(); e.stopPropagation(); setPanel('left');
+  }, true);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === ' ' && e.target.closest && e.target.closest('[data-xmc-logo="1"]')) { e.preventDefault(); e.stopPropagation(); setPanel('left'); } // (Enter is a click already)
+  }, true);
   const sideTab = h('button', { id: 'xmc-sidetab', type: 'button', hidden: true, onclick: () => setPanel('right') }, icon('next'));
   document.body.append(sideTab);
   function positionTab() {
@@ -3802,7 +3888,7 @@
     }
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
-    if (tickN % 4 === 0) { guard('menu toggle', syncMenuToggle); guard('menu names', markNavLabels); }
+    if (tickN % 4 === 0) { guard('logo toggle', syncLogoToggle); guard('menu names', markNavLabels); }
     if (tickN % 15 === 7) guard('translations', harvestTranslations);
     guard('side panels', applyPanels);
     if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); }

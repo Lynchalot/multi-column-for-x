@@ -30,13 +30,13 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
 - **Posts open in a panel** over the columns (picture large on one side; words, actions and comments on the other; Esc closes; arrows step to the next post). A post with several pictures shows them one at a time with an arrow each side and a dot for each; the wheel flicks between them, and the left or right third of a picture steps (the middle opens it full size). The empty space round a picture is a blurred copy of it. A quoted post opens in the panel too, and the time on a post is a link to it on X. Comments load as you scroll, can be sorted, and have like, bookmark, views and share; a comment opens in the same panel. Like / repost / save / download appear on a picture when you point at it.
 - **Presets** at the top of the settings page (Just columns, Calm, Media wall); it opens there when the extension is first installed.
 - **Video and GIFs play in the card.** Photos open in a viewer (arrows, **Esc** closes it) with **Download** and **Copy link** buttons.
-  Posts and comments in other languages get a **Translate** button that uses X's own translation (in whatever language your X is set to). **NSFW** button in the top bar:
+  Posts and comments in other languages get a **Translate** button that uses X's own translation (in whatever language your X is set to). Pointing at the button for a moment starts it, so it is usually done when you press; if X has already translated a post on its page, that is shown with **Show original**. **NSFW** button in the top bar:
   blur → show → hide those posts.
 - **X's own sidebars are kept** (left nav, right search/trends), or hide the right one in settings. The floating Grok and
   Chat buttons stay, side by side in the corner. Hide any sidebar item (Creator Studio, Chat, Grok…) —
   the settings page lists whatever your sidebar actually shows.
   **Text size** (smaller to largest) is in the settings, and the settings page has a search box (press `/`) and marks and resets whatever you have changed.
-  **More room:** a menu button at the top of the left menu folds it to icons, and a tab on the window's edge slides the right panel away (Alt+[ and Alt+]). Both are remembered.
+  **More room:** pressing the logo at the top of the left menu folds it to icons, and a tab on the window's edge slides the right panel away (Alt+[ and Alt+]). Both are remembered.
 - **Downloads** — original-size photos and the best video quality, saved into an **`X` folder inside Downloads** as
   `account-postnumber-1-twitter.jpg`, so you can always tell where a file came from. A browser extension can't write outside the
   browser's download folder, so for Pictures / Videos / Documents tick **Ask me where to save each file** (Firefox's own dialog,
