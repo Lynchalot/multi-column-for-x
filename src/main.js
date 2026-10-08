@@ -1337,7 +1337,7 @@
       trace: TRACE.slice(-120),
       commentTimes: state.commentTimes || [],
       commentFailures: state.commentFailures || [],
-      commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, translateProbe: state.translateProbe || null, popProbe: state.popProbe || null, cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
+      commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, translateProbe: state.translateProbe || null, popProbe: state.popProbe || null, panels: panelProbe(), cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       floating: floatingReport(),
       corner: cornerReport(),
@@ -3267,6 +3267,51 @@
     const pad = parseFloat(getComputedStyle(a.firstElementChild || a).paddingLeft) || 12;
     return Math.round(svg.getBoundingClientRect().right + pad);
   }
+  // The names in the menu are found by their words (the biggest piece of text in a link that has no icon in it), not by where X's markup
+  // happens to put them, so a different nesting still folds. Marked with data-xmc-label; the stylesheet fades those.
+  function markNavLabels() {
+    const hdr = pin.nav.el();
+    if (!hdr) return;
+    for (const a of hdr.querySelectorAll('nav a[href], nav [role="button"]')) {
+      if (a.matches('[data-testid="SideNav_NewTweet_Button"]')) continue;
+      const cands = a.querySelector('svg') ? [...a.querySelectorAll('*')].filter((x) => !x.closest('svg') && !x.querySelector('svg') && x.textContent.trim()) : [];
+      const best = cands.reduce((m, x) => Math.max(m, x.textContent.trim().length), 0);
+      const label = cands.find((x) => x.textContent.trim().length === best); // (document order: the outermost box holding those words)
+      for (const old of a.querySelectorAll('[data-xmc-label]')) if (old !== label) delete old.dataset.xmcLabel;
+      if (label && label.dataset.xmcLabel !== '1') label.dataset.xmcLabel = '1';
+    }
+  }
+  // Folded, the menu should be about as wide as its icons. If it is not, say so once (the diagnostics have the details).
+  function railCheck() {
+    const hdr = pin.nav.el();
+    if (!railOn() || !hdr || state.railFail) return;
+    const m = navMeasure(hdr), want = railWidth();
+    if (m.maxR - m.minL <= want + 30) return;
+    state.railFail = { width: Math.round(m.maxR - m.minL), expected: want };
+    trace('rail FAILED', 'menu is ' + state.railFail.width + 'px wide, icons end at ' + want);
+    toast('X’s menu would not fold here. Copy diagnostics shows why.');
+  }
+  const shape = (el, d = 0) => { // an outline of a link's markup: tags, roles and the words of the name, nothing else
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'svg') return 'svg';
+    const mine = tag + (el.getAttribute('role') ? '[' + el.getAttribute('role') + ']' : '') + (el.dataset && el.dataset.xmcLabel ? '*' : '');
+    if (!el.children.length) return mine + '"' + el.textContent.trim().slice(0, 14) + '"';
+    return d > 6 ? mine : mine + '(' + [...el.children].map((k) => shape(k, d + 1)).join(' ') + ')';
+  };
+  function panelProbe() {
+    const hdr = pin.nav.el(), side = pin.side.el(), html = document.documentElement;
+    const box = (el) => { if (!el) return null; const b = el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.right)]; };
+    const links = hdr ? [...hdr.querySelectorAll('nav a[href], nav [role="button"]')] : [];
+    const tpl = links.find((a) => !a.dataset.xmcMenu && a.querySelector('svg') && a.textContent.trim());
+    const marked = hdr ? [...hdr.querySelectorAll('[data-xmc-label]')] : [];
+    const m = hdr ? navMeasure(hdr) : null;
+    return {
+      left: settings.leftPanel, right: settings.rightPanel, classes: ['xmc-rail', 'xmc-sidehide', 'xmc-panelanim'].filter((c) => html.classList.contains(c)).join(' '),
+      navLinks: links.length, namesFound: marked.length, namesStillShowing: html.classList.contains('xmc-rail') ? marked.filter((x) => x.getBoundingClientRect().width > 1).length : null,
+      header: box(hdr), icons: m ? [Math.round(m.minL), Math.round(m.maxR)] : null, columnsFrom: root.style.left, columnsTo: root.style.right, side: box(side),
+      tab: sideTab.hidden ? 'hidden' : sideTab.style.right, failed: state.railFail || null, linkShape: tpl ? shape(tpl) : '',
+    };
+  }
   function updateMenuToggle(a) {
     const rail = settings.leftPanel === 'rail';
     const t = (rail ? 'Show the menu with names' : 'Fold the menu to icons') + ' (Alt+[)';
@@ -3317,6 +3362,7 @@
     html.classList.remove('xmc-panelanim');
     unpin('nav'); positionNav(); positionSide();
     if (pill.isConnected && !pill.hidden) placePill();
+    railCheck();
     if (!root.hidden && colCount() !== columns.length) { // (a different number of columns fits now: a short fade, not a jump)
       colsEl.classList.add('xmc-fade');
       setTimeout(() => { relayout(); requestAnimationFrame(() => colsEl.classList.remove('xmc-fade')); }, 140);
@@ -3327,18 +3373,19 @@
     if (!html.classList.contains('xmc-on') || !pin.nav.el()) { html.classList.remove('xmc-rail', 'xmc-sidehide'); return; }
     const rail = railOn(), away = rightAway();
     const sig = (rail ? 'R' : 'F') + (away ? 'A' : 'S');
-    if (html.classList.contains('xmc-rail') !== rail) html.classList.toggle('xmc-rail', rail);
+    if (html.classList.contains('xmc-rail') !== rail) { markNavLabels(); html.classList.toggle('xmc-rail', rail); }
     if (html.classList.contains('xmc-sidehide') !== away) html.classList.toggle('xmc-sidehide', away);
     if (sig === panelsSeen) return;
     const first = panelsSeen === '';
     panelsSeen = sig;
-    if (first) return; // as the page was left: no slide on arrival
+    if (first) { if (rail) setTimeout(railCheck, 600); return; } // as the page was left: no slide on arrival
     html.classList.add('xmc-panelanim');
     clearTimeout(panelTimer);
     panelTimer = setTimeout(settlePanels, 360);
   }
   function setPanel(side) {
     const html = document.documentElement;
+    markNavLabels();
     html.classList.add('xmc-panelanim'); void html.offsetWidth; // (the slide is switched on before what slides is changed)
     if (side === 'left') {
       settings.leftPanel = settings.leftPanel === 'rail' ? 'full' : 'rail';
@@ -3664,7 +3711,7 @@
     }
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
-    if (tickN % 4 === 0) guard('menu toggle', syncMenuToggle);
+    if (tickN % 4 === 0) { guard('menu toggle', syncMenuToggle); guard('menu names', markNavLabels); }
     guard('side panels', applyPanels);
     if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }

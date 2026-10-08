@@ -1792,6 +1792,45 @@ browserTest('the left menu folds to icons: a menu button lines up with the other
   });
 }, 90000);
 
+browserTest('the menu folds by the words of its names, whatever the markup round them; and a menu that will not fold says so', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('[data-xmc-menu]', { timeout: 10000 });
+    // X may nest its links differently from the stand-in: here every link is spans, with the name one box inside another
+    await page.evaluate(() => {
+      for (const a of document.querySelectorAll('header nav a[href]:not([data-testid="SideNav_NewTweet_Button"]), header nav [data-xmc-menu]')) {
+        const svg = a.querySelector('svg'), word = a.textContent.trim();
+        if (!svg || !word) continue;
+        a.replaceChildren();
+        const w = document.createElement('span'); w.style.cssText = 'display:inline-flex;align-items:center;padding:12px';
+        const ic = document.createElement('span'); ic.append(svg);
+        const t = document.createElement('span'); t.style.marginLeft = '20px';
+        const b = document.createElement('b'); b.textContent = word; t.append(b); w.append(ic, t); a.append(w);
+      }
+    });
+    await page.waitForFunction(() => document.querySelectorAll('header [data-xmc-label]').length >= 5, null, { timeout: 8000 });
+    await page.locator('[data-xmc-menu]').click();
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
+    const r = await page.evaluate(() => ({ shown: [...document.querySelectorAll('header [data-xmc-label]')].filter((x) => x.getBoundingClientRect().width > 1).length, hdrRight: Math.round(document.querySelector('header[role="banner"]').getBoundingClientRect().right), left: parseFloat(document.getElementById('xmc-root').style.left), probe: JSON.parse(window.__xmc.diagnostics()).panels }));
+    assert.equal(r.shown, 0, 'no name is left showing');
+    assert.ok(r.hdrRight <= r.left, 'and the menu ends before the columns: ' + r.hdrRight + ' vs ' + r.left);
+    assert.equal(r.probe.failed, null);
+    assert.match(r.probe.linkShape, /\*\(b"/, 'the diagnostics outline a link, with the name marked: ' + r.probe.linkShape);
+    assert.equal(r.probe.namesStillShowing, 0);
+    // a menu whose names stay put (here pinned open by force) is reported, once, rather than left looking broken
+    await page.locator('[data-xmc-menu]').click();
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), null, { timeout: 5000 });
+    await page.evaluate(() => { for (const x of document.querySelectorAll('header [data-xmc-label]')) { x.style.setProperty('max-width', 'none', 'important'); x.style.setProperty('opacity', '1', 'important'); x.style.setProperty('margin-left', '20px', 'important'); } });
+    await page.locator('[data-xmc-menu]').click();
+    await page.waitForFunction(() => /would not fold/.test((document.getElementById('xmc-toast') || {}).textContent || ''), null, { timeout: 5000 });
+    const bad = await page.evaluate(() => { const d = JSON.parse(window.__xmc.diagnostics()); return { failed: d.panels.failed, trace: d.trace.some((x) => /rail FAILED/.test(JSON.stringify(x))) }; });
+    assert.ok(bad.failed && bad.failed.width > bad.failed.expected + 30, JSON.stringify(bad));
+    assert.equal(bad.trace, true, 'and the trace has it');
+  });
+}, 90000);
+
 browserTest('the right panel slides away behind a tab on its edge, the columns take its room, and the tab brings it back', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {

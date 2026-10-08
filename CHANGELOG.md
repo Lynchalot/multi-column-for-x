@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.28.1
+Hardening the folding menu against X's real markup, which nobody working on this has seen.
+- **The menu's names are found by their words, not by X's nesting.** 0.28.0 faded "the link's second box after the icon", which is how the stand-in x.com is built and how I remember X's. Each name is now found as the biggest piece of text in a link that has an icon, and marked; the stylesheet fades the marked boxes as well as the old guess. A test nests the links differently (spans, the name two boxes deep) and the menu still folds (it did not with only the old rule).
+- **If the menu will not fold, it says so.** Once the slide ends the extension measures the menu; if it is still much wider than its icons, a note says "X's menu would not fold here" (once), and the trace has a `rail FAILED` line with the two widths. Before, the button would just have done nothing.
+- **Copy diagnostics has `panels`**: both choices, the state classes, how many names were found and how many are still showing, the menu's and sidebar's edges, where the columns start and end, the edge tab, and an outline of one menu link (tag names, roles, the word of its name; no account details). 0.28.0's note said it had this. It did not.
+
 ## 0.28.0
 **The side panels fold away for more room** (from the Google Maps mock-ups, variant A).
 - **A menu button (three lines) sits at the top of X's left menu**, in line with the other icons. Pressing it folds the menu to icons: the names fade out, the Post button turns round, the Columns pill becomes an icon and the columns slide left to take the room. Pressing it again brings the names back. On a narrow window X already shows icons only, so there is nothing to fold.
@@ -7,7 +13,7 @@
 - **Keyboard: Alt+[ folds the left menu, Alt+] slides the right panel** (while the columns are showing).
 - **Settings: "Left menu, while the columns are showing" and "Right panel"** hold the choice, which is remembered and is there on arrival with no slide.
 - The menu's own box ends where the icons end, so a folded menu never sits over the first column.
-- Nothing is new on X's side: the menu and sidebar are still X's own, pinned as before; the button is a copy of one of X's menu links (so it lines up exactly), and the folding is our own CSS. Not tried on real X: whether X's menu links have the same inner structure as the stand-in (the names are found as the link's second box), and where the Post button and the Columns pill land when folded. Copy diagnostics will show the menu's state if it looks wrong.
+- Nothing is new on X's side: the menu and sidebar are still X's own, pinned as before; the button is a copy of one of X's menu links (so it lines up exactly), and the folding is our own CSS. Not tried on real X: whether X's menu links have the same inner structure as the stand-in (the names are found as the link's second box), and where the Post button and the Columns pill land when folded. (0.28.0 said Copy diagnostics would show the menu's state; it did not until 0.28.1.)
 
 ## 0.27.9
 A pass over how things look, from rendering the screens and reading the stylesheet.

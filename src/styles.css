@@ -647,10 +647,10 @@ a[data-xmc-nav]:hover > div, a[data-xmc-nav]:focus-visible > div { background-co
 /* the columns' edges slide with the panels */
 html.xmc-panelanim #xmc-root { transition: left .28s var(--xmc-ease), right .28s var(--xmc-ease); }
 /* left: the names of the menu fade and fold away (only a link that has an icon and then a name: X's own, and the ones added here) */
-html.xmc-rail header[role="banner"] nav :is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2),
-html.xmc-panelanim header[role="banner"] nav :is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2) { max-width: 260px; overflow: hidden; }
-html.xmc-panelanim header[role="banner"] nav :is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2) { transition: max-width .28s var(--xmc-ease), opacity .24s ease, margin .28s var(--xmc-ease); }
-html.xmc-rail header[role="banner"] nav :is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2) { max-width: 0 !important; opacity: 0 !important; margin-left: 0 !important; margin-right: 0 !important; }
+html.xmc-rail header[role="banner"] nav :is(:is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2), [data-xmc-label]),
+html.xmc-panelanim header[role="banner"] nav :is(:is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2), [data-xmc-label]) { max-width: 260px; overflow: hidden; }
+html.xmc-panelanim header[role="banner"] nav :is(:is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2), [data-xmc-label]) { transition: max-width .28s var(--xmc-ease), opacity .24s ease, margin .28s var(--xmc-ease); }
+html.xmc-rail header[role="banner"] nav :is(:is(a, [role="button"]):not([data-testid="SideNav_NewTweet_Button"]) > div > div:nth-child(n+2), [data-xmc-label]) { max-width: 0 !important; opacity: 0 !important; margin-left: 0 !important; margin-right: 0 !important; }
 html.xmc-rail header[role="banner"] [data-testid="SideNav_AccountSwitcher_Button"] > div:not(:first-child) { display: none !important; }
 /* the Post button becomes a round button, as X makes it in a narrow window; ours beneath it the same */
 html.xmc-rail header[role="banner"] a[data-testid="SideNav_NewTweet_Button"] { width: 50px !important; min-width: 0 !important; max-width: 50px !important; padding: 0 !important; display: flex !important; align-items: center; justify-content: center; overflow: hidden; color: var(--xmc-postfg, #0f1419); }
