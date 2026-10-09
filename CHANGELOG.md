@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.32.2
+**Vimium's keys did nothing in Firefox**, and now do. Found by a new test that runs the extension in a real Firefox; the Chromium tests could not see it.
+- Firefox moves a page whose root is `overflow: hidden` (X's is, under the columns) without firing a `scroll` event on it. The columns were told about a key's scroll by that event, so j, k, d, u, gg and G changed X's hidden page and nothing else. The extension now also looks at where X's page is, twenty times a second (a read of `scrollY`); the event still does the same job where a browser sends it.
+- **A test in a real Firefox** (`npm run test:firefox`): the zip `web-ext build` makes, installed as a temporary add-on through geckodriver, x.com mapped to the stand-in over https. Ten tests: the install and the columns, the page-world hook and the content scripts, a setting made in the gear's panel reaching `browser.storage` and the page, the panel framed over the page with no fallback tab (also under a page policy that allows frames only from the page's own origin: it held), the toolbar panel's page, the background's answers, Vimium's keys, a tour (a post, a picture full size, the menu folded and unfolded by a real pointer press on the logo, the gear), and the status table. It needs a Firefox and geckodriver (`XMC_FIREFOX`, `XMC_GECKODRIVER`); CI uses the runner's.
+- Test: the keys scroll the columns in a browser that fires no scroll event on the page (the Chromium test, with that event taken away).
+
 ## 0.32.1
 - **A button that is missing because X already shows the other state is not a failure.** Like, Bookmark, comment likes and comment bookmarks looked for the button that does the job; if X's page showed the opposite one (an `unlike` where Like was wanted, because the page and the extension had drifted apart), that was counted as a missing button, and three in a row switched the feature off for five minutes. It is now taken as done and nothing is counted. A button missing with no opposite present is still a failure, as before.
 - Test: a Like that X already shows as liked, pressed four times, counts nothing against Like and dims nothing.

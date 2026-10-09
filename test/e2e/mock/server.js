@@ -11,9 +11,11 @@ const TYPES = { '.js': 'application/javascript; charset=utf-8', '.css': 'text/cs
 
 // tls: { key, cert } serves https. bare: pages without the extension's scripts and stylesheet (an installed extension puts them there itself).
 // publicOrigin: what the pages call themselves (e.g. https://x.com, when the browser maps that name to this server).
-function start({ pages = 30, port = 0, tls = null, bare = false, publicOrigin = '' } = {}) {
+// csp: a Content-Security-Policy header for the pages (a strict one, like X's, shows what the extension's frames and styles do under it).
+function start({ pages = 30, port = 0, tls = null, bare = false, publicOrigin = '', csp = '' } = {}) {
   let origin = '';
   let api = null;
+  let cspHeader = csp;
   const handler = (req, res) => {
     const u = new URL(req.url, 'http://localhost');
     const send = (code, type, body) => { res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' }); res.end(body); };
@@ -39,6 +41,7 @@ function start({ pages = 30, port = 0, tls = null, bare = false, publicOrigin = 
     if (u.pathname === '/favicon.ico') return send(204, 'image/x-icon', '');
     let html = pageFor(u.pathname);
     if (html && bare) html = html.replace(/<script src="\/ext\/src\/[^"]+"><\/script>/g, '').replace('<link rel="stylesheet" href="/ext/src/styles.css">', '');
+    if (html && cspHeader) res.setHeader('Content-Security-Policy', cspHeader);
     return html ? send(200, 'text/html; charset=utf-8', html) : send(404, 'text/plain', 'not found');
   };
   const server = tls ? require('node:https').createServer(tls, handler) : http.createServer(handler);
@@ -46,7 +49,7 @@ function start({ pages = 30, port = 0, tls = null, bare = false, publicOrigin = 
     server.listen(port, '127.0.0.1', () => {
       origin = publicOrigin || ('http://127.0.0.1:' + server.address().port);
       api = makeApi(origin, pages);
-      resolve({ origin, port: server.address().port, close: () => new Promise((r) => server.close(r)) });
+      resolve({ origin, port: server.address().port, setCsp: (v) => { cspHeader = v; }, close: () => new Promise((r) => server.close(r)) });
     });
   });
 }

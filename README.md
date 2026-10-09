@@ -84,6 +84,8 @@ and x.com / twitter.com / X's media servers.
 ```bash
 npm test          # parser, filter, file-name and settings tests (node:test, no dependencies)
 npm run test:e2e  # the extension in headless Chrome against a stand-in x.com (needs Chrome; `npm install` first)
+npm run test:chrome   # the built Chrome package in a real Chromium (XMC_BROWSER=/path/to/chromium)
+npm run test:firefox  # the built Firefox package in a real Firefox (XMC_FIREFOX, XMC_GECKODRIVER)
 npm run mock      # serve that stand-in x.com to look at by hand: http://127.0.0.1:8766/home/
 npm run lint      # web-ext lint
 npm run build     # zip for addons.mozilla.org

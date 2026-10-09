@@ -20,11 +20,13 @@ async function setup(opts = {}) {
   const api = {
     server,
     // path: where to go. settings: saved extension settings (e.g. { cols: 5 }). width/height: window size.
+    // init: a function run in the page before anything else
     // seen: post ids already "read" in an earlier visit (what the extension keeps in its read-posts memory)
-    async open(path, { settings, seen, width = 1700, height = 900 } = {}) {
+    async open(path, { settings, seen, width = 1700, height = 900, init } = {}) {
       const context = await browser.newContext({ viewport: { width, height } });
       // (the first-run tip is six lines tall and appears a moment after the first posts, which moves whatever a test is pointing at: tests start with it dismissed, unless they say otherwise)
       await context.addInitScript((s) => { try { if (!localStorage.getItem('xmc.settings')) localStorage.setItem('xmc.settings', JSON.stringify(s)); } catch { /* ignore */ } }, Object.assign({ hintSeen: true }, settings || {}));
+      if (init) await context.addInitScript(init); // (runs in the page before its own scripts: to take a browser feature away, say)
       if (seen) await context.addInitScript((ids) => { try { if (!localStorage.getItem('xmc.seen')) localStorage.setItem('xmc.seen', JSON.stringify(ids)); } catch { /* ignore */ } }, seen);
       const page = await context.newPage();
       const errors = [];

@@ -2642,8 +2642,8 @@ browserTest('a video taken full screen stays full screen when the window grows (
   });
 }, 90000);
 
-browserTest('keys that scroll the page behind the columns (Vimium: j k d u gg G) scroll the columns, wherever the last click was', async (e) => {
-  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+const keysTest = (init) => async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true }, init });
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
@@ -2701,7 +2701,13 @@ browserTest('keys that scroll the page behind the columns (Vimium: j k d u gg G)
     const after = await top();
     assert.equal(after, before, 'typing in a box moves nothing: ' + before + ' -> ' + after);
   });
-}, 120000);
+};
+browserTest('keys that scroll the page behind the columns (Vimium: j k d u gg G) scroll the columns, wherever the last click was', keysTest(null), 120000);
+// Gecko moves a page whose root is overflow:hidden (which X's is, under the columns) without firing a scroll event on it, so the extension looks at where the page is, too.
+browserTest('the same keys scroll the columns in a browser that fires no scroll event on the page itself', keysTest(() => {
+  const add = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function (t, ...rest) { if (t === 'scroll' && this === window) return undefined; return add.call(this, t, ...rest); };
+}), 120000);
 
 browserTest('"Save sample for the developer" writes a file with the shape of what X sent and the markup of the buttons, without the words, and the file passes the checks real samples get', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });

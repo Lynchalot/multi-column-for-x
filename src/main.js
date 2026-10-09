@@ -1354,7 +1354,7 @@
     const t = e.target, editable = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''));
     if (e.isTrusted && !editable && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key.length === 1 || /^(PageUp|PageDown|Home|End)$/.test(e.key))) keyAt = Date.now();
   }, true);
-  window.addEventListener('scroll', () => {
+  function followHiddenPage() {
     const y = window.scrollY, dy = y - hiddenY, now = Date.now();
     if (!dy) return;
     const keyed = now - keyAt < 700 && now - ownScrollAt > 60 && state.shown && !root.hidden && !state.peek && !state.posting && now - (state.lastPeekEnd || 0) > 1500 && !document.getElementById('xmc-lightbox');
@@ -1368,7 +1368,11 @@
       traceOnce('keys', 'a key scrolled the page behind the columns by ' + Math.round(dy) + ': the columns moved instead', 20000);
     }
     nativeScrollTo(0, hiddenY); // (X's page goes back: hiddenY is left as it was, so that this scroll comes out as no change)
-  }, { passive: true });
+  }
+  // Firefox moves a page whose root is overflow:hidden (X's is, under the columns) without firing a scroll event on it, so Vimium's keys would
+  // do nothing there: the page's position is looked at as well, a few times a second (a read of scrollY, nothing more).
+  window.addEventListener('scroll', followHiddenPage, { passive: true });
+  setInterval(() => { if (!document.hidden) followHiddenPage(); }, 50);
   function keepHiddenPageRoom() {
     if (!state.shown || root.hidden || state.peek || state.posting || document.hidden || postView) return;
     const now = Date.now();
