@@ -362,6 +362,14 @@
       if (!confirm('Put every setting back to its default?')) return;
       persist(S.normalize()); build(); say('All settings reset.');
     });
+    { // the master switch: the page is dimmed under it while it is off, and nothing else changes
+      const sw = $('#opt-enabled');
+      if (sw) {
+        const show = () => { sw.checked = settings.enabled !== false; document.body.classList.toggle('off', !sw.checked); };
+        show();
+        sw.addEventListener('change', () => { persist({ enabled: sw.checked }); show(); });
+      }
+    }
     on('#open-full', 'click', () => { // the whole page, in a tab (the panel closes as it opens)
       if (ext) ext.runtime.openOptionsPage().then(() => { if (FRAMED) toParent('settings-close'); else window.close(); }, () => {}); else window.open('options.html', '_blank');
     });
@@ -377,6 +385,7 @@
         if (ch.seenPosts) { readCount = (ch.seenPosts.newValue || []).length; const sm = $('#read-summary'); if (sm && sm.refresh) sm.refresh(); }
         if (ch.navItems) { settings.navItems = ch.navItems.newValue || []; refreshNav(); }
         if (ch.hiddenNav) settings.hiddenNav = ch.hiddenNav.newValue || [];
+        if (ch.enabled) { settings.enabled = ch.enabled.newValue !== false; const sw = $('#opt-enabled'); if (sw) { sw.checked = settings.enabled; document.body.classList.toggle('off', !sw.checked); } } // (turned on or off from another of these pages)
       });
     }
   }

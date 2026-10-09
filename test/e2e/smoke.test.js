@@ -2757,6 +2757,64 @@ browserTest('the markup in a sample keeps the labels of buttons, the menu and th
   });
 }, 60000);
 
+browserTest('the master switch off (the setting and the note kept for the hook): nothing is drawn, changed or recorded, and X\'s page stays X\'s', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, enabled: false }, init: () => { localStorage.setItem('xmcOff', '1'); localStorage.setItem('xmcVeil', '/home'); } });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForTimeout(3500);
+    const seen = await page.evaluate(() => {
+      const col = document.querySelector('[data-testid="primaryColumn"]'), cs = col && getComputedStyle(col);
+      return { root: !!document.getElementById('xmc-root'), pill: !!document.getElementById('xmc-pill'), on: document.documentElement.classList.contains('xmc-on'), veil: document.documentElement.classList.contains('xmc-veil'),
+        hook: !!window.__xmcHook, api: !!window.__xmc, xVisible: !!cs && cs.visibility === 'visible' && Number(cs.opacity) > 0, cards: document.querySelectorAll('.xmc-card').length, art: document.querySelectorAll('article').length };
+    });
+    assert.deepEqual({ ...seen, art: seen.art > 0 }, { root: false, pill: false, on: false, veil: false, hook: false, api: false, xVisible: true, cards: 0, art: true }, JSON.stringify(seen));
+  });
+}, 60000);
+
+browserTest('the master switch is off but the note kept for the hook says on (switched off while no X tab was open): the page is let go before anything is drawn, and the note is brought up to date', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, enabled: false } });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForFunction(() => localStorage.getItem('xmcOff') === '1', null, { timeout: 8000 });
+    await page.waitForTimeout(1500);
+    const seen = await page.evaluate(() => ({ root: !!document.getElementById('xmc-root'), on: document.documentElement.classList.contains('xmc-on'), veil: document.documentElement.classList.contains('xmc-veil'), cards: document.querySelectorAll('.xmc-card').length }));
+    assert.deepEqual(seen, { root: false, on: false, veil: false, cards: 0 });
+  });
+}, 60000);
+
+browserTest('turning the master switch off and on from a settings page puts this tab back to X\'s and then back to columns (the tab reloads each time)', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const set = (value) => page.evaluate((v) => { localStorage.setItem('xmc.settings', JSON.stringify(v)); window.dispatchEvent(new StorageEvent('storage', { key: 'xmc.settings', newValue: JSON.stringify(v) })); }, value);
+    await Promise.all([page.waitForEvent('load', { timeout: 15000 }), set({ v: 10, hintSeen: true, enabled: false })]);
+    await page.waitForTimeout(2500);
+    assert.deepEqual(await page.evaluate(() => ({ root: !!document.getElementById('xmc-root'), on: document.documentElement.classList.contains('xmc-on'), note: localStorage.getItem('xmcOff'), hook: !!window.__xmcHook })), { root: false, on: false, note: '1', hook: false }, 'off: X\'s own page');
+    await Promise.all([page.waitForEvent('load', { timeout: 15000 }), set({ v: 10, hintSeen: true })]);
+    await e.ready(page);
+    assert.deepEqual(await page.evaluate(() => ({ on: document.documentElement.classList.contains('xmc-on'), note: localStorage.getItem('xmcOff') })), { on: true, note: null }, 'on again: columns');
+  });
+}, 90000);
+
+browserTest('a post closed and opened again while its comments are still queued behind another request gets its comments, not "Closed before it loaded"', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, commentsIn: 'panel' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    let n = 0;
+    await page.route('**/TweetDetail**', async (route) => { n++; if (n === 1) await new Promise((r) => setTimeout(r, 4000)); await route.continue().catch(() => {}); });
+    const open = async (i) => { await page.locator('.xmc-card .xmc-text').nth(i).click(); await page.waitForFunction(() => !!document.querySelector('.xmc-view'), null, { timeout: 5000 }); };
+    await open(0); await page.keyboard.press('Escape'); // the first request is under way and slow
+    await page.waitForFunction(() => !document.querySelector('.xmc-view'), null, { timeout: 5000 });
+    await open(1); await page.keyboard.press('Escape'); // this one waits behind it, and its panel goes
+    await page.waitForFunction(() => !document.querySelector('.xmc-view'), null, { timeout: 5000 });
+    await open(1); // asked for again: the same request, wanted again
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-view .xmc-ritem').length >= 1, null, { timeout: 25000 });
+    assert.ok(!/Closed before it loaded/.test(await page.evaluate(() => document.querySelector('.xmc-view').innerText)), 'no failure shown');
+  });
+}, 90000);
+
 browserTest('a Like whose button X no longer has fails soft: the heart goes back, the press says what was not found, after three the one button is switched off, and the settings page shows it', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, commentsIn: 'card' } });
   await checked(h, async () => {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.33.0
+- **A master switch.** "Enabled" at the top of the toolbar panel, the gear's panel and the settings page. Off: the extension draws nothing, changes nothing, watches nothing and records nothing on x.com, and X's page is X's own (the page-world hook, which has to decide before X has started, stands down too). The toolbar button says "off" while it is off. Turning it on or off reloads the open X tabs (a page put back by hand is never quite the page X made). Everything else in the settings is left as it was and shows dimmed. The switch is `enabled` in the schema (on unless turned off); a note kept in x.com's storage (`xmcOff`) lets the hook and the content script see it at once; if the switch was turned over while no X tab was open, the first page opened afterwards lets go of itself before anything is drawn and brings the note up to date. (There was a setting of this name in 0.7.0, removed later; it is a new one.)
+- **A post closed and opened again while its comments were still waiting had them refused.** One request is made for a post's comments however many panels ask. It was dropped if the panel that asked first was closed by the time its turn came (it queues behind other requests), even when the panel had been opened again and was waiting for the same answer: that panel was told "Closed before it loaded", and the failure was counted against Comments in the status table (one such failure was in the diagnostics from real X). The request now stands while any panel still wants it.
+- Tests: the switch off with and without the note (nothing drawn, X's page showing), turned over in an open tab and back (reloads), the same in real Firefox through the toolbar panel's page and `browser.storage`; the closed-and-opened-again panel.
+
 ## 0.32.3
 From the first sample taken on real X (Firefox 157, the home timeline and one post's comments): the parser read all 393 posts X sent and dropped none, X's Home link, tabs, Like, Repost, Bookmark, Reply and post text were all found, and comments worked. What it showed:
 - **The columns menu says what Auto is**: "Auto (2 columns)" (or "Auto (1 column)"), not "Auto (2 now)".

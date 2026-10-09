@@ -6,6 +6,9 @@
 (() => {
   'use strict';
   if (window.__xmcHook) return;
+  // The master switch ("Enabled" in the settings) is off: nothing is watched, hidden or changed. main.js keeps this note in the site's storage, since this
+  // script runs before the extension's own storage can be asked.
+  try { if (window.localStorage.getItem('xmcOff') === '1') return; } catch { /* storage blocked: on */ }
   window.__xmcHook = true;
 
   // On a page where the columns were showing last time, keep X's own timeline, menu and sidebar out of sight until the extension

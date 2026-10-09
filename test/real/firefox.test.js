@@ -230,6 +230,35 @@ firefox('Like on a card presses X\'s real button on its hidden page (the events 
   await d.waitFor((n) => { const w = window.wrappedJSObject || window; return Array.from(w.__actions || []).slice(n).some((a) => /^liked:/.test(a)); }, [before], 15000, 'X\'s like handler to run (the page saw: ' + JSON.stringify(await seen()) + ')');
 });
 
+firefox('the master switch in the toolbar panel turns the extension off (this tab goes back to X\'s own page) and on (columns again), through browser.storage', async (r, d) => {
+  await home(r, d);
+  const popup = async () => { // (the toolbar panel's page, framed by hand over the page: it is web-accessible to x.com)
+    await d.js((u) => { const f = document.createElement('iframe'); f.id = 'zz-popup'; f.src = u; f.style.cssText = 'position:fixed;left:0;top:0;width:480px;height:600px;z-index:2147483647;background:#fff'; document.body.appendChild(f); }, r.ext('popup.html'));
+    await d.frame('#zz-popup');
+    await d.waitFor(() => !!document.getElementById('opt-enabled'), [], 10000, 'the popup');
+  };
+  const flip = async (want) => {
+    await popup();
+    try {
+      assert.equal(await d.js(() => document.getElementById('opt-enabled').checked), !want, 'the switch shows the state it is in');
+      await d.js(() => document.getElementById('opt-enabled').click());
+      await d.waitFor((w) => browser.storage.local.get('enabled').then((o) => (o.enabled !== false) === w), [want], 6000, 'the stored switch');
+    } finally { await d.topFrame().catch(() => {}); }
+  };
+  try {
+    await flip(false);
+    await d.waitFor(() => !document.getElementById('zz-popup'), [], 15000, 'the tab to reload');
+    await sleep(2500);
+    assert.deepEqual(await d.js(() => ({ root: !!document.getElementById('xmc-root'), on: document.documentElement.classList.contains('xmc-on'), pill: !!document.getElementById('xmc-pill'), articles: document.querySelectorAll('article').length > 0 })),
+      { root: false, on: false, pill: false, articles: true }, 'off: X\'s own page, nothing of ours');
+    await flip(true);
+    await d.waitFor(() => !document.getElementById('zz-popup'), [], 15000, 'the tab to reload again');
+    await d.waitFor(() => document.querySelectorAll('.xmc-card').length > 0, [], 25000, 'the columns to come back');
+  } finally {
+    await popup().catch(() => {}); await d.js(() => browser.storage.local.set({ enabled: true })).catch(() => {}); await d.topFrame().catch(() => {});
+  }
+});
+
 firefox('what the extension saw on x.com (the probe of X\'s buttons, the parser\'s counts) is written to browser.storage and shown in the panel\'s status table', async (r, d) => {
   await home(r, d);
   await panel(d, async () => {

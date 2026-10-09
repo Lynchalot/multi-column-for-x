@@ -10,7 +10,9 @@ var XMCSettings = (function () {
   // native: true  => restyles X's own interface with CSS, so it depends on X's current markup and may
   //                  need a tweak when X redesigns.
   const SCHEMA = [
-    { id: 'presets', title: 'Presets', custom: 'presets', items: [] },
+    { id: 'presets', title: 'Presets', custom: 'presets', items: [
+      { key: 'enabled', type: 'bool', def: true, label: 'Enabled', hidden: true }, // the master switch: drawn at the top of every settings page by options.js, not in a section
+    ] },
     {
       id: 'columns', title: 'Columns', items: [
         { key: 'cols', type: 'number', min: 0, max: 8, def: 0, label: 'Number of columns', help: '0 = automatic.' },

@@ -156,7 +156,7 @@ test('settings: old saved values are migrated and list values are sanitised', ()
   assert.equal(S.normalize({}).hideDmDrawer, false);
   assert.deepEqual(S.normalize({ hiddenNav: ['/i/grok', 5, null, '/explore'] }).hiddenNav, ['/i/grok', '/explore']);
   assert.deepEqual(S.normalize({ navItems: [{ key: '/a', label: 'A' }, { key: 5 }, 'x'] }).navItems, [{ key: '/a', label: 'A' }]);
-  assert.ok(!('enabled' in S.normalize({ enabled: false })), 'there is no on/off switch any more');
+  assert.equal(S.normalize({ enabled: false }).enabled, false, 'the master switch is kept (0.32.4): it was dropped once, and is back, with the toggle at the top of every settings page');
 });
 
 test('settings: only non-default values are stored, so a changed default reaches existing users', () => {
@@ -488,4 +488,13 @@ test('the words on X\'s translation controls come from one table, and the patter
   assert.ok(orig.test('Show original') && !orig.test('Show original post here'));
   assert.ok(from.test('Translated from Spanish'));
   assert.ok(Object.keys(L.WORDS).includes('en'));
+});
+
+test('the master switch is a setting that is on unless it was turned off, and is kept only when it is off', () => {
+  const S = require('../src/settings.js');
+  assert.equal(S.normalize().enabled, true);
+  assert.equal(S.normalize({ enabled: false }).enabled, false);
+  assert.equal(S.normalize({ enabled: 'nonsense' }).enabled, true);
+  assert.deepEqual(Object.keys(S.diff(S.normalize({ enabled: false })).set).filter((k) => k !== 'v'), ['enabled']);
+  assert.ok(S.diff(S.normalize()).clear.includes('enabled'));
 });

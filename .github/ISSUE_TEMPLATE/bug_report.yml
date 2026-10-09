@@ -26,7 +26,7 @@ body:
     attributes:
       label: Extension version
       description: "about:addons, then Multi-Column for X"
-      placeholder: "0.32.3"
+      placeholder: "0.33.0"
   - type: input
     id: browser
     attributes:

@@ -21,6 +21,27 @@
   const settings = XMCSettings.normalize();
   const ext = (() => { const a = typeof browser !== 'undefined' ? browser : typeof chrome !== 'undefined' ? chrome : null; return a && a.runtime && a.runtime.id ? a : null; })(); // (Firefox's `browser`, or Chrome's `chrome`: both give promises; null on a page that is not an extension's, as in the tests)
   const storage = ext && ext.storage && ext.storage.local;
+  // ---------- the master switch ----------
+  // "Enabled" at the top of the settings. Off: nothing is drawn, changed, watched or recorded, and X's page is X's own (hook.js looks at the same
+  // note before X has booted). The note is kept in this site's storage (xmcOff) because the hook runs before the extension's storage can be asked.
+  // Turning it on or off while an X tab is open reloads that tab: a page put back by hand is never quite the page X made.
+  const OFF_NOTE = 'xmcOff';
+  const offNote = (off) => { try { if (off) localStorage.setItem(OFF_NOTE, '1'); else localStorage.removeItem(OFF_NOTE); } catch { /* storage blocked */ } };
+  const enabledIn = (v) => !v || v.enabled !== false;
+  let switchedOff = false;
+  const noteSaysOff = (() => { try { return localStorage.getItem(OFF_NOTE) === '1'; } catch { return false; } })();
+  if (noteSaysOff) { // stand down: only the switch is watched, to come back when it is turned on (or when the note is out of date: switched on while no X tab was open)
+    const back = () => { offNote(false); location.reload(); };
+    document.documentElement.classList.remove('xmc-veil');
+    if (storage && ext.storage.onChanged) {
+      ext.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.enabled && ch.enabled.newValue !== false) back(); });
+      storage.get('enabled').then((v) => { if (enabledIn(v)) back(); }).catch(() => {});
+    } else {
+      window.addEventListener('storage', (e) => { if (e.key === 'xmc.settings') { try { if (enabledIn(JSON.parse(e.newValue || '{}'))) back(); } catch { /* ignore */ } } });
+      try { if (enabledIn(JSON.parse(localStorage.getItem('xmc.settings') || '{}'))) back(); } catch { /* ignore */ }
+    }
+    return;
+  }
   let ready = false;
   let logCache = [], logPending = []; // the event log kept across reloads (see trace)
   const LOG_KEY = 'xmcLog', LOG_MAX = 300;
@@ -45,6 +66,11 @@
     } catch { /* defaults */ }
   }
   function onExternalChange(next, hist) {
+    if ('enabled' in next) { // the master switch was turned over on a settings page: this page starts again, or goes back to being X's
+      const on = next.enabled !== false;
+      if (on === switchedOff) { offNote(!on); location.reload(); return; }
+    }
+    if (switchedOff) return;
     Object.assign(settings, XMCSettings.normalize(Object.assign({}, settings, next)));
     if (hist !== undefined) loadHistory(hist);
     settingsChanged();
@@ -1357,6 +1383,7 @@
     if (e.isTrusted && !editable && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key.length === 1 || /^(PageUp|PageDown|Home|End)$/.test(e.key))) keyAt = Date.now();
   }, true);
   function followHiddenPage() {
+    if (retired) return;
     const y = window.scrollY, dy = y - hiddenY, now = Date.now();
     if (!dy) return;
     const keyed = now - keyAt < 700 && now - ownScrollAt > 60 && state.shown && !root.hidden && !state.peek && !state.posting && now - (state.lastPeekEnd || 0) > 1500 && !document.getElementById('xmc-lightbox');
@@ -1729,11 +1756,14 @@
   // The comments are handed over the moment they arrive; the hidden page then steps back (which the browser may take seconds to
   // do) while you are already reading them. One request per post: asking again while it is on its way waits for that same answer.
   const repliesInflight = new Map();
+  const repliesWanters = new Map(); // post id -> the `wanted` checks of everyone waiting on that request
   function loadReplies(t, opts) {
     opts = opts || {};
     const cached = state.details.get(t.id);
     if (cached) return Promise.resolve({ data: cached });
-    if (repliesInflight.has(t.id)) return repliesInflight.get(t.id);
+    if (repliesInflight.has(t.id)) { const ws = repliesWanters.get(t.id); if (ws) ws.push(opts.wanted || (() => true)); return repliesInflight.get(t.id); } // (a panel closed and opened again asks for the same post: the one request is for whoever still wants it)
+    const wanters = [opts.wanted || (() => true)];
+    repliesWanters.set(t.id, wanters);
     repliesWaiting++;
     const asked = Date.now();
     let early;
@@ -1742,7 +1772,7 @@
       repliesWaiting--;
       const again = state.details.get(t.id); // an earlier request for the same post may have fetched it meanwhile
       if (again) { settleXlate(t.id, null); return { data: again }; }
-      if (opts.wanted && !opts.wanted()) { settleXlate(t.id, null); return { why: 'Closed before it loaded.' }; }
+      if (!wanters.some((w) => w())) { settleXlate(t.id, null); return { why: 'Closed before it loaded.' }; }
       if (opts.onStart) opts.onStart();
       await waitFor(() => !state.posting, 15000);
       try { return await fetchReplies(t, Object.assign({}, opts, { early, asked })); } catch (err) {
@@ -1753,7 +1783,7 @@
     replyQueue = run.catch(() => {});
     const answer = Promise.race([earlyP, run]);
     repliesInflight.set(t.id, answer);
-    run.catch(() => {}).then(() => { if (repliesInflight.get(t.id) === answer) repliesInflight.delete(t.id); });
+    run.catch(() => {}).then(() => { if (repliesInflight.get(t.id) === answer) { repliesInflight.delete(t.id); repliesWanters.delete(t.id); } });
     return answer;
   }
   // Opens a post's page on X's hidden side, runs body() there, and steps back (all in one place: the finding, the pressing, the
@@ -4241,6 +4271,13 @@
   window.__xmc = { state, settings, view, diagnostics, recycle: recycleCards, downloads: () => savedDownloads }; // for debugging from the console
 
   loadAll().then(() => {
+    if (settings.enabled === false) { // switched off while no X tab was open (the note was out of date): the page is let go before anything has been drawn
+      switchedOff = true; offNote(true);
+      document.documentElement.classList.remove('xmc-veil');
+      try { localStorage.removeItem('xmcVeil'); } catch { /* storage blocked */ }
+      retire();
+      return;
+    }
     ready = true;
     settingsChanged();
     tickTimer = setInterval(() => { const t0 = performance.now(); guard('tick', tick); tickTimes.push(performance.now() - t0); if (tickTimes.length > 50) tickTimes.shift(); }, TICK_MS);

@@ -9,6 +9,16 @@ async function viaBrowser(files, saveAs) {
   for (const f of files) await api.downloads.download({ url: f.url, filename: clean(f.filename), conflictAction: 'uniquify', saveAs: !!saveAs });
 }
 
+// The toolbar button says "off" while the master switch (Enabled, in the settings) is off.
+function showSwitch(off) {
+  try {
+    api.action.setBadgeText({ text: off ? 'off' : '' });
+    if (off) { api.action.setBadgeBackgroundColor({ color: '#6b7280' }); if (api.action.setBadgeTextColor) api.action.setBadgeTextColor({ color: '#ffffff' }); }
+  } catch { /* no action API here */ }
+}
+api.storage.local.get('enabled').then((v) => showSwitch(v && v.enabled === false)).catch(() => {});
+api.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.enabled) showSwitch(ch.enabled.newValue === false); });
+
 // (the answer goes by sendResponse, with `return true` to keep the channel open: Chrome does not take a promise returned from the listener, Firefox takes either)
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || sender.id !== api.runtime.id) return false;

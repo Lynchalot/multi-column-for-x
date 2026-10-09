@@ -85,7 +85,7 @@ class Driver {
 }
 const KEYS = { Escape: '', ArrowRight: '', ArrowLeft: '', ArrowDown: '', ArrowUp: '', Enter: '', Tab: '' };
 
-async function setup({ pages = 30, csp = '' } = {}) {
+async function setup({ pages = 30, csp = '', install = true, zipFile = '' } = {}) {
   const exe = process.env.XMC_FIREFOX || (process.env.CI ? which('firefox') : null);
   const gecko = process.env.XMC_GECKODRIVER || which('geckodriver');
   if (process.env.CI && (!exe || !gecko)) throw new Error('no Firefox or geckodriver on this runner (firefox: ' + exe + ', geckodriver: ' + gecko + '): the tests would skip, and a skip is not a pass');
@@ -133,11 +133,12 @@ async function setup({ pages = 30, csp = '' } = {}) {
   const d = new Driver(base, created.value.sessionId);
   await d.size(1700, 950);
   const main = await d.handle();
-  await fetch(base + '/session/' + d.sid + '/moz/addon/install', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: zip, temporary: true }) })
+  const installAddon = () => fetch(base + '/session/' + d.sid + '/moz/addon/install', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: zipFile || zip, temporary: true }) })
     .then((r) => r.json()).then((j) => { if (j.value && j.value.error) throw new Error('install: ' + j.value.message); });
+  if (install) await installAddon();
   await d.switchTo(main);
   return {
-    d, server, main, dlDir, version: created.value.capabilities.browserVersion, tmp,
+    d, server, main, dlDir, installAddon, base, version: created.value.capabilities.browserVersion, tmp,
     ext: (p) => `moz-extension://${UUID}/${p}`,
     async teardown() {
       await fetch(base + '/session/' + d.sid, { method: 'DELETE' }).catch(() => {});
