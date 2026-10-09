@@ -81,7 +81,7 @@
       if (area !== 'local') return;
       const next = {};
       if (changes[LOG_KEY]) logCache = validLog(changes[LOG_KEY].newValue);
-      for (const k in changes) if (k !== 'dlHistory' && k !== 'seenPosts' && k !== LOG_KEY && k !== 'xmcFeatures') next[k] = changes[k].newValue;
+      for (const k in changes) if (k !== 'dlHistory' && k !== 'seenPosts' && k !== LOG_KEY && k !== 'xmcFeatures' && k !== 'xmcBoot') next[k] = changes[k].newValue;
       if (changes.seenPosts) mergeSeen(changes.seenPosts.newValue);
       if (Object.keys(next).length || changes.dlHistory) onExternalChange(next, changes.dlHistory ? changes.dlHistory.newValue : undefined);
     });
@@ -92,6 +92,9 @@
       if (e.key === 'xmc.log') { try { logCache = validLog(JSON.parse(e.newValue || '[]')); } catch { /* ignore */ } }
     });
   }
+
+  // A note of the last time this script started on x.com, for the settings page's "is it running" line: it separates "never ran" from "ran, but not in this tab".
+  if (storage) storage.set({ xmcBoot: { at: Date.now(), version: ext.runtime.getManifest().version, path: location.pathname } }).catch(() => {});
 
   // names that change with the Twitter/X branding setting
   const STR = {

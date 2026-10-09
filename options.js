@@ -42,7 +42,15 @@
     const withTimeout = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r(null), ms))]);
     try {
       const forTab = Number(new URLSearchParams(location.search).get('forTab')) || 0;
-      const tab = forTab ? await ext.tabs.get(forTab) : (await ext.tabs.query({ active: true, currentWindow: true }))[0];
+      const isX = (u) => /^https:\/\/(x|twitter)\.com(\/|$)/.test(u || '');
+      const active = forTab ? await ext.tabs.get(forTab) : (await ext.tabs.query({ active: true, currentWindow: true }))[0];
+      let tab = active;
+      if (!forTab && !(active && isX(active.url))) { // (on the settings page, or the panel is open over some other tab: the x.com tab used last)
+        const all = await ext.tabs.query({ url: ORIGINS.map((o) => o.replace('/*', '/*')) }).catch(() => []);
+        all.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+        if (all[0]) tab = all[0];
+      }
+      const here = tab && active && tab.id === active.id ? 'this tab' : 'your x.com tab';
       const granted = await ext.permissions.contains({ origins: ORIGINS });
       if (!granted) {
         say2('The extension is not allowed on x.com, so it cannot run there.', h('button', { type: 'button', textContent: 'Allow x.com', onclick: async () => {
@@ -53,10 +61,11 @@
         return;
       }
       if (!tab || !/^https:\/\/(x|twitter)\.com(\/|$)/.test(tab.url || '')) { say2('Open x.com to see whether it is running there.'); return; }
+      const boot = (await ext.storage.local.get('xmcBoot').catch(() => ({}))).xmcBoot;
       const reply = await withTimeout(Promise.resolve(ext.tabs.sendMessage(tab.id, { type: 'xmc-ping' })).catch(() => null), 1500);
-      if (reply && reply.off) say2('Switched off: turn Enabled on to use it on this tab.');
-      else if (reply && reply.ok) say2('Running on this tab (version ' + reply.version + ')' + (reply.failed ? '; columns gave up here: ' + reply.failed : reply.columns ? '' : '; X\u2019s own page is showing'));
-      else say2('Not running on this tab. It was probably open before the extension was loaded.', h('button', { type: 'button', textContent: 'Reload the tab', onclick: async () => { try { await ext.tabs.reload(tab.id); } catch { /* gone */ } setTimeout(hereCheck, 3500); } }));
+      if (reply && reply.off) say2('Switched off: turn Enabled on to use it on ' + here + '.');
+      else if (reply && reply.ok) say2('Running on ' + here + ' (version ' + reply.version + ')' + (reply.failed ? '; columns gave up here: ' + reply.failed : reply.columns ? '' : '; X\u2019s own page is showing'));
+      else say2('Not running on ' + here + '. ' + (boot ? 'It last started on x.com at ' + new Date(boot.at).toLocaleTimeString() + ' (version ' + boot.version + '), so it can run here; this tab was probably open before the extension was loaded.' : 'It has never started on x.com since it was loaded.'), h('button', { type: 'button', textContent: 'Reload the tab', onclick: async () => { try { await ext.tabs.reload(tab.id); } catch { /* gone */ } setTimeout(hereCheck, 3500); } }));
     } catch (e) { say2('Could not check this tab (' + ((e && e.message) || e) + ').'); }
   }
 
@@ -390,7 +399,7 @@
       if (!confirm('Put every setting back to its default?')) return;
       persist(S.normalize()); build(); say('All settings reset.');
     });
-    if (POPUP && !FRAMED && ext && ext.tabs && ext.permissions) hereCheck();
+    if (!FRAMED && ext && ext.tabs && ext.permissions) hereCheck(); // (the toolbar panel and the settings page; the gear's panel has no tabs API)
     { // the master switch: the page is dimmed under it while it is off, and nothing else changes
       const sw = $('#opt-enabled');
       if (sw) {

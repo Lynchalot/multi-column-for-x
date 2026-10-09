@@ -130,5 +130,8 @@ chrome('the toolbar panel says whether the extension is running on a tab (here: 
   await pop.waitForFunction(() => /Running on this tab \(version \d+\.\d+\.\d+\)/.test(document.getElementById('here').textContent), null, { timeout: 8000 });
   await pop.goto(r.ext('popup.html?forTab=' + me));
   await pop.waitForFunction(() => /Open x\.com to see/.test(document.getElementById('here').textContent), null, { timeout: 8000 });
+  // the settings page (a tab of its own): it looks at the x.com tab used last
+  await pop.goto(r.ext('options.html'));
+  await pop.waitForFunction(() => /Running on your x\.com tab \(version \d+\.\d+\.\d+\)/.test(document.getElementById('here').textContent), null, { timeout: 8000 });
   await pop.close(); await page.close();
 });

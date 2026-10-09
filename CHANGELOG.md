@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.34.1
+- **The "is it running" line is on the settings page too**, and looks at the x.com tab used last when the page in front is not one (so it can be read from about:addons, Preferences, as well as from the toolbar panel). When the script is not answering it says when it last started on x.com ("It last started on x.com at 21:14 (version 0.34.0), so it can run here; this tab was probably open before the extension was loaded") or that it has never started since it was loaded. For a report of the extension loaded in Zen and doing nothing, while the same zip drew columns in Firefox.
+- Checked, and not the cause: Zen 1.23b itself (the same build, 20261002114451) runs this version on a clean profile (all sixteen real-browser tests pass), also with `dom.webgpu.enabled` on. The difference is in the profile: the extension's access to x.com switched off, another extension on x.com, a pref, a container or a private window. `XMC_FF_PREFS='{"pref":value}'` sets prefs for the Firefox tests.
+
 ## 0.34.0
 **Keys for a post's panel and the picture viewer**, for going through posts without the mouse. They work only while a panel or the viewer is open and nothing is being typed into.
 - **← →** go through the post's pictures and then on to the next post (back: the previous post). **Shift+← →** go to the next or previous post, skipping the pictures. (Before, the arrows stepped the pictures only when one had the focus, and the posts otherwise.) In the viewer the arrows step its pictures as before.

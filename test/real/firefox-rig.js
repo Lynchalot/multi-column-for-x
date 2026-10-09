@@ -125,6 +125,7 @@ async function setup({ pages = 30, csp = '', install = true, zipFile = '' } = {}
         'extensions.webextensions.uuids': JSON.stringify({ [ADDON_ID]: UUID }), 'extensions.autoDisableScopes': 0, 'xpinstall.signatures.required': false,
         'app.update.enabled': false, 'datareporting.policy.dataSubmissionEnabled': false, 'browser.shell.checkDefaultBrowser': false,
         'media.autoplay.default': 0, 'media.autoplay.blocking_policy': 0,
+        ...JSON.parse(process.env.XMC_FF_PREFS || '{}'), // (e.g. XMC_FF_PREFS='{"dom.webgpu.enabled":true}': a pref a person changed)
         'browser.download.folderList': 2, 'browser.download.dir': dlDir, 'browser.download.useDownloadDir': true, 'browser.download.always_ask_before_handling_new_types': false,
       } },
     } } }),
