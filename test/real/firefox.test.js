@@ -149,6 +149,7 @@ firefox('a tour of the main flows (open a post, a picture full size, fold and un
   await home(r, d);
   await d.press('.xmc-card .xmc-text');
   await d.waitFor(() => !!document.querySelector('.xmc-view'), [], 8000, 'a post opened');
+  await d.waitFor(() => document.querySelectorAll('.xmc-ritem').length >= 1, [], 20000, 'the comments (X\'s hidden page goes to the post and back, the hook captures what X sends, the panel draws it)');
   await d.keys('Escape');
   await d.waitFor(() => !document.querySelector('.xmc-view'), [], 6000, 'the post to close');
   const settled = () => d.waitFor(() => !document.documentElement.classList.contains('xmc-frozen'), [], 25000, 'the menu to be live again'); // (X's page is away on the post for a moment, a still copy of the menu stands in, and a press goes through it to nothing)
