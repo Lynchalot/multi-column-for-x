@@ -306,3 +306,18 @@ firefox('what the extension saw on x.com (the probe of X\'s buttons, the parser\
   });
   await d.keys('Escape');
 });
+
+firefox('an open Grok panel (nearly the height of the window, under #layers) is on top of the columns in Firefox', async (r, d) => {
+  await home(r, d);
+  await d.js(() => {
+    const w = document.createElement('div');
+    w.innerHTML = '<div data-testid="GrokDrawer" id="fakegrok" style="position:fixed;right:0;top:16px;width:420px;height:calc(100vh - 32px);background:#111;color:#fff;padding:12px"><div aria-label="Grok" role="heading">Grok</div><p>what does this mean</p></div>';
+    document.getElementById('layers').append(w.firstChild);
+  });
+  await d.waitFor(() => document.getElementById('fakegrok').hasAttribute('data-xmc-grok'), [], 5000, 'the panel to be found');
+  await sleep(900);
+  const on = await d.js(() => { const g = document.getElementById('fakegrok'), b = g.getBoundingClientRect(); return [0.2, 0.5, 0.85].map((fy) => { const el = document.elementFromPoint(b.left + b.width / 2, b.top + b.height * fy); return !!el && g.contains(el); }); });
+  assert.deepEqual(on, [true, true, true]);
+  await d.js(() => document.getElementById('fakegrok').remove());
+  await d.waitFor(() => !document.documentElement.classList.contains('xmc-drawer-up'), [], 4000, 'the lift to go with the panel');
+});

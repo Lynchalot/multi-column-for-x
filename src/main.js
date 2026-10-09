@@ -3995,9 +3995,11 @@
     return null;
   }
   const floatEls = new Set(); // X's floating elements we have found (so their size can be watched cheaply between scans)
-  function scanFloaters() {
-    if (document.hidden || Date.now() - lastScan < 1500) return;
-    lastScan = Date.now();
+  // quick: only what is under #layers (small, so cheap), run the moment something is added there or a Grok / Chat button is pressed
+  function scanFloaters(quick) {
+    quick = quick === true;
+    if (document.hidden || (!quick && Date.now() - lastScan < 1500)) return;
+    if (!quick) lastScan = Date.now();
     const rr = document.getElementById('react-root');
     const main = mainCol();
     const nav = pin.nav.el();
@@ -4005,7 +4007,7 @@
     if (!rr) return;
     // X mounts some floating things (the chat drawer, popups) under #layers, outside the page's own root
     const layers = document.getElementById('layers');
-    for (const d of [...rr.querySelectorAll('div'), ...(layers ? layers.querySelectorAll('div') : [])]) {
+    for (const d of [...(quick ? [] : rr.querySelectorAll('div')), ...(layers ? layers.querySelectorAll('div') : [])]) {
       if (main && (main.contains(d) || d.contains(main))) continue;
       if ((nav && nav.contains(d)) || (side && (side.contains(d) || d.contains(side)))) continue;
       if (getComputedStyle(d).position !== 'fixed') continue;
@@ -4013,8 +4015,8 @@
       if (!r.width || r.bottom < innerHeight * 0.4) continue;
       const g = d.matches(GROK_SEL) ? d : d.querySelector(GROK_SEL);
       let m = d.matches(DM_SEL) ? d : d.querySelector(DM_SEL);
-      // the open chat panel is bigger than any other floating thing; everything else big is part of X's layout
-      if ((r.width > 450 || r.height > 450) && !((g || m) && r.width <= 720 && r.height <= 820 && innerWidth - r.right <= 80)) continue;
+      // the open chat or Grok panel is bigger than any other floating thing (Grok's is nearly the height of the window); everything else big is part of X's layout
+      if ((r.width > 450 || r.height > 450) && !((g || m) && r.width <= 720 && r.height <= Math.max(820, innerHeight + 8) && innerWidth - r.right <= 80)) continue;
       // X renames these buttons now and then: a small floating stack in the bottom-right corner is one of them whatever it is called
       // (not a compose button, and not a pop-up)
       if (!g && !m && r.width >= 36 && r.width <= 96 && r.height >= 36 && r.height <= 230 && innerWidth - r.right <= 56 && innerHeight - r.bottom <= 240
@@ -4028,9 +4030,26 @@
       floatEls.add(d);
     }
     for (const el of floatEls) if (!el.isConnected) floatEls.delete(el);
-    guard('corner probe', probeCorner);
+    if (!quick) guard('corner probe', probeCorner);
     updateFloaters();
   }
+  // An opened panel should not wait for the next slow pass to come up on top: look at once when #layers gains something, and a moment after a press on the buttons
+  const layersWatch = { el: null, obs: null, timer: 0 };
+  function scanSoon(ms, quick) {
+    if (retired || layersWatch.timer) return;
+    layersWatch.timer = setTimeout(() => { layersWatch.timer = 0; if (!retired && state.shown) guard('floaters', () => scanFloaters(quick)); }, ms);
+  }
+  function watchLayers() {
+    const el = document.getElementById('layers');
+    if (!el || layersWatch.el === el) return;
+    if (layersWatch.obs) layersWatch.obs.disconnect();
+    layersWatch.el = el;
+    layersWatch.obs = new MutationObserver(() => scanSoon(150, true));
+    layersWatch.obs.observe(el, { childList: true, subtree: true });
+  }
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target.closest && e.target.closest('[data-xmc-grok], [data-xmc-dm]')) { scanSoon(300, true); setTimeout(() => { if (!retired && state.shown) { lastScan = 0; guard('floaters', scanFloaters); } }, 900); }
+  }, true);
   // Finding the buttons by what is on screen in the bottom-right corner, not by how X positions them (X can keep them inside a
   // full-screen container, where no element of its own is "fixed"). Each point is asked what is on top there; the outermost button-sized
   // wrapper around it is Grok (if it holds Grok) or else Chat.
@@ -4105,19 +4124,22 @@
   // Every few ticks: cut a hole in the columns where one of X's floating things (the chat panel when it is open) overlaps them,
   // and keep Grok beside Chat.
   function updateFloaters() {
-    if (root.hidden) return;
+    watchLayers();
+    if (root.hidden) { liftDrawers([]); return; }
     const rb = root.getBoundingClientRect();
     if (!rb.width) return;
-    const rects = [];
+    const rects = [], open = [];
     for (const el of floatEls) {
       if (!el.isConnected || getComputedStyle(el).display === 'none') continue;
       const r = el.getBoundingClientRect();
       if (!r.width || r.right < rb.left || r.left > rb.right) continue;
       if (r.width > innerWidth * 0.6 && r.height > innerHeight * 0.6) continue; // never cut the whole screen out of the columns
+      if (r.width > 120 || r.height > 120) open.push(el); // (a panel, not a button)
       if (rects.some((o) => r.left >= o.left && r.right <= o.right && r.top >= o.top && r.bottom <= o.bottom)) continue;
       rects.push(r);
     }
     state.floaters = rects.length;
+    liftDrawers(open);
     const sig = rects.map((r) => [r.left, r.top, r.width, r.height].map(Math.round).join(',')).join(';') + '|' + Math.round(rb.width) + ',' + Math.round(rb.height);
     if (sig !== state.holeSig) {
       state.holeSig = sig;
@@ -4131,6 +4153,20 @@
       }
     }
     dockGrok();
+  }
+  // An open Grok or Chat panel goes on top of the columns, the open post and the pinned menu and sidebar (the hole above only shows what is
+  // under the columns; where X keeps the panel decides whether it can be raised). Under #layers: the whole of #layers is raised (it needs a
+  // position to have a z-index, and has none of its own on some pages); elsewhere: the panel itself.
+  function liftDrawers(open) {
+    const layers = document.getElementById('layers');
+    const inLayers = !!layers && open.some((el) => layers.contains(el));
+    document.documentElement.classList.toggle('xmc-drawer-up', inLayers);
+    if (layers) {
+      if (inLayers && !layers.dataset.xmcUp && getComputedStyle(layers).position === 'static') { layers.dataset.xmcUp = '1'; layers.style.setProperty('position', 'relative', 'important'); }
+      else if (!inLayers && layers.dataset.xmcUp) { layers.style.removeProperty('position'); delete layers.dataset.xmcUp; }
+    }
+    for (const el of document.querySelectorAll('[data-xmc-up]')) if (inLayers || !open.includes(el)) el.removeAttribute('data-xmc-up');
+    if (!inLayers) for (const el of open) el.setAttribute('data-xmc-up', '1');
   }
   // Grok's button sits above Chat's; put it beside it (to the left) so the pair is one row in the corner. While the chat panel is
   // open Grok steps out of the way.

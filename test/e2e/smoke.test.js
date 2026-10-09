@@ -182,6 +182,52 @@ browserTest('Grok sits beside Chat, and the open chat panel is cut out of the co
   });
 });
 
+// X's Grok panel, open, is nearly as tall as the window and sits under #layers: it must be on top of the columns (and of the open post), not under them
+browserTest('an open Grok panel is on top of the columns and of an open post', async (e) => {
+  const h = await e.open('/home/', { height: 1100 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const drawer = () => page.evaluate(() => {
+      const d = document.querySelector('#layers [data-testid="GrokDrawer"]');
+      const r = d.getBoundingClientRect(), pts = [[0.5, 0.2], [0.5, 0.5], [0.5, 0.85]].map(([fx, fy]) => document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy));
+      return { tall: Math.round(r.height), on: pts.map((el) => !!el && d.contains(el)) };
+    });
+    // (no hide setting: it is the open panel, with its own Grok label inside, as on X)
+    await page.evaluate(() => {
+      const w = document.createElement('div');
+      w.innerHTML = '<div data-testid="GrokDrawer" style="position:fixed;right:0;top:16px;width:420px;height:calc(100vh - 32px);background:#111;color:#fff;padding:12px"><div aria-label="Grok" role="heading">Grok</div><p>what does this mean</p></div>';
+      document.getElementById('layers').append(w.firstChild);
+    });
+    await page.waitForFunction(() => document.querySelector('#layers [data-testid="GrokDrawer"]').matches('[data-xmc-grok]'), null, { timeout: 1500 }); // (found at once, not at the next slow pass)
+    await page.waitForTimeout(900); // (a pass of the columns' own timer)
+    let r = await drawer();
+    assert.ok(r.tall > 820, 'the panel is taller than the old size cap: ' + r.tall);
+    assert.deepEqual(r.on, [true, true, true], 'the columns are not painted over the open panel');
+    await page.locator('.xmc-card').first().click(); // the post's panel opens over the columns
+    await page.waitForSelector('.xmc-view', { timeout: 8000 });
+    await page.waitForTimeout(1500);
+    r = await drawer();
+    assert.deepEqual(r.on, [true, true, true], 'nor the open post');
+    await page.evaluate(() => document.querySelector('#layers [data-testid="GrokDrawer"]').remove());
+    await page.waitForTimeout(1500);
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-drawer-up') || getComputedStyle(document.getElementById('layers')).zIndex === '40'), false, 'the lift is gone with the panel');
+  });
+});
+
+browserTest('an open panel kept in X\'s own page (not under #layers) is on top too', async (e) => {
+  const h = await e.open('/home/', { height: 1100 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.querySelector('[data-xmc-grok]') && document.querySelector('[data-xmc-dm]'), null, { timeout: 8000 });
+    await page.evaluate(() => { const d = document.getElementById('drawer'); d.style.cssText = 'position:fixed;right:0;top:16px;width:420px;height:calc(100vh - 32px);background:#111;display:block'; d.querySelectorAll('[data-xmc-dm], [data-xmc-grok]').forEach((w) => { w.style.height = '120px'; }); });
+    await page.waitForFunction(() => document.getElementById('drawer').hasAttribute('data-xmc-up'), null, { timeout: 4000 });
+    const on = await page.evaluate(() => { const r = document.getElementById('drawer').getBoundingClientRect(); return [0.3, 0.6, 0.9].map((fy) => document.elementFromPoint(r.left + 380, r.top + r.height * fy) === document.getElementById('drawer')); });
+    assert.deepEqual(on, [true, true, true]);
+  });
+});
+
 browserTest('a post\'s own page: Download and Copy link buttons, and fewer buttons under replies', async (e) => {
   const h = await e.open('/user/status/90001/');
   await checked(h, async () => {

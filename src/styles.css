@@ -203,6 +203,10 @@ html.xmc-on::-webkit-scrollbar, html.xmc-on body::-webkit-scrollbar { display: n
 html.xmc-on.xmc-hideSidebar [data-testid="sidebarColumn"] { display: none !important; }
 html.xmc-hideTweetButton [data-testid="SideNav_NewTweet_Button"] { display: none !important; }
 
+/* an open Grok or Chat panel is on top of everything of ours that is not a message (the viewer, the toast and the settings are above it) */
+html.xmc-drawer-up #layers { z-index: 40 !important; }
+[data-xmc-up] { z-index: 40 !important; }
+
 /* X's floating Grok / Messages buttons (the sidebar already has both) */
 html.xmc-hideGrokDrawer [data-xmc-grok], html.xmc-hideGrokDrawer [data-testid="GrokDrawer"],
 html.xmc-hideDmDrawer [data-xmc-dm], html.xmc-hideDmDrawer [data-testid="DMDrawer"] { display: none !important; }
