@@ -35,12 +35,12 @@ jobs:
           fi
           exit $code
       - name: Firefox package (the built extension, installed into the runner's Firefox through geckodriver, against the stand-in)
-        continue-on-error: true # (new: made to fail the job once it has been seen to pass on the runner)
         run: |
           set +e
           firefox --version; geckodriver --version | head -1
           npm run test:firefox 2>&1 | tee firefox.log
           code=${PIPESTATUS[0]}
+          echo "::notice title=firefox package::$(firefox --version) $(grep -E '^# (pass|fail|skipped)' firefox.log | tr '\n' ' ')"
           if [ "$code" != 0 ]; then
             msg=$(grep -E "^not ok|^ +error:|timed out|expected|actual" firefox.log | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
             echo "::error title=firefox package failed::${msg}"

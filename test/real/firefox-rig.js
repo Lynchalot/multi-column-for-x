@@ -88,6 +88,7 @@ const KEYS = { Escape: '', ArrowRight: '', ArrowLeft: '', ArrowDown: '�
 async function setup({ pages = 30, csp = '' } = {}) {
   const exe = process.env.XMC_FIREFOX || (process.env.CI ? which('firefox') : null);
   const gecko = process.env.XMC_GECKODRIVER || which('geckodriver');
+  if (process.env.CI && (!exe || !gecko)) throw new Error('no Firefox or geckodriver on this runner (firefox: ' + exe + ', geckodriver: ' + gecko + '): the tests would skip, and a skip is not a pass');
   if (!exe || !gecko) return null;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'xmc-ff-'));
   const zipDir = path.join(tmp, 'zip');
