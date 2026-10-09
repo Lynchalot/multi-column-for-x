@@ -124,3 +124,13 @@ body.popup .master { margin-top: 6px; margin-bottom: 2px; }
 /* "is it running on this tab" in the toolbar panel */
 .here { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 0; font-size: 13px; color: var(--muted); }
 .here button { min-height: 28px; padding: 3px 12px; font-size: 13px; }
+
+/* the Keyboard section: one row for each key */
+.keyrows { margin: 8px 0 4px; display: grid; gap: 6px; max-width: 460px; }
+.keyrow { display: flex; align-items: center; gap: 12px; min-height: 34px; }
+.keyrow .kwhat { flex: 1; }
+.keyrow .kbtn { min-width: 64px; min-height: 30px; font: 600 14px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.keyrow .kbtn.listening { border-color: var(--accent); outline: 2px solid var(--accent); }
+.keyrow .kmark { font-size: 12.5px; color: var(--accent); min-width: 60px; }
+.keyfixed { margin: 8px 0 0; font-size: 13.5px; color: var(--muted); }
+.keymsg { min-height: 20px; margin: 4px 0 0; font-size: 13.5px; color: #f4212e; }

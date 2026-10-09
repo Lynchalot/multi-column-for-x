@@ -527,10 +527,18 @@ html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive v
 .xmc-vside .xmc-actions { margin: 8px -8px 4px; }
 .xmc-vside .xmc-replies { margin: 8px 0 0; padding: 4px 0 0; }
 .xmc-view .xmc-rclose { display: none; }
-.xmc-vclose, .xmc-vnav { position: absolute; appearance: none; border: 0; cursor: pointer; color: #fff; background: rgba(255, 255, 255, .14); width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.xmc-vclose:hover, .xmc-vnav:hover { background: rgba(255, 255, 255, .28); }
-.xmc-vclose svg, .xmc-vnav svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-vclose, .xmc-vnav, .xmc-vkeys { position: absolute; appearance: none; border: 0; cursor: pointer; color: #fff; background: rgba(255, 255, 255, .14); width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.xmc-vclose:hover, .xmc-vnav:hover, .xmc-vkeys:hover { background: rgba(255, 255, 255, .28); }
+.xmc-vclose svg, .xmc-vnav svg, .xmc-vkeys svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .xmc-vclose { top: 16px; right: 16px; }
+.xmc-vkeys { bottom: 16px; right: 16px; width: 40px; height: 40px; opacity: .75; } .xmc-vkeys:hover, .xmc-vkeys:focus-visible { opacity: 1; }
+.xmc-vkeys svg { width: 20px; height: 20px; stroke-width: 2; }
+.xmc-keylegend { position: absolute; right: 16px; bottom: 64px; z-index: 3; min-width: 230px; padding: 12px 14px; border-radius: 12px; background: #16181c; color: #e7e9ea; border: 1px solid #2f3336; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); font-size: calc(13.5px * var(--xmc-ts, 1)); }
+.xmc-keylegend .kl-row { display: flex; align-items: center; gap: 12px; padding: 3px 0; }
+.xmc-keylegend kbd { flex: none; min-width: 56px; text-align: center; padding: 2px 8px; border-radius: 6px; background: #2f3336; border: 1px solid #3e4144; font: 600 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.xmc-keylegend .kl-off { padding: 3px 0; color: #8b98a5; }
+.xmc-keylegend .kl-foot { margin-top: 8px; padding-top: 8px; border-top: 1px solid #2f3336; }
+.xmc-keylegend .kl-foot button { appearance: none; min-height: 28px; padding: 3px 12px; border-radius: 999px; border: 1px solid #536471; background: none; color: #1d9bf0; font: inherit; font-weight: 600; cursor: pointer; }
 .xmc-vnav { top: 50%; margin-top: -20px; width: 40px; height: 40px; color: #121212; background: #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, .45); }
 .xmc-vnav:hover { background: #e6e6e6; }
 .xmc-vnav svg { stroke-width: 2.6; }

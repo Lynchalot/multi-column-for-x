@@ -9,15 +9,26 @@ async function viaBrowser(files, saveAs) {
   for (const f of files) await api.downloads.download({ url: f.url, filename: clean(f.filename), conflictAction: 'uniquify', saveAs: !!saveAs });
 }
 
-// The toolbar button says "off" while the master switch (Enabled, in the settings) is off.
-function showSwitch(off) {
+// The toolbar button says "off" while the master switch (Enabled, in the settings) is off, and "!" while the extension has no access to x.com (Firefox lets a
+// person switch that off, and then nothing runs on the site and nothing on the page says why).
+const X_ORIGINS = ['https://x.com/*', 'https://twitter.com/*'];
+const badge = { off: false, noAccess: false };
+function paintBadge() {
   try {
-    api.action.setBadgeText({ text: off ? 'off' : '' });
-    if (off) { api.action.setBadgeBackgroundColor({ color: '#6b7280' }); if (api.action.setBadgeTextColor) api.action.setBadgeTextColor({ color: '#ffffff' }); }
+    api.action.setBadgeText({ text: badge.noAccess ? '!' : badge.off ? 'off' : '' });
+    api.action.setBadgeBackgroundColor({ color: badge.noAccess ? '#d93025' : '#6b7280' });
+    if (api.action.setBadgeTextColor) api.action.setBadgeTextColor({ color: '#ffffff' });
+    api.action.setTitle({ title: badge.noAccess ? 'Multi-Column for X: not allowed on x.com. Click to fix.' : badge.off ? 'Multi-Column for X: switched off' : 'Multi-Column for X: settings' });
   } catch { /* no action API here */ }
 }
-api.storage.local.get('enabled').then((v) => showSwitch(v && v.enabled === false)).catch(() => {});
-api.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.enabled) showSwitch(ch.enabled.newValue === false); });
+async function checkAccess() {
+  try { badge.noAccess = !(await api.permissions.contains({ origins: X_ORIGINS })); } catch { badge.noAccess = false; }
+  paintBadge();
+}
+api.storage.local.get('enabled').then((v) => { badge.off = !!v && v.enabled === false; paintBadge(); }).catch(() => {});
+api.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.enabled) { badge.off = ch.enabled.newValue === false; paintBadge(); } });
+checkAccess();
+if (api.permissions && api.permissions.onAdded) { api.permissions.onAdded.addListener(checkAccess); api.permissions.onRemoved.addListener(checkAccess); }
 
 // (the answer goes by sendResponse, with `return true` to keep the channel open: Chrome does not take a promise returned from the listener, Firefox takes either)
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {

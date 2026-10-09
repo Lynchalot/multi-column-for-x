@@ -135,3 +135,18 @@ chrome('the toolbar panel says whether the extension is running on a tab (here: 
   await pop.waitForFunction(() => /Running on your x\.com tab \(version \d+\.\d+\.\d+\)/.test(document.getElementById('here').textContent), null, { timeout: 8000 });
   await pop.close(); await page.close();
 });
+
+chrome('the toolbar button says "off" while the master switch is off, and nothing while it is on and the extension has its access to x.com', async (r) => {
+  const pop = await r.context.newPage();
+  await pop.goto(r.ext('popup.html'));
+  const badge = () => r.sw.evaluate(() => chrome.action.getBadgeText({}));
+  await pop.waitForFunction(() => true);
+  assert.equal(await badge(), '', 'on, with access: no badge');
+  await pop.evaluate(() => chrome.storage.local.set({ enabled: false }));
+  for (let i = 0; i < 30 && (await badge()) !== 'off'; i++) await pop.waitForTimeout(100);
+  assert.equal(await badge(), 'off');
+  await pop.evaluate(() => chrome.storage.local.set({ enabled: true }));
+  for (let i = 0; i < 30 && (await badge()) !== ''; i++) await pop.waitForTimeout(100);
+  assert.equal(await badge(), '');
+  await pop.close();
+});

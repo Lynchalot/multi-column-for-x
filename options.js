@@ -259,7 +259,7 @@
         if (it.hidden === hit) it.hidden = !hit;
         if (hit) { any = true; shown++; }
       }
-      for (const blk of sec.querySelectorAll('.presets, .navlist, .readblock, .dlexample, .statusblock')) blk.hidden = filtering && !titleHit; // (the extras that belong to a section show only when the section itself is what was asked for)
+      for (const blk of sec.querySelectorAll('.presets, .navlist, .readblock, .dlexample, .statusblock, .keysblock')) blk.hidden = filtering && !titleHit; // (the extras that belong to a section show only when the section itself is what was asked for)
       sec.hidden = filtering && !any && !titleHit;
     }
     for (const a of document.querySelectorAll('#nav a')) { const target = document.getElementById(a.getAttribute('href').slice(1)); a.hidden = !!target && target.hidden; }
@@ -327,6 +327,7 @@
       if (sec.custom === 'nav') section.append(navBlock());
       if (sec.custom === 'reading') section.append(readingBlock());
       if (sec.custom === 'status') section.append(statusBlock());
+      if (sec.custom === 'keys') section.append(keysBlock());
       if (sec.id === 'downloads') section.append(downloadExample(section));
       host.append(section);
     }
@@ -338,6 +339,54 @@
       return a;
     }));
     refreshMarks(); // (after the links exist: it hides the ones whose section the search has taken out)
+  }
+
+  // The keys of a post's panel: what each does and the key it has now; press a row's key to choose another (Backspace puts the default back).
+  function keysBlock() {
+    const wrap = h('div', { className: 'keysblock' });
+    const rows = h('div', { className: 'keyrows' });
+    const msg = h('p', { className: 'keymsg', role: 'status' });
+    const mineNow = () => { try { const v = JSON.parse(settings.keyMap || '{}'); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } catch { return {}; } };
+    const labelOf = (act) => (S.PANEL_KEY_ACTIONS.find(([a]) => a === act) || [])[1] || act;
+    function assign(act, key) { // key null: back to the default
+      const want = key || S.PANEL_KEY_DEFAULTS[act];
+      const clash = Object.entries(S.panelKeyMap(settings.keyMap)).find(([a, k]) => a !== act && k === want);
+      if (clash) { msg.textContent = S.keyLabel(want) + ' is already ' + labelOf(clash[0]) + '. Change that one first.'; return false; }
+      const mine = mineNow();
+      if (!key || key === S.PANEL_KEY_DEFAULTS[act]) delete mine[act]; else mine[act] = key;
+      persist({ keyMap: Object.keys(mine).length ? JSON.stringify(mine) : '' });
+      msg.textContent = '';
+      return true;
+    }
+    function listen(act, btn) {
+      btn.textContent = 'Press a key'; btn.classList.add('listening'); msg.textContent = '';
+      const stop = () => { document.removeEventListener('keydown', on, true); btn.removeEventListener('blur', stop); draw(); };
+      function on(e) {
+        if (/^(Shift|Control|Alt|Meta|CapsLock|Tab)$/.test(e.key)) return;
+        e.preventDefault(); e.stopPropagation();
+        if (e.key === 'Escape') { stop(); return; }
+        if (e.key === 'Backspace' || e.key === 'Delete') { if (assign(act, null)) stop(); return; }
+        const k = e.key.toLowerCase();
+        if (e.ctrlKey || e.altKey || e.metaKey || !S.okKey(k) || (k === 'enter' && act !== 'open')) { msg.textContent = 'A letter, a number or a punctuation mark, on its own (Enter is only for opening a post).'; return; }
+        if (assign(act, k)) stop(); // (a key taken by another action: it says so and waits for another)
+      }
+      document.addEventListener('keydown', on, true);
+      btn.addEventListener('blur', stop);
+    }
+    function draw() {
+      const km = S.panelKeyMap(settings.keyMap);
+      rows.replaceChildren(...S.PANEL_KEY_ACTIONS.map(([act, label]) => {
+        const key = km[act];
+        const btn = h('button', { type: 'button', className: 'kbtn', textContent: key ? S.keyLabel(key) : 'none', title: 'Press, then the key you want', 'aria-label': label + ': ' + (key ? S.keyLabel(key) : 'no key') + '. Press to choose another.' });
+        btn.addEventListener('click', () => listen(act, btn));
+        const reset = key === S.PANEL_KEY_DEFAULTS[act] ? h('span', { className: 'kmark' }) : h('button', { type: 'button', className: 'reset', textContent: 'Reset', 'aria-label': 'Put the key for ' + label + ' back to ' + S.keyLabel(S.PANEL_KEY_DEFAULTS[act]), onclick: () => { assign(act, null); draw(); } });
+        return h('div', { className: 'keyrow' }, h('span', { className: 'kwhat', textContent: label }), btn, reset);
+      }));
+    }
+    draw();
+    wrap.append(h('p', { className: 'muted', textContent: 'The key for each, in a post\u2019s panel and in the picture viewer. Press a key to choose another; Backspace puts the default back.' }), rows, msg,
+      h('p', { className: 'keyfixed', textContent: 'Always: \u2190 \u2192 through the pictures and then the posts, Shift with them for posts only, Enter to open the picture in a panel, Esc to close. The letters A, C, E, Q, S and W are ones Vimium leaves alone.' }));
+    return wrap;
   }
 
   function renderHistory() {

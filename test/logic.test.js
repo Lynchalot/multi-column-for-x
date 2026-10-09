@@ -498,3 +498,17 @@ test('the master switch is a setting that is on unless it was turned off, and is
   assert.deepEqual(Object.keys(S.diff(S.normalize({ enabled: false })).set).filter((k) => k !== 'v'), ['enabled']);
   assert.ok(S.diff(S.normalize()).clear.includes('enabled'));
 });
+
+test('the keys of a post\'s panel: the defaults, and a person\'s own choices with whatever cannot work ignored', () => {
+  const S = require('../src/settings.js');
+  assert.deepEqual(S.panelKeyMap(''), { open: 'enter', like: 'a', bookmark: 's', repost: 'w', download: 'e', share: 'q', reply: 'c' });
+  assert.equal(S.panelKeyMap('{"open":"O"}').open, 'o'); assert.equal(S.panelKeyMap('{"like":"Enter"}').like, 'a', 'Enter is only for opening a post'); assert.equal(S.keyLabel('enter'), 'Enter');
+  assert.equal(S.panelKeyMap('{"like":"F"}').like, 'f', 'a capital is the same key');
+  assert.equal(S.panelKeyMap('{"like":"ab"}').like, 'a', 'two characters: the default stays');
+    assert.equal(S.panelKeyMap('{"zzz":"x"}').zzz, undefined, 'an action that is not one');
+  assert.equal(S.panelKeyMap('not json').like, 'a');
+  const taken = S.panelKeyMap('{"like":"s"}');
+  assert.equal(taken.like, 's'); assert.equal(taken.bookmark, undefined, 'a key is for one action: the one whose default it was loses it until it is moved');
+  assert.equal(new Set(Object.values(S.panelKeyMap('{"like":"x","bookmark":"x"}'))).size, Object.keys(S.panelKeyMap('{"like":"x","bookmark":"x"}')).length, 'no two share a key');
+  assert.ok(S.okKey('a') && S.okKey('7') && S.okKey(',') && !S.okKey(' ') && !S.okKey('') && !S.okKey('Escape'));
+});

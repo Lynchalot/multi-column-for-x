@@ -68,8 +68,6 @@ var XMCSettings = (function () {
         { key: 'profileHeader', type: 'bool', def: true, label: 'Show a profile\u2019s header above its posts', help: 'Name, bio and follower counts.' },
         { key: 'fetchContext', type: 'bool', def: true, label: 'Look up the post a reply answers when X did not send it', help: 'Done out of sight, one at a time, for replies you have been looking at.' },
         { key: 'commentsIn', type: 'select', def: 'panel', label: 'Open comments', options: [['panel', 'In the post panel'], ['card', 'Inside the card']] },
-        { key: 'panelKeys', type: 'bool', def: true, label: 'Keyboard shortcuts in a post\u2019s panel and the picture viewer', help: '\u2190 \u2192 go through the pictures, then the posts (Shift: posts only). A like, S bookmark, W repost, E download, Q copy link, C comment. Letters Vimium leaves alone.' },
-        { key: 'keysAdvance', type: 'bool', def: false, label: 'Move to the next post after the Like, Bookmark or Repost key' },
         { key: 'bigText', type: 'bool', def: true, label: 'Set short posts that are only words in larger type' },
         { key: 'hoverVideo', type: 'bool', def: true, label: 'Play a muted preview when I point at a video' },
         { key: 'hoverActions', type: 'bool', def: true, label: 'Show like, repost and save on a picture when I point at it' },
@@ -114,6 +112,14 @@ var XMCSettings = (function () {
         { key: 'textSize', type: 'select', def: 'normal', label: 'Text size in posts and the post panel', options: [['small', 'Smaller'], ['normal', 'Normal'], ['large', 'Larger'], ['xlarge', 'Largest']] },
         { key: 'cardStyle', type: 'select', def: 'raised', label: 'Card background', options: [['raised', 'Slightly lighter (or darker) than the page'], ['flat', 'None']] },
         { key: 'customCss', type: 'textarea', def: '', label: 'Custom CSS', help: 'Added to every x.com page.', native: true },
+      ],
+    },
+    {
+      id: 'keys', title: 'Keyboard', custom: 'keys', items: [
+        { key: 'panelKeys', type: 'bool', def: true, label: 'Keyboard shortcuts in a post\u2019s panel and the picture viewer', help: 'Only while a panel or the viewer is open and nothing is being typed into. The arrow keys are always on.' },
+        { key: 'keysAdvance', type: 'bool', def: false, label: 'Move to the next post after the Like, Bookmark or Repost key' },
+        { key: 'keyMap', type: 'text', def: '', label: 'Keys that are not the defaults', hidden: true }, // a JSON object, action to key, written by the Keyboard section
+        { key: 'keysHintSeen', type: 'bool', def: false, label: 'The keys were pointed out', hidden: true },
       ],
     },
     {
@@ -233,7 +239,23 @@ var XMCSettings = (function () {
   const words = (s) => String(s || '').split(/[,\n]/).map((w) => w.trim().toLowerCase()).filter(Boolean);
   const handles = (s) => words(s).map((w) => w.replace(/^@/, ''));
 
-  const api = { SCHEMA, DEFAULTS, INTERNAL, VERSION, PRESETS, presetApplies, freshInstall, normalize, diff, words, handles };
+  // The panel's keys: what each does and its key out of the box (letters Vimium leaves alone), and the map a person's own choices make of them.
+  const PANEL_KEY_ACTIONS = [['open', 'Open the first post in view'], ['like', 'Like'], ['bookmark', 'Bookmark'], ['repost', 'Repost'], ['download', 'Download'], ['share', 'Copy link'], ['reply', 'Comment']];
+  const PANEL_KEY_DEFAULTS = { open: 'enter', like: 'a', bookmark: 's', repost: 'w', download: 'e', share: 'q', reply: 'c' };
+  const okKey = (k) => k === 'enter' || (typeof k === 'string' && k.length === 1 && k.trim() === k && /[\p{L}\p{N}.,;'\[\]\-=\/\\`]/u.test(k));
+  const keyLabel = (k) => (k === 'enter' ? 'Enter' : String(k || '').toUpperCase());
+  // text (the JSON in `keyMap`) -> { like: 'a', ... } for every action: an unknown action, a key that is not one printable character, or a key already
+  // taken by another action is ignored, and that action keeps its default (or, if its default was taken, nothing).
+  function panelKeyMap(text) {
+    let mine = {};
+    try { const v = JSON.parse(text || '{}'); if (v && typeof v === 'object' && !Array.isArray(v)) mine = v; } catch { /* the defaults */ }
+    const out = {}, used = new Set();
+    for (const [act] of PANEL_KEY_ACTIONS) { const k = typeof mine[act] === 'string' ? mine[act].toLowerCase() : ''; if (okKey(k) && !(k === 'enter' && act !== 'open') && !used.has(k)) { out[act] = k; used.add(k); } } // (Enter is only for opening a post from the feed: in a panel it is a button's and the picture's)
+    for (const [act] of PANEL_KEY_ACTIONS) if (!out[act] && !used.has(PANEL_KEY_DEFAULTS[act])) { out[act] = PANEL_KEY_DEFAULTS[act]; used.add(out[act]); }
+    return out;
+  }
+
+  const api = { SCHEMA, DEFAULTS, INTERNAL, VERSION, PRESETS, presetApplies, freshInstall, normalize, diff, words, handles, PANEL_KEY_ACTIONS, PANEL_KEY_DEFAULTS, panelKeyMap, okKey, keyLabel };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

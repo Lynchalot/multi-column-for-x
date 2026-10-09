@@ -366,6 +366,7 @@
     bookmark: ['M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'],
     download: ['M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4', 'M7 10l5 5 5-5', 'M12 15V3'],
     done: ['M20 6L9 17l-5-5'],
+    keyboard: ['M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z', 'M6 10h.01', 'M10 10h.01', 'M14 10h.01', 'M18 10h.01', 'M7 14h10'],
     sound: ['M11 5L6 9H2v6h4l5 4V5z', 'M15.5 8.5a5 5 0 0 1 0 7', 'M19 5a9 9 0 0 1 0 14'],
     mute: ['M11 5L6 9H2v6h4l5 4V5z', 'M23 9l-6 6', 'M17 9l6 6'],
     link: ['M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7', 'M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'],
@@ -820,7 +821,7 @@
   const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, colsEl, loaderEl, caughtEl, endEl, statusEl);
   const hintEl = h('div', { className: 'xmc-hint', hidden: true },
     h('ul', {},
-      ...['Click a post to open it.', 'Esc closes posts and the arrow keys move between posts.', 'Point at a picture to like, repost or save it.',
+      ...['Click a post to open it, or press Enter to open the first one.', 'Esc closes posts and the arrow keys move between posts.', 'Point at a picture to like, repost or save it.',
         'Move between opened pictures with your mouse scroll wheel.', 'Settings are under the gear in the upper right.'].map((t) => h('li', { textContent: t })),
       h('li', {}, 'Support us ', h('a', { href: (typeof XMCMeta !== 'undefined' && XMCMeta.donate) || 'https://ko-fi.com/falsehamartia', target: '_blank', rel: 'noopener noreferrer', textContent: 'here' }), '.')),
     h('button', { type: 'button', textContent: 'Got it', onclick: () => dismissHint() }));
@@ -1031,8 +1032,8 @@
   // For going through posts with the keyboard alone. Plain letters that Vimium leaves alone: A like, S save (bookmark), W repost, E download,
   // Q copy the link, C comment. Left and right walk the pictures and then the posts; with Shift, the posts only. Only while a panel or the
   // viewer is open and nothing is being typed into; X's own page does not see these keys (it has shortcuts of its own, S among them).
-  const PANEL_KEYS = { a: 'like', s: 'bookmark', w: 'repost', e: 'download', q: 'share', c: 'reply' };
-  const KEY_OF = Object.fromEntries(Object.entries(PANEL_KEYS).map(([k, v]) => [v, k.toUpperCase()]));
+  const keyMap = () => XMCSettings.panelKeyMap(settings.keyMap); // action -> key (the defaults, or what the person chose in Settings, Keyboard)
+  const keyHint = (act, bare) => { const k = settings.panelKeys && keyMap()[act]; return k ? (bare ? k.toUpperCase() : ' (' + k.toUpperCase() + ')') : ''; };
   const typingIn = (el) => !!el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName || ''));
   function keyedButton(t, kind) { // the real button for this post, in the panel if it is open for it, else on its card
     for (const scope of [postView && postView.t === t ? postView.side.querySelector(':scope > .xmc-actions') : null, t.el]) {
@@ -1043,9 +1044,9 @@
   }
   function panelKey(e) {
     if (!settings.panelKeys || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.isComposing || typingIn(e.target)) return false;
-    const kind = PANEL_KEYS[e.key.toLowerCase()];
+    const pressed = e.key.toLowerCase(), kind = (Object.entries(keyMap()).find(([, k]) => k === pressed) || [])[0];
     const t = lightbox ? lightbox.t : postView ? postView.t : null;
-    if (!kind || !t) return false;
+    if (!kind || kind === 'open' || !t) return false; // ('open' is the feed's key: in a panel Enter opens the picture)
     e.preventDefault(); e.stopPropagation();
     if (e.repeat) return true; // (held down: once)
     const comment = !!(postView && postView.parent && postView.t === t); // a comment in the panel: its own buttons, X's page has none for it
@@ -1070,6 +1071,41 @@
     advance();
     return true;
   }
+  // What the keys are, as a small card over the panel (the keyboard button at its corner opens it): the current keys, not the defaults
+  function keyLegend(host) {
+    const old = host.querySelector('.xmc-keylegend');
+    if (old) { old.remove(); return; }
+    const km = keyMap(), row = (k, what) => h('div', { className: 'kl-row' }, h('kbd', { textContent: k }), h('span', { textContent: what }));
+    const card = h('div', { className: 'xmc-keylegend', role: 'dialog', 'aria-label': 'Keyboard shortcuts' },
+      row('\u2190 \u2192', 'Pictures, then posts'), row('Shift \u2190 \u2192', 'Posts only'), row('Esc', 'Close'),
+      ...(settings.panelKeys ? [row('Enter', 'Picture full size')].concat(XMCSettings.PANEL_KEY_ACTIONS.filter(([a]) => km[a] && a !== 'open').map(([a, label]) => row(XMCSettings.keyLabel(km[a]), label))).concat(km.open ? [row(XMCSettings.keyLabel(km.open), 'From the feed: open the first post')] : []) : [h('div', { className: 'kl-off', textContent: 'The letter keys are off.' })]),
+      h('div', { className: 'kl-foot' }, h('button', { type: 'button', textContent: 'Change keys', onclick: (e) => { e.stopPropagation(); card.remove(); openOptions('keys'); } })));
+    card.addEventListener('click', (e) => e.stopPropagation());
+    host.append(card);
+    const away = (e) => { if (!card.contains(e.target)) { card.remove(); document.removeEventListener('pointerdown', away, true); } };
+    setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
+  }
+  // Pointed out once, the first time a panel opens (what the keys are, and where to change them)
+  function pointOutKeys() {
+    if (settings.keysHintSeen || !settings.panelKeys || !settings.hintSeen) return;
+    settings.keysHintSeen = true; save();
+    const km = keyMap();
+    toast('Keys here: \u2190 \u2192 pictures and posts, ' + XMCSettings.PANEL_KEY_ACTIONS.filter(([a]) => km[a] && a !== 'open').map(([a, label]) => XMCSettings.keyLabel(km[a]) + ' ' + label.toLowerCase()).join(', '), () => openOptions('keys'), 'Change', 10000);
+  }
+  // From the feed, no panel yet: the key (Enter) opens the first post in view, and ← → carry on from there
+  function feedKey(e) {
+    if (postView || lightbox || menuEl || !settings.panelKeys || root.hidden || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.isComposing) return false;
+    if (e.key.toLowerCase() !== keyMap().open || typingIn(e.target)) return false;
+    const t = e.target;
+    if (t && t.closest && t.closest('a, button, input, textarea, select, video, [role="button"]')) return false;
+    const box = scroller.getBoundingClientRect();
+    const seen = view.cards.find((c) => { const el = c.el; if (!el || !el.isConnected || el.hidden) return false; const r = el.getBoundingClientRect(); return r.height > 0 && r.bottom > box.top + 40 && r.top < box.bottom - 40; });
+    const first = seen || view.cards.find((c) => c.el && c.el.isConnected);
+    if (!first) return false;
+    e.preventDefault(); e.stopPropagation();
+    if (!e.repeat) openPostView(first, false);
+    return true;
+  }
   // left and right: through the post's pictures, and past the last (or before the first) to the next (or previous) post; Shift skips the pictures
   function walkPanel(dir, skipPictures) {
     const car = !skipPictures && postView && postView.panel.querySelector('.xmc-car');
@@ -1082,7 +1118,7 @@
     }
     if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) { const open = lightbox ? lightbox.el : postView ? postView.el : null; if (open) trapTab(e, open); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.dataset && e.target.dataset.lb !== undefined && e.target.getAttribute('role') === 'button') { e.preventDefault(); e.target.click(); }
-    if (panelKey(e)) return;
+    if (panelKey(e) || feedKey(e)) return;
     if (e.key === 'Escape' && !lightbox && !menuEl && e.target && e.target.matches && e.target.matches('textarea.xmc-cbox')) { e.preventDefault(); e.stopPropagation(); e.target.blur(); return; } // (Esc leaves the comment box first: what is typed stays, the panel stays)
     if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else closePostView(); } }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
@@ -2617,8 +2653,8 @@
     const next = h('button', { className: 'xmc-lb-nav next', type: 'button', title: 'Next picture', 'aria-label': 'Next picture', onclick: (e) => { e.stopPropagation(); stepLightbox(1); } }, icon('next'));
     const close = h('button', { className: 'xmc-lb-close', type: 'button', title: 'Close (Esc)', onclick: closeLightbox }, icon('close'));
     const tools = h('div', { className: 'xmc-lb-tools', onclick: (e) => e.stopPropagation() },
-      h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Download this image' + (settings.panelKeys ? ' (E)' : ''), onclick: () => downloadMedia(t, lightbox && lightbox.photos[lightbox.i]) }, icon('download')),
-      h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Copy link to the post' + (settings.panelKeys ? ' (Q)' : ''), onclick: () => copyLink(t) }, icon('link')));
+      h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Download this image' + keyHint('download'), onclick: () => downloadMedia(t, lightbox && lightbox.photos[lightbox.i]) }, icon('download')),
+      h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Copy link to the post' + keyHint('share'), onclick: () => copyLink(t) }, icon('link')));
     const el = h('div', { id: 'xmc-lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Photo', onclick: closeLightbox }, img, prev, next, close, tools);
     const was = document.activeElement;
     img.addEventListener('click', (e) => e.stopPropagation());
@@ -2783,7 +2819,7 @@
     actions.append(hasMedia(t) ? actionBtn('download', 'Download media', 'download') : h('span', { className: 'xmc-act xmc-gap', 'aria-hidden': 'true' }, icon('download'))); // (an empty slot keeps the icons where they are on every card)
     actions.append(actionBtn('share', 'Copy link', 'link'));
     if (t.counts.views) actions.append(h('span', { className: 'xmc-views xmc-n', textContent: fmt(t.counts.views) + ' views' }));
-    if (settings.panelKeys) for (const b of actions.querySelectorAll('[data-act]')) { const k = KEY_OF[b.dataset.act]; if (k) { b.title += ' (' + k + ')'; b.setAttribute('aria-keyshortcuts', k); } }
+    if (settings.panelKeys) for (const b of actions.querySelectorAll('[data-act]')) { const k = keyHint(b.dataset.act, true); if (k) { b.title += ' (' + k + ')'; b.setAttribute('aria-keyshortcuts', k); } }
     side.append(actions);
     const more = parent ? null : moreFrom(t);
     if (more) side.append(more);
@@ -2850,7 +2886,8 @@
     const idx = view.cards.indexOf(t);
     const nav = (d, ic, label) => h('button', { className: 'xmc-vnav ' + (d < 0 ? 'prev' : 'next'), type: 'button', title: label, hidden: idx < 0 || !view.cards[idx + d], onclick: (e) => { e.stopPropagation(); stepPostView(d); } }, icon(ic));
     const el = h('div', { className: 'xmc-view' + (still ? ' xmc-still' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Post by ' + t.author.name }, panel, nav(-1, 'prev', 'Previous post (\u2190)'), nav(1, 'next', 'Next post (\u2192)'),
-      h('button', { className: 'xmc-vclose', type: 'button', title: 'Close (Esc)' }, icon('close')));
+      h('button', { className: 'xmc-vclose', type: 'button', title: 'Close (Esc)' }, icon('close')),
+      h('button', { className: 'xmc-vkeys', type: 'button', title: 'Keyboard shortcuts', 'aria-label': 'Keyboard shortcuts', onclick: (e) => { e.stopPropagation(); keyLegend(el); } }, icon('keyboard')));
     el.addEventListener('click', (e) => {
       if (e.target === el || e.target.closest('.xmc-vclose')) { closePostView(); return; }
       const btn = e.target.closest('[data-act]');
@@ -2879,6 +2916,7 @@
     el.addEventListener('wheel', (e) => { if (e.target === el) e.preventDefault(); }, { passive: false }); // not onto the columns or X's page behind
     root.append(el);
     postView = { t, el, panel, side, parent };
+    if (!parent) setTimeout(pointOutKeys, 900); // (once: what the keys are, and where to change them)
     if (!reopen) {
       // so the Back button closes the panel; never while X's hidden side is on, or on its way to, a post's page (the entry would be that page)
       if (!state.peek && !state.posting && !onPostPage() && !isModalRoute()) { try { window.history.pushState({ xmcView: true }, '', location.href); } catch { /* ignore */ } }

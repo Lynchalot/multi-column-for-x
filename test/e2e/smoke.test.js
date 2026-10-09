@@ -1311,7 +1311,7 @@ browserTest('first run: a short tip says what you can do, and "Got it" keeps it 
     await e.ready(page);
     await page.waitForSelector('.xmc-hint:not([hidden])', { timeout: 8000 });
     const tip = await page.locator('.xmc-hint').innerText();
-    for (const line of ['Click a post to open it.', 'Esc closes posts and the arrow keys move between posts.', 'Point at a picture to like, repost or save it.', 'Move between opened pictures with your mouse scroll wheel.', 'Settings are under the gear in the upper right.', 'Support us here.']) assert.ok(tip.includes(line), line + ' in: ' + tip);
+    for (const line of ['Click a post to open it, or press Enter to open the first one.', 'Esc closes posts and the arrow keys move between posts.', 'Point at a picture to like, repost or save it.', 'Move between opened pictures with your mouse scroll wheel.', 'Settings are under the gear in the upper right.', 'Support us here.']) assert.ok(tip.includes(line), line + ' in: ' + tip);
     assert.equal(await page.locator('.xmc-hint li').count(), 6, 'six lines');
     const look = await page.evaluate(() => { const hint = document.querySelector('.xmc-hint'), r = hint.getBoundingClientRect(), u = hint.querySelector('ul').getBoundingClientRect(), a = hint.querySelector('a'); return { align: getComputedStyle(hint).textAlign, off: Math.round(Math.abs((u.left + u.right) / 2 - (r.left + r.right) / 2)), href: a.href, target: a.target, rel: a.rel }; });
     assert.equal(look.align, 'center');
@@ -2868,6 +2868,112 @@ browserTest('in a post\'s panel the arrow keys walk the pictures and then the po
     await page.waitForFunction(() => !document.querySelector('.xmc-view'), null, { timeout: 4000 });
   });
 }, 120000);
+
+browserTest('the keys can be remapped in Settings, Keyboard (press a row, press a key; no two actions share one), and the panel, its tooltips and its legend follow', async (e) => {
+  const o = await e.open('/ext/options.html');
+  await checked(o, async () => {
+    const page = o.page;
+    await page.waitForSelector('#sec-keys .keyrow');
+    const row = (label) => page.locator('#sec-keys .keyrow', { hasText: label });
+    assert.equal((await row('Like').locator('.kbtn').innerText()).trim(), 'A');
+    await row('Like').locator('.kbtn').click();
+    await page.keyboard.press('f');
+    await page.waitForFunction(() => /like[^a-z]+f/.test(localStorage.getItem('xmc.settings') || ''));
+    assert.equal((await row('Like').locator('.kbtn').innerText()).trim(), 'F');
+    await row('Bookmark').locator('.kbtn').click();
+    await page.keyboard.press('f'); // taken
+    assert.match(await page.locator('#sec-keys .keymsg').innerText(), /F is already Like/);
+    assert.equal((await row('Bookmark').locator('.kbtn').innerText()).trim(), 'Press a key', 'still waiting for another');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => [...document.querySelectorAll('#sec-keys .keyrow')].find((r) => /Bookmark/.test(r.textContent)).querySelector('.kbtn').textContent.trim() === 'S');
+    await row('Like').locator('button.reset').click();
+    assert.equal((await row('Like').locator('.kbtn').innerText()).trim(), 'A');
+    assert.ok(!/keyMap|"like"/.test(await page.evaluate(() => localStorage.getItem('xmc.settings') || '')), 'the default is not kept as a choice');
+  });
+}, 60000);
+
+browserTest('in the panel a remapped key does what the old one did, the tooltips and the legend show the keys in use, and the legend\'s button opens it', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, keyMap: JSON.stringify({ like: 'f', bookmark: 'g' }) } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { document.querySelector('.xmc-card .xmc-text').click(); });
+    await page.waitForSelector('.xmc-view');
+    assert.match(await page.locator('.xmc-view .xmc-actions [data-act="like"]').getAttribute('title'), /\(F\)/);
+    assert.match(await page.locator('.xmc-view .xmc-actions [data-act="bookmark"]').getAttribute('title'), /\(G\)/);
+    const n = await page.evaluate(() => Array.from(window.__actions || []).length);
+    await page.keyboard.press('a'); await page.waitForTimeout(800); // the old key: nothing
+    assert.equal(await page.evaluate(() => Array.from(window.__actions || []).length), n);
+    await page.keyboard.press('f');
+    await page.waitForFunction((k) => Array.from(window.__actions || []).slice(k).some((x) => /^liked:/.test(x)), n, { timeout: 15000 });
+    await page.locator('.xmc-vkeys').click();
+    const legend = await page.locator('.xmc-keylegend').innerText();
+    assert.match(legend, /F\s+Like/); assert.match(legend, /G\s+Bookmark/); assert.match(legend, /Q\s+Copy link/); assert.match(legend, /Pictures, then posts/); assert.match(legend, /Shift/);
+    await page.mouse.click(300, 300); // anywhere else: it goes
+    await page.waitForFunction(() => !document.querySelector('.xmc-keylegend'));
+  });
+}, 90000);
+
+browserTest('the keys are pointed out once, the first time a post\'s panel opens (a toast with a way to change them), and not again', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, keysHintSeen: false } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { document.querySelector('.xmc-card .xmc-text').click(); });
+    await page.waitForFunction(() => /Keys here:.*A like.*S bookmark/.test((document.getElementById('xmc-toast') || {}).textContent || ''), null, { timeout: 6000 });
+    assert.equal(await page.locator('#xmc-toast .xmc-undo').innerText(), 'Change');
+    assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem('xmc.settings'))).keysHintSeen, true);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view'));
+    await page.evaluate(() => { document.getElementById('xmc-toast').hidden = true; document.querySelectorAll('.xmc-card .xmc-text')[1].click(); });
+    await page.waitForSelector('.xmc-view'); await page.waitForTimeout(1800);
+    assert.ok(!(await page.evaluate(() => { const t = document.getElementById('xmc-toast'); return !t.hidden && /Keys here/.test(t.textContent); })), 'not a second time');
+  });
+}, 60000);
+
+browserTest('from the feed, Enter opens the first post in view (and the arrows carry on from there); on a button or in a box it is theirs; the key can be moved', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { document.activeElement && document.activeElement.blur(); });
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.xmc-view');
+    const first = await page.evaluate(() => document.querySelector('.xmc-view').getAttribute('aria-label'));
+    const wantFirst = await page.evaluate(() => { const w = window.__xmc.view.cards[0]; return 'Post by ' + w.author.name; });
+    assert.equal(first, wantFirst, 'the first post on the page');
+    await page.keyboard.press('Shift+ArrowRight');
+    await page.waitForFunction((t) => document.querySelector('.xmc-view') && document.querySelector('.xmc-view').getAttribute('aria-label') !== t, first, { timeout: 4000 });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view'));
+    // scrolled down: the first one in view, not the first on the page
+    await page.evaluate(() => { document.querySelector('.xmc-scroller').scrollTop = 2400; });
+    await page.waitForTimeout(800);
+    await page.evaluate(() => { document.activeElement && document.activeElement.blur(); });
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.xmc-view');
+    assert.notEqual(await page.evaluate(() => document.querySelector('.xmc-view').getAttribute('aria-label')), first, 'a post further down');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view'));
+    // Enter on a button is the button\'s
+    await page.locator('.xmc-gear').focus();
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.xmc-view').count(), 0, 'no panel from a focused button');
+  });
+}, 90000);
+
+browserTest('the feed key can be another key, and then Enter does nothing there', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, keyMap: JSON.stringify({ open: 'o' }) } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { document.activeElement && document.activeElement.blur(); });
+    await page.keyboard.press('Enter'); await page.waitForTimeout(700);
+    assert.equal(await page.locator('.xmc-view').count(), 0);
+    await page.keyboard.press('o');
+    await page.waitForSelector('.xmc-view');
+  });
+}, 60000);
 
 browserTest('the panel\'s keys are off when the setting is off (the arrows still walk, the letters do nothing)', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, panelKeys: false } });

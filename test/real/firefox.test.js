@@ -170,7 +170,8 @@ firefox('a tour of the main flows (open a post, a picture full size, fold and un
   await d.waitFor(() => !document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), [], 5000, 'the menu to come back');
   await d.press('.xmc-gear'); await sleep(1500); await d.keys('Escape'); await sleep(400);
   assert.equal((await d.js(() => document.getElementById('xmc-pill').innerText)).trim(), 'Turn Columns Off', 'still in columns, nothing failed open');
-  const rep = await panel(d, () => d.js(stored, 'xmcFeatures'));
+  let rep = null; // (the report is written about twelve seconds after the page loads, then whenever it changes)
+  for (let i = 0; i < 40 && !rep; i++) { rep = await panel(d, () => d.js(stored, 'xmcFeatures')); if (!rep) { await d.keys('Escape'); await sleep(1000); } }
   assert.ok(rep, 'the report was written to browser.storage');
   assert.equal(rep.failedOpen, null, 'did not fail open');
   for (const [name, f] of Object.entries(rep.features || {})) assert.notEqual(f.state, 'off', `${name} switched off: ${JSON.stringify(f)}`);
@@ -278,6 +279,17 @@ firefox('in a post\'s panel the keys work in Firefox: arrows through the picture
   assert.equal(await d.js(() => document.activeElement && document.activeElement.className), 'xmc-cbox', 'C: the comment box');
   await d.keys('Escape'); await sleep(300);
   assert.equal(await d.js(() => !!document.querySelector('.xmc-view') && document.activeElement.className !== 'xmc-cbox'), true, 'Esc leaves the box and the panel stays');
+  await d.keys('Escape');
+  await d.waitFor(() => !document.querySelector('.xmc-view'), [], 4000, 'the panel to close');
+});
+
+firefox('from the feed Enter opens the first post in view in Firefox, and the arrows carry on', async (r, d) => {
+  await home(r, d);
+  await sleep(2500);
+  await d.js(() => { document.activeElement && document.activeElement.blur(); });
+  await d.keys('Enter');
+  await d.waitFor(() => !!document.querySelector('.xmc-view'), [], 6000, 'a panel from Enter');
+  const title = await d.js(() => document.querySelector('.xmc-view').getAttribute('aria-label'));
   await d.keys('Escape');
   await d.waitFor(() => !document.querySelector('.xmc-view'), [], 4000, 'the panel to close');
 });
