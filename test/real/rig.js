@@ -28,6 +28,7 @@ async function setup({ pages = 30, raster = false } = {}) {
     args: ['--headless=new', '--disable-extensions-except=' + ext, '--load-extension=' + ext, '--ignore-certificate-errors', '--no-proxy-server',
       '--host-resolver-rules=' + HOSTS.map((h) => `MAP ${h} 127.0.0.1:${server.port}`).join(', ')],
   });
+  context.setDefaultTimeout(12000); // (a wait that never ends then fails with what it was waiting for, not as a bare test timeout)
   let sw = context.serviceWorkers()[0];
   if (!sw) sw = await context.waitForEvent('serviceworker', { timeout: 15000 });
   const id = new URL(sw.url()).host;
