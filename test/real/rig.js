@@ -39,6 +39,7 @@ async function setup({ pages = 30, raster = false } = {}) {
     async open(url = 'https://x.com/home/') {
       const page = await context.newPage();
       page.on('pageerror', (e) => errors.push('page: ' + e.message));
+      page.on('crash', () => { errors.push('page crashed'); console.error('the page crashed (the renderer died: ' + page.url() + ')'); });
       await page.goto(url);
       return page;
     },

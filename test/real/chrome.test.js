@@ -56,7 +56,8 @@ chrome('the gear opens the settings panel, which is a page of the extension fram
   await page.keyboard.press('Escape');
   await page.waitForSelector('#xmc-settings', { state: 'detached', timeout: 4000 });
   await page.close();
-});
+}, 120000); // (twice slow on a busy machine: the panel's page loads, then a 3.6 s wait for it to say it is up, then its controls)
+
 
 chrome('the toolbar panel (popup.html) opens as its own page and saves to chrome.storage', async (r) => {
   const pop = await r.context.newPage();
