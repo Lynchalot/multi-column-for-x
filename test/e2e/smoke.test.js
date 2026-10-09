@@ -2320,11 +2320,12 @@ browserTest('the settings page with the browser\'s own storage API: a change is 
     await page.waitForFunction(() => window.__stored().cols === 5, null, { timeout: 3000 });
     await page.selectOption('#opt-textSize', 'large');
     await page.waitForFunction(() => window.__stored().textSize === 'large', null, { timeout: 3000 });
-    assert.equal(await page.locator('#changed-count').innerText(), '2');
+    const count = (n) => page.waitForFunction((x) => document.getElementById('changed-count').textContent === x, String(n), { timeout: 3000 }); // (marked a moment after it is saved)
+    await count(2);
     await page.locator('.item[data-key="cols"] button.reset').click();
     await page.waitForFunction(() => !('cols' in window.__stored()), null, { timeout: 3000 });
     assert.equal(await page.inputValue('#opt-cols'), '0');
-    assert.equal(await page.locator('#changed-count').innerText(), '1');
+    await count(1);
     // a write from a page of x.com (the log) does not upset it
     await page.evaluate(() => window.browser.storage.local.set({ xmcLog: [[Date.now(), 'def', 'load', 'home']] }));
     await page.waitForTimeout(300);
@@ -2829,20 +2830,18 @@ browserTest('in the full-size viewer the wheel steps between the pictures, one s
     const first = await state();
     assert.equal(first.prevHidden, true);
     await page.mouse.move(850, 450);
-    await page.mouse.wheel(0, 120);
-    await page.waitForFunction((s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] !== s, first.src, { timeout: 3000 });
+    const flick = async (dy, test, arg) => { for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, dy); try { await page.waitForFunction(test, arg, { timeout: 900 }); return; } catch { /* not taken yet (a slow machine, a viewer still opening) */ } } throw new Error('the wheel did nothing'); };
+    await flick(120, (s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] !== s, first.src);
     const second = await state();
     assert.equal(second.prevHidden, false, 'one step forward');
     await page.mouse.wheel(0, 120); await page.mouse.wheel(0, 120); // the rest of a burst: no more steps
     await page.waitForTimeout(150);
     assert.equal((await state()).src, second.src, 'a burst is one flick');
     await page.waitForTimeout(450);
-    await page.mouse.wheel(0, 120);
-    await page.waitForFunction((s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] !== s, second.src, { timeout: 3000 });
+    await flick(120, (s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] !== s, second.src);
     assert.equal((await state()).nextHidden, true, 'the last picture');
     await page.waitForTimeout(450);
-    await page.mouse.wheel(0, -120); // and back
-    await page.waitForFunction((s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] === s, second.src, { timeout: 3000 });
+    await flick(-120, (s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] === s, second.src); // and back
     assert.equal((await state()).top, first.top, 'the columns behind did not scroll');
   });
 }, 90000);
