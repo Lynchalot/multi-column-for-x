@@ -300,7 +300,7 @@ var XMCLogic = (function () {
   // probes look for them, and the tests check them against markup captured from X.
   const CONTROLS = {
     like: ['like', 'unlike'], repost: ['retweet', 'unretweet'], repostConfirm: ['retweetConfirm', 'unretweetConfirm'], bookmark: ['bookmark', 'removeBookmark'],
-    reply: ['reply'], share: ['share'], tweetText: ['tweetText'], userName: ['User-Name'],
+    reply: ['reply'], tweetText: ['tweetText'], userName: ['User-Name'],
   };
   const controlSel = (kind, which) => (which === undefined ? CONTROLS[kind] : [CONTROLS[kind][which]]).map((id) => `[data-testid="${id}"]`).join(',');
 

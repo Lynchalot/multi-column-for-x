@@ -82,7 +82,7 @@
 
   // What worked and what did not the last time this extension ran on x.com: written there (see publishFeatures in main.js), read here.
   const FEATURE_LABELS = { timeline: 'Timeline data from X', like: 'Like', bookmark: 'Bookmark', repost: 'Repost and quote', comments: 'Comments', 'comment actions': 'Like and bookmark on a comment', translate: 'Translate' };
-  const PROBE_LABELS = { homeLink: 'Home link in X’s menu', tabs: 'X’s tab bar (a count)', timeLink: 'Link on a post’s time', like: 'Like button', repost: 'Repost button', bookmark: 'Bookmark button', reply: 'Reply button', share: 'Share button', text: 'Post text' };
+  const PROBE_LABELS = { homeLink: 'Home link in X’s menu', tabs: 'X’s tab bar (a count)', timeLink: 'Link on a post’s time', like: 'Like button', repost: 'Repost button', bookmark: 'Bookmark button', reply: 'Reply button', text: 'Post text' };
   const STATE_TEXT = { working: 'Working', failing: 'Failing', off: 'Switched off for a few minutes', unseen: 'Not used yet' };
   function statusBlock() {
     const wrap = h('div', { className: 'statusblock' }, h('h3', { textContent: 'What is working on x.com' }));

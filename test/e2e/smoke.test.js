@@ -2734,6 +2734,29 @@ browserTest('"Save sample for the developer" writes a file with the shape of wha
   });
 }, 90000);
 
+browserTest('the markup in a sample keeps the labels of buttons, the menu and the tabs and nothing that names a person (a post\'s author is a link, a test id carries a handle)', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const out = await page.evaluate(() => {
+      const d = document.createElement('div');
+      d.innerHTML = '<article data-testid="tweet">'
+        + '<div data-testid="UserAvatar-Container-zedexample"><a href="/zedexample" role="link"><img alt="" src="https://pbs.twimg.com/profile_images/1/x.jpg"></a></div>'
+        + '<div data-testid="User-Name"><div><a href="/zedexample" role="link"><span>Zed Example</span></a></div><div><a href="/zedexample" role="link"><span>@zedexample</span></a><span>·</span><a href="/zedexample/status/123456789" role="link"><time>16h</time></a></div></div>'
+        + '<div role="group" aria-label="68 replies, 115 reposts, 1K likes"><button data-testid="reply" aria-label="68 Replies. Reply"><span>68</span></button><button data-testid="like" aria-label="Follow @zedexample"><span>Like</span></button><button aria-label="Share post"></button></div>'
+        + '<nav><a href="/home"><span>Home</span></a><a href="/zedexample" aria-label="Profile"><span>Profile</span></a></nav>'
+        + '<div role="tablist"><a role="tab" href="/home"><span>For you</span></a></div>'
+        + '</article>';
+      return XMCSample.sanitizeMarkup(d);
+    });
+    assert.ok(!/zed|example/i.test(out), 'no name, no handle: ' + out.slice(0, 600));
+    assert.ok(!/UserAvatar-Container-\w*zed/i.test(out) && /UserAvatar-Container-user/.test(out), 'the avatar\'s test id keeps its kind, not the handle');
+    for (const kept of ['data-testid="reply"', 'aria-label="68 Replies. Reply"', '>68<', '>Like<', 'aria-label="Share post"', '>Home<', '>Profile<', '>For you<']) assert.ok(out.includes(kept), 'kept: ' + kept);
+    assert.ok(!/Follow @/.test(out), 'a label with a handle in it is not kept');
+  });
+}, 60000);
+
 browserTest('a Like whose button X no longer has fails soft: the heart goes back, the press says what was not found, after three the one button is switched off, and the settings page shows it', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, commentsIn: 'card' } });
   await checked(h, async () => {
@@ -3234,12 +3257,12 @@ browserTest('one button sets the number of columns: it shows the number, and a s
     const auto = Number((await page.locator('.xmc-colbtn').innerText()).trim());
     assert.ok(auto >= 2, 'it shows how many there are');
     await page.locator('.xmc-colbtn').click();
-    assert.match(await page.locator('.xmc-menu button').first().innerText(), /\u2713\s+Auto \(\d+ now\)/, 'Auto first, and ticked');
-    await page.locator('.xmc-menu button', { hasText: '3 columns' }).click();
+    assert.match(await page.locator('.xmc-menu button').first().innerText(), /\u2713\s+Auto \(\d+ columns?\)/, 'Auto first, and ticked');
+    await page.locator('.xmc-menu button', { hasText: /^[\s\u2713\u2002\u2003]*3 columns$/ }).click();
     await page.waitForFunction(() => document.querySelectorAll('.xmc-col').length === 3);
     assert.equal((await page.locator('.xmc-colbtn').innerText()).trim(), '3');
     await page.locator('.xmc-colbtn').click();
-    assert.match(await page.locator('.xmc-menu button', { hasText: '3 columns' }).innerText(), /\u2713/, 'the current one is ticked');
+    assert.match(await page.locator('.xmc-menu button', { hasText: /^[\s\u2713\u2002\u2003]*3 columns$/ }).innerText(), /\u2713/, 'the current one is ticked');
     await page.locator('.xmc-menu button').first().click();
     await page.waitForFunction((n) => document.querySelectorAll('.xmc-col').length === n, auto);
   });

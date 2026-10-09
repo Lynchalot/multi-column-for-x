@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.32.3
+From the first sample taken on real X (Firefox 157, the home timeline and one post's comments): the parser read all 393 posts X sent and dropped none, X's Home link, tabs, Like, Repost, Bookmark, Reply and post text were all found, and comments worked. What it showed:
+- **The columns menu says what Auto is**: "Auto (2 columns)" (or "Auto (1 column)"), not "Auto (2 now)".
+- **"Save sample" kept a person's name.** The sanitiser keeps the short label on a button, and counted any link as a button, so a post's author (a link) kept their name and handle, and the avatar's test id (`UserAvatar-Container-<handle>`) and the link to the profile kept the handle. A label is now kept only on a button, a tab, or a link of the menu or the tab bar, never where a person's name sits and never if it has an `@` in it; test ids and addresses lose the handle. `scripts/scrub-sample.js in.json out.json` makes the copy for `test/fixtures/real/` from a file taken before this: post and user numbers become others of the same length that keep their order, picture and video addresses lose their file names, the markup goes through the sanitiser again. The sample from real X is now in `test/fixtures/real/` in that form, and `npm test` reads it (the posts, the conversation, the test ids of the buttons).
+- **The Share button was reported as not found** on every post. X's Share button has no test id (it is labelled "Share post"), and nothing here presses it (Copy link builds the address itself), so the check, its row in the status table and its place in the sample are gone.
+- **A Space's response is no longer listed** under posts X sent that are not read as timelines (`AudioSpaceById`).
+- Not changed, and the sample shows it is not a fault: Translate reads "failing" when it was pressed on posts X offered no translation for ("X offers no translation for this one"). That is X's answer, not a change in X; a sample taken on a post in another language will show the button.
+
 ## 0.32.2
 **Two things that did nothing in Firefox, and now work.** Found by a new test that runs the extension in a real Firefox; the Chromium tests could not see either.
 - **The mouse wheel in the full-size viewer and in a post's panel** steps between pictures by a distance of at least 4. Firefox sends a notch of a mouse wheel as three *lines* (`deltaMode` 1), Chrome as a hundred pixels, so in Firefox a notch was under the limit and the wheel did nothing. The distance is now counted in pixels whichever way the browser sends it (a line is 40). A trackpad, which sends pixels, was never affected.

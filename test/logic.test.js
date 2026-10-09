@@ -478,7 +478,7 @@ test('controls: one list of the test ids of the buttons that are pressed, in the
   assert.equal(L.controlSel('like'), '[data-testid="like"],[data-testid="unlike"]');
   assert.equal(L.controlSel('like', 0), '[data-testid="like"]');
   assert.equal(L.controlSel('bookmark', 1), '[data-testid="removeBookmark"]');
-  for (const k of ['like', 'repost', 'repostConfirm', 'bookmark', 'reply', 'share', 'tweetText']) assert.ok(L.CONTROLS[k].length, k);
+  for (const k of ['like', 'repost', 'repostConfirm', 'bookmark', 'reply', 'tweetText']) assert.ok(L.CONTROLS[k].length, k);
 });
 
 test('the words on X\'s translation controls come from one table, and the patterns are anchored to the whole label', () => {

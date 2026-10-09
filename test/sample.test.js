@@ -40,7 +40,12 @@ test('samples from real X: the parser reads the timelines and conversations, and
     assert.equal(s.kind, 'multi-column-for-x sample', f);
     for (const [op, { url, json }] of Object.entries(s.ops || {})) {
       if (json && json.truncated) continue;
-      if (op === 'TweetDetail') { const d = P.parseDetail(json, url + '?variables=%7B%7D', ''); assert.ok(d && (d.focal || d.replies.length), f + ': ' + op + ' could not be read'); continue; }
+      if (op === 'TweetDetail') { // (a conversation is read for the post it is about, which X puts in the address, and a sample does not keep: the conversation's own number will do)
+        const m = /"conversation_id_str":"(\d+)"/.exec(JSON.stringify(json)), focal = m ? m[1] : '';
+        const d = P.parseDetail(json, url + '?variables=' + encodeURIComponent(JSON.stringify({ focalTweetId: focal })), focal);
+        assert.ok(d && d.replies.length, f + ': ' + op + ' could not be read for post ' + focal);
+        continue;
+      }
       const r = P.parseResponse(json, url + '?variables=%7B%7D');
       if (r) assert.ok(r.items.length > 0, f + ': ' + op + ' gave no posts (' + JSON.stringify(r.seen) + ')');
     }

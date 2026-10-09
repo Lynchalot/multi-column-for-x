@@ -6,7 +6,7 @@ var XMCParse = (function () {
 
   // X renames operations now and then, so match by family rather than an exact list
   const FEED_OPS = /Timeline|^UserTweets|^UserMedia|^UserHighlights|^Likes$|^Bookmarks|^CommunityTweets|^ExplorePage/;
-  const NOT_FEEDS = /Notification|Lists?Management|Trends|ExploreSidebar|Discover|Topics?|Spaces|Jobs|Pinned|Sidebar/;
+  const NOT_FEEDS = /Notification|Lists?Management|Trends|ExploreSidebar|Discover|Topics?|Spaces?|AudioSpace|Jobs|Pinned|Sidebar/;
 
   const opOf = (url) => { const m = /\/graphql\/[^/]+\/([A-Za-z0-9_]+)/.exec(url); return m ? m[1] : null; };
   // The request's variables: in the address (GET) or in the JSON body (POST). known=false when neither shows

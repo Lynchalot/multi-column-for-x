@@ -10,3 +10,5 @@ the text removed (a short label on a button is kept: that is what a button is fo
 
 **Using one:** copy it here, keeping the name. `npm test` then checks that the parser still reads every timeline in it and that the
 test ids of the buttons in `XMCLogic.CONTROLS` are in the markup it holds. When X changes, a new sample from the same page shows what moved.
+
+**Before it goes in the repository:** run `node scripts/scrub-sample.js the-file.json test/fixtures/real/the-file.json`. A sample has no words in it, but a post's number, a user's number and a picture's file name still point at a real post, and files taken before 0.32.3 kept an author's name inside a link. The script replaces them (same lengths, same order) and runs the markup through the sanitiser again.

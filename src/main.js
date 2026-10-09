@@ -739,7 +739,7 @@
     const lay = pageLayout(), now = colCount();
     const fit = XMCLogic.autoCols(scroller.clientWidth - 24, { minColWidth: MIN_COL, maxAutoCols: 8 }, GAP); // the most that fit at this width
     const tick = (on) => (on ? '\u2713\u2002' : '\u2003\u2002');
-    const items = [[tick(!lay.cols) + 'Auto (' + now + ' now)', () => setCols(0)]];
+    const items = [[tick(!lay.cols) + 'Auto (' + now + (now === 1 ? ' column)' : ' columns)'), () => setCols(0)]];
     for (let n = 1; n <= Math.max(fit, lay.cols || 0, 1); n++) items.push([tick(lay.cols === n) + n + (n === 1 ? ' column' : ' columns'), () => setCols(n)]);
     openMenu(anchor || colBtn, items);
   }
@@ -1491,7 +1491,7 @@
       }
       const art = articles()[0], controls = {};
       if (art) {
-        for (const k of ['like', 'repost', 'bookmark', 'reply', 'share', 'tweetText']) { const el = art.querySelector(XMCLogic.controlSel(k)); if (el) controls[k] = XMCSample.sanitizeMarkup(el.closest('[role="group"]') && k !== 'tweetText' ? el.closest('[role="group"]') : el); }
+        for (const k of ['like', 'repost', 'bookmark', 'reply', 'tweetText']) { const el = art.querySelector(XMCLogic.controlSel(k)); if (el) controls[k] = XMCSample.sanitizeMarkup(el.closest('[role="group"]') && k !== 'tweetText' ? el.closest('[role="group"]') : el); }
         try { const tc = translateControl(art); if (tc) controls.translate = XMCSample.sanitizeMarkup(tc); } catch { /* none on this post */ }
         controls.article = XMCSample.sanitizeMarkup(art).slice(0, 60000);
       }
@@ -4053,7 +4053,7 @@
     const has = (kind) => !!(art && art.querySelector(XMCLogic.controlSel(kind)));
     state.probe = {
       at: Date.now(), lang: document.documentElement.lang || '', xPosts: articles().length, homeLink: !!(nav && nav.querySelector('a[href="/home"]')), tabs: realTabs().length,
-      timeLink: !!(art && art.querySelector('a[href*="/status/"] time')), like: has('like'), repost: has('repost'), bookmark: has('bookmark'), reply: has('reply'), share: has('share'), text: has('tweetText'),
+      timeLink: !!(art && art.querySelector('a[href*="/status/"] time')), like: has('like'), repost: has('repost'), bookmark: has('bookmark'), reply: has('reply'), text: has('tweetText'),
     };
   }
   // what the settings page shows: counted features, the things placed by measurement, the last probe and the parser's numbers
