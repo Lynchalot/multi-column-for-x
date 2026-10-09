@@ -235,7 +235,7 @@ firefox('the master switch in the toolbar panel turns the extension off (this ta
   const popup = async () => { // (the toolbar panel's page, framed by hand over the page: it is web-accessible to x.com)
     await d.js((u) => { const f = document.createElement('iframe'); f.id = 'zz-popup'; f.src = u; f.style.cssText = 'position:fixed;left:0;top:0;width:480px;height:600px;z-index:2147483647;background:#fff'; document.body.appendChild(f); }, r.ext('popup.html'));
     await d.frame('#zz-popup');
-    await d.waitFor(() => !!document.getElementById('opt-enabled'), [], 10000, 'the popup');
+    await d.waitFor(() => !!document.getElementById('opt-enabled') && !!document.querySelector('#sections h2 button.fold'), [], 10000, 'the popup'); // (the page has run: the switch shows what is stored)
   };
   const flip = async (want) => {
     await popup();
@@ -257,6 +257,29 @@ firefox('the master switch in the toolbar panel turns the extension off (this ta
   } finally {
     await popup().catch(() => {}); await d.js(() => browser.storage.local.set({ enabled: true })).catch(() => {}); await d.topFrame().catch(() => {});
   }
+});
+
+firefox('in a post\'s panel the keys work in Firefox: arrows through the pictures and the posts, A likes (X\'s own handler runs), C takes the comment box, Esc leaves it', async (r, d) => {
+  await home(r, d);
+  await sleep(2000);
+  await d.js(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelector('.xmc-text').click(); });
+  await d.waitFor(() => !!document.querySelector('.xmc-view .xmc-car'), [], 8000, 'the panel with pictures');
+  const pos = () => d.js(() => ({ title: document.querySelector('.xmc-view').getAttribute('aria-label'), pic: [...document.querySelectorAll('.xmc-view .xmc-car .xmc-dots i')].findIndex((i) => i.classList.contains('on')) }));
+  const first = await pos();
+  await d.keys('ArrowRight'); await sleep(300);
+  assert.equal((await pos()).pic, 1, 'the next picture');
+  await d.keys('ArrowRight'); await d.keys('ArrowRight'); await sleep(900);
+  assert.notEqual((await pos()).title, first.title, 'past the last picture: the next post');
+  const seen = () => d.js(() => { const w = window.wrappedJSObject || window; return Array.from(w.__actions || []); });
+  const before = (await seen()).length;
+  await d.keys('a');
+  await d.waitFor((n) => { const w = window.wrappedJSObject || window; return Array.from(w.__actions || []).slice(n).some((x) => /^liked:/.test(x)); }, [before], 15000, 'X\'s like handler to run (the page saw: ' + JSON.stringify(await seen()) + ')');
+  await d.keys('c'); await d.waitFor(() => document.activeElement && document.activeElement.className === 'xmc-cbox', [], 12000, 'C: the comment box (the comments take a moment)');
+  assert.equal(await d.js(() => document.activeElement && document.activeElement.className), 'xmc-cbox', 'C: the comment box');
+  await d.keys('Escape'); await sleep(300);
+  assert.equal(await d.js(() => !!document.querySelector('.xmc-view') && document.activeElement.className !== 'xmc-cbox'), true, 'Esc leaves the box and the panel stays');
+  await d.keys('Escape');
+  await d.waitFor(() => !document.querySelector('.xmc-view'), [], 4000, 'the panel to close');
 });
 
 firefox('what the extension saw on x.com (the probe of X\'s buttons, the parser\'s counts) is written to browser.storage and shown in the panel\'s status table', async (r, d) => {

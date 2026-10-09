@@ -15,6 +15,7 @@ Nobody working on this can log in to X, so this is the list of what only your ow
 10. **Translate** on a post in another language: time to the result, then "Show original". (`translateTimes` in Copy diagnostics has the numbers.)
 11. **Like, Bookmark, Repost** on a post: do they work, and does the table in 2 say *Working* for them afterwards?
 12. **The master switch** (Enabled, top of the toolbar panel): off should reload the tab to plain X, with "off" on the toolbar button; on should bring the columns back.
-13. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
+13. **Keys in a post's panel:** open a post. ← → through its pictures and then the posts, Shift+← → the posts only, A like, S bookmark, W repost, E download, Q copy link, C comment (then Esc leaves the box). Do any of them do something else (Vimium, X, Zen)? Which?
+14. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
 
 What to send back: the table (2), the sample file (3), Copy diagnostics from anything that failed (it carries a `features` block), and a recording of anything that looked wrong.

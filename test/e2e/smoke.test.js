@@ -301,7 +301,13 @@ browserTest('a post with several pictures shows one at a time in the panel, with
     await page.evaluate(() => document.querySelector('.xmc-view .xmc-vm img').closest('.xmc-vmediapane').querySelector('.xmc-vm:not([hidden]) img').focus());
     await page.keyboard.press('ArrowRight');
     a = await st(); assert.deepEqual(a.shown, [false, false, true]); assert.equal(a.next, false);
-    await page.keyboard.press('ArrowRight'); // the last picture: stays
+    // (the arrows now go through the pictures and on to the posts: past the last picture is the next post, and back from its first is this one)
+    const label = await page.evaluate(() => document.querySelector('.xmc-view').getAttribute('aria-label'));
+    await page.keyboard.press('ArrowRight');
+    await page.waitForFunction((l) => document.querySelector('.xmc-view') && document.querySelector('.xmc-view').getAttribute('aria-label') !== l, label, { timeout: 5000 });
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForFunction((l) => document.querySelector('.xmc-view') && document.querySelector('.xmc-view').getAttribute('aria-label') === l && document.querySelector('.xmc-view .xmc-vmediapane.xmc-car'), label, { timeout: 5000 });
+    await page.locator('.xmc-view .xmc-cnav.next').click(); await page.locator('.xmc-view .xmc-cnav.next').click();
     assert.deepEqual((await st()).shown, [false, false, true]);
     // the wheel flicks between the pictures, and the sides of a picture step too; the middle opens it full size
     await page.locator('.xmc-view .xmc-cnav.prev').click(); await page.locator('.xmc-view .xmc-cnav.prev').click();
@@ -1229,8 +1235,8 @@ browserTest('clicking a post opens it in a panel over the columns: pictures, wor
     await page.locator('.xmc-vside [data-act="like"]').click();
     await page.waitForFunction((i) => (window.__actions || []).includes('liked:' + i), id, { timeout: 15000 });
     assert.equal(await page.evaluate((i) => window.__xmc.view.cards.find((t) => t.id === i).el.querySelector('.xmc-actions [data-act="like"]').classList.contains('on'), id), true, 'the card shows it too');
-    // the arrow keys go to the next post
-    await page.keyboard.press('ArrowRight');
+    // Shift and an arrow key go to the next post (the arrow alone goes through the post's pictures first)
+    await page.keyboard.press('Shift+ArrowRight');
     await page.waitForFunction((i) => !document.querySelector('.xmc-vside .xmc-text') || !document.querySelector('.xmc-vside .xmc-text').innerText.includes(i), id);
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.querySelector('.xmc-view'));
@@ -2812,6 +2818,89 @@ browserTest('a post closed and opened again while its comments are still queued 
     await open(1); // asked for again: the same request, wanted again
     await page.waitForFunction(() => document.querySelectorAll('.xmc-view .xmc-ritem').length >= 1, null, { timeout: 25000 });
     assert.ok(!/Closed before it loaded/.test(await page.evaluate(() => document.querySelector('.xmc-view').innerText)), 'no failure shown');
+  });
+}, 90000);
+
+browserTest('in a post\'s panel the arrow keys walk the pictures and then the posts (Shift: the posts only), and A S W E Q C like, bookmark, repost, download, copy the link and comment', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, commentsIn: 'panel' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const openMulti = () => page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelector('.xmc-text').click(); });
+    await openMulti();
+    await page.waitForSelector('.xmc-view .xmc-car');
+    const where = () => page.evaluate(() => ({ title: document.querySelector('.xmc-view').getAttribute('aria-label'), pic: [...document.querySelectorAll('.xmc-view .xmc-car .xmc-dots i')].findIndex((d) => d.classList.contains('on')) }));
+    const first = await where();
+    assert.equal(first.pic, 0);
+    await page.keyboard.press('ArrowRight'); assert.equal((await where()).pic, 1, 'the next picture');
+    await page.keyboard.press('ArrowRight'); assert.equal((await where()).pic, 2, 'and the one after');
+    await page.keyboard.press('ArrowRight');
+    await page.waitForFunction((t) => document.querySelector('.xmc-view') && document.querySelector('.xmc-view').getAttribute('aria-label') !== t, first.title, { timeout: 4000 });
+    const second = await where();
+    assert.notEqual(second.title, first.title, 'past the last picture: the next post');
+    await page.keyboard.press('Shift+ArrowLeft');
+    await page.waitForFunction((t) => document.querySelector('.xmc-view') && document.querySelector('.xmc-view').getAttribute('aria-label') === t, first.title, { timeout: 4000 });
+    assert.equal((await where()).pic, 0, 'Shift and an arrow: the post, whatever picture it was on');
+    // the letters: the stand-in\'s own page records what its buttons were pressed to do
+    const acts = () => page.evaluate(() => Array.from(window.__actions || []));
+    const before = (await acts()).length;
+    await page.keyboard.press('a');
+    await page.waitForFunction((n) => Array.from(window.__actions || []).slice(n).some((x) => /^liked:/.test(x)), before, { timeout: 15000 });
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-view .xmc-actions [data-act="like"]').classList.contains('on')), true, 'A: liked, and the heart shows it');
+    await page.keyboard.press('s');
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-view .xmc-actions [data-act="bookmark"]').classList.contains('on')), true, 'S: bookmarked');
+    await page.keyboard.press('q');
+    await page.waitForFunction(() => /Link copied|Couldn.t copy/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
+    await page.keyboard.press('e');
+    await page.waitForFunction(() => /Downloading|Nothing to download|Download failed/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
+    await page.keyboard.press('w');
+    await page.waitForFunction(() => document.querySelector('.xmc-view .xmc-actions [data-act="repost"]').classList.contains('on') || /posted|Repost|Undo/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 8000 });
+    // comment: the box has the keyboard; letters typed there are letters; Esc leaves the box and the panel stays
+    await page.keyboard.press('c');
+    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.className), 'xmc-cbox', 'C: the comment box');
+    const liked = (await acts()).filter((x) => /^liked:/.test(x)).length;
+    await page.keyboard.type('asweq');
+    assert.equal(await page.evaluate(() => document.activeElement.value), 'asweq', 'typed as letters');
+    assert.equal((await acts()).filter((x) => /^liked:/.test(x)).length, liked, 'and not as shortcuts');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => !!document.querySelector('.xmc-view') && document.activeElement.className !== 'xmc-cbox'), true, 'Esc leaves the box, the panel stays');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view'), null, { timeout: 4000 });
+  });
+}, 120000);
+
+browserTest('the panel\'s keys are off when the setting is off (the arrows still walk, the letters do nothing)', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, panelKeys: false } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { document.querySelector('.xmc-card .xmc-text').click(); });
+    await page.waitForSelector('.xmc-view');
+    const n = await page.evaluate(() => Array.from(window.__actions || []).length);
+    await page.keyboard.press('a'); await page.keyboard.press('s'); await page.waitForTimeout(1500);
+    assert.equal(await page.evaluate(() => Array.from(window.__actions || []).length), n, 'nothing pressed');
+    assert.ok(!(await page.evaluate(() => document.querySelector('.xmc-view .xmc-actions [data-act="like"]').title)).includes('(A)'), 'and no key in the tooltips');
+  });
+}, 60000);
+
+browserTest('in the picture viewer the same letters act on its post: E downloads the picture showing, A likes, Q copies the link, C opens the comment box', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, commentsIn: 'panel' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelectorAll('[data-lb]')[1].click(); });
+    await page.waitForSelector('#xmc-lightbox');
+    const before = await page.evaluate(() => Array.from(window.__actions || []).length);
+    await page.keyboard.press('a');
+    await page.waitForFunction((n) => Array.from(window.__actions || []).slice(n).some((x) => /^liked:/.test(x)), before, { timeout: 15000 });
+    await page.keyboard.press('e');
+    await page.waitForFunction(() => /Downloading/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
+    await page.keyboard.press('q');
+    await page.waitForFunction(() => /Link copied|Couldn.t copy/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
+    await page.keyboard.press('c');
+    await page.waitForSelector('.xmc-view');
+    await page.waitForFunction(() => !document.getElementById('xmc-lightbox'), null, { timeout: 3000 });
+    await page.waitForFunction(() => document.activeElement && document.activeElement.className === 'xmc-cbox', null, { timeout: 8000 });
   });
 }, 90000);
 

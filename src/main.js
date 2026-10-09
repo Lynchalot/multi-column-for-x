@@ -33,6 +33,7 @@
   if (noteSaysOff) { // stand down: only the switch is watched, to come back when it is turned on (or when the note is out of date: switched on while no X tab was open)
     const back = () => { offNote(false); location.reload(); };
     document.documentElement.classList.remove('xmc-veil');
+    if (ext && ext.runtime && ext.runtime.onMessage) ext.runtime.onMessage.addListener((msg, sender, reply) => { if (msg && msg.type === 'xmc-ping' && sender.id === ext.runtime.id) { reply({ ok: true, off: true }); return true; } return false; }); // (the toolbar panel asks whether this tab is running)
     if (storage && ext.storage.onChanged) {
       ext.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.enabled && ch.enabled.newValue !== false) back(); });
       storage.get('enabled').then((v) => { if (enabledIn(v)) back(); }).catch(() => {});
@@ -1023,18 +1024,72 @@
     else if (e.shiftKey && now === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && now === last) { e.preventDefault(); first.focus(); }
   }
+  // ---------- keys in a post's panel and in the picture viewer ----------
+  // For going through posts with the keyboard alone. Plain letters that Vimium leaves alone: A like, S save (bookmark), W repost, E download,
+  // Q copy the link, C comment. Left and right walk the pictures and then the posts; with Shift, the posts only. Only while a panel or the
+  // viewer is open and nothing is being typed into; X's own page does not see these keys (it has shortcuts of its own, S among them).
+  const PANEL_KEYS = { a: 'like', s: 'bookmark', w: 'repost', e: 'download', q: 'share', c: 'reply' };
+  const KEY_OF = Object.fromEntries(Object.entries(PANEL_KEYS).map(([k, v]) => [v, k.toUpperCase()]));
+  const typingIn = (el) => !!el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName || ''));
+  function keyedButton(t, kind) { // the real button for this post, in the panel if it is open for it, else on its card
+    for (const scope of [postView && postView.t === t ? postView.side.querySelector(':scope > .xmc-actions') : null, t.el]) {
+      const b = scope && scope.querySelector('[data-act="' + kind + '"]');
+      if (b) return b;
+    }
+    return null;
+  }
+  function panelKey(e) {
+    if (!settings.panelKeys || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.isComposing || typingIn(e.target)) return false;
+    const kind = PANEL_KEYS[e.key.toLowerCase()];
+    const t = lightbox ? lightbox.t : postView ? postView.t : null;
+    if (!kind || !t) return false;
+    e.preventDefault(); e.stopPropagation();
+    if (e.repeat) return true; // (held down: once)
+    const comment = !!(postView && postView.parent && postView.t === t); // a comment in the panel: its own buttons, X's page has none for it
+    if (kind === 'reply') { // comment: the panel's box (from the viewer: the viewer goes, and the panel opens if it was not)
+      if (lightbox) { const open = postView && postView.t === t; closeLightbox(); if (!open) { openPostView(t, false, true); return true; } }
+      const pv = postView, take = (tries) => { // (the box is drawn with the comments: if they are still on their way it is taken the moment it is there)
+        if (postView !== pv) return;
+        const box = pv.side.querySelector('.xmc-cbox');
+        if (box) { box.scrollIntoView({ block: 'nearest' }); box.focus({ preventScroll: true }); } else if (tries > 0) setTimeout(() => take(tries - 1), 150); else toast('The comments did not come, so there is no box yet');
+      };
+      take(60);
+      return true;
+    }
+    const advance = () => { if (settings.keysAdvance && postView && !lightbox) setTimeout(() => stepPostView(1), 350); };
+    if (kind === 'repost') { if (!comment) { repost(t, false); advance(); } return true; } // (straight away, no menu: Undo is in the toast)
+    if (kind === 'download') { if (lightbox) downloadMedia(t, lightbox.photos[lightbox.i]); else if (hasMedia(t)) downloadMedia(t); return true; }
+    if (kind === 'share') { copyLink(t); return true; }
+    const b = keyedButton(t, kind);
+    if (b && !comment) act(t, kind, b); // like, bookmark: the same path as pressing the button
+    else if (b) b.click(); // (a comment's buttons are wired to its own handlers)
+    else act(t, kind, document.createElement('button')); // (the card's contents were given back: the press still goes to X)
+    advance();
+    return true;
+  }
+  // left and right: through the post's pictures, and past the last (or before the first) to the next (or previous) post; Shift skips the pictures
+  function walkPanel(dir, skipPictures) {
+    const car = !skipPictures && postView && postView.panel.querySelector('.xmc-car');
+    if (car && car._pos) { const [i, n] = car._pos(); if (dir > 0 ? i < n - 1 : i > 0) { car._go(dir); return; } }
+    stepPostView(dir);
+  }
   window.addEventListener('keydown', (e) => {
     if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.code === 'BracketLeft' || e.code === 'BracketRight') && !/^(input|textarea|select)$/i.test((e.target || {}).tagName || '') && !(e.target && e.target.isContentEditable) && document.documentElement.classList.contains('xmc-on') && !root.hidden) {
       e.preventDefault(); e.stopPropagation(); setPanel(e.code === 'BracketLeft' ? 'left' : 'right'); return; // Alt+[ the menu, Alt+] the right panel
     }
     if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) { const open = lightbox ? lightbox.el : postView ? postView.el : null; if (open) trapTab(e, open); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.dataset && e.target.dataset.lb !== undefined && e.target.getAttribute('role') === 'button') { e.preventDefault(); e.target.click(); }
+    if (panelKey(e)) return;
+    if (e.key === 'Escape' && !lightbox && !menuEl && e.target && e.target.matches && e.target.matches('textarea.xmc-cbox')) { e.preventDefault(); e.stopPropagation(); e.target.blur(); return; } // (Esc leaves the comment box first: what is typed stays, the panel stays)
     if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else closePostView(); } }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
     if (lightbox && e.key === 'ArrowLeft') stepLightbox(-1);
-    if (postView && !lightbox && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !/^(input|textarea|select|video)$/i.test((e.target || {}).tagName || '')) { // in the pictures: the next picture; anywhere else in the panel: the next post
-      e.preventDefault(); const dir = e.key === 'ArrowRight' ? 1 : -1, car = e.target.closest && e.target.closest('.xmc-car');
-      if (car) car._go(dir); else stepPostView(dir);
+    if (postView && !lightbox && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.ctrlKey && !e.altKey && !e.metaKey && !/^(input|textarea|select|video)$/i.test((e.target || {}).tagName || '')) { // through the pictures, then the posts; Shift: the posts only
+      e.preventDefault(); walkPanel(e.key === 'ArrowRight' ? 1 : -1, e.shiftKey && settings.panelKeys);
+    }
+    if ((postView || lightbox) && e.key === 'Enter' && !e.ctrlKey && !e.altKey && !e.metaKey && !lightbox && (!e.target || e.target === document.body || e.target === postView.el || postView.el.contains(e.target) && !e.target.closest('a, button, input, textarea, select, video, [role="button"], [tabindex]'))) { // Enter on nothing in particular: the picture showing, full size
+      const pic = postView.panel.querySelector('.xmc-vm:not([hidden]) img[data-lb], img[data-lb]');
+      if (pic && !pic.closest('.sensitive')) { e.preventDefault(); openLightbox(postView.t, Number(pic.dataset.lb)); }
     }
   }, true);
 
@@ -2559,8 +2614,8 @@
     const next = h('button', { className: 'xmc-lb-nav next', type: 'button', title: 'Next picture', 'aria-label': 'Next picture', onclick: (e) => { e.stopPropagation(); stepLightbox(1); } }, icon('next'));
     const close = h('button', { className: 'xmc-lb-close', type: 'button', title: 'Close (Esc)', onclick: closeLightbox }, icon('close'));
     const tools = h('div', { className: 'xmc-lb-tools', onclick: (e) => e.stopPropagation() },
-      h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Download this image', onclick: () => downloadMedia(t, lightbox && lightbox.photos[lightbox.i]) }, icon('download')),
-      h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Copy link to the post', onclick: () => copyLink(t) }, icon('link')));
+      h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Download this image' + (settings.panelKeys ? ' (E)' : ''), onclick: () => downloadMedia(t, lightbox && lightbox.photos[lightbox.i]) }, icon('download')),
+      h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Copy link to the post' + (settings.panelKeys ? ' (Q)' : ''), onclick: () => copyLink(t) }, icon('link')));
     const el = h('div', { id: 'xmc-lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Photo', onclick: closeLightbox }, img, prev, next, close, tools);
     const was = document.activeElement;
     img.addEventListener('click', (e) => e.stopPropagation());
@@ -2571,7 +2626,7 @@
       if (!lightbox || lightbox.photos.length < 2 || Math.abs(d) < 4 || e.timeStamp - wheelAt < 380) return;
       wheelAt = e.timeStamp; stepLightbox(d > 0 ? 1 : -1);
     }, { passive: false });
-    lightbox = { el, img, photos, i: start, prev, next, was };
+    lightbox = { el, img, photos, i: start, prev, next, was, t };
     document.body.append(el);
     close.focus({ preventScroll: true });
     document.documentElement.classList.add('xmc-viewer'); // lets the page hook route Escape/arrows to us
@@ -2626,6 +2681,7 @@
       [...dots.children].forEach((dot, k) => dot.classList.toggle('on', k === i));
       prev.hidden = i === 0; next.hidden = i === slides.length - 1;
     };
+    pane._pos = () => [i, slides.length];
     pane.classList.add('xmc-car');
     pane.append(prev, next, dots);
     pane._go(0);
@@ -2724,6 +2780,7 @@
     actions.append(hasMedia(t) ? actionBtn('download', 'Download media', 'download') : h('span', { className: 'xmc-act xmc-gap', 'aria-hidden': 'true' }, icon('download'))); // (an empty slot keeps the icons where they are on every card)
     actions.append(actionBtn('share', 'Copy link', 'link'));
     if (t.counts.views) actions.append(h('span', { className: 'xmc-views xmc-n', textContent: fmt(t.counts.views) + ' views' }));
+    if (settings.panelKeys) for (const b of actions.querySelectorAll('[data-act]')) { const k = KEY_OF[b.dataset.act]; if (k) { b.title += ' (' + k + ')'; b.setAttribute('aria-keyshortcuts', k); } }
     side.append(actions);
     const more = parent ? null : moreFrom(t);
     if (more) side.append(more);
@@ -4273,12 +4330,18 @@
   loadAll().then(() => {
     if (settings.enabled === false) { // switched off while no X tab was open (the note was out of date): the page is let go before anything has been drawn
       switchedOff = true; offNote(true);
+      if (ext && ext.runtime && ext.runtime.onMessage) ext.runtime.onMessage.addListener((msg, sender, reply) => { if (msg && msg.type === 'xmc-ping' && sender.id === ext.runtime.id) { reply({ ok: true, off: true }); return true; } return false; });
       document.documentElement.classList.remove('xmc-veil');
       try { localStorage.removeItem('xmcVeil'); } catch { /* storage blocked */ }
       retire();
       return;
     }
     ready = true;
+    if (ext && ext.runtime && ext.runtime.onMessage) ext.runtime.onMessage.addListener((msg, sender, reply) => { // the toolbar panel asks whether this tab is running
+      if (!msg || msg.type !== 'xmc-ping' || sender.id !== ext.runtime.id) return false;
+      reply({ ok: true, version: ext.runtime.getManifest().version, columns: !!state.shown, failed: state.failed ? (state.failWhy || 'an error') : '' });
+      return true;
+    });
     settingsChanged();
     tickTimer = setInterval(() => { const t0 = performance.now(); guard('tick', tick); tickTimes.push(performance.now() - t0); if (tickTimes.length > 50) tickTimes.shift(); }, TICK_MS);
   });

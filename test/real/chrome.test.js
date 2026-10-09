@@ -38,24 +38,27 @@ chrome('settings made on the options page go through chrome.storage and reach th
   await opts.close(); await page.close();
 });
 
+// A call that never comes back (a key press has no timeout of its own) fails with where it stuck, not as a bare test timeout.
+const step = (name, p, ms = 30000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('stuck at step ' + name + ' of the gear panel test')), ms))]);
+
 chrome('the gear opens the settings panel, which is a page of the extension framed over x.com (no fallback tab)', async (r) => {
-  const page = await r.open();
-  await page.waitForSelector('.xmc-card', { timeout: 20000 });
+  const page = await step(0, r.open());
+  await step(1, page.waitForSelector('.xmc-card', { timeout: 20000 }));
   const tabs = r.context.pages().length;
-  await page.locator('.xmc-gear').click();
-  await page.waitForSelector('#xmc-settings iframe');
+  await step(2, page.locator('.xmc-gear').click());
+  await step(3, page.waitForSelector('#xmc-settings iframe'));
   const frame = await (async () => { for (let i = 0; i < 50; i++) { const f = page.frames().find((x) => x.url().startsWith('chrome-extension://')); if (f) return f; await page.waitForTimeout(100); } return null; })();
   assert.ok(frame, 'the panel is the extension\'s own page');
-  await frame.waitForSelector('#sections h2 button.fold', { timeout: 8000 });
+  await step(4, frame.waitForSelector('#sections h2 button.fold', { timeout: 8000 }));
   await page.waitForTimeout(3600); // (longer than the wait for it to say it is up, after which the panel gives up and opens a tab)
   assert.equal(await page.locator('#xmc-settings').count(), 1, 'still there: it said it was up');
   assert.equal(r.context.pages().length, tabs, 'and no tab opened');
-  await frame.locator('#sections h2 button.fold', { hasText: 'Look' }).click();
-  await frame.locator('#opt-textSize').selectOption('large');
-  await page.waitForFunction(() => getComputedStyle(document.getElementById('xmc-root')).getPropertyValue('--xmc-ts').trim() === '1.15', null, { timeout: 8000 });
-  await page.keyboard.press('Escape');
-  await page.waitForSelector('#xmc-settings', { state: 'detached', timeout: 4000 });
-  await page.close();
+  await step(5, frame.locator('#sections h2 button.fold', { hasText: 'Look' }).click());
+  await step(6, frame.locator('#opt-textSize').selectOption('large'));
+  await step(7, page.waitForFunction(() => getComputedStyle(document.getElementById('xmc-root')).getPropertyValue('--xmc-ts').trim() === '1.15', null, { timeout: 8000 }));
+  await step(8, page.keyboard.press('Escape'));
+  await step(9, page.waitForSelector('#xmc-settings', { state: 'detached', timeout: 4000 }));
+  await step(10, page.close());
 }, 120000); // (twice slow on a busy machine: the panel's page loads, then a 3.6 s wait for it to say it is up, then its controls)
 
 
@@ -114,4 +117,18 @@ chrome('what the extension saw on x.com (features, the probe of X\'s buttons) is
   await row.waitFor({ timeout: 8000 });
   assert.match(await row.innerText(), /Working/);
   await opts.close(); await page.close();
+});
+
+chrome('the toolbar panel says whether the extension is running on a tab (here: version and "running"), and asks for an x.com tab when the tab is not one', async (r) => {
+  const page = await r.open();
+  await page.waitForSelector('.xmc-card', { timeout: 20000 });
+  const pop = await r.context.newPage();
+  await pop.goto(r.ext('popup.html'));
+  const xTab = await pop.evaluate(async () => (await chrome.tabs.query({ url: 'https://x.com/*' }))[0].id);
+  const me = await pop.evaluate(async () => (await chrome.tabs.getCurrent()).id);
+  await pop.goto(r.ext('popup.html?forTab=' + xTab));
+  await pop.waitForFunction(() => /Running on this tab \(version \d+\.\d+\.\d+\)/.test(document.getElementById('here').textContent), null, { timeout: 8000 });
+  await pop.goto(r.ext('popup.html?forTab=' + me));
+  await pop.waitForFunction(() => /Open x\.com to see/.test(document.getElementById('here').textContent), null, { timeout: 8000 });
+  await pop.close(); await page.close();
 });

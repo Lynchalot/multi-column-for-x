@@ -68,6 +68,8 @@ var XMCSettings = (function () {
         { key: 'profileHeader', type: 'bool', def: true, label: 'Show a profile\u2019s header above its posts', help: 'Name, bio and follower counts.' },
         { key: 'fetchContext', type: 'bool', def: true, label: 'Look up the post a reply answers when X did not send it', help: 'Done out of sight, one at a time, for replies you have been looking at.' },
         { key: 'commentsIn', type: 'select', def: 'panel', label: 'Open comments', options: [['panel', 'In the post panel'], ['card', 'Inside the card']] },
+        { key: 'panelKeys', type: 'bool', def: true, label: 'Keyboard shortcuts in a post\u2019s panel and the picture viewer', help: '\u2190 \u2192 go through the pictures, then the posts (Shift: posts only). A like, S bookmark, W repost, E download, Q copy link, C comment. Letters Vimium leaves alone.' },
+        { key: 'keysAdvance', type: 'bool', def: false, label: 'Move to the next post after the Like, Bookmark or Repost key' },
         { key: 'bigText', type: 'bool', def: true, label: 'Set short posts that are only words in larger type' },
         { key: 'hoverVideo', type: 'bool', def: true, label: 'Play a muted preview when I point at a video' },
         { key: 'hoverActions', type: 'bool', def: true, label: 'Show like, repost and save on a picture when I point at it' },

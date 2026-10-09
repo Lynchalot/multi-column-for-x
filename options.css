@@ -120,3 +120,7 @@ body.off .master .mlabel::after { content: " (off)"; font-weight: 400; }
 body.off #sections, body.off .find { opacity: .45; }
 body.popup .master { margin-top: 6px; margin-bottom: 2px; }
 @media (prefers-reduced-motion: reduce) { .master .knob, .master .knob::after { transition: none; } }
+
+/* "is it running on this tab" in the toolbar panel */
+.here { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.here button { min-height: 28px; padding: 3px 12px; font-size: 13px; }
