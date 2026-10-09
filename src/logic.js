@@ -269,7 +269,42 @@ var XMCLogic = (function () {
     return out;
   }
 
-  const api = { threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  // What has worked and what has not, by feature (like, comments, translate, ...). A run of failures switches that one feature off for a
+  // while: pressing it says so instead of doing nothing, and it is tried again once the wait is over. A success puts it back at once.
+  // Nothing in it knows what a feature is; main.js names them.
+  function featureTracker({ limit = 3, cooldownMs = 300000, now = Date.now } = {}) {
+    const f = new Map();
+    const get = (k) => { let e = f.get(k); if (!e) { e = { ok: 0, fail: 0, streak: 0, last: 0, lastOk: 0, why: '', offAt: 0 }; f.set(k, e); } return e; };
+    const off = (k) => { const e = f.get(k); return !!(e && e.offAt && now() - e.offAt < cooldownMs); };
+    return {
+      ok(k) { const e = get(k); e.ok++; e.streak = 0; e.lastOk = e.last = now(); e.offAt = 0; },
+      fail(k, why) {
+        const e = get(k); e.fail++; e.streak++; e.last = now(); if (why) e.why = String(why).slice(0, 200);
+        if (e.streak >= limit && (!e.offAt || now() - e.offAt >= cooldownMs)) e.offAt = now(); // (a failure after the wait starts the wait again)
+      },
+      off,
+      state(k) { const e = f.get(k); return !e ? 'unseen' : off(k) ? 'off' : e.streak > 0 ? 'failing' : e.ok > 0 ? 'working' : 'unseen'; },
+      snapshot() { const out = {}; for (const [k, e] of f) out[k] = { state: this.state(k), ok: e.ok, fail: e.fail, streak: e.streak, lastOk: e.lastOk, last: e.last, why: e.why }; return out; },
+    };
+  }
+
+  // The words on X's own translation controls, by the language X's interface is in. Only English is here: a language is added by adding a row,
+  // from a sample taken on that language's X ("Save sample", test/fixtures/real/README.md), not from a guess. The patterns of all the rows are
+  // tried together, so a person whose X is in a language not listed gets what English gives, which is the structural find in translateControl.
+  const WORDS = {
+    en: { translate: ['translate (post|tweet|reply|comment)', 'show translation'], original: ['show original'], translatedFrom: ['translated from'] },
+  };
+  const wordPattern = (field, anchored = true) => { const alts = Object.values(WORDS).flatMap((w) => w[field] || []); return new RegExp((anchored ? '^(' : '(') + alts.join('|') + (anchored ? ')$' : ')'), 'i'); };
+
+  // The test ids of X's own buttons that this extension presses, by what they do (an "un" form while it is on). One list: main.js presses them, the
+  // probes look for them, and the tests check them against markup captured from X.
+  const CONTROLS = {
+    like: ['like', 'unlike'], repost: ['retweet', 'unretweet'], repostConfirm: ['retweetConfirm', 'unretweetConfirm'], bookmark: ['bookmark', 'removeBookmark'],
+    reply: ['reply'], share: ['share'], tweetText: ['tweetText'], userName: ['User-Name'],
+  };
+  const controlSel = (kind, which) => (which === undefined ? CONTROLS[kind] : [CONTROLS[kind][which]]).map((id) => `[data-testid="${id}"]`).join(',');
+
+  const api = { featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

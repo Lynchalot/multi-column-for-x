@@ -80,7 +80,44 @@
     if (old) old.replaceWith(navBlock());
   }
 
-  // the memory behind "Posts I've already read"
+  // What worked and what did not the last time this extension ran on x.com: written there (see publishFeatures in main.js), read here.
+  const FEATURE_LABELS = { timeline: 'Timeline data from X', like: 'Like', bookmark: 'Bookmark', repost: 'Repost and quote', comments: 'Comments', 'comment actions': 'Like and bookmark on a comment', translate: 'Translate' };
+  const PROBE_LABELS = { homeLink: 'Home link in X’s menu', tabs: 'X’s tab bar (a count)', timeLink: 'Link on a post’s time', like: 'Like button', repost: 'Repost button', bookmark: 'Bookmark button', reply: 'Reply button', share: 'Share button', text: 'Post text' };
+  const STATE_TEXT = { working: 'Working', failing: 'Failing', off: 'Switched off for a few minutes', unseen: 'Not used yet' };
+  function statusBlock() {
+    const wrap = h('div', { className: 'statusblock' }, h('h3', { textContent: 'What is working on x.com' }));
+    const body = h('div', {});
+    wrap.append(body, h('p', { className: 'muted', textContent: 'This is what the extension saw the last time it ran on x.com. A button that fails three times in a row is switched off for a few minutes and says why when pressed; “Save sample” in a post’s ... menu on x.com keeps what is needed to fix it.' }));
+    const when = (ms) => (ms ? new Date(ms).toLocaleString() : 'never');
+    const draw = (rep) => {
+      if (!rep) { body.replaceChildren(h('p', { className: 'muted', textContent: 'Nothing yet: open x.com with the columns on and come back.' })); return; }
+      const rows = [];
+      const row = (name, state, detail) => rows.push(h('tr', { className: 'st-' + state }, h('th', { scope: 'row', textContent: name }), h('td', { textContent: STATE_TEXT[state] || state }), h('td', { className: 'muted', textContent: detail || '' })));
+      for (const [k, label] of Object.entries(FEATURE_LABELS)) { const e = (rep.features || {})[k]; row(label, e ? e.state : 'unseen', e ? (e.ok + ' worked, ' + e.fail + ' failed' + (e.why && e.state !== 'working' ? ': ' + e.why : '')) : ''); }
+      const pl = rep.placed || {};
+      row('Menu beside the columns', pl.menu || 'unseen', pl.menuGone || '');
+      row('Right panel beside the columns', pl.sidebar || 'unseen', '');
+      const ign = Object.keys((rep.parse || {}).ignoredOps || {});
+      row('Posts under names not read as timelines', ign.length ? 'failing' : 'working', ign.length ? ign.slice(0, 6).join(', ') : 'none seen');
+      const pr = rep.probe;
+      if (pr) for (const [k, label] of Object.entries(PROBE_LABELS)) { const v = pr[k]; row('On X’s page: ' + label, v ? 'working' : 'failing', typeof v === 'number' ? String(v) : v ? 'found' : 'not found'); }
+      const ps = rep.parse || {};
+      body.replaceChildren(
+        h('table', { className: 'status' }, h('tbody', {}, ...rows)),
+        h('p', { className: 'muted', textContent: 'Version ' + (rep.version || '?') + ', last updated ' + when(rep.at) + (rep.failedOpen ? '. Columns gave up on ' + rep.failedOpen.route + ': ' + rep.failedOpen.why : '') + '. The parser read ' + (ps.tweets || 0) + ' of ' + (ps.tweetItems || 0) + ' posts X sent.' }));
+    };
+    const read = async () => {
+      let v = null;
+      try { v = storage ? (await storage.get('xmcFeatures')).xmcFeatures : JSON.parse(localStorage.getItem('xmc.features') || 'null'); } catch { v = null; }
+      draw(v);
+    };
+    read();
+    if (storage && ext.storage.onChanged) ext.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.xmcFeatures) draw(ch.xmcFeatures.newValue); });
+    else window.addEventListener('storage', (e) => { if (e.key === 'xmc.features') read(); });
+    return wrap;
+  }
+
+  // the memory behind "Posts I've already read\"
   function readingBlock() {
     const summary = h('p', { className: 'muted', id: 'read-summary' });
     const show = () => { summary.textContent = readCount ? readCount + ' posts remembered as read. Only their numbers are kept, on this device.' : 'No posts remembered yet.'; };
@@ -185,7 +222,7 @@
         if (it.hidden === hit) it.hidden = !hit;
         if (hit) { any = true; shown++; }
       }
-      for (const blk of sec.querySelectorAll('.presets, .navlist, .readblock, .dlexample')) blk.hidden = filtering && !titleHit; // (the extras that belong to a section show only when the section itself is what was asked for)
+      for (const blk of sec.querySelectorAll('.presets, .navlist, .readblock, .dlexample, .statusblock')) blk.hidden = filtering && !titleHit; // (the extras that belong to a section show only when the section itself is what was asked for)
       sec.hidden = filtering && !any && !titleHit;
     }
     for (const a of document.querySelectorAll('#nav a')) { const target = document.getElementById(a.getAttribute('href').slice(1)); a.hidden = !!target && target.hidden; }
@@ -252,6 +289,7 @@
       if (sec.custom === 'presets') section.append(presetsBlock());
       if (sec.custom === 'nav') section.append(navBlock());
       if (sec.custom === 'reading') section.append(readingBlock());
+      if (sec.custom === 'status') section.append(statusBlock());
       if (sec.id === 'downloads') section.append(downloadExample(section));
       host.append(section);
     }

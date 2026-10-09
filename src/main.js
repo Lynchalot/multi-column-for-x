@@ -54,7 +54,7 @@
       if (area !== 'local') return;
       const next = {};
       if (changes[LOG_KEY]) logCache = validLog(changes[LOG_KEY].newValue);
-      for (const k in changes) if (k !== 'dlHistory' && k !== 'seenPosts' && k !== LOG_KEY) next[k] = changes[k].newValue;
+      for (const k in changes) if (k !== 'dlHistory' && k !== 'seenPosts' && k !== LOG_KEY && k !== 'xmcFeatures') next[k] = changes[k].newValue;
       if (changes.seenPosts) mergeSeen(changes.seenPosts.newValue);
       if (Object.keys(next).length || changes.dlHistory) onExternalChange(next, changes.dlHistory ? changes.dlHistory.newValue : undefined);
     });
@@ -72,6 +72,17 @@
     twitter: { repost: 'Retweet', reposted: 'retweeted', reposts: 'Retweets', posts: 'Tweets', quote: 'Quote Tweet', undo: 'Undo Retweet', quotes: 'Quote Tweets' },
   };
   const T = (k) => STR[settings.branding === 'twitter' ? 'twitter' : 'x'][k];
+
+  // ---------- what works and what does not ----------
+  // Every press of one of X's buttons, every load of comments or translation, and every timeline that arrives is counted by feature. A run of
+  // failures switches that one feature off for a few minutes (see featureTracker), with a plain sentence on pressing it; the numbers are in
+  // Copy diagnostics and, as a table, on the settings page. (`why` says what was looked for and not found, which is what a fix needs.)
+  const feat = XMCLogic.featureTracker();
+  const FEATURE_NAMES = { timeline: 'Timeline data from X', like: 'Like', bookmark: 'Bookmark', repost: 'Repost and quote', comments: 'Comments', 'comment actions': 'Like and bookmark on a comment', translate: 'Translate' };
+  const syncOffClasses = () => { for (const k of ['like', 'bookmark', 'repost']) root.classList.toggle('xmc-off-' + k, feat.off(k)); };
+  const featOk = (k) => { feat.ok(k); syncOffClasses(); };
+  const featFail = (k, why) => { feat.fail(k, why); syncOffClasses(); };
+  const offSentence = (k) => 'X\u2019s ' + FEATURE_NAMES[k] + ' button could not be found three times in a row, so it is switched off for a few minutes' + (feat.snapshot()[k] && feat.snapshot()[k].why ? ' (' + feat.snapshot()[k].why + ')' : '') + '. \u201cReport a problem\u201d sends the details.';
 
   // ---------- routes ----------
   // Explore (and its Trending, News, Sports, Entertainment tabs) is mostly Today's News, trends and "Who to follow", with
@@ -148,9 +159,12 @@
       }
     }
   }
+  // the last timeline and conversation X sent, kept (as they arrived) for "Save sample"; a response is only referred to here, not copied
+  const rawByOp = new Map();
   function onResponse(url, body, reqBody) {
     const op = XMCParse.opOf(url);
     if (op) state.seenOps[op] = (state.seenOps[op] || 0) + 1;
+    if (op && body && typeof body === 'object' && /Timeline|TweetDetail|Bookmarks|Likes|ListLatest|SearchTimeline|UserTweets|UserMedia/.test(op)) { rawByOp.delete(op); rawByOp.set(op, { url: url.split('?')[0], body }); while (rawByOp.size > 8) rawByOp.delete(rawByOp.keys().next().value); }
     try { noteList(op, body); } catch { /* not a list */ }
     if (/^User(Result)?By/.test(op || '')) {
       try {
@@ -183,6 +197,8 @@
     }
     const r = XMCParse.parseResponse(body, url, reqBody);
     if (!r) return;
+    if (r.items.length) featOk('timeline');
+    else if (r.seen.tweetItems > 0) featFail('timeline', 'X sent ' + r.seen.tweetItems + ' posts and none could be read (' + droppedSummary() + ')');
     remember(r.items);
     // Which feed is this? A page asked for with a "next page" marker we handed out belongs to the feed that gave it
     // out, whatever X put in the request. A first page belongs to the feed of the dropdown item picked on the tab
@@ -862,16 +878,16 @@
       pill.replaceChildren(icon('columns'), h('span', { className: 'xmc-pill-label', textContent: text }));
     }
     const title = on ? 'Columns are on for this page. Click to see X\u2019s normal feed instead.'
-      : state.failedBy === 'error' && state.failed === routeKey() ? 'Columns couldn\u2019t load here, so X\u2019s own page is showing. Click to try again.' : 'Click to show this page in columns';
+      : state.failedBy === 'error' && state.failed === routeKey() ? 'Columns couldn\u2019t load here, so X\u2019s own page is showing' + (state.failWhy ? ' (' + state.failWhy + ')' : '') + '. Click to try again.' : 'Click to show this page in columns';
     if (pill.title !== title) { pill.title = title; pill.setAttribute('aria-label', text); }
   }
 
   let toastTimer = 0;
-  function toast(msg, undo) {
+  function toast(msg, undo, label, ms) {
     toastEl.textContent = msg; toastEl.hidden = false;
-    if (undo) toastEl.append(h('button', { type: 'button', className: 'xmc-undo', textContent: 'Undo', onclick: () => { toastEl.hidden = true; clearTimeout(toastTimer); undo(); } }));
+    if (undo) toastEl.append(h('button', { type: 'button', className: 'xmc-undo', textContent: label || 'Undo', onclick: () => { toastEl.hidden = true; clearTimeout(toastTimer); undo(); } }));
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toastEl.hidden = true; }, undo ? 5000 : 2800);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; }, ms || (undo ? 5000 : 2800));
   }
   // The gear opens the settings in a panel over the page: the settings page itself, in a frame (it is the same page the toolbar button
   // opens, so there is one thing to keep right). If the frame has not said it is up within three seconds (a page that will not frame it),
@@ -1439,6 +1455,7 @@
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
       theme: (() => { const c = document.querySelector('.xmc-card'); const ccs = c && getComputedStyle(c); const rcs = getComputedStyle(root); return { cardStyle: settings.cardStyle, seeThrough: root.classList.contains('xmc-seethru'), fg: rcs.getPropertyValue('--xmc-fg').trim(), bg: rcs.getPropertyValue('--xmc-bg').trim(), cardBg: ccs && ccs.backgroundColor, cardEdge: ccs && ccs.borderTopColor, bodyBg: getComputedStyle(document.body).backgroundColor, htmlBg: getComputedStyle(document.documentElement).backgroundColor }; })(),
       ageFlag: state.ageFlag || null,
+      features: featureReport(),
       trace: TRACE.slice(-120),
       log: { thisLoad: loadId, kept: !!settings.keepLog, earlier: earlierLog() }, // (from before this page load, and from other x.com tabs; the times are this computer's)
       commentTimes: state.commentTimes || [],
@@ -1454,6 +1471,33 @@
   async function reportProblem() {
     if (typeof XMCMeta !== 'undefined' && XMCMeta.repo) window.open(XMCMeta.repo + '/issues/new/choose', '_blank', 'noopener');
     try { await navigator.clipboard.writeText(diagnostics()); toast('Details copied. Paste them into the report.'); } catch { console.log('[xmc] diagnostics', diagnostics()); toast('Couldn\u2019t copy; the details are in the browser console.'); }
+  }
+  // A file for whoever has to fix a change in X's pages: the shape of the last timelines X sent and the markup of the buttons this extension
+  // presses, with the words, names and addresses taken out (src/sample.js). Nothing is sent; the file goes to the browser's downloads.
+  function saveSample() {
+    try {
+      const ops = {};
+      for (const [op, { url, body }] of rawByOp) {
+        let j = XMCSample.sanitizeJson(body);
+        const raw = JSON.stringify(j);
+        if (raw.length > 600000) j = { truncated: true, note: 'over 600 kB: not kept' };
+        ops[op] = { url, json: j };
+      }
+      const art = articles()[0], controls = {};
+      if (art) {
+        for (const k of ['like', 'repost', 'bookmark', 'reply', 'share', 'tweetText']) { const el = art.querySelector(XMCLogic.controlSel(k)); if (el) controls[k] = XMCSample.sanitizeMarkup(el.closest('[role="group"]') && k !== 'tweetText' ? el.closest('[role="group"]') : el); }
+        try { const tc = translateControl(art); if (tc) controls.translate = XMCSample.sanitizeMarkup(tc); } catch { /* none on this post */ }
+        controls.article = XMCSample.sanitizeMarkup(art).slice(0, 60000);
+      }
+      const tabs = document.querySelector('[data-testid="primaryColumn"] [role="tablist"]'); if (tabs) controls.tabs = XMCSample.sanitizeMarkup(tabs);
+      const nav = pin.nav.el(); if (nav) { const home = nav.querySelector('a[href="/home"]'); if (home) controls.homeLink = XMCSample.sanitizeMarkup(home); const first = nav.querySelector('nav'); if (first) controls.nav = XMCSample.sanitizeMarkup(first).slice(0, 30000); }
+      const sample = { kind: 'multi-column-for-x sample', version: featureReport().version, taken: new Date().toISOString().slice(0, 10), userAgent: navigator.userAgent, pageLang: document.documentElement.lang || '', ops, controls, probe: state.probe || null, features: feat.snapshot(), parse: XMCParse.stats };
+      const blob = new Blob([JSON.stringify(sample, null, 1)], { type: 'application/json' });
+      const a = h('a', { href: URL.createObjectURL(blob), download: 'multi-column-for-x-sample-' + sample.taken + '.json' });
+      document.body.append(a); a.click(); a.remove();
+      toast('Sample saved to your downloads (' + Object.keys(ops).length + ' timelines, ' + Object.keys(controls).length + ' pieces of markup). Send it with the report.');
+      trace('sample', Object.keys(ops).join(',') + ' / ' + Object.keys(controls).join(','));
+    } catch (err) { toast('Couldn’t make a sample: ' + String((err && err.message) || err).slice(0, 100)); }
   }
   async function copyDiagnostics() {
     try { await navigator.clipboard.writeText(diagnostics()); toast('Copied \u2014 paste it to whoever is helping you'); } catch { console.log('[xmc] diagnostics', diagnostics()); toast('Couldn\u2019t copy; it\u2019s in the browser console'); }
@@ -1524,14 +1568,14 @@
   async function withReal(t, fn) {
     try {
       const art = await realArticle(t, 4000); // (a press is shown at once, so this can look longer than a comment visit does before it asks X's router)
-      if (art) { await fn(art); return true; }
+      if (art) { return (await fn(art)) !== false; } // (a callback that returns false did not find what it presses)
       // a post that is not in X's list (one seen only as a quote, or one X has not drawn): its own page has the same buttons
       if (!t.url) return false;
       let done = false;
       await inQueue(() => visitPost(t, {}, {}, async ({ opened }) => {
         if (!opened) return;
         const page = await waitFor(() => findArticle(t.id), 6000);
-        if (page) { await fn(page); await sleep(500); done = true; }
+        if (page) { const r = await fn(page); await sleep(500); done = r !== false; }
       }));
       return done;
     } finally { settleProxy(); }
@@ -1568,29 +1612,35 @@
     t.state[key] = want;
     if (countKey) t.counts[countKey] = Math.max(0, t.counts[countKey] + (want ? 1 : -1));
     updateActions(t);
-    const ok = await withReal(t, (art) => { const b = art.querySelector(want ? onSel : offSel); if (b) fire(b); });
+    const kind = key === 'liked' ? 'like' : 'bookmark';
+    let missing = false;
+    const ok = await withReal(t, (art) => { const b = art.querySelector(want ? onSel : offSel); if (b) { fire(b); return true; } missing = true; return false; });
+    if (ok) featOk(kind);
+    else if (missing) featFail(kind, 'not found on X\u2019s post: ' + (want ? onSel : offSel));
     if (!ok) {
       state.actionFails.push(Date.now());
       t.state[key] = !want;
       if (countKey) t.counts[countKey] = Math.max(0, t.counts[countKey] + (want ? -1 : 1));
       updateActions(t);
-      toast('Couldn’t reach that post just now — try again in a moment');
+      toast(missing ? 'Couldn\u2019t find X\u2019s ' + (kind === 'like' ? 'Like' : 'Bookmark') + ' button on that post.' : 'Couldn’t reach that post just now — try again in a moment');
     } else if (key === 'bookmarked' && !quiet) toast(want ? 'Saved to bookmarks' : 'Removed from bookmarks', () => toggleAction(t, key, onSel, offSel, countKey, true));
   }
   async function repost(t, quote, quiet) {
     const doc = document.documentElement;
     if (!quote) doc.classList.add('xmc-acting'); // X's little repost menu is clicked for us; keep it from flashing
     try {
+      let missing = '';
       const ok = await withReal(t, async (art) => {
-        const b = art.querySelector('[data-testid="retweet"],[data-testid="unretweet"]');
-        if (!b) return;
+        const b = art.querySelector(XMCLogic.controlSel('repost'));
+        if (!b) { missing = 'not found on X\u2019s post: ' + XMCLogic.controlSel('repost'); return false; }
         fire(b);
         if (quote) {
           const item = await waitFor(() => [...document.querySelectorAll('#layers [role="menuitem"]')]
             .find((m) => /quote/i.test(m.textContent)) || document.querySelectorAll('#layers [role="menuitem"]')[1], 1500);
-          if (item) fire(item);
+          if (item) fire(item); else { missing = 'X\u2019s repost menu did not offer Quote'; return false; }
         } else {
-          const confirm = await waitFor(() => document.querySelector('[data-testid="retweetConfirm"],[data-testid="unretweetConfirm"]'), 1500);
+          const confirm = await waitFor(() => document.querySelector(XMCLogic.controlSel('repostConfirm')), 1500);
+          if (!confirm) { missing = 'X\u2019s repost menu did not offer Repost: ' + XMCLogic.controlSel('repostConfirm'); return false; }
           if (confirm) {
             fire(confirm);
             t.state.reposted = !t.state.reposted;
@@ -1600,7 +1650,8 @@
           }
         }
       });
-      if (!ok) { state.actionFails.push(Date.now()); toast('Couldn’t reach that post just now — try again in a moment'); }
+      if (ok) featOk('repost'); else if (missing) featFail('repost', missing);
+      if (!ok) { state.actionFails.push(Date.now()); toast(missing ? 'Couldn\u2019t find X\u2019s Repost button or menu on that post.' : 'Couldn’t reach that post just now — try again in a moment'); }
     } finally { setTimeout(() => doc.classList.remove('xmc-acting'), 500); }
   }
 
@@ -2066,6 +2117,7 @@
       fire(b);
       return { ok: true };
     });
+    if (res.ok) featOk('comment actions'); else featFail('comment actions', res.why || 'could not reach the comment');
     if (!res.ok) { state.actionFails.push(Date.now()); flip(!want); toast(res.why || 'Couldn’t reach that comment just now. Try again in a moment'); }
   }
   // save a comment to bookmarks (or take it off): X's own button on that comment, found the same way
@@ -2079,6 +2131,7 @@
       fire(b);
       return { ok: true };
     });
+    if (res.ok) featOk('comment actions'); else featFail('comment actions', res.why || 'could not reach the comment');
     if (!res.ok) { state.actionFails.push(Date.now()); flip(!want); toast(res.why || 'Couldn\u2019t reach that comment just now. Try again in a moment'); }
     else toast(want ? 'Saved to bookmarks' : 'Removed from bookmarks');
   }
@@ -2106,7 +2159,7 @@
     updateActions(t);
     const res = await loadReplies(t, { wanted: () => panel.isConnected, onStart: () => { label.textContent = ' Loading comments…'; } });
     if (!panel.isConnected) return; // closed while loading
-    if (!res || !res.data) state.commentFails.push(Date.now());
+    if (!res || !res.data) { state.commentFails.push(Date.now()); featFail('comments', (res && res.why) || 'no comments came'); } else featOk('comments');
     fillReplies(panel, t, res);
   }
 
@@ -2388,6 +2441,7 @@
       }],
       ['Open in a new tab', () => window.open('https://' + location.host + t.url, '_blank', 'noopener')],
       ['Copy diagnostics', () => copyDiagnostics()],
+      ['Save sample for the developer', () => saveSample()],
       ['Report a problem', () => reportProblem()],
     ]);
   }
@@ -2641,7 +2695,7 @@
     } else if (t.counts.reply > 0) {
       Promise.race([loadReplies(t, { wanted: () => panel.isConnected }), sleep(30000).then(() => ({ why: 'This is taking too long.' }))]).then((res) => {
         if (!panel.isConnected) return;
-        if (!res || !res.data) state.commentFails.push(Date.now());
+        if (!res || !res.data) { state.commentFails.push(Date.now()); featFail('comments', (res && res.why) || 'no comments came'); } else featOk('comments');
         const chain = contextChain(t).filter(usable);
         if (ctxHost.querySelector('.xmc-vctx-sk') || !ctxHost.children.length) { // the post this answers: in the room kept for it (and the panel scrolled by any difference, so nothing you are reading moves)
           const was = side.scrollHeight;
@@ -2790,7 +2844,8 @@
   // Posts and comments in another language get a "Translate post" button. X offers translation only on a post's own page, so the
   // hidden page is taken there, X's own button is pressed, and the translated words are read off its page and shown here (with
   // "Show original"). Nothing is sent anywhere else. If X's page offers nothing we can read, the button opens the post on X instead.
-  const TRANSLATE_LABEL = /^(translate (post|tweet|reply|comment)|show translation)$/i; // (X has used both)
+  const TRANSLATE_LABEL = XMCLogic.wordPattern('translate'); // (X has used both "post" and "tweet"; the words are in XMCLogic.WORDS)
+  const SHOW_ORIGINAL = XMCLogic.wordPattern('original'), TRANSLATED_FROM = XMCLogic.wordPattern('translatedFrom', false);
   // X's control is found by its English label when X is in English; in any other interface language by where it sits: the one plain
   // button beside the post's words (not one of the post's action buttons, nothing with a test id, nothing in the action row).
   function translateControl(art) {
@@ -2835,7 +2890,7 @@
       const words = art.querySelector('[data-testid="tweetText"]');
       if (!words) continue;
       const from = translatedFrom(art);
-      if (!from && ![...art.querySelectorAll('[role="button"], button')].some((b) => /^show original$/i.test((b.textContent || '').trim()))) continue; // (X says it is translated)
+      if (!from && ![...art.querySelectorAll('[role="button"], button')].some((b) => SHOW_ORIGINAL.test((b.textContent || '').trim()))) continue; // (X says it is translated)
       const text = (words.innerText || '').trim();
       if (!text) continue;
       translations.set(id, { text, from });
@@ -2851,8 +2906,8 @@
     const shownText = () => ((words() && words().innerText) || '').trim();
     const before = shownText();
     // translated = X's words changed after we pressed its control (works in any interface language), or X says so in English
-    const done = () => { const w = shownText(); return w && (w !== before || /translated from/i.test(art.textContent || '')) ? w : ''; };
-    if (!/translated from/i.test(art.textContent || '')) {
+    const done = () => { const w = shownText(); return w && (w !== before || TRANSLATED_FROM.test(art.textContent || '')) ? w : ''; };
+    if (!TRANSLATED_FROM.test(art.textContent || '')) {
       let ctl = null;
       await waitFor(() => { if (!root) art = findArticle(t.id) || art; ctl = translateControl(art); return ctl; }, 5000);
       if (!ctl) {
@@ -2905,7 +2960,8 @@
         if (res) via = 'comments';
       }
       if (!res || (!res.ok && /find the post/.test(res.why || ''))) { res = await translateVisit(t, root, lap, T0); via = 'visit'; }
-      if (res && res.ok) translations.set(t.id, { text: res.text, from: res.from });
+      if (res && res.ok) { translations.set(t.id, { text: res.text, from: res.from }); featOk('translate'); }
+      else if (res && !/find the post/.test(res.why || '')) featFail('translate', res.why || 'no answer');
       (state.translateTimes = state.translateTimes || []).push(Object.assign({ id: t.id, ok: !!(res && res.ok), via, warm: !!(opts && opts.warm), total: Date.now() - T0 }, lap)); // (in the diagnostics: the last few)
       if (state.translateTimes.length > 8) state.translateTimes.shift();
       res = res || { why: 'Something went wrong.' };
@@ -3001,9 +3057,11 @@
   }
   const bump = (b) => { if (!b) return; b.classList.add('xmc-bump'); setTimeout(() => b.classList.remove('xmc-bump'), 320); }; // the icon gives a small beat when you press it
   async function act(t, kind, button) {
+    const offKind = { like: 'like', bookmark: 'bookmark', repost: 'repost' }[kind];
+    if (offKind && feat.off(offKind)) { toast(offSentence(offKind), () => reportProblem(), 'Report', 7000); return undefined; }
     switch (kind) {
-      case 'like': bump(button); return toggleAction(t, 'liked', '[data-testid="like"]', '[data-testid="unlike"]', 'like');
-      case 'bookmark': bump(button); return toggleAction(t, 'bookmarked', '[data-testid="bookmark"]', '[data-testid="removeBookmark"]', 'bookmark');
+      case 'like': bump(button); return toggleAction(t, 'liked', XMCLogic.controlSel('like', 0), XMCLogic.controlSel('like', 1), 'like');
+      case 'bookmark': bump(button); return toggleAction(t, 'bookmarked', XMCLogic.controlSel('bookmark', 0), XMCLogic.controlSel('bookmark', 1), 'bookmark');
       case 'repost':
         return openMenu(button, [[t.state.reposted ? T('undo') : T('repost'), () => repost(t, false)], [T('quote'), () => repost(t, true)]]);
       case 'reply': return settings.commentsIn === 'panel' ? openPostView(t, false, true) : toggleComments(t);
@@ -3966,6 +4024,48 @@
     set('right', right + 'px'); set('bottom', bottom + 'px');
   }
 
+  // ---------- failing open ----------
+  // When what this extension needs from X has stopped working, X's own page is shown (as "Turn Columns Off" does for this page), with the
+  // reason in a line and a Report button: nobody is left with a broken screen. "Turn Columns On" tries again.
+  function failOpen(why) {
+    const route = routeKey();
+    if (state.failed === route) return;
+    state.failed = route; state.failedBy = 'error'; state.failWhy = String(why).slice(0, 240);
+    trace('FAIL OPEN', state.failWhy);
+    toast('Columns stopped working here, so X’s own page is showing. ' + state.failWhy, () => reportProblem(), 'Report', 12000);
+  }
+  const droppedSummary = () => Object.entries(XMCParse.stats.dropped).filter(([, n]) => n > 0).map(([k, n]) => k + ' ' + n).join(', ') || 'no reason counted';
+  // Looks, from X's own (hidden) page, for the things this extension presses or reads, so a change shows before anyone presses anything.
+  function probeX() {
+    if (state.peek || state.posting || onPostPage()) return;
+    const art = articles()[0], nav = pin.nav.el();
+    const has = (kind) => !!(art && art.querySelector(XMCLogic.controlSel(kind)));
+    state.probe = {
+      at: Date.now(), lang: document.documentElement.lang || '', xPosts: articles().length, homeLink: !!(nav && nav.querySelector('a[href="/home"]')), tabs: realTabs().length,
+      timeLink: !!(art && art.querySelector('a[href*="/status/"] time')), like: has('like'), repost: has('repost'), bookmark: has('bookmark'), reply: has('reply'), share: has('share'), text: has('tweetText'),
+    };
+  }
+  // what the settings page shows: counted features, the things placed by measurement, the last probe and the parser's numbers
+  function featureReport() {
+    const nv = pin.nav.el(), sd = pin.side.el();
+    return {
+      version: ext && ext.runtime.getManifest ? ext.runtime.getManifest().version : 'dev', features: feat.snapshot(), probe: state.probe || null,
+      placed: { menu: pin.nav.fallback ? 'failing' : nv && nv.dataset.xmcStyle !== undefined ? 'working' : 'unseen', sidebar: settings.hideSidebar ? 'unseen' : pin.side.fallback ? 'failing' : sd && sd.dataset.xmcStyle !== undefined ? 'working' : 'unseen', menuGone: state.menuGone ? state.menuGone.why : '' },
+      parse: { responses: XMCParse.stats.responses, entries: XMCParse.stats.entries, tweetItems: XMCParse.stats.tweetItems, tweets: XMCParse.stats.tweets, dropped: XMCParse.stats.dropped, entryTypes: XMCParse.stats.itemTypes, ops: XMCParse.stats.ops, ignoredOps: XMCParse.stats.ignoredOps },
+      failedOpen: state.failed ? { route: state.failed, why: state.failWhy || '' } : null,
+    };
+  }
+  const FEAT_KEY = 'xmcFeatures';
+  let featSent = '', featSentAt = 0;
+  function publishFeatures() { // for the settings page (it cannot see this page): when it changed, at most every five seconds
+    const rep = featureReport(), s = JSON.stringify(rep);
+    if (s === featSent || Date.now() - featSentAt < 5000) return;
+    featSent = s; featSentAt = Date.now();
+    const out = Object.assign({ at: Date.now() }, rep);
+    if (storage) storage.set({ [FEAT_KEY]: out }).catch(() => {});
+    else { try { localStorage.setItem('xmc.features', JSON.stringify(out)); } catch { /* storage blocked */ } }
+  }
+
   // ---------- health ----------
   // Notice when something the extension relies on has stopped working (X changed its page), and say so.
   function healthSnapshot() {
@@ -4011,7 +4111,18 @@
     }
   }
 
-  const guard = (name, fn) => { try { fn(); } catch (err) { console.error('[xmc]', name, err); traceOnce('error ' + name, err && err.message, 30000); } };
+  const CORE_STEPS = new Set(['tick', 'render', 'pump', 'position', 'tabs', 'tab rules', 'bar']);
+  const coreErrors = [];
+  const guard = (name, fn) => {
+    try { fn(); } catch (err) {
+      console.error('[xmc]', name, err); traceOnce('error ' + name, err && err.message, 30000);
+      if (CORE_STEPS.has(name) && state.shown) { // thirty in ten seconds, in the steps that draw and place the columns: it is not going to stop
+        const now = Date.now(); coreErrors.push(now);
+        while (coreErrors.length && now - coreErrors[0] > 10000) coreErrors.shift();
+        if (coreErrors.length >= 30) { coreErrors.length = 0; failOpen('The script keeps stopping with an error (' + name + ': ' + String((err && err.message) || err).slice(0, 90) + ').'); }
+      }
+    }
+  };
   let veilPath = null;
   let tickN = 0;
   let wasActive = false;
@@ -4030,6 +4141,8 @@
     if (tickN % 15 === 7) guard('translations', harvestTranslations);
     guard('side panels', applyPanels);
     if (tickN % 5 === 4) guard('menu watch', menuWatch);
+    if (tickN % 50 === 25) guard('probe', probeX);
+    if (tickN % 20 === 10) guard('publish', publishFeatures);
     if (tickN % 10 === 6) guard('keys room', keepHiddenPageRoom);
     if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
@@ -4103,8 +4216,9 @@
       // No timeline data arrived (X changed its format, or the feed really is empty): show the normal feed.
       console.warn('[xmc] no timeline data after 10s; showing the normal feed. Seen:', JSON.stringify(state.seenOps),
         'feeds:', [...state.feeds.keys()]);
-      state.failed = route; state.failedBy = 'error';
-      toast('Columns couldn’t load here, so this is X’s normal page. “Turn Columns On” tries again, or use Report a problem.');
+      const sx = XMCParse.stats;
+      const ign = Object.keys(sx.ignoredOps);
+      failOpen(sx.tweetItems && !sx.tweets ? 'X sent ' + sx.tweetItems + ' posts and none could be read (' + droppedSummary() + ').' : ign.length ? 'X sent posts under names this version does not read as timelines: ' + ign.slice(0, 4).join(', ') + '.' : 'No timeline data arrived. \u201cTurn Columns On\u201d tries again.');
       return;
     }
     if (state.homeHold && state.sel === 1 && !state.awaiting) state.homeHold = false; // Following is up: draw it now, not at the next slow pass

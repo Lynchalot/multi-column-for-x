@@ -124,7 +124,7 @@ var XMCSettings = (function () {
       ],
     },
     {
-      id: 'trouble', title: 'Troubleshooting', items: [
+      id: 'trouble', title: 'Troubleshooting', custom: 'status', items: [
         { key: 'keepLog', type: 'bool', def: true, label: 'Keep a short log for Copy diagnostics', help: 'The last 300 or so events (kinds and post numbers, no post text) stay in your browser, so a problem is still there after a reload. Nothing is sent anywhere. Turning this off deletes the log.' },
       ],
     },

@@ -231,3 +231,32 @@ test('a detail: the posts listed above the focal one are what it answers, not co
   assert.deepEqual(d.ancestors.map((t) => t.id), ['1', '2'], 'the chain, oldest first, only what is linked to it');
   assert.deepEqual(d.replies.map((t) => t.id), ['4', '5'], 'comments are what comes after it');
 });
+
+test('the parser counts what it read and what it let go, so a change in X\'s shape shows as numbers', () => {
+  const before = JSON.parse(JSON.stringify(P.stats));
+  const good = F.homeTimeline();
+  const ok = P.parseResponse(good, HOME);
+  assert.ok(ok.items.length > 0);
+  assert.deepEqual(ok.seen.tweetItems >= ok.items.length, true);
+  assert.equal(P.stats.tweets - before.tweets, ok.items.length);
+  // the same page with the part that holds each post's words and numbers taken away
+  const strip = (n) => { if (Array.isArray(n)) n.forEach(strip); else if (n && typeof n === 'object') { if (n.rest_id && n.legacy) delete n.legacy; for (const k of Object.keys(n)) strip(n[k]); } };
+  const broken = JSON.parse(JSON.stringify(good)); strip(broken);
+  const b0 = P.stats.dropped.noLegacy;
+  const bad = P.parseResponse(broken, HOME);
+  assert.equal(bad.items.length, 0, 'nothing could be read');
+  assert.ok(bad.seen.tweetItems > 0, 'but X did send posts');
+  assert.ok(P.stats.dropped.noLegacy > b0, 'and the reason is counted');
+  assert.ok(Object.keys(P.stats.itemTypes).length > 0, 'the kinds of entry seen are listed');
+});
+
+test('a response under a name this version does not know, that carries posts, is not read but is counted by name; an item whose type is renamed is still found', () => {
+  const j = F.homeTimeline();
+  const n0 = P.stats.ignoredOps.BrandNewFeedV9 || 0;
+  assert.equal(P.parseResponse(j, 'https://x.com/i/api/graphql/zz/BrandNewFeedV9?variables={}'), null);
+  assert.equal(P.stats.ignoredOps.BrandNewFeedV9, n0 + 1);
+  assert.equal(P.parseResponse({ data: { viewer: { settings: { a: 1 } } } }, 'https://x.com/i/api/graphql/zz/SomeSettings?variables={}'), null);
+  assert.equal(P.stats.ignoredOps.SomeSettings, undefined, 'a response with no posts is not counted');
+  const renamed = JSON.parse(JSON.stringify(j).replace(/"TimelineTweet"/g, '"TimelineTweetV2"'));
+  assert.equal(P.parseResponse(renamed, HOME).items.length, P.parseResponse(j, HOME).items.length);
+});

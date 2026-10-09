@@ -96,3 +96,21 @@ chrome('keys that move X\'s hidden page move the columns (the extension\'s own w
   assert.ok((await top()) - before >= 50, 'the columns moved: ' + before + ' -> ' + (await top()));
   await page.close();
 });
+
+chrome('what the extension saw on x.com (features, the probe of X\'s buttons) is written to chrome.storage for the settings page to show', async (r) => {
+  const page = await r.open();
+  await page.waitForSelector('.xmc-card', { timeout: 20000 });
+  const opts = await r.context.newPage();
+  await opts.goto(r.ext('options.html'));
+  let rep = null;
+  for (let i = 0; i < 60 && !(rep && rep.probe); i++) { rep = (await opts.evaluate(() => chrome.storage.local.get('xmcFeatures'))).xmcFeatures; if (!(rep && rep.probe)) await opts.waitForTimeout(500); }
+  assert.ok(rep && rep.probe, 'a report with a probe in it');
+  assert.equal(rep.probe.like, true, 'X\'s Like button was found'); assert.equal(rep.probe.homeLink, true);
+  assert.ok(rep.parse.tweets > 0, 'the parser read posts');
+  await opts.reload();
+  await opts.locator('#sections h2').first().waitFor();
+  const row = opts.locator('table.status tr', { hasText: 'Timeline data from X' });
+  await row.waitFor({ timeout: 8000 });
+  assert.match(await row.innerText(), /Working/);
+  await opts.close(); await page.close();
+});

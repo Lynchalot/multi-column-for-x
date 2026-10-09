@@ -53,12 +53,22 @@ var XMCParse = (function () {
     }
     return out;
   }
+  const hasTweetItems = (json) => { // (stops at the first)
+    let hit = false;
+    (function dfs(n, d) {
+      if (hit || d > 14 || !n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { for (const x of n) { dfs(x, d + 1); if (hit) return; } return; }
+      if (n.tweet_results) { hit = true; return; }
+      for (const k in n) { dfs(n[k], d + 1); if (hit) return; }
+    })(json, 0);
+    return hit;
+  };
   function tweetItems(entry) {
     const found = [];
     (function dfs(n) {
       if (!n || typeof n !== 'object') return;
       if (Array.isArray(n)) { n.forEach(dfs); return; }
-      if (n.itemType === 'TimelineTweet' && n.tweet_results) { found.push(n); return; }
+      if (n.tweet_results && typeof n.tweet_results === 'object' && (!n.itemType || /Tweet/i.test(String(n.itemType)))) { found.push(n); return; } // (by what it holds: X can rename the type)
       for (const k in n) dfs(n[k]);
     })(entry && entry.content);
     return found;
@@ -174,14 +184,20 @@ var XMCParse = (function () {
     return { url: safeUrl(hit && hit.expanded_url) || safeUrl(tco) || '#', title, desc: str('description'), domain: str('vanity_url') || str('domain'), image: img };
   }
 
+  // What the parser read and what it let go, over the whole page load: a change in X's shape then shows as a number (diagnostics, `parse`)
+  const stats = { responses: 0, entries: 0, tweetItems: 0, tweets: 0, dropped: { noResult: 0, noLegacy: 0, noAuthor: 0, noId: 0, noText: 0 }, itemTypes: {}, ops: {}, ignoredOps: {} };
+  const drop = (why) => { stats.dropped[why]++; return null; };
   function normalizeTweet(result, depth) {
     depth = depth || 0;
     const r = unwrap(result);
-    if (!r || !r.legacy) return null;
+    if (!r) return drop('noResult');
+    if (!r.legacy) return drop('noLegacy');
     const legacy = r.legacy;
     const author = parseUser(r.core && r.core.user_results) || parseUser(r.author_results);
+    if (!author) return drop('noAuthor');
     const id = r.rest_id || legacy.id_str;
-    if (!author || !id) return null;
+    if (!id) return drop('noId');
+    if (typeof legacy.full_text !== 'string' && !(r.note_tweet && r.note_tweet.note_tweet_results)) stats.dropped.noText++; // (kept, with no words: counted)
 
     // a repost wraps the original; show the original with "X reposted" on top
     const rtRaw = legacy.retweeted_status_result && legacy.retweeted_status_result.result;
@@ -196,7 +212,7 @@ var XMCParse = (function () {
     if (qRaw && depth < 2) quoted = normalizeTweet(qRaw, depth + 1) || { unavailable: true };
 
     const note = r.note_tweet && r.note_tweet.note_tweet_results && r.note_tweet.note_tweet_results.result;
-    const text = note ? note.text : legacy.full_text;
+    const text = note ? note.text : (legacy.full_text !== undefined ? legacy.full_text : legacy.text);
     const ents = note ? Object.assign({}, legacy.entities, note.entity_set) : legacy.entities || {};
     const segs = buildSegments(text, ents, note ? null : legacy.display_text_range,
       (u) => !!(qid && String(u).includes('/status/' + qid)));
@@ -245,12 +261,21 @@ var XMCParse = (function () {
   // Returns null for responses that aren't timelines.
   function parseResponse(json, url, reqBody) {
     const op = opOf(url);
-    if (!op || !FEED_OPS.test(op) || NOT_FEEDS.test(op)) return null;
+    if (!op || !FEED_OPS.test(op) || NOT_FEEDS.test(op)) {
+      // an operation this version does not treat as a timeline that still carries posts (X renamed one?): not read, but counted, with its name
+      if (op && !NOT_FEEDS.test(op) && hasTweetItems(json)) stats.ignoredOps[op] = (stats.ignoredOps[op] || 0) + 1;
+      return null;
+    }
     const { vars, known } = requestVars(url, reqBody);
     const items = [];
     let topCursor = '', bottomCursor = '';
+    stats.responses++; stats.ops[op] = (stats.ops[op] || 0) + 1;
+    let nEntries = 0, nItems = 0; // (this response's own, for the caller)
     for (const entry of entriesOf(collectInstructions(json))) {
       if (!entry || typeof entry !== 'object') continue;
+      stats.entries++; nEntries++;
+      const ty = entry.content && (entry.content.entryType || (entry.content.itemContent && entry.content.itemContent.itemType));
+      if (ty) stats.itemTypes[ty] = (stats.itemTypes[ty] || 0) + 1;
       const cur = cursorOf(entry);
       if (cur && cur.type === 'bottom') bottomCursor = cur.value;
       if (cur && cur.type === 'top') topCursor = cur.value;
@@ -258,9 +283,11 @@ var XMCParse = (function () {
       if (/^(cursor|who-to-follow|promoted|toptabsfilter|label|messageprompt)/i.test(eid)) continue;
       const group = []; // X sends a reply together with the post it answers as one entry: keep that link
       for (const item of tweetItems(entry)) {
+        stats.tweetItems++; nItems++;
         if (item.promotedMetadata || item.tweet_results.promotedMetadata) continue;
         const t = normalizeTweet(item.tweet_results.result);
         if (!t) continue;
+        stats.tweets++;
         const up = t.replyToId && !t.repostedBy ? group.find((g) => g.id === t.replyToId) : null;
         if (up) {
           t.parent = up;
@@ -271,7 +298,7 @@ var XMCParse = (function () {
         items.push(t);
       }
     }
-    return { op, feedKey: feedKeyOf(op, vars), known, first: !vars.cursor, reqCursor: vars.cursor || '', topCursor, bottomCursor, items };
+    return { op, feedKey: feedKeyOf(op, vars), known, first: !vars.cursor, reqCursor: vars.cursor || '', topCursor, bottomCursor, items, seen: { entries: nEntries, tweetItems: nItems } };
   }
 
   // A tweet's conversation (TweetDetail): the replies, in the order X sends them, without the tweet itself.
@@ -340,7 +367,7 @@ var XMCParse = (function () {
     };
   }
 
-  const api = { parseProfile, parseResponse, parseDetail, normalizeTweet, buildSegments, parseDate, opOf, varsOf, requestVars, feedKeyOf };
+  const api = { stats, parseProfile, parseResponse, parseDetail, normalizeTweet, buildSegments, parseDate, opOf, varsOf, requestVars, feedKeyOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

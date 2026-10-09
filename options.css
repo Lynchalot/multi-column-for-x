@@ -94,3 +94,15 @@ body.popup .top { position: sticky; top: 0; z-index: 4; background: var(--bg); m
 body.popup .top .find { position: static; border-bottom: 0; margin-top: 0; }
 body.popup header { padding-top: 10px; }
 body.popup.framed main { padding-top: 0; }
+
+/* what is working on x.com (Troubleshooting) */
+.statusblock { margin: 10px 0 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.statusblock h3 { margin: 0 0 6px; font-size: 15px; }
+table.status { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.status th { text-align: left; font-weight: 600; padding: 6px 8px 6px 0; vertical-align: top; width: 38%; }
+table.status td { padding: 6px 8px 6px 0; vertical-align: top; }
+table.status tr { border-top: 1px solid var(--line); }
+table.status tr.st-failing td:nth-child(2), table.status tr.st-off td:nth-child(2) { color: #f4212e; font-weight: 600; }
+table.status tr.st-working td:nth-child(2) { color: #00ba7c; }
+table.status tr.st-unseen td:nth-child(2) { color: var(--muted); }
+body.popup table.status th { width: 40%; }

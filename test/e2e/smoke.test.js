@@ -5,6 +5,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { setup } = require('./harness.js');
 const { OURS, auditInPage } = require('./a11y.js');
+const Parse = require('../../src/parse.js');
+const Logic = require('../../src/logic.js');
 
 let env = null;
 test.before(async () => { env = await setup({ pages: 40 }); });
@@ -2699,6 +2701,102 @@ browserTest('keys that scroll the page behind the columns (Vimium: j k d u gg G)
     assert.equal(after, before, 'typing in a box moves nothing: ' + before + ' -> ' + after);
   });
 }, 120000);
+
+browserTest('"Save sample for the developer" writes a file with the shape of what X sent and the markup of the buttons, without the words, and the file passes the checks real samples get', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForTimeout(3500); // (X's hidden page has posts mounted, and the first probe has run)
+    await page.locator('.xmc-card .xmc-moreBtn').first().click({ force: true });
+    await page.waitForSelector('.xmc-menu button');
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 10000 }), page.locator('.xmc-menu button', { hasText: 'Save sample for the developer' }).click()]);
+    const sample = JSON.parse(require('node:fs').readFileSync(await download.path(), 'utf8'));
+    assert.equal(sample.kind, 'multi-column-for-x sample');
+    assert.match(download.suggestedFilename(), /^multi-column-for-x-sample-\d{4}-\d\d-\d\d\.json$/);
+    assert.ok(Object.keys(sample.ops).some((op) => /Timeline/.test(op)), 'a timeline: ' + Object.keys(sample.ops));
+    for (const k of ['like', 'repost', 'bookmark', 'reply']) assert.ok(sample.controls[k], k + ' markup');
+    const text = JSON.stringify(sample);
+    assert.ok(!/\[HomeLatestTimeline\] tweet/.test(text), 'the stand-in\'s post text is not in it');
+    // the same checks the samples in test/fixtures/real get
+    for (const [op, { url, json }] of Object.entries(sample.ops)) { const r = Parse.parseResponse(json, url + '?variables=%7B%7D'); if (r) assert.ok(r.items.length > 0, op + ' reads'); }
+    for (const [kind, html] of Object.entries(sample.controls)) if (Logic.CONTROLS[kind]) assert.ok(Logic.CONTROLS[kind].some((id) => html.includes('data-testid="' + id + '"')), kind + ' is found by its test id in the markup');
+    assert.ok(sample.probe && sample.probe.like && sample.probe.homeLink, 'the probe is in it: ' + JSON.stringify(sample.probe));
+  });
+}, 90000);
+
+browserTest('a Like whose button X no longer has fails soft: the heart goes back, the press says what was not found, after three the one button is switched off, and the settings page shows it', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, commentsIn: 'card' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    // X renames its Like button (its test id): the stand-in's posts are changed as they are drawn
+    await page.evaluate(() => { setInterval(() => document.querySelectorAll('article [data-testid="like"], article [data-testid="unlike"]').forEach((b) => b.setAttribute('data-testid', 'zz-renamed')), 30); });
+    await page.waitForTimeout(300);
+    const toastText = () => page.evaluate(() => document.getElementById('xmc-toast').textContent);
+    const like = () => page.locator('.xmc-card [data-act="like"]').first();
+    const liked = () => like().evaluate((b) => b.classList.contains('on') || b.getAttribute('aria-pressed') === 'true');
+    const before = await liked();
+    for (let i = 0; i < 3; i++) {
+      await like().click();
+      await page.waitForFunction(() => /couldn.t find X.s Like button/i.test(document.getElementById('xmc-toast').textContent), null, { timeout: 8000 });
+      await page.waitForTimeout(250);
+      assert.equal(await liked(), before, 'the heart went back (press ' + (i + 1) + ')');
+      await page.evaluate(() => { document.getElementById('xmc-toast').hidden = true; });
+    }
+    await page.waitForFunction(() => document.getElementById('xmc-root').classList.contains('xmc-off-like'), null, { timeout: 3000 });
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-card [data-act="like"]')).opacity), '0.35', 'the Like button is dimmed');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-card [data-act="bookmark"]')).opacity), '1', 'the others are not');
+    await like().click();
+    await page.waitForFunction(() => /switched off for a few minutes/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
+    assert.match(await toastText(), /zz-renamed|data-testid="like"|not found on X/, 'it says what was looked for: ' + await toastText());
+    // and the report is in the diagnostics and, a few seconds on, on the settings page (which reads it from where it was written)
+    const diag = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).features.features.like);
+    assert.equal(diag.state, 'off'); assert.ok(diag.fail >= 3);
+    const opts = await page.context().newPage();
+    await page.waitForFunction(() => !!localStorage.getItem('xmc.features'), null, { timeout: 12000 });
+    await opts.goto(new URL('/ext/options.html', page.url()).href);
+    await opts.waitForSelector('table.status', { timeout: 8000 });
+    await opts.waitForFunction(() => { const r = [...document.querySelectorAll('table.status tr')].find((x) => /^Like/.test(x.textContent)); return r && /Switched off/.test(r.textContent); }, null, { timeout: 20000 }); // (written at most every five seconds)
+    await opts.close();
+  });
+}, 90000);
+
+browserTest('when X sends posts that cannot be read, the columns fail open after ten seconds: X\'s own page, a line saying why, and a Report button', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    // the posts arrive without the part that holds their words and counts (a change in X's shape)
+    await page.route('**/i/api/graphql/**', async (route) => {
+      const res = await route.fetch();
+      let body = await res.text();
+      try { const j = JSON.parse(body); const strip = (n) => { if (Array.isArray(n)) n.forEach(strip); else if (n && typeof n === 'object') { if (n.rest_id && n.legacy) delete n.legacy; for (const k of Object.keys(n)) strip(n[k]); } }; strip(j); body = JSON.stringify(j); } catch { /* not JSON */ }
+      await route.fulfill({ response: res, body });
+    });
+    await page.reload();
+    await page.waitForFunction(() => /none could be read/.test((document.getElementById('xmc-toast') || {}).textContent || ''), null, { timeout: 30000 });
+    assert.match(await page.evaluate(() => document.getElementById('xmc-toast').textContent), /Columns stopped working here, so X.s own page is showing\. X sent \d+ posts and none could be read \(noLegacy/);
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-on'), null, { timeout: 3000 }); // (the columns are off: X's page shows)
+    assert.match(await page.locator('#xmc-pill').innerText(), /Turn Columns On/);
+    assert.match(await page.locator('#xmc-pill').getAttribute('title'), /none could be read/, 'the pill says why too');
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
+    await page.locator('#xmc-toast .xmc-undo', { hasText: 'Report' }).click();
+    await page.waitForFunction(() => window.__opened.length === 1, null, { timeout: 4000 });
+    assert.match(await page.evaluate(() => window.__opened[0]), /issues\/new/);
+  });
+}, 90000);
+
+browserTest('when the script keeps stopping with an error in the steps that draw the columns, they fail open too', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { Object.defineProperty(window.__xmc.view, 'cards', { get() { throw new Error('boom'); }, configurable: true }); });
+    await page.waitForFunction(() => /keeps stopping with an error/.test((document.getElementById('xmc-toast') || {}).textContent || ''), null, { timeout: 15000 });
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-on'), null, { timeout: 3000 }); // (X's own page is showing)
+    h.errors.length = 0; // (the errors are the point)
+  });
+}, 60000);
 
 browserTest('the logo folds the menu from the keyboard too, and goes back to being a link to Home when the columns are off', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });

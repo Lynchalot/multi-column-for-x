@@ -709,3 +709,6 @@ html.xmc-rail:not(.xmc-panelanim):not(.xmc-noclip) :is(header[role="banner"][dat
 #xmc-settings { position: absolute; top: 52px; right: 16px; width: min(460px, calc(100vw - 32px)); height: min(720px, calc(100vh - 68px)); border-radius: 16px; overflow: hidden;
   background: var(--xmc-solid, #000); border: 1px solid var(--xmc-border, #2f3336); box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
 #xmc-settings iframe { display: block; width: 100%; height: 100%; border: 0; }
+
+/* a feature switched off after a run of failures (see featureTracker): its button is dimmed, and pressing it says why */
+#xmc-root.xmc-off-like [data-act="like"], #xmc-root.xmc-off-bookmark [data-act="bookmark"], #xmc-root.xmc-off-repost [data-act="repost"] { opacity: .35; cursor: not-allowed; }

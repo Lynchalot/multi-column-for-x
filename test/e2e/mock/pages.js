@@ -2,7 +2,7 @@
 // virtualised list (only posts near the scroll position exist, as on X), the right sidebar, the floating drawer, #layers.
 'use strict';
 
-const SCRIPTS = ['settings', 'logic', 'parse', 'site', 'meta', 'main'].map((n) => `<script src="/ext/src/${n}.js"></script>`).join('');
+const SCRIPTS = ['settings', 'logic', 'parse', 'site', 'meta', 'sample', 'main'].map((n) => `<script src="/ext/src/${n}.js"></script>`).join('');
 
 function shell(title, body, script) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>

@@ -457,3 +457,35 @@ test('a fresh install starts on Calm, stored as choices, so Calm is what shows a
   assert.ok(!('hideForYou' in stored), 'what already matches the defaults is not stored');
   assert.ok(!S.PRESETS.some((p) => p.id !== 'calm' && S.presetApplies(p, n)), 'and nothing else is ticked');
 });
+
+test('features: a run of failures switches one feature off for a while, a success puts it back, and the wait starts again after a failure that follows it', () => {
+  let t = 1000; const f = L.featureTracker({ limit: 3, cooldownMs: 60000, now: () => t });
+  assert.equal(f.state('like'), 'unseen');
+  f.ok('like'); assert.equal(f.state('like'), 'working');
+  f.fail('like', 'no button'); f.fail('like', 'no button');
+  assert.equal(f.state('like'), 'failing'); assert.equal(f.off('like'), false, 'two in a row is not yet enough');
+  f.ok('like'); assert.equal(f.snapshot().like.streak, 0, 'a success clears the run');
+  f.fail('like', 'a'); f.fail('like', 'b'); f.fail('like', 'c');
+  assert.equal(f.off('like'), true); assert.equal(f.state('like'), 'off'); assert.equal(f.off('repost'), false, 'only that one');
+  assert.equal(f.snapshot().like.why, 'c');
+  t += 59000; assert.equal(f.off('like'), true);
+  t += 2000; assert.equal(f.off('like'), false, 'tried again once the wait is over');
+  f.fail('like', 'still'); assert.equal(f.off('like'), true, 'and a failure then starts the wait again');
+  t += 61000; f.ok('like'); assert.equal(f.off('like'), false); assert.equal(f.state('like'), 'working');
+});
+
+test('controls: one list of the test ids of the buttons that are pressed, in the form of a selector', () => {
+  assert.equal(L.controlSel('like'), '[data-testid="like"],[data-testid="unlike"]');
+  assert.equal(L.controlSel('like', 0), '[data-testid="like"]');
+  assert.equal(L.controlSel('bookmark', 1), '[data-testid="removeBookmark"]');
+  for (const k of ['like', 'repost', 'repostConfirm', 'bookmark', 'reply', 'share', 'tweetText']) assert.ok(L.CONTROLS[k].length, k);
+});
+
+test('the words on X\'s translation controls come from one table, and the patterns are anchored to the whole label', () => {
+  const tr = L.wordPattern('translate'), orig = L.wordPattern('original'), from = L.wordPattern('translatedFrom', false);
+  assert.ok(tr.test('Translate post') && tr.test('translate Tweet') && tr.test('Show translation'));
+  assert.ok(!tr.test('Translate post into a poem'), 'a label, not a sentence that contains one');
+  assert.ok(orig.test('Show original') && !orig.test('Show original post here'));
+  assert.ok(from.test('Translated from Spanish'));
+  assert.ok(Object.keys(L.WORDS).includes('en'));
+});

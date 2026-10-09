@@ -46,6 +46,13 @@ Note: an unlisted add-on does not update itself. After the public listing is app
   upload the new zip to the same listing (Developer Hub -> the add-on -> Upload New Version). Users get it automatically.
 - Add `docs/` screenshots to the README if you like; link the AMO page from the README and from Ko-fi.
 
+## The beta channel (a fast lane for fixes)
+The listed add-on waits in Mozilla's review queue for every version. A beta channel does not: Mozilla signs an "unlisted" version automatically in minutes, and an add-on built with an `update_url` then updates itself from a file on GitHub.
+1. addons.mozilla.org -> Developer Hub -> **Manage API Keys**: make a key. In the GitHub repository: Settings -> Secrets and variables -> Actions -> add `AMO_JWT_ISSUER` (the "JWT issuer") and `AMO_JWT_SECRET`.
+2. Bump the version in `manifest.json` and `package.json`, merge to `main`, then `git tag beta-v<that version> && git push origin beta-v<that version>`. The workflow `Beta` builds `dist/beta`, signs it (unlisted), attaches the `.xpi` to a GitHub release and adds it to `updates.json` on `main`.
+3. Whoever wants fixes early installs the `.xpi` from the release page once (in place of the listed one: same add-on id). Firefox checks `updates.json` about once a day.
+4. Nothing here touches the listed add-on, which must not carry an `update_url`. `.github/workflows/beta.yml` has not been run yet.
+
 ## 7. Chrome Web Store and Edge (0.31.0 and on)
 1. `npm run build:chrome` -> `web-ext-artifacts/multi_column_for_x-chrome-<version>.zip` (the same version number as the Firefox one).
 2. Chrome Web Store developer account (a one-off registration fee), then **New item** -> upload the zip. Edge Add-ons takes the same zip (free account).

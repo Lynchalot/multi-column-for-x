@@ -1,0 +1,45 @@
+# The beta channel: a tag "beta-v<version>" signs that version as an unlisted Firefox add-on (Mozilla's automatic signing, minutes, no review queue),
+# attaches the signed file to a GitHub release and adds it to updates.json, which the beta build's update_url points at. People who installed the
+# signed file get each new one within a day or so. NOT YET RUN: it needs two secrets on the repository, AMO_JWT_ISSUER and AMO_JWT_SECRET
+# (addons.mozilla.org -> Developer Hub -> Manage API Keys). See store/SUBMIT.md, "The beta channel".
+name: Beta
+on:
+  push:
+    tags: ['beta-v*']
+permissions:
+  contents: write
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main, fetch-depth: 0 }
+      - uses: actions/checkout@v4
+        with: { path: tagged }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: The version must be the tag's
+        run: |
+          v="${GITHUB_REF_NAME#beta-v}"
+          m=$(node -e "console.log(require('./tagged/manifest.json').version)")
+          [ "$v" = "$m" ] || { echo "::error::tag says $v, manifest.json says $m"; exit 1; }
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+      - name: Build and sign (unlisted)
+        working-directory: tagged
+        env: { AMO_JWT_ISSUER: '${{ secrets.AMO_JWT_ISSUER }}', AMO_JWT_SECRET: '${{ secrets.AMO_JWT_SECRET }}' }
+        run: |
+          node scripts/build-beta.js
+          npx --yes web-ext sign --source-dir dist/beta --artifacts-dir signed --channel unlisted --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"
+          ls signed
+      - name: Release the signed file
+        working-directory: tagged
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          xpi=$(ls signed/*.xpi | head -1)
+          cp "$xpi" "multi_column_for_x-$VERSION.xpi"
+          gh release create "$GITHUB_REF_NAME" "multi_column_for_x-$VERSION.xpi" --title "Beta $VERSION" --notes "Signed beta build. Install it once from this page; it then updates itself from updates.json." --prerelease
+      - name: Add it to updates.json on main
+        run: |
+          node tagged/scripts/make-updates.js "$VERSION" "tagged/multi_column_for_x-$VERSION.xpi" "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/multi_column_for_x-$VERSION.xpi" --file updates.json
+          git config user.name "beta channel"; git config user.email "actions@users.noreply.github.com"
+          git add updates.json; git commit -m "updates.json: beta $VERSION"; git push origin main
