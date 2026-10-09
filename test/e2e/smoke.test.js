@@ -2193,6 +2193,8 @@ browserTest('everything that can be pressed is at least 24 px each way and has a
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
+    // (cards and the tip fade and grow in for a moment: a slower machine measured a 23.6 px link in the middle of it. Wait until nothing that ends is still moving.)
+    await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || (a.effect && a.effect.getComputedTiming().iterations === Infinity)), null, { timeout: 10000 });
     await page.waitForTimeout(600);
     const audit = async (state, scope = OURS) => {
       const r = await page.evaluate(auditInPage, scope);
