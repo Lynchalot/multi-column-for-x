@@ -2763,6 +2763,24 @@ browserTest('a Like whose button X no longer has fails soft: the heart goes back
   });
 }, 90000);
 
+browserTest('a Like that X already shows as liked (the page and the extension had drifted apart) is not a missing button: nothing is counted against Like', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    // X's own copy of every post says "liked" (the unlike button), while the extension thinks none is
+    await page.evaluate(() => { setInterval(() => document.querySelectorAll('article [data-testid="like"]').forEach((b) => b.setAttribute('data-testid', 'unlike')), 30); });
+    await page.waitForTimeout(300);
+    for (let i = 0; i < 4; i++) {
+      await page.locator('.xmc-card [data-act="like"]').nth(i).click();
+      await page.waitForTimeout(700);
+    }
+    const f = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).features.features.like);
+    assert.equal(f.fail, 0, 'no failure counted: ' + JSON.stringify(f));
+    assert.equal(await page.evaluate(() => document.getElementById('xmc-root').classList.contains('xmc-off-like')), false, 'Like is not switched off');
+  });
+}, 60000);
+
 browserTest('when X sends posts that cannot be read, the columns fail open after ten seconds: X\'s own page, a line saying why, and a Report button', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
   await checked(h, async () => {

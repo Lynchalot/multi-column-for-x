@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.32.1
+- **A button that is missing because X already shows the other state is not a failure.** Like, Bookmark, comment likes and comment bookmarks looked for the button that does the job; if X's page showed the opposite one (an `unlike` where Like was wanted, because the page and the extension had drifted apart), that was counted as a missing button, and three in a row switched the feature off for five minutes. It is now taken as done and nothing is counted. A button missing with no opposite present is still a failure, as before.
+- Test: a Like that X already shows as liked, pressed four times, counts nothing against Like and dims nothing.
+
 ## 0.32.0
 **Less fragile**: what you asked for after the comparison with Control Panel for Twitter, as far as it can be done without a login to X. (Nothing in this is tried on real X.)
 - **A button X has changed fails soft, and says what was missing.** Pressing Like, Bookmark or Repost when X's button is not found used to flip the heart and do nothing, silently. It now puts the heart back and says it could not find X's button. Three failures in a row switch that one feature off for five minutes: its button is dimmed, and pressing it says what was looked for (the test id) and offers Report. A success, or the five minutes passing, puts it back. The same count is kept for comments, comment likes and bookmarks, translation and the timeline data.

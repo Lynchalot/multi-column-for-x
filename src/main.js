@@ -1614,7 +1614,12 @@
     updateActions(t);
     const kind = key === 'liked' ? 'like' : 'bookmark';
     let missing = false;
-    const ok = await withReal(t, (art) => { const b = art.querySelector(want ? onSel : offSel); if (b) { fire(b); return true; } missing = true; return false; });
+    const ok = await withReal(t, (art) => {
+      const b = art.querySelector(want ? onSel : offSel);
+      if (b) { fire(b); return true; }
+      if (art.querySelector(want ? offSel : onSel)) return true; // X already shows it as wanted (liked on another device, say): nothing to press, and not a missing button
+      missing = true; return false;
+    });
     if (ok) featOk(kind);
     else if (missing) featFail(kind, 'not found on X\u2019s post: ' + (want ? onSel : offSel));
     if (!ok) {
@@ -2113,7 +2118,7 @@
     flip(want);
     const res = await actOnComment(t, r.id, (art) => {
       const b = art.querySelector(want ? '[data-testid="like"]' : '[data-testid="unlike"]');
-      if (!b) return { ok: false, why: 'Couldn’t find that comment’s like button.' };
+      if (!b) return art.querySelector(want ? '[data-testid="unlike"]' : '[data-testid="like"]') ? { ok: true } : { ok: false, why: 'Couldn’t find that comment’s like button.' }; // (the other one there: X already shows it as wanted)
       fire(b);
       return { ok: true };
     });
@@ -2127,7 +2132,7 @@
     flip(want);
     const res = await actOnComment(t, r.id, (art) => {
       const b = art.querySelector(want ? '[data-testid="bookmark"]' : '[data-testid="removeBookmark"]');
-      if (!b) return { ok: false, why: 'Couldn\u2019t find that comment\u2019s bookmark button.' };
+      if (!b) return art.querySelector(want ? '[data-testid="removeBookmark"]' : '[data-testid="bookmark"]') ? { ok: true } : { ok: false, why: 'Couldn\u2019t find that comment\u2019s bookmark button.' };
       fire(b);
       return { ok: true };
     });
