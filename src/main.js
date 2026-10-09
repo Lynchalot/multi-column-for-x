@@ -812,6 +812,8 @@
     if (pill.isConnected) pill.remove();
   }
 
+  // A wheel event's distance in pixels: Firefox sends a notch of a mouse wheel as lines (deltaMode 1, a deltaY of 3), Chrome as pixels (100), and a page may be a screen at a time.
+  const wheelPx = (e, d) => (e.deltaMode === 1 ? d * 40 : e.deltaMode === 2 ? d * innerHeight : d);
   // Scrolling with the pointer over X's own sidebars: scroll the columns, as X does (the page scrolls wherever the pointer is).
   // Left alone if the sidebar itself has more to show in that direction.
   document.addEventListener('wheel', (e) => {
@@ -822,7 +824,7 @@
     const room = bar.scrollHeight > bar.clientHeight + 2 && (down ? bar.scrollTop + bar.clientHeight < bar.scrollHeight - 1 : bar.scrollTop > 0);
     if (room && getComputedStyle(bar).overflowY !== 'visible') return;
     e.preventDefault();
-    scroller.scrollBy({ top: e.deltaMode === 1 ? e.deltaY * 40 : e.deltaMode === 2 ? e.deltaY * scroller.clientHeight : e.deltaY });
+    scroller.scrollBy({ top: e.deltaMode === 2 ? e.deltaY * scroller.clientHeight : wheelPx(e, e.deltaY) });
   }, { passive: false, capture: true });
 
   // Vimium and friends scroll "the element you last clicked in", so make that our columns
@@ -2535,7 +2537,7 @@
     let wheelAt = 0; // the wheel steps between the pictures, as it does in the panel (a trackpad sends a burst: one step per flick)
     el.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      const d = wheelPx(e, Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX);
       if (!lightbox || lightbox.photos.length < 2 || Math.abs(d) < 4 || e.timeStamp - wheelAt < 380) return;
       wheelAt = e.timeStamp; stepLightbox(d > 0 ? 1 : -1);
     }, { passive: false });
@@ -2601,7 +2603,7 @@
     let wheelAt = 0;
     pane.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      const d = wheelPx(e, Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX);
       if (Math.abs(d) < 4 || e.timeStamp - wheelAt < 380) return;
       wheelAt = e.timeStamp; pane._go(d > 0 ? 1 : -1);
     }, { passive: false });

@@ -7,6 +7,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { setup, sleep } = require('./firefox-rig.js');
 
 // Strict, in the way that matters here: frames only from the page's own origin (an extension page is neither), and scripts and styles from it.
@@ -172,6 +174,49 @@ firefox('a tour of the main flows (open a post, a picture full size, fold and un
   assert.equal(rep.failedOpen, null, 'did not fail open');
   for (const [name, f] of Object.entries(rep.features || {})) assert.notEqual(f.state, 'off', `${name} switched off: ${JSON.stringify(f)}`);
   await d.keys('Escape');
+});
+
+firefox('in the full-size viewer the wheel steps between the pictures (a wheel action of the browser\'s own, and a notch counted in lines as Firefox sends a mouse wheel)', async (r, d) => {
+  await home(r, d);
+  await d.js(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelectorAll('[data-lb]')[0].click(); });
+  await d.waitFor(() => !!document.getElementById('xmc-lightbox'), [], 8000, 'the viewer');
+  const src = () => d.js(() => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0]);
+  const first = await src();
+  await sleep(600);
+  await d.js(() => { window.__wheels = []; document.addEventListener('wheel', (e) => window.__wheels.push([e.deltaMode, e.deltaY, e.isTrusted]), true); });
+  await d.mouse(850, 450, 120); // (what the browser makes of a wheel turn: its own deltaMode and size, whatever they are)
+  await d.waitFor((s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] !== s, [first], 4000, 'the wheel to step forward (it sent ' + JSON.stringify(await d.js(() => window.__wheels)) + ')');
+  const second = await src();
+  await sleep(600);
+  await d.js(() => document.getElementById('xmc-lightbox').dispatchEvent(new WheelEvent('wheel', { deltaY: -3, deltaMode: 1, bubbles: true, cancelable: true })));
+  await d.waitFor((s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] === s, [first], 4000, 'a notch of three lines back');
+  assert.notEqual(second, first);
+  await d.keys('Escape');
+});
+
+firefox('the download button on a post with pictures saves them through the background (browser.downloads, X\'s media servers) into the folder the settings name', async (r, d) => {
+  await home(r, d);
+  await d.press('.xmc-card:has([data-lb]) [data-act="download"]');
+  await d.waitFor(() => { const t = document.getElementById('xmc-toast'); return !!t && /Downloading/.test(t.textContent); }, [], 6000, 'the toast (' + JSON.stringify(await d.js(() => (document.getElementById('xmc-toast') || {}).textContent)) + ')');
+  const files = () => { const out = []; const walk = (dir) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const f = path.join(dir, e.name); if (e.isDirectory()) walk(f); else out.push(path.relative(r.dlDir, f)); } }; walk(r.dlDir); return out; };
+  let got = [];
+  for (let i = 0; i < 60 && !got.some((f) => !/\.part$/.test(f)); i++) { await sleep(250); got = files(); }
+  assert.ok(got.length >= 1 && got.every((f) => !/\.part$/.test(f)), 'files in the download folder: ' + JSON.stringify(got));
+  assert.ok(got.every((f) => /^X[\\/]/.test(f) || f.split(path.sep).length > 1), 'in a folder of their own, as the settings say: ' + JSON.stringify(got));
+});
+
+firefox('Copy link and Copy diagnostics reach the clipboard from the content script (a press is the user activation Firefox wants)', async (r, d) => {
+  await home(r, d);
+  const toastText = () => d.js(() => (document.getElementById('xmc-toast') || {}).textContent || '');
+  await d.press('.xmc-card [data-act="share"]');
+  await d.waitFor(() => /Link copied|Couldn/.test((document.getElementById('xmc-toast') || {}).textContent || ''), [], 5000, 'a toast for Copy link');
+  assert.equal(await toastText(), 'Link copied');
+  await sleep(500);
+  await d.press('.xmc-card [data-act="more"]');
+  await d.waitFor(() => !!document.querySelector('.xmc-menu'), [], 5000, 'the post\'s menu');
+  await d.press('.xmc-menu button', 'Copy diagnostics');
+  await d.waitFor(() => /copied|Couldn/i.test((document.getElementById('xmc-toast') || {}).textContent || '') && !/Link copied/.test((document.getElementById('xmc-toast') || {}).textContent), [], 6000, 'a toast for Copy diagnostics');
+  assert.match(await toastText(), /^Copied/, 'Copy diagnostics: ' + (await toastText()));
 });
 
 firefox('what the extension saw on x.com (the probe of X\'s buttons, the parser\'s counts) is written to browser.storage and shown in the panel\'s status table', async (r, d) => {

@@ -55,17 +55,18 @@ class Driver {
     const actions = [{ type: 'pointer', id: 'p', parameters: { pointerType: 'mouse' }, actions: [{ type: 'pointerMove', x: Math.round(x), y: Math.round(y), origin: 'viewport' }, { type: 'pointerDown', button: 0 }, { type: 'pointerUp', button: 0 }] }];
     return this.call('POST', '/actions', { actions });
   }
-  // The same at the middle of the first element the selector finds that nothing else covers there (as a person would pick one they can see).
-  async press(css) {
-    const r = await this.js((s) => {
+  // The same at the middle of the first element the selector finds (with text matching `text`, if given) that nothing else covers there (as a person would pick one they can see).
+  async press(css, text) {
+    const r = await this.js((s, t) => {
       for (const el of document.querySelectorAll(s)) {
+        if (t && !new RegExp(t).test(el.textContent)) continue;
         el.scrollIntoView({ block: 'center', inline: 'center' });
         const b = el.getBoundingClientRect(), x = b.x + b.width / 2, y = b.y + b.height / 2, top = document.elementFromPoint(x, y);
         if (top && el.contains(top) && x >= 0 && y >= 0 && x < innerWidth && y < innerHeight) return [x, y];
       }
       return null;
-    }, css);
-    if (!r) throw new Error('nothing to press at ' + css);
+    }, css, text || '');
+    if (!r) throw new Error('nothing to press at ' + css + (text ? ' with ' + text : ''));
     return this.pointer(r[0], r[1]);
   }
   // Into a frame (the element's), and back out to the page.
@@ -90,11 +91,13 @@ async function setup({ pages = 30, csp = '' } = {}) {
   if (!exe || !gecko) return null;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'xmc-ff-'));
   const zipDir = path.join(tmp, 'zip');
+  const dlDir = path.join(tmp, 'downloads');
+  fs.mkdirSync(dlDir);
   execFileSync('npx', ['--yes', 'web-ext', 'build', '--config', 'web-ext-config.cjs', '--overwrite-dest', '--artifacts-dir', zipDir], { cwd: ROOT, stdio: 'ignore' });
   const zip = path.join(zipDir, fs.readdirSync(zipDir).find((f) => f.endsWith('.zip')));
   const key = path.join(tmp, 'key.pem'), cert = path.join(tmp, 'cert.pem');
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '2', '-subj', '/CN=x.com', '-addext', 'subjectAltName=' + HOSTS.map((h) => 'DNS:' + h).join(',')], { stdio: 'ignore' });
-  const server = await start({ pages, tls: { key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, bare: true, publicOrigin: 'https://x.com', csp });
+  const server = await start({ pages, tls: { key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, bare: true, publicOrigin: 'https://x.com', csp, twimg: true });
   // Every https request the browser makes to one of our hosts is tunnelled to the stand-in; anything else is refused (no traffic leaves).
   const sockets = new Set();
   const proxy = http.createServer((q, s) => { s.writeHead(502); s.end(); });
@@ -121,6 +124,7 @@ async function setup({ pages = 30, csp = '' } = {}) {
         'extensions.webextensions.uuids': JSON.stringify({ [ADDON_ID]: UUID }), 'extensions.autoDisableScopes': 0, 'xpinstall.signatures.required': false,
         'app.update.enabled': false, 'datareporting.policy.dataSubmissionEnabled': false, 'browser.shell.checkDefaultBrowser': false,
         'media.autoplay.default': 0, 'media.autoplay.blocking_policy': 0,
+        'browser.download.folderList': 2, 'browser.download.dir': dlDir, 'browser.download.useDownloadDir': true, 'browser.download.always_ask_before_handling_new_types': false,
       } },
     } } }),
   }).then((r) => r.json());
@@ -132,7 +136,7 @@ async function setup({ pages = 30, csp = '' } = {}) {
     .then((r) => r.json()).then((j) => { if (j.value && j.value.error) throw new Error('install: ' + j.value.message); });
   await d.switchTo(main);
   return {
-    d, server, main, version: created.value.capabilities.browserVersion, tmp,
+    d, server, main, dlDir, version: created.value.capabilities.browserVersion, tmp,
     ext: (p) => `moz-extension://${UUID}/${p}`,
     async teardown() {
       await fetch(base + '/session/' + d.sid, { method: 'DELETE' }).catch(() => {});

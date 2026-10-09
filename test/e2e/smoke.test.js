@@ -2870,6 +2870,27 @@ browserTest('in the full-size viewer the wheel steps between the pictures, one s
   });
 }, 90000);
 
+// Firefox sends a notch of a mouse wheel as lines (deltaMode 1, a deltaY of 3), not as the 100 pixels Chrome does: a step is a step in either.
+browserTest('in the full-size viewer a wheel notch counted in lines (as Firefox sends it) steps between the pictures too', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelectorAll('[data-lb]')[0].click(); });
+    await page.waitForSelector('#xmc-lightbox');
+    const src = () => page.evaluate(() => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0]);
+    const first = await src();
+    await page.waitForTimeout(500);
+    await page.evaluate(() => document.getElementById('xmc-lightbox').dispatchEvent(new WheelEvent('wheel', { deltaY: 3, deltaMode: 1, bubbles: true, cancelable: true })));
+    await page.waitForFunction((s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] !== s, first, { timeout: 3000 });
+    const second = await src();
+    await page.waitForTimeout(500);
+    await page.evaluate(() => document.getElementById('xmc-lightbox').dispatchEvent(new WheelEvent('wheel', { deltaY: -3, deltaMode: 1, bubbles: true, cancelable: true })));
+    await page.waitForFunction((s) => document.querySelector('#xmc-lightbox img').src.split('/').pop().split('?')[0] === s, first, { timeout: 3000 });
+    assert.notEqual(second, first);
+  });
+}, 90000);
+
 browserTest('the right panel slides away behind a tab on its edge, the columns take its room, and the tab brings it back', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850 });
   await checked(h, async () => {

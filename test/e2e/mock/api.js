@@ -2,11 +2,13 @@
 // and a post's conversation. Posts cycle through text, photos, a video, a GIF, a repost, a quote and a long note.
 'use strict';
 
-function makeApi(origin, pages) {
+// media: where the pictures and videos are said to live (default: the same origin), e.g. { img: 'https://pbs.twimg.com', vid: 'https://video.twimg.com' } as on X
+function makeApi(origin, pages, media) {
+  const imgHost = (media && media.img) || origin, vidHost = (media && media.vid) || origin;
   const user = (n) => ({
     __typename: 'User', rest_id: `u${n}`, is_blue_verified: n % 2 === 0,
     core: { name: `User ${n}`, screen_name: `user${n}` },
-    avatar: { image_url: `${origin}/img/a${n}_normal.svg` }, legacy: {},
+    avatar: { image_url: `${imgHost}/img/a${n}_normal.svg` }, legacy: {},
   });
 
   function tweet(i, un, kind, feed) {
@@ -19,17 +21,17 @@ function makeApi(origin, pages) {
       __typename: 'Tweet', rest_id: String(i), core: { user_results: { result: user(un) } }, views: { count: String(i * 3) },
       source: '<a href="x">Twitter for Zen</a>', legacy: base,
     };
-    const photo = (k) => ({ id_str: `p${i}${k}`, type: 'photo', media_url_https: `${origin}/img/m${i}${k}.svg`, original_info: { width: 1200, height: 800 + k * 200 }, indices: [0, 0] });
+    const photo = (k) => ({ id_str: `p${i}${k}`, type: 'photo', media_url_https: `${imgHost}/img/m${i}${k}.svg`, original_info: { width: 1200, height: 800 + k * 200 }, indices: [0, 0] });
     if (kind === 1) base.extended_entities = { media: [photo(0)] };
     if (kind === 2) base.extended_entities = { media: [photo(0), photo(1), photo(2)] };
     if (kind === 3) {
-      base.extended_entities = { media: [{ id_str: `v${i}`, type: 'video', media_url_https: `${origin}/img/m${i}v.svg`, original_info: { width: 1280, height: 720 },
+      base.extended_entities = { media: [{ id_str: `v${i}`, type: 'video', media_url_https: `${imgHost}/img/m${i}v.svg`, original_info: { width: 1280, height: 720 },
         video_info: { aspect_ratio: [16, 9], variants: [{ content_type: 'application/x-mpegURL', url: 'x.m3u8' },
-          { bitrate: 2176000, content_type: 'video/mp4', url: `${origin}/vid/lo.mp4` }, { bitrate: 832000, content_type: 'video/mp4', url: `${origin}/vid/lo.mp4` }] }, indices: [0, 0] }] };
+          { bitrate: 2176000, content_type: 'video/mp4', url: `${vidHost}/vid/lo.mp4` }, { bitrate: 832000, content_type: 'video/mp4', url: `${vidHost}/vid/lo.mp4` }] }, indices: [0, 0] }] };
     }
     if (kind === 4) {
-      base.extended_entities = { media: [{ id_str: `g${i}`, type: 'animated_gif', media_url_https: `${origin}/img/m${i}g.svg`, original_info: { width: 400, height: 400 },
-        video_info: { variants: [{ bitrate: 0, content_type: 'video/mp4', url: `${origin}/vid/lo.mp4` }] }, indices: [0, 0] }] };
+      base.extended_entities = { media: [{ id_str: `g${i}`, type: 'animated_gif', media_url_https: `${imgHost}/img/m${i}g.svg`, original_info: { width: 400, height: 400 },
+        video_info: { variants: [{ bitrate: 0, content_type: 'video/mp4', url: `${vidHost}/vid/lo.mp4` }] }, indices: [0, 0] }] };
     }
     // the dupes feed has two people reposting the same post on every page (a post is the same post whoever reposts it)
     if (kind === 5) r.legacy.retweeted_status_result = { result: feed === 'DupesTimeline' ? tweet(700000 + Math.floor(i / 20), 40, 0, feed) : tweet(i + 500000, un + 40, 0, feed) };
@@ -90,7 +92,7 @@ function makeApi(origin, pages) {
       const a = reply(Number(focal) * 10 + k * 2 + 1, 20 + k, `Reply number ${k + 1} to the post`, focal);
       if (k === 0) { // the first reply has a sensitive picture
         a.legacy.possibly_sensitive = true;
-        a.legacy.extended_entities = { media: [{ id_str: 'ps' + focal, type: 'photo', media_url_https: `${origin}/img/ms.svg`, original_info: { width: 800, height: 600 }, indices: [0, 0] }] };
+        a.legacy.extended_entities = { media: [{ id_str: 'ps' + focal, type: 'photo', media_url_https: `${imgHost}/img/ms.svg`, original_info: { width: 800, height: 600 }, indices: [0, 0] }] };
       }
       const b = reply(Number(focal) * 10 + k * 2 + 2, 3, `The author answers reply ${k + 1}`, Number(focal) * 10 + k * 2 + 1);
       entries.push({ entryId: `conversationthread-${focal}-${k}`, content: { entryType: 'TimelineTimelineModule', items: [
@@ -106,8 +108,8 @@ function makeApi(origin, pages) {
     if (op === 'TweetDetail') return detail(vars.focalTweetId, vars.cursor);
     if (op === 'UserByScreenName') {
       return { data: { user: { result: { rest_id: '5', is_blue_verified: true, core: { name: 'User Five', screen_name: 'user5', created_at: 'Sun Jun 01 00:00:00 +0000 2008' },
-        avatar: { image_url: `${origin}/img/a5_normal.svg` }, location: { location: 'Valley Forge' },
-        legacy: { description: 'Bio of user five', followers_count: 1234, friends_count: 97, profile_banner_url: `${origin}/img/b5`, entities: { description: { urls: [] } } } } } } };
+        avatar: { image_url: `${imgHost}/img/a5_normal.svg` }, location: { location: 'Valley Forge' },
+        legacy: { description: 'Bio of user five', followers_count: 1234, friends_count: 97, profile_banner_url: `${imgHost}/img/b5`, entities: { description: { urls: [] } } } } } } };
     }
     if (op === 'ListByRestId') return { data: { list: { __typename: 'List', id_str: '123', name: 'Psyop' } } };
     return page(op, vars.cursor, vars.newer || 0);

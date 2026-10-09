@@ -11,7 +11,7 @@ const { start } = require('../e2e/mock/server.js');
 const ROOT = path.join(__dirname, '..', '..');
 const HOSTS = ['x.com', 'twitter.com', 'pbs.twimg.com', 'video.twimg.com'];
 
-async function setup({ pages = 30 } = {}) {
+async function setup({ pages = 30, raster = false } = {}) {
   const exe = process.env.XMC_BROWSER;
   if (!exe && !process.env.CI) return null; // (these need a Chromium that takes --load-extension: not Google Chrome 137 on, which dropped it)
   execFileSync('node', [path.join(ROOT, 'scripts', 'build-chrome.js'), '--no-zip'], { stdio: 'ignore' });
@@ -19,7 +19,7 @@ async function setup({ pages = 30 } = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'xmc-rig-'));
   const key = path.join(tmp, 'key.pem'), cert = path.join(tmp, 'cert.pem');
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '2', '-subj', '/CN=x.com', '-addext', 'subjectAltName=' + HOSTS.map((h) => 'DNS:' + h).join(',')], { stdio: 'ignore' });
-  const server = await start({ pages, tls: { key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, bare: true, publicOrigin: 'https://x.com' });
+  const server = await start({ pages, tls: { key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, bare: true, publicOrigin: 'https://x.com', raster });
   const context = await chromium.launchPersistentContext(path.join(tmp, 'profile'), {
     ...(exe ? { executablePath: exe } : { channel: 'chromium' }),
     headless: false, // (the new headless mode, below: the old one takes no extensions)
