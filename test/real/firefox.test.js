@@ -220,6 +220,16 @@ firefox('Copy link and Copy diagnostics reach the clipboard from the content scr
   assert.match(await toastText(), /^Copied/, 'Copy diagnostics: ' + (await toastText()));
 });
 
+firefox('Like on a card presses X\'s real button on its hidden page (the events the content script makes reach the page\'s own handlers)', async (r, d) => {
+  await home(r, d);
+  await sleep(2500);
+  // (the stand-in's page keeps what its buttons did in __actions; WebDriver's sandbox sees the page's globals through wrappedJSObject)
+  const seen = () => d.js(() => { const w = window.wrappedJSObject || window; return Array.from(w.__actions || []); });
+  const before = (await seen()).length;
+  await d.press('.xmc-card [data-act="like"]');
+  await d.waitFor((n) => { const w = window.wrappedJSObject || window; return Array.from(w.__actions || []).slice(n).some((a) => /^liked:/.test(a)); }, [before], 15000, 'X\'s like handler to run (the page saw: ' + JSON.stringify(await seen()) + ')');
+});
+
 firefox('what the extension saw on x.com (the probe of X\'s buttons, the parser\'s counts) is written to browser.storage and shown in the panel\'s status table', async (r, d) => {
   await home(r, d);
   await panel(d, async () => {
