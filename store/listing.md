@@ -17,6 +17,7 @@ By default your feed shows in columns that fit your window (up to eight), on the
 - **More room:** pressing X's logo folds its left menu to icons, and a tab on the edge slides the right panel away; the columns grow into the space (Alt+[ and Alt+]).
 - **Settings in a panel:** from the toolbar button, or from the gear in the columns' bar over the page; every section folds out of a list, and there is a search.
 - **Smooth.** Posts load ahead of you as you scroll, and photos are ready by the time you get there.
+- **It tells you when X has changed something.** If X changes a button the extension presses, that one feature switches off with a message saying what was not found, instead of silently doing nothing; if the columns cannot work at all, X's own page is shown with a Report button. The settings page has a table of what is working, and "Save sample" keeps what is needed to fix a change.
 - **Easy to read and to press.** A text-size setting for posts and the panel, targets at least 24 px with names for screen readers, nothing moves when you ask for reduced motion, and the settings page has a search box and a Reset for anything you have changed.
 
 **Reading a post**

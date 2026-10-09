@@ -19,16 +19,22 @@ body:
       label: Diagnostics
       description: |
         Click the amber warning sign in the top bar if you see one, or open a post's "..." menu and choose "Copy diagnostics", then paste here.
-        It holds request names, counts and layout numbers: no post text, names or cookies.
+        It holds request names, counts, layout numbers and a table of what was working (which of X's buttons were found): no post text, names or cookies.
       render: json
   - type: input
     id: version
     attributes:
       label: Extension version
       description: "about:addons, then Multi-Column for X"
-      placeholder: "0.10.0"
+      placeholder: "0.32.0"
   - type: input
     id: browser
     attributes:
       label: Browser
-      placeholder: "Zen 1.x / Firefox 14x on Linux"
+      placeholder: "Zen 1.x / Firefox 14x on Linux, Chrome 14x on Windows"
+  - type: markdown
+    attributes:
+      value: |
+        **If a button or a part of the page stopped working** (Like does nothing, comments never load, the columns give up), the most useful thing to attach is a sample:
+        on x.com, with the columns on, open a post's "..." menu and choose **Save sample for the developer**, then drag the file `multi-column-for-x-sample-<date>.json` into this form.
+        It holds the shape of what X sent and the markup of the buttons, with every word, name and address replaced. Open it in a text editor first if you like.

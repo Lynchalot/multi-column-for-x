@@ -1,6 +1,6 @@
 # Multi-Column for X: notes for whoever (or whatever) works on this next
 
-Firefox/Zen MV3 extension that shows X/Twitter in masonry columns. Public repo, MIT, on addons.mozilla.org (v0.9.2 was submitted and awaits review; the repo is at 0.10.0).
+Firefox/Zen MV3 extension (and, from 0.31.0, a Chrome/Edge package from the same files) that shows X/Twitter in masonry columns. Public repo, MIT. Ask the owner where the addons.mozilla.org listing stands before saying anything about it (`main` on GitHub was last at 0.10.0; the work is on `fix-duplicate-instance`, which fast-forwards onto it).
 The owner uses Zen on Linux with a ~3400px-wide screen and Vimium. Nobody working here can log in to X: nothing is verified against real X, only against the stand-in x.com in `test/e2e/mock/`. Say so when you report, and ask for "Copy diagnostics" output (the ⚠ button in the top bar, or a post's ... menu) when something fails on real X.
 
 ## Run it

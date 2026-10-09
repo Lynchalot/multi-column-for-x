@@ -60,7 +60,7 @@ The listed add-on waits in Mozilla's review queue for every version. A beta chan
    - **Single purpose:** shows the X (Twitter) timeline in several columns and gives controls for reading it (filters, a post panel with comments, media download).
    - **Permission justifications:** `storage`: settings, download history, which posts you have read and a short event log, all kept on the device. `downloads`: the Download button saves the post's pictures or video. Host access to x.com and twitter.com: the site it enhances. pbs.twimg.com and video.twimg.com: the media files the Download button and the original-size view fetch.
    - **Remote code:** none. **Data usage:** collects none; tick the three certifications. Privacy policy URL: the raw `PRIVACY.md` on GitHub.
-   - **Graphics:** the 128 px icon (`store/icon-128.png`), the 1280x800 slides (`store/screenshots/slides/`), and a small promo tile (440x280), which the dashboard asks for and is not made yet.
+   - **Graphics:** the 128 px icon (`store/icon-128.png`), the 1280x800 slides (`store/screenshots/slides/`), and the small promo tile (440x280) the dashboard asks for: `store/chrome-promo-440x280.png` (made by `node store/make-promo.js`).
 4. Chrome takes an unpacked folder for your own use at once: chrome://extensions -> Developer mode -> **Load unpacked** -> `dist/chrome`.
 5. Review is usually a few days; a broad host permission on a big site gets read by a person.
 
