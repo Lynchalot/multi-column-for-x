@@ -26,7 +26,7 @@ function png(shade) {
 // twimg: pictures and videos are said to live on pbs.twimg.com and video.twimg.com, as on X (the browser must map those names to this server too).
 // raster: pictures are small PNGs, not SVG (every SVG used as an image is a document of its own in the browser, which a count of documents and nodes would show as growth).
 // csp: a Content-Security-Policy header for the pages (a strict one, like X's, shows what the extension's frames and styles do under it).
-function start({ pages = 30, port = 0, tls = null, bare = false, publicOrigin = '', csp = '', twimg = false, raster = false } = {}) {
+function start({ pages = 30, port = 0, tls = null, bare = false, publicOrigin = '', csp = '', twimg = false, raster = false, sensEvery = 0 } = {}) {
   let origin = '';
   let api = null;
   let cspHeader = csp;
@@ -66,7 +66,7 @@ function start({ pages = 30, port = 0, tls = null, bare = false, publicOrigin = 
   return new Promise((resolve) => {
     server.listen(port, '127.0.0.1', () => {
       origin = publicOrigin || ('http://127.0.0.1:' + server.address().port);
-      api = makeApi(origin, pages, twimg ? { img: 'https://pbs.twimg.com', vid: 'https://video.twimg.com' } : null);
+      api = makeApi(origin, pages, twimg ? { img: 'https://pbs.twimg.com', vid: 'https://video.twimg.com' } : null, sensEvery);
       resolve({ origin, port: server.address().port, setCsp: (v) => { cspHeader = v; }, close: () => new Promise((r) => server.close(r)) });
     });
   });

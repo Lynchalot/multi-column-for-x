@@ -3,7 +3,8 @@
 'use strict';
 
 // media: where the pictures and videos are said to live (default: the same origin), e.g. { img: 'https://pbs.twimg.com', vid: 'https://video.twimg.com' } as on X
-function makeApi(origin, pages, media) {
+// sensEvery: how rare the posts marked sensitive are (one in this many posts; the default, 5, is one picture post in every forty)
+function makeApi(origin, pages, media, sensEvery) {
   const imgHost = (media && media.img) || origin, vidHost = (media && media.vid) || origin;
   const user = (n) => ({
     __typename: 'User', rest_id: `u${n}`, is_blue_verified: n % 2 === 0,
@@ -15,7 +16,7 @@ function makeApi(origin, pages, media) {
     const base = {
       id_str: String(i), full_text: `[${feed}] tweet ${i} kind ${kind} lorem ipsum dolor sit amet`, display_text_range: [0, 200],
       created_at: 'Wed Oct 04 12:00:00 +0000 2026', reply_count: i % 7, retweet_count: i % 11, quote_count: i % 4 === 1 ? 5 : 0, favorite_count: i % 13, bookmark_count: i % 3,
-      lang: i % 7 === 0 ? 'ja' : 'en', possibly_sensitive: kind === 1 && i % 5 === 4, favorited: false, retweeted: false, bookmarked: false, entities: {},
+      lang: i % 7 === 0 ? 'ja' : 'en', possibly_sensitive: sensEvery ? i % sensEvery === 0 : kind === 1 && i % 5 === 4, favorited: false, retweeted: false, bookmarked: false, entities: {},
     };
     const r = {
       __typename: 'Tweet', rest_id: String(i), core: { user_results: { result: user(un) } }, views: { count: String(i * 3) },

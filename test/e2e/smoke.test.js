@@ -5965,6 +5965,18 @@ browserTest('NSFW only: the Show menu has it when the setting adds it, and choos
   });
 }, 90000);
 
+browserTest('NSFW only with few flagged posts: it goes on loading until it finds some, and shows only those', async () => {
+  const rare = await setup({ pages: 15, sensEvery: 97 }); // (about one post in a hundred is marked: the first page has none)
+  if (!rare) return;
+  try {
+    const h = await rare.open('/home/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 2, nsfwView: true, filter: 'nsfw', seen: 'off' } });
+    await checked(h, async () => {
+      await h.page.waitForFunction(() => window.__xmc && window.__xmc.view.cards.length >= 2, null, { timeout: 45000 });
+      assert.equal(await h.page.evaluate(() => window.__xmc.view.cards.every((t) => t.sensitive || (t.quoted && t.quoted.sensitive))), true);
+    });
+  } finally { await rare.teardown(); }
+}, 120000);
+
 browserTest('Followers you know: they are people you follow already, so there is no "You don’t follow back" choice and no Following mark on each', async (e) => {
   const h = await e.open('/user1/followers_you_follow/', { width: 2000, height: 1000, settings: { v: 11, hintSeen: true } });
   await checked(h, async () => {
