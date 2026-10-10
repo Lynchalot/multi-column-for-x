@@ -5,6 +5,12 @@ Your X (Twitter) timeline in masonry columns — and the useful parts of **Contr
 and, if you ask for it with the **Try columns** pill, Explore (which is left as X's own page, since it is mostly news and trends). To go back to the normal feed, press the **Columns** pill in X's left sidebar, or disable the extension.
 
 ## What you get
+- **A welcome page on install** with four steps on one screen: allow x.com, how to start (Just columns, Calm, Media wall or Reels), the keys (Vim, Simple or none) and the colours. Each choice is a real setting, applied as you pick it.
+- **Reels** *(option)* — one post at a time fills the page, scrolled up and down with the keys, the wheel or the arrows; videos play with sound and loop, posts you have seen are skipped, double-click likes. It works on a profile too.
+- **Keys** — the Vim set (`j` `k`, `gg` `G`, `Ctrl+D` `Ctrl+U`, `w` `a` `s` `d` or the arrows to move a ring over the posts, `o` open, `f` like, `b` bookmark, `t` repost, `c` comment, `q` copy link, `e` download, `r` Reels, `?` for the whole list; a key acts on the post under the pointer when you have just moved it) or the Simple set (`A S W E Q C` in a post's panel). Every key can be changed.
+- **Fourteen colour themes** for the columns, the post panel and the settings (Catppuccin ×4, Gruvbox ×2, Rosé Pine ×2, Dracula, Tokyo Night, Nord, Everforest, Kanagawa Wave, Dark Academia) or X's own colours. Japanese, Korean and Chinese posts use a sans-serif (gothic) face.
+- **A profile's header as a card** at the top of the columns; its Follow, bell and More buttons press X's own.
+- **NSFW only** *(option, Settings, Posts)* — a choice in the Show menu that keeps only the posts X marks as sensitive.
 - **Columns** — automatic (about 500px wide each, never more than 5 by default; a narrower window drops columns down to one instead of squeezing them) or fixed 1–8.
 - **Search on Likes** *(option)* — X has no search there. A box, a chip for each account and Pictures / Video / Links narrow the likes that have loaded; **Read older likes** loads more when you ask. Bookmarks gets the chips, and Bookmarks and Search get a Reels button.
 - **Followers and Following as a grid** *(option)* — the people as cards (picture, name, bio, whether they follow you back) in narrow columns, with a search of names and bios and a choice of the ones who do not follow back. Lists' members too.
@@ -33,7 +39,7 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
 - **Posts open in a panel** over the columns (picture large on one side; words, actions and comments on the other; Esc closes; arrows step to the next post). A post with several pictures shows them one at a time with an arrow each side and a dot for each; the wheel flicks between them, and the left or right third of a picture steps (the middle opens it full size). The empty space round a picture is a blurred copy of it. A quoted post opens in the panel too, and the time on a post is a link to it on X. Comments load as you scroll, can be sorted, and have like, bookmark, views and share; a comment opens in the same panel. Like / repost / save / download appear on a picture when you point at it.
 - **A toolbar button** opens the settings in a panel, each section folding out of a list, with a search; "All settings" opens the full page. The gear in the columns' bar opens the same panel over the page.
 - **Chrome and Edge:** `npm run build:chrome` makes the package (`dist/chrome/` to load unpacked, and a zip for the stores).
-- **Presets** at the top of the settings page (Just columns, Calm, Media wall); it opens there when the extension is first installed.
+- **Presets** at the top of the settings page (Just columns, Calm, Media wall, Reels); the welcome page offers the same four on install.
 - **Video and GIFs play in the card.** Photos open in a viewer (arrows, **Esc** closes it) with **Download** and **Copy link** buttons.
   Posts and comments in other languages get a **Translate** button that uses X's own translation (in whatever language your X is set to). Pointing at the button for a moment starts it, so it is usually done when you press; if X has already translated a post on its page, that is shown with **Show original**. **NSFW** button in the top bar:
   blur → show → hide those posts.
