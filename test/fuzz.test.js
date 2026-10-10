@@ -35,3 +35,23 @@ test('damaged timelines and people lists: the parser never throws', () => {
   }
   assert.equal(rounds, 900);
 });
+
+test('key choices saved as text, however damaged: bindings and panel keys fall back to the defaults, never throw, never share a key', () => {
+  const K = require('../src/keys.js');
+  const S = require('../src/settings.js');
+  const bad = ['', '{', 'null', '[]', '"x"', '5', '{"like":5}', '{"like":["f"]}', '{"like":"__proto__"}', '{"__proto__":{"like":"z"}}', '{"constructor":"x"}', JSON.stringify({ like: 'x'.repeat(5000) }),
+    JSON.stringify({ like: 'a b c' }), JSON.stringify({ like: 'j', bookmark: 'j' }), JSON.stringify({ like: 'g', top: 'g g' }), JSON.stringify(Object.fromEntries(Array.from({ length: 500 }, (_, i) => ['k' + i, 'a']))), '\u0000', '{"like":"\u0000"}'];
+  for (const text of bad) {
+    let b, m;
+    assert.doesNotThrow(() => { b = K.bindings(text); m = S.panelKeyMap(text); }, JSON.stringify(text).slice(0, 40));
+    const seen = new Map();
+    for (const [act, toks] of Object.entries(b)) {
+      assert.ok(Array.isArray(toks) && toks.length >= 1 && toks.length <= 2, act);
+      const key = toks.join(' ');
+      for (const [other, ot] of seen) assert.ok(!(key === ot || key.startsWith(ot + ' ') || ot.startsWith(key + ' ')), `${act} (${key}) clashes with ${other} (${ot}) for ${JSON.stringify(text).slice(0, 40)}`);
+      seen.set(act, key);
+    }
+    assert.equal(({}).like, undefined, 'nothing reached Object.prototype');
+    assert.ok(m && typeof m === 'object');
+  }
+});
