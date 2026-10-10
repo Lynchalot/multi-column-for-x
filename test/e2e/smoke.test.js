@@ -6002,6 +6002,24 @@ browserTest('NSFW only with few flagged posts: it goes on loading until it finds
   } finally { await rare.teardown(); }
 }, 120000);
 
+browserTest('a timeline recorded from real X (test/fixtures/real) is drawn: posts, a quote, a video, a long note, no script errors of ours', async (e) => {
+  const sample = require('../fixtures/real/multi-column-for-x-sample-2026-10-09.json');
+  const h = await e.open('/home/', { width: 2000, height: 1000, routes: async (ctx) => {
+    await ctx.route(/\/i\/api\/graphql\/[^/]+\/Home(Latest)?Timeline/, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(sample.ops.HomeTimeline.json) }));
+  } });
+  try {
+    const { page } = h;
+    await e.ready(page, 8);
+    await page.waitForTimeout(1500);
+    const r = await page.evaluate(() => ({ cards: window.__xmc.view.cards.length, failed: window.__xmc.state.failed, quotes: document.querySelectorAll('.xmc-card .xmc-quote').length, videos: document.querySelectorAll('.xmc-card video').length, nameless: [...document.querySelectorAll('.xmc-card')].filter((c) => !c.querySelector('.xmc-name, .xmc-user, a[href^="/"]')).length }));
+    assert.ok(r.cards >= 8, 'cards drawn from the recorded posts: ' + r.cards);
+    assert.equal(r.failed, '', 'the columns did not give up');
+    assert.ok(r.quotes >= 1 && r.videos >= 1, 'a quote and a video among them: ' + JSON.stringify(r));
+    assert.equal(r.nameless, 0, 'every card has its author');
+  } finally { await h.close(); }
+  assert.deepEqual(h.errors.filter((m) => !/ents is not iterable/.test(m)), [], 'errors of ours (the stand-in page itself cannot read a real response: its own error is left out)');
+});
+
 browserTest('Followers you know: they are people you follow already, so there is no "You don’t follow back" choice and no Following mark on each', async (e) => {
   const h = await e.open('/user1/followers_you_follow/', { width: 2000, height: 1000, settings: { v: 11, hintSeen: true } });
   await checked(h, async () => {
