@@ -184,6 +184,9 @@ var XMCParse = (function () {
   // A person as the rest of the extension sees an item: an id, a key, an author, no media; `person: true`, the bio, and what the page says about the follow.
   // (Whether X sends the bio as `profile_bio.description` or `legacy.description`, and the follow flags in `relationship_perspectives` or `legacy`: either.)
   function normalizePerson(ur) {
+    try { return readPerson(ur); } catch { return null; }
+  }
+  function readPerson(ur) {
     const user = parseUser(ur);
     if (!user) return null;
     const r = (ur && ur.result) || ur || {}, legacy = r.legacy || {}, rp = r.relationship_perspectives || {};
@@ -211,9 +214,13 @@ var XMCParse = (function () {
   }
 
   // What the parser read and what it let go, over the whole page load: a change in X's shape then shows as a number (diagnostics, `parse`)
-  const stats = { responses: 0, entries: 0, tweetItems: 0, tweets: 0, dropped: { noResult: 0, noLegacy: 0, noAuthor: 0, noId: 0, noText: 0 }, itemTypes: {}, ops: {}, ignoredOps: {} };
+  const stats = { responses: 0, entries: 0, tweetItems: 0, tweets: 0, dropped: { noResult: 0, noLegacy: 0, noAuthor: 0, noId: 0, noText: 0, unreadable: 0 }, itemTypes: {}, ops: {}, ignoredOps: {} };
   const drop = (why) => { stats.dropped[why]++; return null; };
+  // One post that cannot be read is let go (and counted), not the page's worth of posts it came with
   function normalizeTweet(result, depth) {
+    try { return readTweet(result, depth); } catch { return drop('unreadable'); }
+  }
+  function readTweet(result, depth) {
     depth = depth || 0;
     const r = unwrap(result);
     if (!r) return drop('noResult');

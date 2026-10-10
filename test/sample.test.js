@@ -55,3 +55,33 @@ test('samples from real X: the parser reads the timelines and conversations, and
     }
   }
 });
+
+// X changes its data without notice. Whatever comes back, the parser must give posts or nothing, and never throw (a throw is a page that stops loading).
+test('a recorded timeline and conversation damaged in many ways: the parser never throws', (t) => {
+  if (!files.length) return t.skip('no samples yet');
+  let seed = 1;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const junk = [null, undefined, '', 'x', 0, -1, 1e21, true, [], {}, [null], { result: null }, { __typename: 'TweetTombstone' }];
+  const damage = (v, p) => {
+    if (v && typeof v === 'object') {
+      for (const k of Object.keys(v)) { if (rnd() < p) { if (rnd() < 0.3) delete v[k]; else v[k] = junk[Math.floor(rnd() * junk.length)]; } else damage(v[k], p); }
+    }
+    return v;
+  };
+  let reads = 0;
+  for (const f of files) {
+    const s = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+    for (const [op, { url, json }] of Object.entries(s.ops || {})) {
+      if (!json || json.truncated) continue;
+      for (let i = 0; i < 150; i++) {
+        const copy = damage(JSON.parse(JSON.stringify(json)), [0.002, 0.01, 0.04][i % 3]);
+        assert.doesNotThrow(() => {
+          if (op === 'TweetDetail') P.parseDetail(copy, url + '?variables=' + encodeURIComponent(JSON.stringify({ focalTweetId: '1' })), '1');
+          else P.parseResponse(copy, url + '?variables=%7B%7D');
+          reads++;
+        }, op + ' damaged (round ' + i + ')');
+      }
+    }
+  }
+  assert.ok(reads >= 300, 'rounds run: ' + reads);
+});
