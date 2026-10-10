@@ -940,7 +940,7 @@
   const wheelWired = new WeakSet();
   const wireSidebar = (bar) => { if (bar && !wheelWired.has(bar)) { wheelWired.add(bar); bar.addEventListener('wheel', sidebarWheel, { passive: false, capture: true }); } };
   document.addEventListener('pointerover', (e) => { if (e.target.closest) wireSidebar(e.target.closest(SIDEBARS)); }, { passive: true, capture: true });
-  const wireSidebars = () => { for (const bar of document.querySelectorAll(SIDEBARS)) wireSidebar(bar); };
+  const wireSidebars = () => { for (const bar of (document.getElementById('react-root') || document).querySelectorAll(SIDEBARS)) wireSidebar(bar); }; // (X's own page: not the columns' thousands of nodes)
 
   // Vimium and friends scroll "the element you last clicked in", so make that our columns
   const focusScroller = () => { if (!root.hidden && !postView && !/^(input|textarea|select)$/i.test((document.activeElement || {}).tagName || '')) scroller.focus({ preventScroll: true }); };
@@ -5243,7 +5243,7 @@
       floatEls.add(d);
     }
     for (const el of floatEls) if (!el.isConnected) floatEls.delete(el);
-    if (!quick) guard('corner probe', probeCorner);
+    if (!quick && Date.now() - lastScrollAt > 800) guard('corner probe', probeCorner); // (thirty hit tests: not while the columns are moving; the buttons do not)
     updateFloaters();
   }
   // An opened panel should not wait for the next slow pass to come up on top: look at once when #layers gains something, and a moment after a press on the buttons

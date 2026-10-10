@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.48.8
+- **A little less work while you scroll.** Looking for X's floating Grok and Chat buttons (thirty hit tests) waits until the columns have stopped moving, and the look for X's sidebars (to give them the wheel) searches X's own page and not the columns' thousands of posts. Measured on the stand-in over 30 seconds of constant scrolling: the extension's script time went from 2.07 s to 1.5 s; the rest of the time is the browser drawing.
+- Tests: the Firefox rig waits for the first-run tip before pressing (it moved the layout under the press); a hostile-storage test for the settings (every value inside its limits, loading twice changes nothing); NSFW only with few flagged posts keeps loading.
+- Store texts (listing, release notes, privacy, README) brought up to date.
+
 ## 0.48.7
 - **NSFW only is in the Show menu as soon as the setting is on.** It waited for a flagged post to have loaded, so with the setting on and none in the feed there was nothing to pick and it looked broken. Now the choice is there, and says so while nothing flagged has loaded yet. (Copy diagnostics now lists `flaggedSensitive` for each feed: the number of posts X has marked as sensitive. If it stays 0 on a feed that has such posts, X is not sending the mark where it is read.)
 - **The Presets list in Settings is not shown on the welcome page**, where its second step is the same four starting points. It is back in Settings once the welcome is put away.
