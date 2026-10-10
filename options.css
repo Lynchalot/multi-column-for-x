@@ -134,11 +134,14 @@ body.popup .master { margin-top: 6px; margin-bottom: 2px; }
 .keyrow .kmark { font-size: 12.5px; color: var(--accent); min-width: 60px; }
 .vimrows { margin: 8px 0 4px; display: grid; gap: 6px; max-width: 620px; }
 .vimgroup { margin: 14px 0 2px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-.vimkeys .keyrow { min-height: 34px; }
-.vimkeys .keyrow .kwhat { font-size: 14px; }
+.vimrow { display: flex; align-items: center; gap: 12px; min-height: 34px; }
+.vimrow .kwhat { flex: 1; font-size: 14px; }
+.vimrow .kbtn { min-width: 64px; min-height: 30px; font: 600 14px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.vimrow .kbtn.listening { border-color: var(--accent); outline: 2px solid var(--accent); }
+.vimrow .kmark { font-size: 12.5px; color: var(--accent); min-width: 60px; }
 .vimkeys > button.reset { margin-top: 10px; min-height: 30px; padding: 2px 12px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--accent); font: inherit; font-size: 13.5px; }
 .keyfixed { margin: 8px 0 0; font-size: 13.5px; color: var(--muted); }
-.keymsg { min-height: 20px; margin: 4px 0 0; font-size: 13.5px; color: #f4212e; }
+.keymsg, .vimmsg { min-height: 20px; margin: 4px 0 0; font-size: 13.5px; color: #f4212e; }
 
 /* the banner for a missing permission: stays at the top while it is missing */
 .access { position: sticky; top: 0; z-index: 40; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 12px 20px; font-size: 14.5px; line-height: 1.35; }

@@ -495,7 +495,7 @@
   // The Vim keys: every action with its key (one, or two in a row such as g g); press a row's button, then the key or keys; Backspace puts the default back.
   function vimKeysTable() {
     const K = XMCKeys, wrap = h('div', { className: 'vimkeys' });
-    const msg = h('p', { className: 'keymsg', role: 'status' });
+    const msg = h('p', { className: 'vimmsg', role: 'status' });
     const host = h('div', { className: 'vimrows' });
     const assign = (act, str) => {
       const r = K.assign(settings.vimKeys || '', act, str);
@@ -528,7 +528,7 @@
         const btn = h('button', { type: 'button', className: 'kbtn', textContent: seq ? K.label(seq) : 'none', title: 'Press, then the key (or two in a row)', 'aria-label': label + ': ' + (seq ? K.label(seq) : 'no key') + '. Press to choose another.' });
         btn.addEventListener('click', () => listen(act, btn));
         const reset = seq && K.label(seq) === dflt ? h('span', { className: 'kmark' }) : h('button', { type: 'button', className: 'reset', textContent: 'Reset', 'aria-label': 'Put the key for ' + label + ' back to ' + dflt, onclick: () => { assign(act, null); draw(); } });
-        return h('div', { className: 'keyrow vimrow' }, h('span', { className: 'kwhat', textContent: label }), btn, reset);
+        return h('div', { className: 'vimrow' }, h('span', { className: 'kwhat', textContent: label }), btn, reset);
       }))));
     }
     draw();

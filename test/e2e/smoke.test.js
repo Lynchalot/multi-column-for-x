@@ -4826,7 +4826,7 @@ browserTest('Vim keys on the columns: j and k scroll, G and gg go to the end and
     await page.keyboard.press('Shift+Space');
     assert.equal(await top(), 0, 'Shift+Space: a page back');
     await page.keyboard.press('G');
-    await page.waitForFunction(() => { const sc = document.querySelector('.xmc-scroller'); return sc.scrollTop > 100 && sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4; });
+    await page.waitForFunction(() => document.querySelector('.xmc-scroller').scrollTop > 300); // (it goes to the end of what is loaded; the feed then loads more, so the end moves)
     await page.keyboard.press('g'); await page.keyboard.press('g');
     assert.equal(await top(), 0, 'gg: the top');
     // a held key goes on scrolling; the keys that are bound or are plain letters never reach X's page
@@ -5002,7 +5002,8 @@ browserTest('Vim keys: r turns a panel into Reels and back out, and in Reels j a
     await idIs(firstId);
     await page.keyboard.press('r');
     await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)') && !document.getElementById('xmc-root').classList.contains('xmc-reels'), null, { timeout: 5000 });
-    // from the columns, r starts Reels at the ringed card
+    // from the columns, r starts Reels at the ringed card (the menu unfolds as Reels goes, and the columns settle: a moment before the keys)
+    await page.waitForTimeout(700);
     await page.keyboard.press('s');
     await page.keyboard.press('s');
     const id = await ringId(page);
@@ -5117,11 +5118,11 @@ browserTest('Settings, Keyboard: choosing Vim shows its table (and hides the cla
     // a taken key, and one that begins another
     await row('Repost').locator('.kbtn').click();
     await page.keyboard.press('j');
-    await page.waitForFunction(() => /already/.test([...document.querySelectorAll('#sec-keys .keymsg')].map((m) => m.textContent).join(' ')), null, { timeout: 4000 });
+    await page.waitForFunction(() => /already/.test([...document.querySelectorAll('#sec-keys .vimmsg')].map((m) => m.textContent).join(' ')), null, { timeout: 4000 });
     await page.keyboard.press('Escape');
     await row('Repost').locator('.kbtn').click();
     await page.keyboard.press('g');
-    await page.waitForFunction(() => /begins|already/.test([...document.querySelectorAll('#sec-keys .keymsg')].map((m) => m.textContent).join(' ')), null, { timeout: 4000 });
+    await page.waitForFunction(() => /begins|already/.test([...document.querySelectorAll('#sec-keys .vimmsg')].map((m) => m.textContent).join(' ')), null, { timeout: 4000 });
     await page.keyboard.press('Escape');
     // back to the default: Reset, and Backspace
     await row('Like').locator('button.reset').click();
