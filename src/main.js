@@ -524,6 +524,8 @@
     v.volume = settings.volume;
     v.muted = auto || settings.videoMuted; // videos that autoplay always start muted; the rest start the way you last left the volume
     if (!gif) v.dataset.video = '1';
+    const goRound = () => { v.loop = gif || v.muted; }; // (a muted video starts again at its end; with its sound on it plays once)
+    v.addEventListener('volumechange', goRound); goRound();
     if (auto) { v.dataset.gif = '1'; playObserver.observe(v); }
     return h('div', { className: 'xmc-video' }, v, gif ? h('span', { className: 'xmc-gif', textContent: 'GIF' }) : null);
   }
@@ -1662,6 +1664,7 @@
       const guess = est || estimate(t, w);
       if (!t.el) { t.el = renderCard(t); t.elSig = renderSig(); } // elSig: how it was built, so a layout change rebuilds only what is out of date
       const el = t.el;
+      if (el.dataset.recycled === '1' && !recycled) restoreCard(t, el); // (an empty shell that nothing is counting would stay empty for good)
       // a card that hasn't been drawn yet counts as our estimate (not a flat 420px), so the columns stay level
       if (!el.dataset.sized) { el.style.containIntrinsicSize = 'auto ' + guess + 'px'; el.dataset.sized = '1'; }
       columns[i].append(el);
@@ -1714,6 +1717,7 @@
     view.sig = filterSig();
     view.renderSig = renderSig();
     view.upto = 0;
+    for (const t of view.cards) if (t.el && t.el.dataset.recycled === '1') t.el = null; // (a post that had given its contents back is drawn afresh: its empty shell would be put in the new view, and nothing would fill it, the count of them being zero below)
     view.cards = [];
     view.drawnIds = new Set();
     view.fold = settings.collapseReposts ? XMCLogic.collapser() : null; // reposts of the same post share one card
@@ -4095,7 +4099,9 @@
       for (const v of vids) v.addEventListener('timeupdate', () => { if (v.closest('.xmc-vm[hidden]')) return; fill.style.width = (v.duration > 0 ? Math.min(100, v.currentTime / v.duration * 100) : 0) + '%'; });
     }
     for (const v of vids) {
-      if (settings.videoEnd === 'loop') v.loop = true;
+      // loops when asked to (Settings: At its end), and while it is muted unless the end is for going on to the next post
+      const goRound = () => { v.loop = settings.videoEnd === 'loop' || (settings.videoEnd !== 'next' && v.muted); };
+      v.addEventListener('volumechange', goRound); goRound();
       v.addEventListener('ended', () => afterVideo(v));
     }
     const first = el.querySelector('.xmc-vmediapane .xmc-vm:not([hidden]) video[data-video]');

@@ -50,7 +50,7 @@ var XMCKeys = (function () {
   const VIM = {
     down: 'j', up: 'k', left: 'h', right: 'l', top: 'g g', bottom: 'G', halfDown: 'C-d', halfUp: 'C-u', pageDown: 'Space', pageUp: 'S-Space',
     cardUp: 'w', cardLeft: 'a', cardDown: 's', cardRight: 'd', open: 'o',
-    like: 'f', bookmark: 'b', repost: 't', reply: 'c', share: 'y', download: 'e', parent: 'u',
+    like: 'f', bookmark: 'b', repost: 't', reply: 'c', share: 'q', download: 'e', parent: 'u',
     reels: 'r', mute: 'm', fullscreen: 'v',
     tabPrev: '[', tabNext: ']', newPosts: '.', search: '/', settings: ',', help: '?',
     goHome: 'g h', goExplore: 'g e', goNotifications: 'g n', goProfile: 'g p', goBookmarks: 'g b', goLists: 'g l', goMessages: 'g m',

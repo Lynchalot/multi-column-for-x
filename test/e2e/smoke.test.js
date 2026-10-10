@@ -337,6 +337,42 @@ browserTest('a video in the panel plays at once when asked (muted, or with the s
   });
 });
 
+browserTest('a muted video goes round again (in the feed and in the panel, unless the end is for going on to the next post), and one with its sound on plays once', async (e) => {
+  const h = await e.open('/home/', { settings: { autoplayVideo: 'muted', seen: 'off' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('.xmc-card video', { timeout: 8000 });
+    const state = () => page.evaluate(() => { const v = document.querySelector('.xmc-card video[data-video]'); return { muted: v.muted, loop: v.loop }; });
+    assert.deepEqual(await state(), { muted: true, loop: true }, 'it autoplays muted, and loops');
+    await page.evaluate(() => { document.querySelector('.xmc-card video[data-video]').muted = false; });
+    await page.waitForFunction(() => { const v = document.querySelector('.xmc-card video[data-video]'); return !v.muted && !v.loop; }, null, { timeout: 3000 });
+    await page.evaluate(() => { document.querySelector('.xmc-card video[data-video]').muted = true; });
+    await page.waitForFunction(() => { const v = document.querySelector('.xmc-card video[data-video]'); return v.muted && v.loop; }, null, { timeout: 3000 });
+  });
+  const run = async (settings, then) => {
+    const p = await e.open('/home/', { settings, seen: ['89996'] });
+    await checked(p, async () => {
+      const { page } = p;
+      await standInPlay(page); // (the browser here cannot decode the stand-in's video: a play that is refused would leave it muted)
+      await e.ready(page);
+      await openCard(page, '89997');
+      await page.waitForSelector('.xmc-view video[data-video]', { timeout: 8000 });
+      await then(page);
+    });
+    await p.close();
+  };
+  const loop = (page) => page.evaluate(() => document.querySelector('.xmc-view video[data-video]').loop);
+  await run({ panelVideo: 'muted', videoEnd: 'stop' }, async (page) => { assert.equal(await loop(page), true, 'muted, and the end is to stop: it goes round'); });
+  await run({ panelVideo: 'muted', videoEnd: 'next' }, async (page) => { assert.equal(await loop(page), false, 'muted, but the end is for the next post: it does not hold that back'); });
+  await run({ panelVideo: 'sound', videoEnd: 'stop' }, async (page) => {
+    await page.waitForFunction(() => !document.querySelector('.xmc-view video[data-video]').muted, null, { timeout: 4000 });
+    assert.equal(await loop(page), false, 'with its sound on it plays once');
+    await page.evaluate(() => { document.querySelector('.xmc-view video[data-video]').muted = true; });
+    await page.waitForFunction(() => document.querySelector('.xmc-view video[data-video]').loop, null, { timeout: 3000 });
+  });
+}, 90000);
+
 browserTest('the columns follow the panel, so the feed goes on drawing and loading ahead of someone stepping through post after post', async (e) => {
   const h = await e.open('/home/');
   await checked(h, async () => {
@@ -999,6 +1035,34 @@ browserTest('the settings page has no leftovers', async (e) => {
     assert.equal((await h.page.locator('#support a').first().innerText()).trim(), 'Support');
   });
 });
+
+browserTest('after a long session a change of view (the Show menu) does not leave posts blank: the shells that had given their contents back are drawn afresh', async (e) => {
+  const h = await e.open('/home/', { height: 800 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(async () => {
+      const sleep = (ms) => new Promise((x) => setTimeout(x, ms));
+      const sc = document.querySelector('.xmc-scroller');
+      for (let k = 0; k < 90 && window.__xmc.view.cards.length < 300; k++) { sc.scrollTop = sc.scrollHeight; await sleep(300); }
+      for (let i = 0; i < 12; i++) { window.__xmc.recycle(false); await sleep(30); }
+    });
+    const gone = await page.evaluate(() => document.querySelectorAll('.xmc-card[data-recycled="1"]').length);
+    assert.ok(gone > 20, `${gone} posts recycled: not a long session`);
+    // another view, and back to Everything
+    await page.locator('.xmc-showbtn').click();
+    await page.locator('.xmc-menu button', { hasText: /Posts only|Media/ }).first().click();
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-card').length > 3, null, { timeout: 8000 });
+    await page.locator('.xmc-showbtn').click();
+    await page.locator('.xmc-menu button', { hasText: 'Everything' }).first().click();
+    await page.waitForTimeout(600);
+    await page.evaluate(() => { document.querySelector('.xmc-scroller').scrollTop = 0; });
+    await page.waitForTimeout(900);
+    const r = await page.evaluate(() => { const cards = [...document.querySelectorAll('.xmc-card')].filter((c) => { const b = c.getBoundingClientRect(); return b.bottom > 0 && b.top < innerHeight; }); return { n: cards.length, empty: cards.filter((c) => !c.childNodes.length || c.dataset.recycled === '1').length }; });
+    assert.ok(r.n >= 2, 'posts in view');
+    assert.equal(r.empty, 0, `${r.empty} of ${r.n} posts in view are blank`);
+  });
+}, 120000);
 
 browserTest('a long session: far-off posts give their nodes back, and nothing moves when they return', async (e) => {
   const h = await e.open('/home/', { height: 800 });
@@ -4899,7 +4963,7 @@ browserTest('Vim keys: a ring on a card moves with w a s d (and h l), starts on 
   });
 }, 90000);
 
-browserTest('Vim keys for a post: f likes, b bookmarks, y copies the link, t reposts, c opens the comment box, from the ringed card (nothing until there is one) and from the panel', async (e) => {
+browserTest('Vim keys for a post: f likes, b bookmarks, q copies the link, t reposts, c opens the comment box, from the ringed card (nothing until there is one) and from the panel', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
   await checked(h, async () => {
     const { page } = h;
@@ -4914,7 +4978,7 @@ browserTest('Vim keys for a post: f likes, b bookmarks, y copies the link, t rep
     assert.equal(await page.evaluate(() => document.querySelector('.xmc-card.xmc-kcard [data-act="like"]').classList.contains('on')), true, 'the heart on the ringed card');
     await page.keyboard.press('b');
     await page.waitForFunction(() => document.querySelector('.xmc-card.xmc-kcard [data-act="bookmark"]').classList.contains('on'), null, { timeout: 8000 });
-    await page.keyboard.press('y');
+    await page.keyboard.press('q');
     await page.waitForFunction(() => /Link copied|Couldn.t copy/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
     await page.keyboard.press('c');
     await page.waitForFunction(() => document.activeElement && document.activeElement.classList.contains('xmc-cbox'), null, { timeout: 15000 }); // (the box takes the keyboard once the comments are drawn)
