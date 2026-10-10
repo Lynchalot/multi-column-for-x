@@ -51,7 +51,7 @@ firefox('the extension loads: the install opened the settings at the presets, an
   assert.ok(urls.some((u) => /options\.html\?welcome=1/.test(u)), 'the install opened the settings page at the presets: ' + urls.join(' '));
   await home(r, d);
   assert.ok((await d.js(() => document.querySelectorAll('.xmc-col').length)) >= 1, 'columns');
-  assert.equal((await d.js(() => document.getElementById('xmc-pill').innerText)).trim(), 'Turn Columns Off');
+  assert.equal((await d.js(() => document.getElementById('xmc-pill').dataset.text)).trim(), 'Turn Columns Off'); // (a fresh install starts with the menu on icons: the pill is its icon, and its words are in data-text)
 });
 
 firefox('the page-world hook and the content scripts both run (the data comes through the hook; the cards are drawn by the isolated scripts)', async (r, d) => {
@@ -163,13 +163,14 @@ firefox('a tour of the main flows (open a post, a picture full size, fold and un
   await settled();
   const logo = 'header[role="banner"] h1 a[data-xmc-logo]';
   await d.waitFor((s) => !!document.querySelector(s), [logo], 15000, 'the logo to take on the fold'); // (a few seconds after the columns)
+  const folded = await d.js(() => document.documentElement.classList.contains('xmc-rail')); // (a fresh install starts with the menu on icons)
   await d.press(logo); // a real pointer press on the logo, at its place on the page
-  await d.waitFor(() => document.documentElement.classList.contains('xmc-rail'), [], 5000, 'the menu to fold to icons');
+  await d.waitFor((was) => document.documentElement.classList.contains('xmc-rail') === !was && !document.documentElement.classList.contains('xmc-panelanim'), [folded], 5000, 'the menu to change');
   assert.equal(await d.js(() => location.pathname), '/home/', 'the logo did not go anywhere');
   await d.press(logo);
-  await d.waitFor(() => !document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim'), [], 5000, 'the menu to come back');
+  await d.waitFor((was) => document.documentElement.classList.contains('xmc-rail') === was && !document.documentElement.classList.contains('xmc-panelanim'), [folded], 5000, 'the menu to come back');
   await d.press('.xmc-gear'); await sleep(1500); await d.keys('Escape'); await sleep(400);
-  assert.equal((await d.js(() => document.getElementById('xmc-pill').innerText)).trim(), 'Turn Columns Off', 'still in columns, nothing failed open');
+  assert.equal((await d.js(() => document.getElementById('xmc-pill').dataset.text)).trim(), 'Turn Columns Off', 'still in columns, nothing failed open');
   let rep = null; // (the report is written about twelve seconds after the page loads, then whenever it changes)
   for (let i = 0; i < 40 && !rep; i++) { rep = await panel(d, () => d.js(stored, 'xmcFeatures')); if (!rep) { await d.keys('Escape'); await sleep(1000); } }
   assert.ok(rep, 'the report was written to browser.storage');
@@ -260,7 +261,7 @@ firefox('the master switch in the toolbar panel turns the extension off (this ta
   }
 });
 
-firefox('in a post\'s panel the keys work in Firefox: arrows through the pictures and the posts, A likes (X\'s own handler runs), C takes the comment box, Esc leaves it', async (r, d) => {
+firefox('in a post\'s panel the keys work in Firefox: arrows through the pictures and the posts, F likes (the Vim keys, which a fresh install has; X\'s own handler runs), C takes the comment box, Esc leaves it', async (r, d) => {
   await home(r, d);
   await sleep(2000);
   await d.js(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelectorAll('[data-lb]').length === 3); c.querySelector('.xmc-text').click(); });
@@ -273,7 +274,7 @@ firefox('in a post\'s panel the keys work in Firefox: arrows through the picture
   assert.notEqual((await pos()).title, first.title, 'past the last picture: the next post');
   const seen = () => d.js(() => { const w = window.wrappedJSObject || window; return Array.from(w.__actions || []); });
   const before = (await seen()).length;
-  await d.keys('a');
+  await d.keys('f');
   await d.waitFor((n) => { const w = window.wrappedJSObject || window; return Array.from(w.__actions || []).slice(n).some((x) => /^liked:/.test(x)); }, [before], 15000, 'X\'s like handler to run (the page saw: ' + JSON.stringify(await seen()) + ')');
   await d.keys('c'); await d.waitFor(() => document.activeElement && document.activeElement.className === 'xmc-cbox', [], 12000, 'C: the comment box (the comments take a moment)');
   assert.equal(await d.js(() => document.activeElement && document.activeElement.className), 'xmc-cbox', 'C: the comment box');

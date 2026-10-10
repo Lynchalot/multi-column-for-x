@@ -17,7 +17,7 @@ chrome('the extension loads: its service worker is up, the first install opened 
   const page = await r.open();
   await page.waitForSelector('.xmc-card', { timeout: 20000 });
   assert.ok((await page.locator('.xmc-col').count()) >= 1, 'columns');
-  assert.equal((await page.locator('#xmc-pill').innerText()).trim(), 'Turn Columns Off');
+  assert.equal((await page.locator('#xmc-pill').evaluate((el) => el.dataset.text)).trim(), 'Turn Columns Off'); // (a fresh install starts with the menu on icons: the pill is its icon, and its words are in data-text)
   assert.deepEqual(r.errors, [], 'no script errors');
   await page.close();
 });
