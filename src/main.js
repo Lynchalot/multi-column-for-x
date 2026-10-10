@@ -388,6 +388,7 @@
     gear: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'],
     close: ['M18 6L6 18', 'M6 6l12 12'],
     columns: ['M4 4h4.5v16H4z', 'M9.75 4h4.5v10.5h-4.5z', 'M15.5 4H20v13h-4.5z'],
+    play: ['M8 5l11 7-11 7z'],
     prev: ['M15 18l-6-6 6-6'],
     next: ['M9 18l6-6-6-6'],
   };
@@ -770,6 +771,9 @@
   const gearBtn = h('button', { className: 'xmc-gear', title: 'Settings', type: 'button', onclick: () => openOptions() }, icon('gear'));
   const healthBtn = h('button', { className: 'xmc-health', type: 'button', hidden: true, textContent: '\u26a0', onclick: () => reportProblem() });
   const reelsBtn = btn('Reels', 'One post at a time, scrolled up and down', () => enterReels(), 'xmc-reelsbtn');
+  // A profile's Media tab as a gallery or as columns: the switch is in the bar on that tab only (see "The gallery" below)
+  const galSwitch = h('div', { className: 'xmc-galswitch', role: 'group', 'aria-label': 'How the media is shown', hidden: true },
+    ...[['columns', 'Columns'], ['gallery', 'Gallery']].map(([mode, label]) => { const b = h('button', { type: 'button', textContent: label, 'aria-pressed': 'false', onclick: () => setGallery(mode === 'gallery') }); b.dataset.mode = mode; return b; }));
   reelsBtn.hidden = true;
   const refreshBtn = h('button', { className: 'xmc-refresh', title: 'Refresh', type: 'button', onclick: () => refresh() }, icon('refresh'), h('span', { className: 'xmc-newn' }));
   const nsfwBtn = h('button', { className: 'xmc-nsfw', type: 'button', onclick: () => cycleNsfw() }, h('span', { className: 'xmc-nsfwi' }), h('span', { className: 'xmc-nsfwl', textContent: 'NSFW' }));
@@ -813,7 +817,7 @@
     openMenu(menuBtn, items);
   }
   const pageTitleEl = h('span', { className: 'xmc-pagetitle', hidden: true });
-  const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, reelsBtn, seenBtn, refreshBtn, showBtn, colBtn, densityBtn, nsfwBtn, gearBtn, menuBtn);
+  const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, galSwitch, reelsBtn, seenBtn, refreshBtn, showBtn, colBtn, densityBtn, nsfwBtn, gearBtn, menuBtn);
   const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
   // Likes and Bookmarks: a row of its own under the bar (see "Search and narrowing" below): a search box (Likes only: X searches Bookmarks itself), a chip for
   // each account among the posts loaded, Pictures / Video / Links, and what has been read, with a button to read older ones
@@ -826,6 +830,7 @@
   const bar = h('div', { className: 'xmc-bar' }, row1, findRow); // (row2, the chips, is no longer shown: its choices are in the Show menu)
   const statusEl = h('div', { className: 'xmc-status' });
   const colsEl = h('div', { className: 'xmc-cols' });
+  const galEl = h('div', { className: 'xmc-gallery', hidden: true });
   const loaderText = h('span', { textContent: 'Loading more…' });
   const diagBtn = btn('Report a problem', 'Opens the issue page and copies a private snapshot (no post text) to paste into it', () => reportProblem(), 'xmc-diagbtn');
   const loaderEl = h('div', { className: 'xmc-loader', hidden: true }, spinner(), loaderText, diagBtn);
@@ -837,7 +842,7 @@
       btn('Show what I\u2019ve read', '', () => toggleSeen()),
       btn('Keep loading older posts', '', () => { view.keepGoing = true; view.caughtUp = false; const f = activeFeed(); if (f) pump(); guard('render', renderFeed); })));
   const profileEl = h('section', { className: 'xmc-profile', hidden: true });
-  const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, colsEl, loaderEl, caughtEl, endEl, statusEl);
+  const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, colsEl, galEl, loaderEl, caughtEl, endEl, statusEl);
   const hintEl = h('div', { className: 'xmc-hint', hidden: true },
     h('ul', {},
       ...['Click a post to open it, or press Enter to open the first one.', 'Esc closes posts and the arrow keys move between posts.', 'Point at a picture to like, repost or save it.',
@@ -1281,9 +1286,34 @@
     const box = scroller.getBoundingClientRect(), r = el.getBoundingClientRect();
     return r.height > 0 && r.bottom > box.top + 40 && r.top < box.bottom - 40;
   };
-  const markedSeen = () => { const t = marked(); return t && cardSeen(t) ? t : null; };
+  const cardOn = (t) => { // properly on screen: 40% of it (of the window's height, for a very tall one) shows
+    const el = t && t.el; if (!el || !el.isConnected || el.hidden) return false;
+    const box = scroller.getBoundingClientRect(), r = el.getBoundingClientRect();
+    return r.height > 0 && Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top) >= Math.min(r.height, box.height) * 0.4;
+  };
+  const markedSeen = () => { const t = marked(); return t && cardOn(t) ? t : null; }; // (scrolled mostly away, it is let go: the next key starts where you are looking)
+  // Where the ring starts when there is none: the card under the pointer (it is always on screen), else the one nearest the middle of the screen
+  const pointerAt = { x: 0, y: 0, in: false };
+  scroller.addEventListener('pointermove', (e) => { pointerAt.x = e.clientX; pointerAt.y = e.clientY; pointerAt.in = true; }, { passive: true });
+  scroller.addEventListener('pointerleave', () => { pointerAt.in = false; }, { passive: true });
+  function startCard() {
+    if (pointerAt.in) {
+      const el = document.elementFromPoint(pointerAt.x, pointerAt.y), card = el && el.closest && el.closest('.xmc-card, .xmc-tile'), t = card && tweetOf.get(card);
+      if (t && view.cards.includes(t)) return t;
+    }
+    const box = scroller.getBoundingClientRect(), cx = box.left + box.width / 2, cy = box.top + box.height / 2;
+    let best = null, bestD = Infinity;
+    for (const t of view.cards) {
+      const el = t.el; if (!el || !el.isConnected || el.hidden) continue;
+      const r = el.getBoundingClientRect();
+      if (!r.height || r.bottom < box.top || r.top > box.bottom) continue;
+      const dx = cx < r.left ? r.left - cx : cx > r.right ? cx - r.right : 0, dy = cy < r.top ? r.top - cy : cy > r.bottom ? cy - r.bottom : 0, d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; best = t; }
+    }
+    return best || firstCardInView();
+  }
   function mark(t, reveal) {
-    for (const el of colsEl.querySelectorAll('.xmc-kcard')) if (!t || el !== t.el) el.classList.remove('xmc-kcard');
+    for (const el of scroller.querySelectorAll('.xmc-kcard')) if (!t || el !== t.el) el.classList.remove('xmc-kcard');
     state.kcard = t || null;
     if (!t || !t.el) return;
     t.el.classList.add('xmc-kcard');
@@ -1293,7 +1323,8 @@
   }
   function moveCard(dir) { // up, down: along the column; left, right: the next column over, at about the same height
     const cur = markedSeen();
-    if (!cur) { const first = firstCardInView(); if (first) mark(first, true); return; } // (the first press only shows where it is)
+    if (!cur) { const first = startCard(); if (first) mark(first, false); return; } // (the first press only shows where it is)
+    if (galleryOn()) { moveTile(cur, dir); return; }
     const el = cur.el, col = el.parentElement, i = columns.indexOf(col);
     const cardsIn = (c) => [...c.children].filter((x) => tweetOf.has(x) && !x.hidden);
     let next = null;
@@ -1309,9 +1340,9 @@
     }
     if (next) mark(tweetOf.get(next), true);
   }
-  colsEl.addEventListener('pointerdown', (e) => { // a press on a card puts the ring there (so the keys go on from where the mouse was)
+  scroller.addEventListener('pointerdown', (e) => { // a press on a card or a tile puts the ring there (so the keys go on from where the mouse was)
     if (!vimOn()) return;
-    const card = e.target.closest && e.target.closest('.xmc-card'), t = card && tweetOf.get(card);
+    const card = e.target.closest && e.target.closest('.xmc-card, .xmc-tile'), t = card && tweetOf.get(card);
     if (t) mark(t, false);
   }, true);
   const panelScroller = (dy) => { // Reels: a very tall picture scrolls first, then the words
@@ -1364,19 +1395,19 @@
         if (cols) moveCard(act.slice(4).toLowerCase()); else if (!viewer) stepPostView(act === 'cardDown' || act === 'cardRight' ? 1 : -1); // (in a panel: the posts, without the pictures)
         return true;
       case 'open':
-        if (cols) { const t = markedSeen() || firstCardInView(); if (t) openPostView(t, false); }
+        if (cols) { const t = markedSeen() || startCard(); if (t) openPostView(t, false); }
         else if (postView && !lightbox) { const pic = postView.panel.querySelector('.xmc-vm:not([hidden]) img[data-lb], img[data-lb]'); if (pic && !pic.closest('.sensitive')) openLightbox(postView.t, Number(pic.dataset.lb)); }
         return true;
       case 'like': case 'bookmark': case 'repost': case 'reply': case 'share': case 'download': case 'parent': {
         let t = viewer ? lightbox.t : postView ? postView.t : markedSeen();
-        if (!t) { const first = firstCardInView(); if (first) mark(first, true); return true; } // (no ring yet: it comes up on the first post in view, and the next press is for that one)
+        if (!t) { const first = startCard(); if (first) mark(first, false); return true; } // (no ring yet: it comes up where you are looking, and the next press is for that one)
         postKeyAction(act, t);
         return true;
       }
       case 'reels':
         if (reels) { if (!postView.parent) closePostView(); }
         else if (panel) { if (settings.openIn === 'view' && !postView.parent) { state.reelsAsk = feedRoute(); openPostView(postView.t, true, false, { reels: true }); } }
-        else if (cols) { const t = markedSeen() || firstCardInView(); if (t) enterReels(t); }
+        else if (cols) { const t = markedSeen() || startCard(); if (t) enterReels(t); }
         return true;
       case 'mute': case 'fullscreen': {
         const t = cols ? markedSeen() : null;
@@ -1429,7 +1460,7 @@
     }
     if (/^(Enter|Space|S-Space|S-Enter)$/.test(tok) && interactive(e.target)) return false; // (a button, a link or a video has these for itself)
     if (/^(Left|Right|Up|Down|Enter|S-Left|S-Right|S-Up|S-Down)$/.test(tok) && !vk.toks.length) { // (the arrows and Enter are the usual ones unless a key is bound to them)
-      if (vimMatch([tok]).kind !== 'match') { if (tok === 'Enter' && where === 'columns' && !e.repeat) { const t = markedSeen() || firstCardInView(); if (t) { e.preventDefault(); e.stopPropagation(); openPostView(t, false); return true; } } return false; }
+      if (vimMatch([tok]).kind !== 'match') { if (tok === 'Enter' && where === 'columns' && !e.repeat) { const t = markedSeen() || startCard(); if (t) { e.preventDefault(); e.stopPropagation(); openPostView(t, false); return true; } } return false; }
     }
     let toks = vk.toks.concat(tok), r = vimMatch(toks);
     if (r.kind === 'none' && vk.toks.length) { vimClear(); toks = [tok]; r = vimMatch(toks); } // (g, then x: the g is dropped and x tried on its own)
@@ -1522,7 +1553,7 @@
   const fitSync = () => { const v = String(fitScale()); if (root.style.getPropertyValue('--xmc-fit') !== v) root.style.setProperty('--xmc-fit', v); };
   const sigOf = (keys) => keys.map((k) => String(settings[k])).join('|') + '|' + where() + '|' + settings.mutedQuoteIds.length;
   const filterSig = () => sigOf(FILTER_KEYS) + '|' + (state.showSeen ? 1 : 0) + '|' + seenEpoch + '|' + findSig();
-  const renderSig = () => RENDER_KEYS.map((k) => String(settings[k])).join('|') + '|' + pageLayout().density;
+  const renderSig = () => RENDER_KEYS.map((k) => String(settings[k])).join('|') + '|' + pageLayout().density + '|' + (galleryOn() ? 'g' : '');
   const passCtx = () => ({
     s: settings, view: settings.filter, where: where(), words: XMCSettings.words(settings.mutedWords),
     accounts: new Set(XMCSettings.handles(settings.mutedAccounts)), quoteIds: new Set(settings.mutedQuoteIds), find: findCtx(),
@@ -1583,6 +1614,7 @@
     root.style.setProperty('--xmc-colw', XMCLogic.minColFor(settings, lay.density) + 'px');
     colsEl.replaceChildren(...columns);
     if (!profileEl.hidden) columns[0].prepend(profileEl); // a profile's header is the first card of the first column; the posts flow round it
+    if (galleryOn()) { gal.els = view.cards.map((t) => t.el).filter(Boolean); gal.ratios = view.cards.filter((t) => t.el).map(galRatio); galLayout(true); return; } // (the gallery's tiles are the posts' els: laid in rows, not columns)
     placeBatch(view.cards.map((t, i) => ({ t, est: real[i] || undefined })));
   }
   function resetView(feed) {
@@ -1598,6 +1630,7 @@
     recycled = 0;
     view.memoTop = 0;
     scroller.scrollTop = 0;
+    galReset();
     relayout();
     if (feed) enterCols();
   }
@@ -1629,7 +1662,7 @@
   // (keeping its exact height, so nothing shifts) and gets them again when you scroll towards it.
   const RECYCLE_AFTER = 150; // only once this many posts are on the page
   function recycleCards(restoreOnly) {
-    if (root.hidden || (!recycled && (restoreOnly || view.cards.length < RECYCLE_AFTER))) return;
+    if (galleryOn() || root.hidden || (!recycled && (restoreOnly || view.cards.length < RECYCLE_AFTER))) return;
     const vh = scroller.clientHeight, top = scroller.scrollTop, bottom = top + vh;
     const base = scroller.getBoundingClientRect().top - top;
     const t0 = performance.now();
@@ -1717,7 +1750,7 @@
     // space on screen right now, catch up faster (up to four batches in one go).
     const c = passCtx();
     for (let batch = 0; batch < 4 && view.upto < f.items.length; batch++) {
-      const bottom = shortestBottom(), seen = scroller.scrollTop + scroller.clientHeight;
+      const bottom = contentBottom(), seen = scroller.scrollTop + scroller.clientHeight;
       if (view.cards.length >= 8 && bottom >= seen + scroller.clientHeight * 2) break; // every column has two screens to go
       if (batch > 0 && bottom >= seen) break; // only the first batch of a tick unless there is blank space on screen
       const fresh = [];
@@ -1733,6 +1766,7 @@
         const root = plan && plan.rootOf.get(t.id);
         if (root && showing(root)) continue; // a reply to themselves: it is shown under the first post of the thread
         if (!XMCLogic.passes(t, c)) continue;
+        if (galleryOn() && !t.media.length) continue; // (a tile is a picture or a video)
         const read = readMode !== 'off' && seenBefore.has(t.id);
         if (read && readMode === 'hide') {
           view.hiddenSeen++;
@@ -1750,11 +1784,14 @@
         if (t.el && (t.el.dataset.thr || '') !== thr) t.el = null; // its thread changed: build the card again
         fresh.push({ t, read }); view.cards.push(t); view.drawnIds.add(t.id);
       }
-      placeBatch(fresh);
-      for (const { t, read } of fresh) {
-        t.el.classList.toggle('xmc-read', read);
-        if (t.repostedBy) { const ctx = t.el.querySelector(':scope > .xmc-ctx span'); if (ctx) ctx.textContent = ctxText(t); } // a card kept from before may say something else now
-        if (trackSeen()) readObserver.observe(t.el);
+      if (galleryOn()) galleryAdd(fresh.map((x) => x.t));
+      else {
+        placeBatch(fresh);
+        for (const { t, read } of fresh) {
+          t.el.classList.toggle('xmc-read', read);
+          if (t.repostedBy) { const ctx = t.el.querySelector(':scope > .xmc-ctx span'); if (ctx) ctx.textContent = ctxText(t); } // a card kept from before may say something else now
+          if (trackSeen()) readObserver.observe(t.el);
+        }
       }
       if (!fresh.length) break;
     }
@@ -1767,8 +1804,8 @@
     // spinner while we're fetching more; a note when X has no more to give
     const waiting = state.waitingPage && !f.exhausted && !view.caughtUp && !held;
     loaderEl.hidden = !waiting;
-    syncGhosts(waiting && shortestBottom() < scroller.scrollTop + scroller.clientHeight);
-    loaderEl.classList.toggle('xmc-sticky', waiting && shortestBottom() < scroller.scrollTop + scroller.clientHeight); // blank space on screen: keep the spinner in view
+    syncGhosts(waiting && !galleryOn() && shortestBottom() < scroller.scrollTop + scroller.clientHeight);
+    loaderEl.classList.toggle('xmc-sticky', waiting && contentBottom() < scroller.scrollTop + scroller.clientHeight); // blank space on screen: keep the spinner in view
     const fl = state.fail && Date.now() - state.fail.at < 90000 ? state.fail : null;
     const loaderMsg = waiting && fl
       ? (fl.status === 429 ? 'X says slow down (rate limit) - retrying shortly...' : 'X returned an error (' + fl.status + ') - retrying...')
@@ -1777,7 +1814,87 @@
     diagBtn.hidden = !(waiting && Date.now() - state.waitSince > 20000 || waiting && fl);
     endEl.hidden = !(f.exhausted && drawn && view.cards.length);
     findSync(f);
+    gallerySync();
   }
+  // ---- The gallery: a profile's Media tab as rows of equal height ----
+  // A tile for each post with a picture or video (its first one; "+N" when there are more), the rows filled edge to edge (each picture keeps its shape: the row's
+  // height is what makes the widths fit), a press opens the post as a card's does, and pointing at one offers Reels from there. The tiles are the posts' `el`, so the
+  // ring, the keys, the panel following along and Reels starting from the first in view work as they do on cards. Changing between this and columns changes `renderSig`:
+  // every post is drawn again.
+  const gal = { els: [], ratios: [], laid: 0, rows: [], open: null, width: 0 };
+  const galGap = 3;
+  const galleryPage = () => XMCLogic.isMediaTab(feedRoute().split('?')[0]);
+  const galleryOn = () => !!settings.mediaGallery && galleryPage();
+  const galBottom = () => galEl.getBoundingClientRect().bottom - (scroller.getBoundingClientRect().top - scroller.scrollTop);
+  const contentBottom = () => (galleryOn() ? galBottom() : shortestBottom());
+  function setGallery(on) { settings.mediaGallery = !!on; save(); guard('render', renderFeed); }
+  function galReset() { gal.els = []; gal.ratios = []; gal.laid = 0; gal.rows = []; gal.open = null; galEl.replaceChildren(); }
+  function galTile(t) {
+    const m = t.media[0], video = m.type !== 'photo';
+    const img = h('img', { src: photoUrl(m.thumb, 'medium'), alt: m.alt || '', loading: 'lazy', decoding: 'async' });
+    const open = h('button', { className: 'xmc-tile-open', type: 'button', 'aria-label': 'Open the post by ' + t.author.name + (video ? ' (video)' : ''), onclick: () => navigate(t.url, t) }, img);
+    const tile = h('div', { className: 'xmc-tile' + (t.sensitive && settings.nsfw === 'blur' ? ' sensitive' : '') }, open);
+    if (video) tile.append(h('span', { className: 'xmc-tile-play', 'aria-hidden': 'true' }, icon('play')));
+    if (t.media.length > 1) tile.append(h('span', { className: 'xmc-tile-more', textContent: '+' + (t.media.length - 1) }));
+    if (settings.openIn === 'view' && settings.reelsProfiles) tile.append(h('button', { className: 'xmc-tile-reels', type: 'button', onclick: () => enterReels(t) }, icon('play'), 'Reels from here'));
+    tweetOf.set(tile, t);
+    return tile;
+  }
+  const galRatio = (t) => { const m = t.media[0]; return Math.max(0.5, Math.min(2.4, (m && m.w && m.h ? m.w / m.h : 4 / 3))); };
+  function galleryAdd(posts) {
+    for (const t of posts) {
+      if (!t.el) { t.el = galTile(t); t.elSig = renderSig(); }
+      gal.els.push(t.el); gal.ratios.push(galRatio(t));
+    }
+    galLayout();
+  }
+  // Rows of whole tiles until their widths at the target height fill the line, then the height is what makes them fit exactly; the line still being filled keeps the
+  // target height and is laid again when more arrive. A change of width lays everything again.
+  function galLayout(full) {
+    const W = galEl.clientWidth - galGap * 2;
+    if (W <= 0) return;
+    if (full || W !== gal.width) { gal.width = W; gal.laid = 0; for (const r of gal.rows) r.remove(); gal.rows = []; gal.open = null; }
+    else if (gal.open) { gal.open.remove(); gal.rows.pop(); gal.open = null; }
+    const H = Math.max(140, Math.min(300, Math.round(W / 6)));
+    let i = gal.laid;
+    while (i < gal.els.length) {
+      let j = i, sum = 0;
+      while (j < gal.els.length) { sum += gal.ratios[j]; j++; if (sum * H + galGap * (j - i - 1) >= W) break; }
+      const n = j - i, full = sum * H + galGap * (n - 1) >= W, rowH = full ? Math.round((W - galGap * (n - 1)) / sum) : H;
+      const row = h('div', { className: 'xmc-gal-row' }, ...gal.els.slice(i, j));
+      row.style.height = rowH + 'px';
+      for (let k = i; k < j; k++) { const st = gal.els[k].style; if (full) { st.flex = gal.ratios[k] + ' 1 0'; st.width = ''; } else { st.flex = 'none'; st.width = Math.round(gal.ratios[k] * rowH) + 'px'; } }
+      galEl.append(row); gal.rows.push(row);
+      if (full) gal.laid = j; else gal.open = row;
+      i = j;
+    }
+  }
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { if (galleryOn() && galEl.clientWidth - galGap * 2 !== gal.width) galLayout(true); }).observe(galEl);
+  // The tile above, below, left or right of the ringed one (a row at a time: left and right go on to the next row)
+  function moveTile(cur, dir) {
+    const el = cur.el, row = el.parentElement, ri = gal.rows.indexOf(row);
+    if (ri < 0) return;
+    let next = null;
+    if (dir === 'left' || dir === 'right') {
+      const sib = [...row.children], k = sib.indexOf(el) + (dir === 'right' ? 1 : -1);
+      next = sib[k] || (dir === 'right' ? (gal.rows[ri + 1] || {}).firstElementChild : (gal.rows[ri - 1] || {}).lastElementChild);
+    } else {
+      const to = gal.rows[ri + (dir === 'down' ? 1 : -1)], r = el.getBoundingClientRect(), cx = r.left + r.width / 2;
+      const mid = (x) => { const b = x.getBoundingClientRect(); return b.left + b.width / 2; };
+      if (to) next = [...to.children].sort((a, b) => Math.abs(cx - mid(a)) - Math.abs(cx - mid(b)))[0];
+    }
+    if (next) mark(tweetOf.get(next), true);
+  }
+  // each tick (end of renderFeed): the switch is in the bar on a Media tab, and the column count means nothing while the gallery is up
+  function gallerySync() {
+    const page = galleryPage(), on = galleryOn();
+    galSwitch.hidden = !page;
+    for (const b of galSwitch.children) { const picked = (b.dataset.mode === 'gallery') === on; b.classList.toggle('on', picked); b.setAttribute('aria-pressed', String(picked)); }
+    colBtn.hidden = on;
+    galEl.hidden = !on;
+    root.classList.toggle('xmc-galmode', on);
+  }
+
   // ---- Search and narrowing on Likes and Bookmarks ----
   // The posts that have loaded (what X has sent so far) are narrowed as you type, by words, account and kind. While it is on, nothing more is asked of X unless
   // you press Read older (a thousand more posts a press, with a Stop): a search that loaded everything unasked would be a great many requests.
@@ -1981,7 +2098,7 @@
     if (held && !postView) return;
     const ahead = Date.now() - lastScrollAt < 4000 ? 120 : 50; // scrolling: keep about six pages waiting; reading: two or three
     if (f.items.length - view.upto > ahead) return; // plenty already waiting to be drawn
-    const need = !!(fnd && fnd.deep) || moreWanted() || (!held && scroller.scrollTop + scroller.clientHeight > shortestBottom() - innerHeight * 8);
+    const need = !!(fnd && fnd.deep) || moreWanted() || (!held && scroller.scrollTop + scroller.clientHeight > contentBottom() - innerHeight * 8);
     if (!need) return;
     const now = Date.now();
     const doc = document.documentElement;

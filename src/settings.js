@@ -139,6 +139,7 @@ var XMCSettings = (function () {
         { key: 'branding', type: 'select', def: 'x', label: 'Name and logo', native: true, options: [['x', 'X (as X ships it)'], ['twitter', 'Twitter (bird logo, “Tweet”, “Retweet”)']] },
         { key: 'textSize', type: 'select', def: 'normal', label: 'Text size in posts and the post panel', options: [['small', 'Smaller'], ['normal', 'Normal'], ['large', 'Larger'], ['xlarge', 'Largest'], ['fit', 'Fit to screen (the post panel and Reels grow with the window; posts in columns stay Normal)']] },
         { key: 'theme', type: 'select', def: 'x', label: 'Colour theme', help: 'For the columns, the post panel, the picture viewer and these settings, and the page behind them while the columns show. X\u2019s own pages keep X\u2019s colours.', native: true, options: [['x', 'X (as it is)']].concat(THEMES.map((t) => [t.id, t.name])) },
+        { key: 'mediaGallery', type: 'bool', def: false, label: 'A profile\u2019s Media tab as a gallery', help: 'Rows of pictures instead of columns of posts; a switch in the top bar changes it on that tab. A press opens the post, and pointing at a picture offers Reels from there.' },
         { key: 'cardStyle', type: 'select', def: 'raised', label: 'Card background', options: [['raised', 'Slightly lighter (or darker) than the page'], ['flat', 'None']] },
         { key: 'customCss', type: 'textarea', def: '', label: 'Custom CSS', help: 'Added to every x.com page.', native: true },
       ],

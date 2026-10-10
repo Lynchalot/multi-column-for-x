@@ -4900,6 +4900,8 @@ browserTest('Vim keys for a post: f likes, b bookmarks, y copies the link, t rep
     await e.ready(page);
     const acts = () => page.evaluate(() => Array.from(window.__actions || []));
     const n0 = (await acts()).length;
+    const first = await page.locator('.xmc-card').first().boundingBox();
+    await page.mouse.move(first.x + 40, first.y + 40); // (the ring comes up under the pointer: the first card, which is an ordinary one)
     await page.keyboard.press('f');
     assert.equal(await ringCount(page), 1, 'no ring: it comes up, and nothing is liked');
     await page.waitForTimeout(600);
@@ -4912,7 +4914,7 @@ browserTest('Vim keys for a post: f likes, b bookmarks, y copies the link, t rep
     await page.keyboard.press('y');
     await page.waitForFunction(() => /Link copied|Couldn.t copy/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
     await page.keyboard.press('c');
-    await page.waitForSelector('.xmc-view .xmc-cbox, .xmc-card.xmc-kcard textarea', { timeout: 8000 });
+    await page.waitForFunction(() => document.activeElement && document.activeElement.classList.contains('xmc-cbox'), null, { timeout: 15000 }); // (the box takes the keyboard once the comments are drawn)
     // the box has the keys now: letters are letters
     await page.keyboard.type('jkfbyt');
     assert.equal(await page.evaluate(() => document.activeElement.value), 'jkfbyt');
@@ -5425,3 +5427,129 @@ browserTest('u opens the post this one quotes, from the open post or the ringed 
     assert.match(await page.locator('.xmc-keylegend').innerText(), /U\s+Open the post it quotes or answers/);
   });
 }, 120000);
+
+// ---- the gallery on a Media tab (0.45.0) ----
+const galRows = (page) => page.evaluate(() => [...document.querySelectorAll('.xmc-gal-row')].map((r) => { const rr = r.getBoundingClientRect(); const tiles = [...r.children].map((t) => t.getBoundingClientRect()); return { w: rr.width, h: rr.height, sum: tiles.reduce((a, t) => a + t.width, 0) + 3 * (tiles.length - 1), hs: tiles.map((t) => Math.round(t.height)), n: tiles.length }; }));
+
+browserTest('Media tab gallery: the switch is on a Media tab only; rows are filled edge to edge at one height; a press opens the post; pointing offers Reels from there; more load as you scroll; Columns brings the cards back', async (e) => {
+  const other = await e.open('/user7/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(other, async () => {
+    await e.ready(other.page);
+    await other.page.waitForTimeout(800);
+    assert.equal(await other.page.locator('.xmc-galswitch:not([hidden])').count(), 0, 'not on a profile’s posts');
+  });
+  const h = await e.open('/user/media/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('.xmc-galswitch:not([hidden])', { timeout: 8000 });
+    assert.equal(await page.locator('.xmc-gallery:not([hidden])').count(), 0, 'columns until it is asked for');
+    await page.locator('.xmc-galswitch button', { hasText: 'Gallery' }).click();
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-tile').length >= 8, null, { timeout: 8000 });
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-cols')).display), 'none');
+    assert.equal(await page.evaluate(() => window.__xmc.settings.mediaGallery), true);
+    assert.equal(await page.locator('.xmc-colbtn:not([hidden])').count(), 0, 'no column count in a gallery');
+    // the posts are those with a picture or a video, one tile each
+    assert.equal(await page.evaluate(() => window.__xmc.view.cards.every((t) => t.media.length > 0) && window.__xmc.view.cards.length === document.querySelectorAll('.xmc-tile').length), true);
+    // rows: all but the last are filled to the edge, and every tile in a row is as high as the row
+    const rows = await galRows(page);
+    assert.ok(rows.length >= 2);
+    for (const r of rows.slice(0, -1)) { assert.ok(Math.abs(r.sum - r.w) <= 3, 'a full row: ' + r.sum + ' of ' + r.w); assert.ok(r.hs.every((x) => Math.abs(x - r.h) <= 1), 'one height'); }
+    assert.ok(rows.every((r) => r.h >= 100 && r.h <= 320), 'a sensible height');
+    // a press opens that post
+    await page.locator('.xmc-tile').nth(2).locator('.xmc-tile-open').click();
+    await page.waitForSelector('.xmc-view', { timeout: 8000 });
+    assert.equal(await openPostId(page), String(await page.evaluate(() => window.__xmc.view.cards[2].id)), 'the post of that tile');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
+    // pointing offers Reels from there
+    await page.locator('.xmc-tile').nth(1).hover();
+    await page.locator('.xmc-tile').nth(1).locator('.xmc-tile-reels').click();
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 8000 });
+    assert.equal(await openPostId(page), String(await page.evaluate(() => window.__xmc.view.cards[1].id)), 'Reels at that tile');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('xmc-root').classList.contains('xmc-reels') && !document.querySelector('.xmc-view:not(.xmc-out)'), null, { timeout: 5000 });
+    // more load as it is scrolled to the end
+    const n0 = await page.evaluate(() => document.querySelectorAll('.xmc-tile').length);
+    await page.evaluate(() => { const s = document.querySelector('.xmc-scroller'); s.scrollTop = s.scrollHeight; });
+    await page.waitForFunction((n) => document.querySelectorAll('.xmc-tile').length > n, n0, { timeout: 20000 });
+    // a narrower window lays the rows again
+    await page.evaluate(() => { document.querySelector('.xmc-scroller').scrollTop = 0; });
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await page.waitForFunction(() => { const r = document.querySelector('.xmc-gal-row'); return r && r.getBoundingClientRect().width < 1100; }, null, { timeout: 5000 });
+    const narrow = await galRows(page);
+    for (const r of narrow.slice(0, -1)) assert.ok(Math.abs(r.sum - r.w) <= 3, 'a full row after the resize: ' + r.sum + ' of ' + r.w);
+    // back to columns: the cards, and the column count
+    await page.locator('.xmc-galswitch button', { hasText: 'Columns' }).click();
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-card').length >= 4 && document.querySelector('.xmc-gallery').hidden, null, { timeout: 8000 });
+    assert.equal(await page.locator('.xmc-colbtn:not([hidden])').count(), 1);
+    assert.equal(await page.evaluate(() => window.__xmc.settings.mediaGallery), false);
+  });
+}, 120000);
+
+browserTest('Media tab gallery with the Vim keys: the ring is on a tile, h and l go along the row and on to the next, s and w up and down the rows, o opens it, and the setting starts it as a gallery', async (e) => {
+  const h = await e.open('/user/media/', { width: 1700, height: 900, settings: vimSettings({ mediaGallery: true }) });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-tile').length >= 8, null, { timeout: 8000 });
+    const ring = () => page.evaluate(() => { const t = [...document.querySelectorAll('.xmc-tile')]; const i = t.findIndex((x) => x.classList.contains('xmc-kcard')); const rows = [...document.querySelectorAll('.xmc-gal-row')]; return { i, row: i < 0 ? -1 : rows.indexOf(t[i].parentElement), n: document.querySelectorAll('.xmc-tile.xmc-kcard').length }; });
+    await page.keyboard.press('s');
+    let r = await ring();
+    assert.equal(r.n, 1, 'the first press shows where it is');
+    const i0 = r.i, row0 = r.row;
+    await page.keyboard.press('l');
+    assert.equal((await ring()).i, i0 + 1, 'l: the next tile');
+    await page.keyboard.press('h');
+    assert.equal((await ring()).i, i0, 'h: back');
+    await page.keyboard.press('s');
+    r = await ring();
+    assert.equal(r.row, row0 + 1, 's: the row below');
+    await page.keyboard.press('w');
+    assert.equal((await ring()).row, row0, 'w: and back up');
+    const want = await page.evaluate(() => { const t = [...document.querySelectorAll('.xmc-tile')]; return String(window.__xmc.view.cards.find((c) => c.el === t.find((x) => x.classList.contains('xmc-kcard'))).id); });
+    await page.keyboard.press('o');
+    await page.waitForSelector('.xmc-view', { timeout: 8000 });
+    assert.equal(await openPostId(page), want, 'o opens the ringed tile’s post');
+  });
+}, 90000);
+
+// ---- where the ring is (0.46.0): it is let go when scrolled mostly away, and starts again under the pointer, else at the middle ----
+browserTest('the ring is let go when it is scrolled mostly out of view, and the next card key starts where you are looking: the card under the pointer, else the one nearest the middle (and does not scroll back)', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const top = () => page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop);
+    const onScreen = () => page.evaluate(() => { const c = document.querySelector('.xmc-card.xmc-kcard'); if (!c) return null; const r = c.getBoundingClientRect(), b = document.querySelector('.xmc-scroller').getBoundingClientRect(); return { visible: Math.min(r.bottom, b.bottom) - Math.max(r.top, b.top), height: r.height, cx: r.left + r.width / 2, cy: r.top + r.height / 2 }; });
+    // no pointer over the columns: the first press puts the ring on the card nearest the middle of the screen
+    await page.mouse.move(5, 5);
+    await page.keyboard.press('s');
+    assert.equal(await ringCount(page), 1);
+    const mid = await page.evaluate(() => { const b = document.querySelector('.xmc-scroller').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+    const first = await onScreen();
+    const dist = (c) => Math.hypot(c.cx - mid.x, Math.max(0, Math.abs(c.cy - mid.y) - c.height / 2));
+    const others = await page.evaluate((m) => [...document.querySelectorAll('.xmc-card')].map((c) => { const r = c.getBoundingClientRect(); return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, height: r.height, vis: r.bottom > 0 && r.top < window.innerHeight }; }).filter((c) => c.vis), mid);
+    assert.ok(others.every((c) => dist(first) <= dist(c) + 1), 'the ringed card is the nearest to the middle');
+    // scroll the ring away with j: the next card key lets it go and starts afresh, without scrolling back
+    const id = await ringId(page);
+    for (let i = 0; i < 12; i++) await page.keyboard.press('j');
+    const at = await top();
+    await page.keyboard.press('s');
+    assert.equal(await top(), at, 'it did not scroll back to the old one');
+    assert.equal(await ringCount(page), 1);
+    const now = await onScreen();
+    assert.ok(now.visible >= Math.min(now.height, 900) * 0.4, 'the new ring is properly on screen');
+    assert.notEqual(await ringId(page), id, 'and it is not the old card');
+    // with the pointer over a card, the ring starts on it
+    await page.keyboard.press('Escape');
+    assert.equal(await ringCount(page), 0);
+    const target = await page.evaluate(() => { const cards = [...document.querySelectorAll('.xmc-card')].filter((c) => { const r = c.getBoundingClientRect(); return r.top > 120 && r.bottom < innerHeight - 40 && r.height > 100; }); const c = cards[cards.length - 1]; const r = c.getBoundingClientRect(); return { id: (/(?:tweet|number) (\d+)\b/.exec(c.innerText) || [])[1], x: r.left + 40, y: r.top + 40 }; });
+    await page.mouse.move(target.x, target.y);
+    await page.keyboard.press('s');
+    assert.equal(await ringId(page), target.id, 'the card under the pointer');
+    // still properly on screen: the keys go on from it
+    await page.keyboard.press('s');
+    assert.notEqual(await ringId(page), target.id, 'and moves on from there');
+  });
+}, 90000);

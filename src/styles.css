@@ -905,3 +905,24 @@ html.xmc-themed #xmc-sidetab:focus-visible, html.xmc-themed header[role="banner"
 #xmc-root.xmc-reels .xmc-view :is(.xmc-vfeed, .xmc-vclose, .xmc-vkeys, .xmc-vwho) { transition: opacity .15s ease; }
 #xmc-root.xmc-reels .xmc-view.xmc-quiet :is(.xmc-vfeed, .xmc-vclose, .xmc-vkeys, .xmc-vwho) { opacity: 0; }
 :is(.xmc-vwho):active:not(:disabled) { animation: xmc-press .07s ease-out forwards; }
+
+/* The gallery: a profile's Media tab as rows of equal height */
+#xmc-root.xmc-galmode .xmc-cols { display: none; }
+.xmc-gallery { padding: 3px; display: flex; flex-direction: column; gap: 3px; }
+.xmc-gallery[hidden] { display: none; }
+.xmc-gal-row { display: flex; gap: 3px; flex: none; }
+.xmc-tile { position: relative; min-width: 0; overflow: hidden; border-radius: 4px; background: var(--xmc-surface); }
+.xmc-tile-open { appearance: none; display: block; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; }
+.xmc-tile-open img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.xmc-tile.sensitive img { filter: blur(24px); }
+.xmc-tile-play { position: absolute; right: 7px; top: 7px; width: 18px; height: 18px; color: #fff; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); pointer-events: none; }
+.xmc-tile-play svg { width: 100%; height: 100%; fill: currentColor; stroke: none; }
+.xmc-tile-more { position: absolute; left: 7px; top: 7px; padding: 2px 8px; border-radius: 999px; background: rgba(0, 0, 0, .62); color: #fff; font: 700 12px system-ui, sans-serif; pointer-events: none; }
+.xmc-tile-reels { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 6px; padding: 8px 10px; border: 0; background: rgba(0, 0, 0, .66); color: #fff; font: 700 13px system-ui, sans-serif; cursor: pointer; opacity: 0; transition: opacity .12s ease; }
+.xmc-tile-reels svg { width: 11px; height: 11px; fill: currentColor; stroke: none; }
+.xmc-tile:hover .xmc-tile-reels, .xmc-tile:focus-within .xmc-tile-reels { opacity: 1; }
+.xmc-tile.xmc-kcard { outline: 2px solid var(--xmc-accent, #1d9bf0); outline-offset: -2px; }
+.xmc-bar .xmc-galswitch { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--xmc-border); border-radius: 999px; }
+.xmc-galswitch[hidden] { display: none; }
+.xmc-bar .xmc-galswitch button { padding: 4px 12px; font-size: 13.5px; font-weight: 700; color: var(--xmc-muted); }
+.xmc-bar .xmc-galswitch button.on { color: var(--xmc-fg); background: color-mix(in srgb, var(--xmc-fg) 16%, transparent); }
