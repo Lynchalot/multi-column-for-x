@@ -4,6 +4,7 @@
 var XMCSite = (function () {
   'use strict';
 
+  const THEME_BASE = ['--xmc-bg', '--xmc-solid', '--xmc-fg'], THEME_EXTRA = ['--xmc-muted', '--xmc-border', '--xmc-accent', '--xmc-on-accent', '--xmc-like', '--xmc-repost']; // (what a theme sets; THEME_BASE is what X's page gives when there is none)
   // boolean settings that map 1:1 to an <html> class of the same name, e.g. html.xmc-hideTrending
   const FLAGS = ['hideTrending', 'hideWhoToFollow', 'hideTopics', 'hideDiscoverMore', 'hidePremiumPromo', 'hideDmDrawer', 'hideGrokDrawer', 'hideVerifiedTabs',
     'hideSidebar', 'hideTweetButton', 'tidyReplies', 'systemFont', 'reducedInteraction', 'hideViews', 'hideBookmarkBtn', 'hideShareBtn'];
@@ -112,6 +113,12 @@ var XMCSite = (function () {
     cl.toggle('xmc-nocounts', !s.counts);
     cl.toggle('xmc-twitter', s.branding === 'twitter');
     for (const v of ['hide', 'logo']) cl.toggle('xmc-blue-' + v, s.blueBadge === v);
+    { // a colour theme: the classes the stylesheet keys on, and its custom properties on <html> (the columns and the toast get theirs from main.js)
+      const th = XMCSettings.themeOf(s.theme), tv = XMCSettings.themeVars(s.theme), st = document.documentElement.style;
+      cl.toggle('xmc-themed', !!th); cl.toggle('xmc-theme-dark', !!th && th.dark); cl.toggle('xmc-theme-light', !!th && !th.dark);
+      for (const k of THEME_EXTRA) { if (tv) st.setProperty(k, tv[k]); else st.removeProperty(k); }
+      if (tv) for (const k of THEME_BASE) st.setProperty(k, tv[k]); // (without a theme main.js takes these from X's page)
+    }
     cl.toggle('xmc-navfont-normal', s.navFont === 'normal');
     for (const v of ['compact', 'comfortable']) cl.toggle('xmc-navdens-' + v, s.navDensity === v);
     for (const v of ['show', 'blur', 'hide']) cl.toggle('xmc-nsfw-' + v, s.nsfw === v);

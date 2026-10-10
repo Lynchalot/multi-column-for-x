@@ -10,6 +10,9 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
   --xmc-surface: color-mix(in srgb, var(--xmc-fg) 4%, transparent);      /* a card, a little off the page */
   --xmc-edge: color-mix(in srgb, var(--xmc-fg) 8%, transparent);
   --xmc-accent: #1d9bf0;
+  --xmc-on-accent: #fff;                                                  /* the text that sits on the accent (a colour theme sets all of these) */
+  --xmc-like: #f91880;
+  --xmc-repost: #00ba7c;
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column;
   background: var(--xmc-bg); color: var(--xmc-fg);
 }
@@ -24,7 +27,7 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
 .xmc-bar button:hover { background: var(--xmc-hover); }
 .xmc-bar button.on { font-weight: 700; background: var(--xmc-hover); }
 .xmc-bar .xmc-chip { font-size: 14px; padding: 6px 11px; }
-.xmc-bar .xmc-chip.on { background: var(--xmc-accent); color: #fff; }
+.xmc-bar .xmc-chip.on { background: var(--xmc-accent); color: var(--xmc-on-accent, #fff); }
 .xmc-gear { display: inline-flex; align-items: center; padding: 8px 10px !important; }
 .xmc-gear svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .xmc-spacer { flex: 1; min-width: 12px; }
@@ -55,7 +58,7 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
 .xmc-sub, .xmc-dim { color: var(--xmc-muted); }
 .xmc-sub { font-size: calc(14px * var(--xmc-ts, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 24px; }
 .xmc-time:hover { text-decoration: underline !important; }
-.xmc-badge { display: inline-flex; width: 16px; height: 16px; border-radius: 50%; background: var(--xmc-accent); color: #fff; align-items: center; justify-content: center; flex: none; }
+.xmc-badge { display: inline-flex; width: 16px; height: 16px; border-radius: 50%; background: var(--xmc-accent); color: var(--xmc-on-accent, #fff); align-items: center; justify-content: center; flex: none; }
 .xmc-badge svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
 .xmc-reply { font-size: calc(13px * var(--xmc-ts, 1)); margin-top: 8px; }
 .xmc-text { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -100,9 +103,9 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
   padding: 8px; border-radius: 999px; font: inherit; font-size: calc(13px * var(--xmc-ts, 1)); cursor: pointer; }
 .xmc-act svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .xmc-act:hover { background: color-mix(in srgb, var(--xmc-accent) 14%, transparent); color: var(--xmc-accent); }
-.xmc-act[data-act=repost]:hover, .xmc-act[data-act=repost].on { color: #00ba7c; }
+.xmc-act[data-act=repost]:hover, .xmc-act[data-act=repost].on { color: var(--xmc-repost, #00ba7c); }
 .xmc-act[data-act=repost]:hover { background: rgba(0, 186, 124, .12); }
-.xmc-act[data-act=like]:hover, .xmc-act[data-act=like].on { color: #f91880; }
+.xmc-act[data-act=like]:hover, .xmc-act[data-act=like].on { color: var(--xmc-like, #f91880); }
 .xmc-act[data-act=like]:hover { background: rgba(249, 24, 128, .12); }
 .xmc-act[data-act=like].on svg, .xmc-act[data-act=bookmark].on svg { fill: currentColor; }
 .xmc-act[data-act=bookmark].on { color: var(--xmc-accent); }
@@ -115,7 +118,7 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
 .xmc-menu button { appearance: none; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: left; padding: 10px 12px; border-radius: 8px; cursor: pointer; }
 .xmc-menu button:hover { background: var(--xmc-hover); }
 #xmc-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 50; padding: 10px 16px; border-radius: 10px;
-  background: var(--xmc-accent, #1d9bf0); color: #fff; font: 600 14px system-ui, sans-serif; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
+  background: var(--xmc-accent, #1d9bf0); color: var(--xmc-on-accent, #fff); font: 600 14px system-ui, sans-serif; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
 #xmc-fab { position: fixed; right: 16px; bottom: 16px; z-index: 5; padding: 10px 14px; border-radius: 999px; cursor: pointer;
   border: 1px solid rgba(127, 127, 127, .4); background: var(--xmc-solid, var(--xmc-bg)); color: var(--xmc-fg); font: 500 14px system-ui, sans-serif; }
 #xmc-lightbox { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .92); cursor: zoom-out; }
@@ -166,7 +169,7 @@ html.xmc-reducedInteraction .xmc-n { display: none !important; }
 .xmc-qlink { color: var(--xmc-muted) !important; font-size: calc(13px * var(--xmc-ts, 1)); padding: 8px; }
 .xmc-qlink:hover { text-decoration: underline !important; color: var(--xmc-accent) !important; }
 .xmc-src { color: var(--xmc-muted); }
-.xmc-act.done { color: #00ba7c; }
+.xmc-act.done { color: var(--xmc-repost, #00ba7c); }
 .xmc-moreBtn { margin-left: auto; padding: 6px !important; }
 .xmc-moreBtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; }
 .xmc-head { position: relative; }
@@ -181,7 +184,7 @@ html.xmc-reducedInteraction .xmc-n { display: none !important; }
 
 /* ---- refresh button with the "N new" count ---- */
 .xmc-refresh { display: inline-flex !important; align-items: center; gap: 6px; padding: 8px 10px !important; }
-.xmc-refresh.has-new { background: var(--xmc-accent) !important; color: #fff !important; font-weight: 700; }
+.xmc-refresh.has-new { background: var(--xmc-accent) !important; color: var(--xmc-on-accent, #fff) !important; font-weight: 700; }
 .xmc-newn { font-size: calc(13px * var(--xmc-ts, 1)); }
 .xmc-newn:empty { display: none; }
 
@@ -258,7 +261,7 @@ html.xmc-nsfw-show .xmc-qmedia.sens { filter: none; }
   padding: 3px 6px; min-height: 24px; min-width: 24px; justify-content: center; border-radius: 999px; cursor: pointer; }
 .xmc-ract svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .xmc-ract:hover { color: var(--xmc-accent); background: color-mix(in srgb, var(--xmc-accent) 14%, transparent); }
-.xmc-rlike:hover, .xmc-rlike.on { color: #f91880; }
+.xmc-rlike:hover, .xmc-rlike.on { color: var(--xmc-like, #f91880); }
 .xmc-rlike:hover { background: rgba(249, 24, 128, .12); }
 .xmc-rlike.on svg { fill: currentColor; }
 .xmc-compose.xmc-inline { margin-top: 4px; padding-top: 4px; border-top: 0; }
@@ -300,7 +303,7 @@ html.xmc-nsfw-show .xmc-qmedia.sens { filter: none; }
 .xmc-etab.on { background: rgba(29, 155, 240, .25); }
 .xmc-etab:focus-visible, .xmc-emo:focus-visible { outline: 2px solid #1d9bf0; outline-offset: -2px; }
 .xmc-egrid { display: flex; flex-wrap: wrap; max-height: 216px; overflow-y: auto; scrollbar-width: thin; }
-.xmc-csend { background: var(--xmc-accent) !important; color: #fff !important; border-color: transparent !important; }
+.xmc-csend { background: var(--xmc-accent) !important; color: var(--xmc-on-accent, #fff) !important; border-color: transparent !important; }
 .xmc-csend:disabled { opacity: .45; cursor: default; }
 
 /* ---- (X) more suggestions you can turn off ---- */
@@ -351,8 +354,8 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
 #xmc-pill svg { width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #xmc-pill:hover { background: rgba(29, 155, 240, .1); }
 /* off (or fell back to X's own feed): filled, so it is easy to find */
-#xmc-pill.off { background: #1d9bf0; color: #fff; box-shadow: none; }
-#xmc-pill.off:hover { background: #1a8cd8; }
+#xmc-pill.off { background: var(--xmc-accent, #1d9bf0); color: var(--xmc-on-accent, #fff); box-shadow: none; }
+#xmc-pill.off:hover { background: color-mix(in srgb, var(--xmc-accent, #1d9bf0) 88%, #000); }
 /* narrow sidebar: X shows a round icon-only Post button, so do the same */
 #xmc-pill.compact { width: 50px; min-height: 50px; padding: 0; margin-left: auto; margin-right: auto; }
 #xmc-pill.compact .xmc-pill-label { display: none; }
@@ -526,8 +529,8 @@ html.xmc-boot header[role="banner"], html.xmc-boot [data-testid="sidebarColumn"]
 .xmc-hover .xmc-act { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 50%; color: #fff; background: rgba(0, 0, 0, .62); }
 .xmc-hover .xmc-act:hover { background: rgba(0, 0, 0, .8); color: #fff; }
 .xmc-hover .xmc-n { display: none; }
-.xmc-hover .xmc-act[data-act=like].on { color: #f91880; }
-.xmc-hover .xmc-act[data-act=repost].on { color: #00ba7c; }
+.xmc-hover .xmc-act[data-act=like].on { color: var(--xmc-like, #f91880); }
+.xmc-hover .xmc-act[data-act=repost].on { color: var(--xmc-repost, #00ba7c); }
 .xmc-hover .xmc-act[data-act=bookmark].on, .xmc-hover .xmc-act[data-act=download].done { color: var(--xmc-accent); }
 .xmc-media.sensitive .xmc-hover { display: none; }
 
@@ -571,7 +574,14 @@ html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive v
 .xmc-vnav[hidden] { display: none; }
 /* Reels: the post fills the page (the columns are behind it, unseen), one at a time, and the next comes up from below */
 #xmc-root.xmc-reels > .xmc-view { position: absolute; padding: 0; background: var(--xmc-bg, #000); cursor: default; }
-#xmc-root.xmc-reels:has(> .xmc-view) > .xmc-bar, #xmc-root.xmc-reels:has(> .xmc-view) > .xmc-scroller, #xmc-root.xmc-reels:has(> .xmc-view) > .xmc-hint { visibility: hidden; }
+#xmc-root.xmc-reels:has(> .xmc-view) > .xmc-bar, #xmc-root.xmc-reels:has(> .xmc-view) > .xmc-scroller, #xmc-root.xmc-reels:has(> .xmc-view) > .xmc-hint,
+#xmc-root.xmc-reels:has(> .xmc-reelswait) > .xmc-bar, #xmc-root.xmc-reels:has(> .xmc-reelswait) > .xmc-scroller, #xmc-root.xmc-reels:has(> .xmc-reelswait) > .xmc-hint { visibility: hidden; }
+.xmc-vfeed { position: absolute; top: 14px; left: 50%; translate: -50% 0; z-index: 3; display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(0, 0, 0, .5); }
+.xmc-vfeedtab { appearance: none; border: 0; background: none; color: rgba(255, 255, 255, .72); font: 600 14px system-ui, sans-serif; padding: 6px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.xmc-vfeedtab:hover { color: #fff; }
+.xmc-vfeedtab.on { color: #fff; background: rgba(255, 255, 255, .2); }
+.xmc-vfeedtab:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.xmc-reelswait { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--xmc-muted); font-weight: 600; }
 #xmc-root.xmc-reels .xmc-vpanel { width: min(1700px, 100%); height: 100%; border: 0; border-radius: 0; box-shadow: none; } /* (the post is as big as the page lets it be) */
 #xmc-root.xmc-reels .xmc-vside { flex: 0 0 min(380px, 100%); }
 #xmc-root.xmc-reels .xmc-vmwrap { position: relative; flex: 1 1 62%; min-width: 0; display: flex; }
@@ -775,3 +785,18 @@ html.xmc-rail:not(.xmc-panelanim):not(.xmc-noclip) :is(header[role="banner"][dat
 
 /* a feature switched off after a run of failures (see featureTracker): its button is dimmed, and pressing it says why */
 #xmc-root.xmc-off-like [data-act="like"], #xmc-root.xmc-off-bookmark [data-act="bookmark"], #xmc-root.xmc-off-repost [data-act="repost"] { opacity: .35; cursor: not-allowed; }
+
+/* ---- colour themes: a theme sets the --xmc-* custom properties (settings.js THEMES, applied by site.js and main.js); these are the places that had colours of their own ---- */
+html.xmc-theme-dark { color-scheme: dark; }
+html.xmc-theme-light { color-scheme: light; }
+html.xmc-on.xmc-themed, html.xmc-on.xmc-themed body { background-color: var(--xmc-bg) !important; }
+html.xmc-on.xmc-themed :is(header[role="banner"], #xmc-navfreeze) nav a:not([data-testid="SideNav_NewTweet_Button"], [data-xmc-tid="SideNav_NewTweet_Button"]) { color: var(--xmc-fg) !important; }
+html.xmc-on.xmc-themed :is(header[role="banner"], #xmc-navfreeze) nav a:not([data-testid="SideNav_NewTweet_Button"], [data-xmc-tid="SideNav_NewTweet_Button"]) :is(span, div, svg):not([aria-live]) { color: inherit !important; }
+html.xmc-themed #xmc-sidetab { background: var(--xmc-fg); color: var(--xmc-solid); }
+html.xmc-themed #xmc-sidetab:hover { background: color-mix(in srgb, var(--xmc-fg) 88%, var(--xmc-solid)); }
+html.xmc-themed :is(.xmc-emoji, .xmc-keylegend) { background: var(--xmc-solid); color: var(--xmc-fg); border-color: var(--xmc-border); }
+html.xmc-themed .xmc-etabs, html.xmc-themed .xmc-keylegend .kl-foot { border-color: var(--xmc-border); }
+html.xmc-themed .xmc-keylegend kbd { background: color-mix(in srgb, var(--xmc-fg) 12%, var(--xmc-solid)); border-color: var(--xmc-border); color: var(--xmc-fg); }
+html.xmc-themed .xmc-keylegend .kl-off { color: var(--xmc-muted); }
+html.xmc-themed .xmc-keylegend .kl-foot button { border-color: var(--xmc-border); color: var(--xmc-accent); }
+html.xmc-themed #xmc-sidetab:focus-visible, html.xmc-themed header[role="banner"] [data-xmc-logo]:focus-visible { outline-color: var(--xmc-accent); }

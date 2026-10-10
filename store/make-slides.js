@@ -12,22 +12,18 @@ const { chromium } = require('playwright-core');
 const DIR = path.join(__dirname, 'screenshots');
 const OUT = path.join(DIR, 'slides');
 // feed: true marks a shot of the feed itself. The stand-in feed is invented posts on generated art; a real one from X is better there,
-// so these are the ones to replace (own/<same name>.png).
+// so these are the ones to replace (own/<same name>.png). The wording is from the "Store slide wording" page.
 const SLIDES = [
-  { file: '01-columns', feed: true, title: 'Your feed, in columns', bullets: ['Two to eight columns, fitted to your window', 'New posts wait behind a button, so nothing jumps while you read'] },
-  { file: '08-reels', title: 'Scroll like TikTok', bullets: ['One post at a time, scrolled up and down', 'Videos play with sound and loop', 'Shift + wheel or the arrow keys move to the next post'] },
-  { file: '02-post-panel', title: 'Open a post without losing your place', bullets: ['The picture large, the comments beside it', 'Like, bookmark and reply to posts and to comments', 'Esc closes it and you are exactly where you were'] },
-  { file: '09-reply-tools', title: 'Reply with pictures and emoji', bullets: ['Pictures, GIFs and emoji from the comment box', 'Reply to the post or to any comment, in the panel'] },
-  { file: '10-keys', title: 'Browse with your keyboard', bullets: ['Arrow keys step through pictures, then posts', 'A to like, S to bookmark, E to download, C to comment', 'The keyboard button lists every key, and you can change them'] },
+  { file: '01-columns', feed: true, title: 'Your feed in columns', bullets: ['See far more at once using the whole screen', 'Columns resize automatically to your screen resolution', 'Hide Trending, Who to follow and Premium boxes'] },
+  { file: '08-reels', title: 'Doomscroll with style', bullets: ['One post at a time, scrolled up and down', 'Videos play with sound and loop', 'Shift + wheel or the arrow keys move to the next post'] },
+  { file: '02-post-panel', title: 'Open a post without losing your place', bullets: ['View media with comments alongside', 'Like, bookmark and reply to posts and to comments', 'Close post to return to exactly where you were'] },
+  { file: '09-reply-tools', title: 'Reply with pictures and emoji', bullets: ['Pictures, GIFs and emoji from the comment box', 'Reply to the post or to any comment in-panel'] },
+  { file: '10-keys', title: 'Browse with your keyboard', bullets: ['Arrow keys step through pictures, then posts', 'A to like, S to bookmark, E to download, C to comment', 'Remap key bindings in settings'] },
   { file: '03-photo-viewer', title: 'Photos and video, done properly', bullets: ['Open photos in a viewer, with Download and Copy link', 'Original-size photos and the best video quality, one click', 'Point at a video for a muted preview'] },
-  { file: '11-media-wall', feed: true, title: 'A wall of pictures and video', bullets: ['Media only, in as many columns as fit', 'Menu folded to icons, side panel slid away', 'Videos play muted as you scroll'] },
-  { file: '04-filters', feed: true, title: 'Show only what you came for', bullets: ['Following by default, “For you” hidden', 'Posts, reposts, quotes or media only', 'Mute words and accounts, read posts fade away'] },
-  { file: '05-more-room', feed: true, title: 'More room when you want it', bullets: ['Fold the menu to icons, slide the side panel away', 'The columns grow into the space', 'Alt+[ and Alt+] from the keyboard'] },
-  { file: '12-start', title: 'Start the way you like', bullets: ['Pick a starting point: Just columns, Calm, Media wall or Reels', 'Change anything later; most changes apply as you make them', 'Nothing leaves your browser'] },
 ];
 
-// the slide colours: a deep blue running up to X's blue, white headline, a paler blue for the lines under it
-const PALETTE = { from: '#0a2540', mid: '#0e4276', to: '#1478c4', head: '#ffffff', text: '#cfe6fa', edge: 'rgba(255,255,255,.14)' };
+// the slide colours ("Ink" on the wording page): near-black blue running up to a mid navy, white headline, a paler tint for the lines under it
+const PALETTE = { from: '#090f1a', mid: '#12233b', to: '#1d3f68', head: '#ffffff', text: '#c3d2e3', edge: 'rgba(255,255,255,.14)' };
 
 const html = (title, bullets, img) => `<!doctype html><meta charset="utf-8"><style>
   *{box-sizing:border-box;margin:0}

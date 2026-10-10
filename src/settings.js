@@ -7,6 +7,24 @@ var XMCSettings = (function () {
   const SHOW_HIDE = [['show', 'Show'], ['hide', 'Hide']];
   const nav = (key, label) => ({ key, type: 'bool', def: false, label, native: true });
 
+  // Colour themes for the columns, the post panel, the viewer and the settings. Catppuccin (catppuccin.com, MIT) and Gruvbox (Pavel Pertsev's
+  // palette) as their authors publish them: bg and fg are the page and its text, muted the quiet text, line a border, card a surface a step off
+  // the page; accent is the colour of links and the active chip, onAccent the text that sits on it, like and repost the heart and the repost arrow.
+  const THEMES = [
+    { id: 'catppuccin-mocha', name: 'Catppuccin Mocha', dark: true, bg: '#1e1e2e', fg: '#cdd6f4', muted: '#a6adc8', line: '#45475a', card: '#313244', accent: '#89b4fa', onAccent: '#1e1e2e', like: '#f38ba8', repost: '#a6e3a1' },
+    { id: 'catppuccin-macchiato', name: 'Catppuccin Macchiato', dark: true, bg: '#24273a', fg: '#cad3f5', muted: '#a5adcb', line: '#494d64', card: '#363a4f', accent: '#8aadf4', onAccent: '#24273a', like: '#ed8796', repost: '#a6da95' },
+    { id: 'catppuccin-frappe', name: 'Catppuccin Frappé', dark: true, bg: '#303446', fg: '#c6d0f5', muted: '#a5adce', line: '#51576d', card: '#414559', accent: '#8caaee', onAccent: '#303446', like: '#e78284', repost: '#a6d189' },
+    { id: 'catppuccin-latte', name: 'Catppuccin Latte', dark: false, bg: '#eff1f5', fg: '#4c4f69', muted: '#5c5f77', line: '#bcc0cc', card: '#e6e9ef', accent: '#1e66f5', onAccent: '#ffffff', like: '#d20f39', repost: '#40a02b' },
+    { id: 'gruvbox-dark', name: 'Gruvbox Dark', dark: true, bg: '#282828', fg: '#ebdbb2', muted: '#a89984', line: '#504945', card: '#3c3836', accent: '#83a598', onAccent: '#282828', like: '#fb4934', repost: '#b8bb26' },
+    { id: 'gruvbox-light', name: 'Gruvbox Light', dark: false, bg: '#fbf1c7', fg: '#3c3836', muted: '#665c54', line: '#d5c4a1', card: '#ebdbb2', accent: '#076678', onAccent: '#fbf1c7', like: '#9d0006', repost: '#79740e' },
+  ];
+  const themeOf = (id) => THEMES.find((t) => t.id === id) || null; // null: X's own colours
+  // the custom properties the columns' stylesheet reads (set on <html>, the columns and the toast); null for X's own colours
+  function themeVars(id) {
+    const t = themeOf(id);
+    return t && { '--xmc-bg': t.bg, '--xmc-solid': t.bg, '--xmc-fg': t.fg, '--xmc-muted': t.muted, '--xmc-border': t.line, '--xmc-accent': t.accent, '--xmc-on-accent': t.onAccent, '--xmc-like': t.like, '--xmc-repost': t.repost };
+  }
+
   // native: true  => restyles X's own interface with CSS, so it depends on X's current markup and may
   //                  need a tweak when X redesigns.
   const SCHEMA = [
@@ -115,6 +133,7 @@ var XMCSettings = (function () {
       id: 'look', title: 'Look', items: [
         { key: 'branding', type: 'select', def: 'x', label: 'Name and logo', native: true, options: [['x', 'X (as X ships it)'], ['twitter', 'Twitter (bird logo, “Tweet”, “Retweet”)']] },
         { key: 'textSize', type: 'select', def: 'normal', label: 'Text size in posts and the post panel', options: [['small', 'Smaller'], ['normal', 'Normal'], ['large', 'Larger'], ['xlarge', 'Largest']] },
+        { key: 'theme', type: 'select', def: 'x', label: 'Colour theme', help: 'For the columns, the post panel, the picture viewer and these settings, and the page behind them while the columns show. X\u2019s own pages keep X\u2019s colours.', native: true, options: [['x', 'X (as it is)']].concat(THEMES.map((t) => [t.id, t.name])) },
         { key: 'cardStyle', type: 'select', def: 'raised', label: 'Card background', options: [['raised', 'Slightly lighter (or darker) than the page'], ['flat', 'None']] },
         { key: 'customCss', type: 'textarea', def: '', label: 'Custom CSS', help: 'Added to every x.com page.', native: true },
       ],
@@ -265,7 +284,7 @@ var XMCSettings = (function () {
     return out;
   }
 
-  const api = { SCHEMA, DEFAULTS, INTERNAL, VERSION, PRESETS, presetApplies, freshInstall, normalize, diff, words, handles, PANEL_KEY_ACTIONS, PANEL_KEY_DEFAULTS, panelKeyMap, okKey, keyLabel };
+  const api = { SCHEMA, THEMES, themeOf, themeVars, DEFAULTS, INTERNAL, VERSION, PRESETS, presetApplies, freshInstall, normalize, diff, words, handles, PANEL_KEY_ACTIONS, PANEL_KEY_DEFAULTS, panelKeyMap, okKey, keyLabel };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

@@ -28,7 +28,7 @@ By default your feed shows in columns that fit your window (up to eight), on the
 - Comments load as you scroll and can be sorted by relevance, newest or most liked. Like, bookmark and reply to posts and to comments, and translate them with X's own translation.
 - **Reply with pictures, a GIF or emoji** from the comment box, to the post or to any comment, without leaving the panel.
 - **Keys:** ← → go through a post's pictures and then the posts, Shift and the wheel step through the posts from anywhere on the panel, A S W E Q C like, bookmark, repost, download, copy the link and comment. The keyboard button on the panel lists them all, and you can change any key.
-- **Reels view (optional):** like TikTok. One post at a time fills the page, scrolled up and down; videos play with sound and loop; posts you have already seen are skipped. It is one of the starting points below.
+- **Reels view (optional):** like TikTok. One post at a time fills the page, scrolled up and down; videos play with sound and loop; posts you have already seen are skipped; a switch at the top changes between For you and Following. It is one of the starting points below.
 
 **Video and media**
 - Video and GIFs play in the post. Pointing at a video plays it muted; pressing it turns the sound on and carries on; a speaker button turns sound on or off.
@@ -43,6 +43,7 @@ By default your feed shows in columns that fit your window (up to eight), on the
 
 **Tidy-ups**
 - Hide Trending, Who to follow, Topics and Premium boxes; hide any item in X's left menu; add Bookmarks, Likes and Lists to it.
+- **Colour themes:** Catppuccin (Mocha, Macchiato, Frappé, Latte) or Gruvbox (dark, light) for the columns, the post panel and the settings; X's own colours by default.
 - Use the bird logo and "Tweet" wording, or X's own; custom CSS.
 - Sensitive media: an option (on by default) turns off X's own age-verification flag in your browser, so X shows its older "sensitive content" notice instead of asking for verification. Switch it off in the settings if you would rather keep X's check.
 
@@ -57,18 +58,14 @@ X and Twitter are trademarks of X Corp. This add-on is not affiliated with, endo
 **Release notes (current version):**
 Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its picture, comments (loading as you scroll), like, bookmark, reply (with pictures, a GIF or emoji) and translate; video in the post; a Reels view; keys for everything; one-click media downloads; filters; sensitive-media handling; four starting points on first run; Bookmarks, Likes and Lists in the left menu; a menu for narrow windows; a settings page.
 
-**Screenshots** (upload the headline slides in `store/screenshots/slides/`, in this order; `node store/make-screenshots.js` then `node store/make-slides.js` makes them: 1280x800, invented accounts and posts, nothing from X; the plain shots are in `store/screenshots/` if you want any without a headline. A shot of your own saved as `store/screenshots/own/<name>.png` replaces the generated one of that name; the feed shots (1, 7, 8, 9) are the ones worth replacing with real X):
-1. `01-columns.png` Your feed, in columns.
-2. `02-reels.png` Scroll like TikTok: one post at a time, with the rail of buttons on the picture.
-3. `03-post-panel.png` Open a post without losing your place: its picture large, comments beside it.
+**Screenshots** (upload the headline slides in `store/screenshots/slides/`, in this order; `node store/make-screenshots.js` then `node store/make-slides.js` makes them: 1280x800, invented accounts and posts, nothing from X; the plain shots are in `store/screenshots/` if you want any without a headline. A shot of your own saved as `store/screenshots/own/<name>.png` replaces the generated one of that name; slide 1 shows the feed itself and is the one worth replacing with real X; the wording is in `SLIDES` in `store/make-slides.js`):
+1. `01-columns.png` Your feed in columns.
+2. `02-reels.png` Doomscroll with style: one post at a time, with the rail of buttons on the picture.
+3. `03-post-panel.png` Open a post without losing your place.
 4. `04-reply-tools.png` Reply with pictures and emoji, from the comment box in the panel.
 5. `05-keys.png` Browse with your keyboard: the card of keys.
-6. `06-photo-viewer.png` Photos and video done properly: the viewer with Download and Copy link.
-7. `07-media-wall.png` A wall of pictures and video: Media only, menu folded, side panel away.
-8. `08-filters.png` Show only what you came for: posts, reposts, quotes or media.
-9. `09-more-room.png` More room when you want it: five columns with the menu folded.
-10. `10-start.png` Start the way you like: the four starting points.
-(Not in the slides, still in `store/screenshots/`: `06-settings.png`, the settings page, and `07-settings-panel.png`, the settings in a panel over the columns.)
+6. `06-photo-viewer.png` Photos and video, done properly: the viewer with Download and Copy link.
+(Not in the slides, still in `store/screenshots/`: the media wall, the filters, the room, the starting points, the settings page and the settings in a panel.)
 
 **Support link ("Support" / contributions field):** https://ko-fi.com/falsehamartia
 **Homepage:** https://github.com/Lynchalot/multi-column-for-x

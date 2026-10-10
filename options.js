@@ -24,8 +24,16 @@
     history = Array.isArray(v.dlHistory) ? v.dlHistory : [];
     try { readCount = (Array.isArray(v.seenPosts) ? v.seenPosts : storage ? [] : JSON.parse(localStorage.getItem('xmc.seen') || '[]')).length; } catch { readCount = 0; }
   }
+  // a colour theme (Look > Colour theme) recolours this page and the toolbar panel, and the settings over the columns, as it does the columns
+  const THEME_VARS = { '--bg': 'bg', '--fg': 'fg', '--muted': 'muted', '--line': 'line', '--card': 'card', '--accent': 'accent', '--on-accent': 'onAccent' };
+  function applyTheme() {
+    const th = S.themeOf(settings.theme), st = document.documentElement.style;
+    for (const k in THEME_VARS) { if (th) st.setProperty(k, th[THEME_VARS[k]]); else st.removeProperty(k); }
+    st.colorScheme = th ? (th.dark ? 'dark' : 'light') : '';
+  }
   function persist(partial) {
     Object.assign(settings, partial);
+    if ('theme' in partial) applyTheme();
     setTimeout(refreshPresets, 0);
     setTimeout(refreshMarks, 0);
     if (storage) storage.set(Object.assign({ v: S.VERSION }, partial)).catch((e) => say('Could not save: ' + e));
@@ -465,6 +473,7 @@
 
   async function init() {
     await load();
+    applyTheme();
     build();
     welcomeBlock();
     document.querySelectorAll('section[data-nav]').forEach((s, i) => { if (!s.id) s.id = 'sec-extra-' + i; });
@@ -526,6 +535,7 @@
         if (ch.seenPosts) { readCount = (ch.seenPosts.newValue || []).length; const sm = $('#read-summary'); if (sm && sm.refresh) sm.refresh(); }
         if (ch.navItems) { settings.navItems = ch.navItems.newValue || []; refreshNav(); }
         if (ch.hiddenNav) settings.hiddenNav = ch.hiddenNav.newValue || [];
+        if (ch.theme) { settings.theme = ch.theme.newValue || 'x'; applyTheme(); }
         if (ch.enabled) { settings.enabled = ch.enabled.newValue !== false; const sw = $('#opt-enabled'); if (sw) { sw.checked = settings.enabled; document.body.classList.toggle('off', !sw.checked); } } // (turned on or off from another of these pages)
       });
     }

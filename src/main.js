@@ -1132,11 +1132,32 @@
     if (state.reelsOff && state.reelsOff !== feedRoute()) state.reelsOff = ''; // (another page since: it starts afresh when you come back)
     if (!settings.reels && root.classList.contains('xmc-reels') && !postView) root.classList.remove('xmc-reels');
     reelsBtn.hidden = !(settings.reels && settings.openIn === 'view' && state.reelsOff && ['home', 'list'].includes(feedKind()));
-    if (!reelsWanted() || postView || lightbox || menuEl || !state.shown || root.hidden || document.hidden || state.peek || state.posting || isModalRoute() || !view.cards.length) return;
+    if (!reelsWanted() || postView || lightbox || menuEl || !state.shown || root.hidden || document.hidden || state.peek || state.posting || state.reelsSwitching || isModalRoute() || !view.cards.length) return;
     const first = firstCardInView();
     if (first) openPostView(first, true);
   }
   function enterReels() { state.reelsOff = ''; reelsTick(); }
+  // For you / Following over the post, on Home (the bar that has these tabs is not showing in Reels). Pressing the other one lets the post go, has X switch its tab
+  // and, when that feed is in, reelsTick opens its first post. The page stays Reels-coloured meanwhile, with a line saying what is coming.
+  function reelsFeedSwitch() {
+    if (feedKind() !== 'home' || settings.hideForYou || !state.homeTabs || state.homeTabs.length < 2) return null;
+    const tab = (i) => h('button', { className: 'xmc-vfeedtab' + (i === state.sel ? ' on' : ''), type: 'button', 'aria-pressed': String(i === state.sel), onclick: (e) => { e.stopPropagation(); reelsFeed(i); } }, state.homeTabs[i]);
+    return h('div', { className: 'xmc-vfeed', role: 'group', 'aria-label': 'Feed' }, tab(0), tab(1));
+  }
+  async function reelsFeed(i) {
+    if (state.reelsSwitching || i === state.sel || !postView || !postView.reels) return;
+    state.reelsSwitching = true;
+    state.userForYou = i === 0;
+    const wait = h('div', { className: 'xmc-reelswait' }, h('span', { className: 'xmc-spin' }), (state.homeTabs[i] || 'Feed') + '\u2026');
+    try {
+      closePostView(false, true); // (the page stays as Reels: no flash of the columns)
+      root.append(wait);
+      const was = (viewFeed() || {}).key;
+      await waitFor(() => realTabs().length >= 2 && !state.peek, 8000); // X's page comes back to Home
+      if (realTabs()[i]) { switchTab(i); await waitFor(() => { const f = viewFeed(); return f && f.key !== was && view.cards.length; }, 12000); }
+      else toast('X didn\u2019t show its tabs just now. Try again');
+    } finally { wait.remove(); state.reelsSwitching = false; }
+  }
   // left and right: through the post's pictures, and past the last (or before the first) to the next (or previous) post; Shift skips the pictures
   function walkPanel(dir, skipPictures) {
     const car = !skipPictures && postView && postView.panel.querySelector('.xmc-car');
@@ -3154,6 +3175,8 @@
       for (const b of [prevBtn, nextBtn]) for (const k of ['top', 'left', 'right', 'marginTop']) b.style[k] = '';
       (mediaHost || panel).append(rail);
       postView.rail = rail;
+      const feedSwitch = reelsFeedSwitch();
+      if (feedSwitch) (mediaHost || panel).append(feedSwitch);
     }
     if (reels) {
       prevBtn.title = 'Previous post (\u2191)'; prevBtn.setAttribute('aria-label', 'Previous post'); nextBtn.title = 'Next post (\u2193)'; nextBtn.setAttribute('aria-label', 'Next post');
@@ -3838,6 +3861,7 @@
     if (tabs.length) { // keep the last known selection if X is momentarily redrawing its tabs
       const sel = selectedIndex(tabs);
       if (sel >= 0) state.sel = sel;
+      if (where() === 'home' && tabs.length >= 2) state.homeTabs = tabs.slice(0, 2).map((tb) => tb.textContent.trim().slice(0, 20)); // (For you, Following: the Reels switch names them while the tabs are not there)
     }
     const hideForYou = settings.hideForYou && where() === 'home';
     const sig = tabs.map((tab) => tab.textContent).join('|') + '#' + state.sel + '#' + hideForYou + '#' + state.menuTabs.size;
@@ -3847,7 +3871,7 @@
       if (hideForYou && i === 0) return null;
       const label = tab.textContent.trim();
       const dropdown = /^(videos|photos)$/i.test(label) || state.menuTabs.has(routeKey() + '|' + i) || (where() === 'home' && /^following$/i.test(label)); // Following's Popular / Recent
-      const b = btn(label + (dropdown ? ' \u25be' : ''), '', () => switchTab(i, b));
+      const b = btn(label + (dropdown ? ' \u25be' : ''), '', () => { if (where() === 'home') state.userForYou = i === 0; switchTab(i, b); });
       b.classList.toggle('on', i === state.sel);
       return b;
     }).filter(Boolean));
@@ -3864,7 +3888,7 @@
         state.homeInit = true;
         if (wantFollowing && state.sel === 0) { state.homeHold = true; setTimeout(() => { state.homeHold = false; }, 3500); switchTab(1); }
         else if (settings.homeDefault === 'forYou' && !settings.hideForYou && state.sel === 1) switchTab(0);
-      } else if (settings.keepFollowing && wantFollowing && state.sel === 0 && now - state.lastKeep > 3000 && !state.awaiting) {
+      } else if (settings.keepFollowing && wantFollowing && state.sel === 0 && !state.userForYou && now - state.lastKeep > 3000 && !state.awaiting) {
         state.lastKeep = now;
         switchTab(1);
       }
@@ -4636,8 +4660,11 @@
       const m = /(\d+)[, ]+(\d+)[, ]+(\d+)/.exec(cs.color || '');
       bg = m && (0.299 * m[1] + 0.587 * m[2] + 0.114 * m[3]) > 140 ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)';
     }
-    root.classList.toggle('xmc-seethru', clear(cs.backgroundColor)); // a wallpaper or theme shows through: cards need a stronger tint to be seen
+    const tv = XMCSettings.themeVars(settings.theme); // a colour theme of ours: its colours, not X's
+    root.classList.toggle('xmc-seethru', !tv && clear(cs.backgroundColor)); // a wallpaper or theme shows through: cards need a stronger tint to be seen
     for (const el of [root, toastEl, document.documentElement]) {
+      if (tv) { for (const k in tv) el.style.setProperty(k, tv[k]); continue; }
+      for (const k of ['--xmc-muted', '--xmc-border', '--xmc-accent', '--xmc-on-accent', '--xmc-like', '--xmc-repost']) el.style.removeProperty(k); // (a theme just left)
       el.style.setProperty('--xmc-bg', cs.backgroundColor); // exactly what X's page has: may be see-through (a themed or wallpaper background shows through the columns)
       el.style.setProperty('--xmc-solid', bg);              // for things that must stay readable over anything: menus, toast, the loading pill
       el.style.setProperty('--xmc-fg', cs.color);

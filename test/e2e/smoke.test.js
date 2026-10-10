@@ -4279,3 +4279,98 @@ browserTest('pointing at a video plays a muted preview, moving away stops it, pr
     assert.equal(await page.evaluate(() => { const v = document.querySelector('.xmc-card video:not([data-gif])'); return { playing: !v.paused, preview: v.dataset.preview || '' }; }).then((x) => JSON.stringify(x)), JSON.stringify({ playing: true, preview: '' }));
   });
 });
+
+// ---- Reels: For you and Following over the post (0.40.0) ----
+browserTest('Reels: For you and Following sit over the post; pressing the other brings that feed\u2019s first post, and the keep-on-Following rule leaves the pick alone', async (e) => {
+  const h = await e.open('/home/', { settings: { reels: true, filter: 'media', hideForYou: false, homeDefault: 'following', keepFollowing: true }, width: 1900, height: 1000 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view .xmc-vfeed', { timeout: 20000 });
+    const tabs = () => page.evaluate(() => [...document.querySelectorAll('.xmc-vfeedtab')].map((b) => b.textContent + (b.classList.contains('on') && b.getAttribute('aria-pressed') === 'true' ? '*' : '')));
+    assert.deepEqual(await tabs(), ['For you', 'Following*'], 'X\u2019s two tabs, the one on marked');
+    const box = await page.evaluate(() => { const f = document.querySelector('.xmc-vfeed').getBoundingClientRect(), m = document.querySelector('.xmc-vmwrap').getBoundingClientRect(); return { inside: f.left >= m.left && f.right <= m.right && f.top >= m.top, mid: Math.abs((f.left + f.right) / 2 - (m.left + m.right) / 2) }; });
+    assert.equal(box.inside, true, 'over the post'); assert.ok(box.mid < 2, 'in the middle of it: ' + box.mid);
+    const before = await openPostId(page);
+    await page.locator('.xmc-vfeedtab', { hasText: 'For you' }).click();
+    await page.waitForFunction(() => document.querySelector('.xmc-vfeedtab.on') && /For you/.test(document.querySelector('.xmc-vfeedtab.on').textContent) && !document.querySelector('.xmc-reelswait'), null, { timeout: 25000 });
+    assert.equal(await page.evaluate(() => window.__xmc.state.sel), 0, 'X is on For you');
+    assert.equal(await page.evaluate(() => document.querySelector('#xmc-root').className.includes('xmc-reels')), true, 'still Reels');
+    await page.waitForTimeout(4500); // the keep-on-Following rule looks every three seconds: a pick of the person\u2019s is not undone
+    assert.deepEqual(await tabs(), ['For you*', 'Following'], 'it stays on For you');
+    const other = await openPostId(page);
+    assert.ok(other, 'a post is open');
+    await page.locator('.xmc-vfeedtab', { hasText: 'Following' }).click();
+    await page.waitForFunction(() => document.querySelector('.xmc-vfeedtab.on') && /Following/.test(document.querySelector('.xmc-vfeedtab.on').textContent) && !document.querySelector('.xmc-reelswait'), null, { timeout: 25000 });
+    assert.equal(await page.evaluate(() => window.__xmc.state.sel), 1);
+    assert.equal(await openPostId(page), before, 'Following\u2019s first post again');
+  });
+});
+
+browserTest('Reels: no For you / Following switch when the For you tab is hidden', async (e) => {
+  const h = await e.open('/home/', { settings: { reels: true, filter: 'media', hideForYou: true }, width: 1900, height: 1000 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view .xmc-vmediapane', { timeout: 20000 });
+    await page.waitForTimeout(800);
+    assert.equal(await page.locator('.xmc-vfeed').count(), 0);
+  });
+});
+
+// ---- colour themes (0.40.0): Catppuccin and Gruvbox ----
+browserTest('a colour theme: the columns, the page behind them and the left menu take its colours, and X’s own come back when it is switched off', async (e) => {
+  const mocha = await e.open('/home/', { settings: { theme: 'catppuccin-mocha', cols: 3 } });
+  await checked(mocha, async () => {
+    const { page } = mocha;
+    await e.ready(page);
+    const get = () => page.evaluate(() => {
+      const root = document.getElementById('xmc-root'), cs = (el) => getComputedStyle(el);
+      const link = document.querySelector('header[role="banner"] nav a[href="/explore"]');
+      return {
+        cls: [...document.documentElement.classList].filter((c) => /^xmc-theme/.test(c)).sort(),
+        scheme: cs(document.documentElement).colorScheme,
+        rootBg: cs(root).backgroundColor, rootFg: cs(root).color, bodyBg: cs(document.body).backgroundColor,
+        accent: root.style.getPropertyValue('--xmc-accent'), like: root.style.getPropertyValue('--xmc-like'),
+        card: cs(root.querySelector('.xmc-card')).color, navFg: link && cs(link).color,
+      };
+    });
+    let x = await get();
+    assert.deepEqual(x.cls, ['xmc-theme-dark', 'xmc-themed']);
+    assert.equal(x.scheme, 'dark');
+    assert.equal(x.rootBg, 'rgb(30, 30, 46)', 'Mocha’s base'); assert.equal(x.rootFg, 'rgb(205, 214, 244)', 'its text');
+    assert.equal(x.bodyBg, 'rgb(30, 30, 46)', 'the page behind the columns');
+    assert.equal(x.card, 'rgb(205, 214, 244)', 'the posts');
+    assert.equal(x.accent, '#89b4fa'); assert.equal(x.like, '#f38ba8');
+    assert.equal(x.navFg, 'rgb(205, 214, 244)', 'the left menu');
+    // and back to X's own: nothing of the theme is left on the page
+    await page.evaluate(() => window.dispatchEvent(new StorageEvent('storage', { key: 'xmc.settings', newValue: JSON.stringify({ theme: 'x', cols: 3 }) }))); // (the settings page changing it)
+    await page.waitForFunction(() => !document.getElementById('xmc-root').style.getPropertyValue('--xmc-accent') && !document.documentElement.classList.contains('xmc-themed'), null, { timeout: 5000 });
+    x = await get();
+    assert.notEqual(x.rootBg, 'rgb(30, 30, 46)', 'X’s page colour again'); assert.equal(x.like, '');
+  });
+  const latte = await e.open('/home/', { settings: { theme: 'catppuccin-latte', cols: 3 } });
+  await checked(latte, async () => {
+    const { page } = latte;
+    await e.ready(page);
+    const x = await page.evaluate(() => { const root = document.getElementById('xmc-root'), cs = (el) => getComputedStyle(el); const link = document.querySelector('header[role="banner"] nav a[href="/explore"]'); return { cls: [...document.documentElement.classList].filter((c) => /^xmc-theme/.test(c)).sort(), scheme: cs(document.documentElement).colorScheme, bg: cs(root).backgroundColor, fg: cs(root).color, navFg: cs(link).color, side: root.style.getPropertyValue('--xmc-on-accent') }; });
+    assert.deepEqual(x.cls, ['xmc-theme-light', 'xmc-themed']); assert.equal(x.scheme, 'light');
+    assert.equal(x.bg, 'rgb(239, 241, 245)', 'Latte’s base'); assert.equal(x.fg, 'rgb(76, 79, 105)');
+    assert.equal(x.navFg, 'rgb(76, 79, 105)', 'dark menu text on the light page, not X’s pale text');
+    assert.equal(x.side, '#ffffff');
+  });
+});
+
+browserTest('a colour theme in the settings page: every theme is listed, picking one recolours the page at once, and X’s own colours come back', async (e) => {
+  const h = await e.open('/ext/options.html', { settings: { theme: 'gruvbox-dark' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#opt-theme', { timeout: 8000 });
+    const v = () => page.evaluate(() => ({ bg: document.documentElement.style.getPropertyValue('--bg'), accent: document.documentElement.style.getPropertyValue('--accent'), body: getComputedStyle(document.body).backgroundColor, scheme: document.documentElement.style.colorScheme }));
+    assert.deepEqual(await page.locator('#opt-theme option').allInnerTexts(), ['X (as it is)', 'Catppuccin Mocha', 'Catppuccin Macchiato', 'Catppuccin Frappé', 'Catppuccin Latte', 'Gruvbox Dark', 'Gruvbox Light']);
+    assert.equal(await page.locator('#opt-theme').inputValue(), 'gruvbox-dark');
+    assert.deepEqual(await v(), { bg: '#282828', accent: '#83a598', body: 'rgb(40, 40, 40)', scheme: 'dark' });
+    await page.locator('#opt-theme').selectOption('catppuccin-latte');
+    assert.deepEqual(await v(), { bg: '#eff1f5', accent: '#1e66f5', body: 'rgb(239, 241, 245)', scheme: 'light' });
+    await page.locator('#opt-theme').selectOption('x');
+    assert.deepEqual(await v(), { bg: '', accent: '', body: (await v()).body, scheme: '' });
+  });
+});

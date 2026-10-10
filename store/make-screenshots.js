@@ -9,7 +9,7 @@ const { execFileSync } = require('node:child_process');
 const { chromium } = require('playwright-core');
 const { start } = require('../test/e2e/mock/server.js');
 
-const OUT = path.join(__dirname, 'screenshots');
+const OUT = process.env.XMC_OUT || path.join(__dirname, 'screenshots'); // (XMC_OUT: somewhere else, with XMC_THEME=catppuccin-mocha for the same shots in a colour theme)
 
 // ---------- the people and posts (all invented) ----------
 const CAST = [
@@ -212,7 +212,7 @@ async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch({ executablePath: process.env.XMC_BROWSER, headless: true });
   const server = await start({ pages: 12 });
-  const SETTINGS = { v: 10, hintSeen: true, keysHintSeen: true, branding: 'x', cardStyle: 'raised' };
+  const SETTINGS = { v: 10, hintSeen: true, keysHintSeen: true, branding: 'x', cardStyle: 'raised', theme: process.env.XMC_THEME || 'x' };
 
   async function context(width, height, settings, scheme) {
     const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, colorScheme: scheme || 'light' });
@@ -225,7 +225,7 @@ async function main() {
   }
   async function ready(page, n = 10) {
     await page.waitForFunction((k) => window.__xmc && window.__xmc.view.cards.length >= k, n, { timeout: 20000 });
-    await page.waitForFunction(() => { const r = document.getElementById('xmc-root'); const c = r && r.querySelector('.xmc-card'); return r && !r.hidden && c && c.getBoundingClientRect().height > 20 && getComputedStyle(r.querySelector('.xmc-cols')).opacity === '1'; }, null, { timeout: 20000 }); // (the columns are on screen, not just built: the first shot of a cold browser was black)
+    await page.waitForFunction(() => { const r = document.getElementById('xmc-root'); const c = r && r.querySelector('.xmc-card'); return r && !r.hidden && c && c.getBoundingClientRect().height > 20 && getComputedStyle(r.querySelector('.xmc-cols')).opacity === '1' && !/\bxmc-(veil|boot|frozen)\b/.test(document.documentElement.className); }, null, { timeout: 20000 }); // (the columns are on screen, not just built: the first shot of a cold browser was black)
     await page.waitForLoadState('networkidle').catch(() => {});
     await page.waitForTimeout(1200);
   }
