@@ -743,8 +743,11 @@ browserTest('the page the install opens starts with the starting points as large
     await page.locator('#welcome-calm').check();
     await page.waitForFunction(() => document.getElementById('preset-calm').checked && !document.getElementById('welcome-reels').checked, null, { timeout: 5000 });
     assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), true);
+    assert.equal(await page.locator('#sec-presets').isHidden(), true, 'the presets are not drawn twice while the welcome is up');
+    assert.equal(await page.locator('#nav a[href="#sec-presets"]').isHidden(), true);
     await page.locator('#welcome button', { hasText: 'Done' }).click();
     assert.equal(await page.locator('#welcome').isHidden(), true);
+    assert.equal(await page.locator('#sec-presets').isVisible(), true, 'and they are in Settings once it is put away');
     await page.locator('#preset-media').check(); // and the choices in Settings do not bring it back
     await page.waitForTimeout(500);
     assert.equal(await page.locator('#welcome').isHidden(), true);
@@ -2974,6 +2977,7 @@ browserTest('everything that can be pressed is at least 24 px each way and has a
   await checked(prof, async () => {
     await e.ready(prof.page);
     await prof.page.waitForSelector('.xmc-profile.xmc-native', { timeout: 8000 });
+    await prof.page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || (a.effect && a.effect.getComputedTiming().iterations === Infinity)), null, { timeout: 10000 }); // (a card still growing in measures a hair small)
     const r = await prof.page.evaluate(auditInPage, OURS);
     assert.deepEqual({ small: r.small, unnamed: r.unnamed }, { small: [], unnamed: [] }, 'a profile header');
   });

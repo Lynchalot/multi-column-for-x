@@ -357,7 +357,7 @@
       const t = id === 'x' ? X_LOOK : S.themeOf(id), on = (settings.theme || 'x') === id;
       return tagged(h('button', { type: 'button', role: 'radio', className: 'wtheme' + (on ? ' on' : ''), 'aria-checked': String(on), onclick: () => persist({ theme: id }) }, themeSwatch(t), h('span', { className: 'wtn', textContent: t.name.replace(' (as it is)', '') })), 'theme-' + id);
     }), h('button', { type: 'button', className: 'wmore', textContent: 'More in Settings', onclick: () => { const look = document.getElementById('sec-look'); if (look) look.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }))));
-    const close = () => { welcomeShut = true; host.hidden = true; try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } accessBanner(); };
+    const close = () => { welcomeShut = true; host.hidden = true; try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } accessBanner(); applyFind(); };
     host.replaceChildren(...steps,
       h('div', { className: 'row' },
         ext && ext.tabs ? h('button', { type: 'button', className: 'primary', textContent: 'Open x.com', onclick: () => { ext.tabs.create({ url: 'https://x.com/home' }); close(); } }) : null,
@@ -407,7 +407,7 @@
         if (hit) { any = true; shown++; }
       }
       for (const blk of sec.querySelectorAll('.presets, .navlist, .readblock, .dlexample, .statusblock, .keysblock')) blk.hidden = filtering && !titleHit; // (the extras that belong to a section show only when the section itself is what was asked for)
-      sec.hidden = filtering && !any && !titleHit;
+      sec.hidden = (sec.id === 'sec-presets' && welcomeUp()) || (filtering && !any && !titleHit); // (the welcome page's second step is the presets: not twice on one page)
     }
     for (const a of document.querySelectorAll('#nav a')) { const target = document.getElementById(a.getAttribute('href').slice(1)); a.hidden = !!target && target.hidden; }
     document.body.classList.toggle('finding', filtering);

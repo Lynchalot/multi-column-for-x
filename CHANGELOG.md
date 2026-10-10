@@ -1,8 +1,13 @@
 # Changelog
 
+## 0.48.7
+- **NSFW only is in the Show menu as soon as the setting is on.** It waited for a flagged post to have loaded, so with the setting on and none in the feed there was nothing to pick and it looked broken. Now the choice is there, and says so while nothing flagged has loaded yet. (Copy diagnostics now lists `flaggedSensitive` for each feed: the number of posts X has marked as sensitive. If it stays 0 on a feed that has such posts, X is not sending the mark where it is read.)
+- **The Presets list in Settings is not shown on the welcome page**, where its second step is the same four starting points. It is back in Settings once the welcome is put away.
+- Tests: NSFW only offered before a flagged post has loaded (and not without the setting); Presets hidden while the welcome is up and shown after; the profile header's size check waits for the cards to stop growing in.
+
 ## 0.48.6
 - **Followers you know has no "You don't follow back" choice.** Those are the followers of that profile that you follow already, so the choice could never keep anyone, and each card said Following. The choice is gone there and so is the mark (Follows you still shows where it is true). Followers, Verified followers and Following keep theirs.
-- **NSFW only in the Show menu** (*Offer NSFW only in the Show menu*, Settings, Look, next to the Sensitive media setting; off to begin with). Adds a choice that shows only the posts X marks as sensitive (a post, or the one it quotes), once the feed has some; the media in them is blurred or shown as the Sensitive media setting says. Not offered while that setting is Hide those posts. Switching the setting off puts the view back on Everything.
+- **NSFW only in the Show menu** (*Offer NSFW only in the Show menu*, Settings, Posts, under the Sensitive media setting; off to begin with). Adds a choice that shows only the posts X marks as sensitive (a post, or the one it quotes); the media in them is blurred or shown as the Sensitive media setting says. Not offered while that setting is Hide those posts. Switching the setting off puts the view back on Everything.
 - Tests: Followers you know (no choice, no mark; Followers still has it), the NSFW view (the setting adds the choice, only sensitive posts, none without the setting; the unit rules).
 
 ## 0.48.5

@@ -50,7 +50,6 @@ var XMCLogic = (function () {
     const have = new Set();
     for (const t of items) {
       have.add(kindOf(t));
-      if (isSensitive(t)) have.add('sensitive');
       if (t.media && t.media.length) have.add('media');
       for (const m of t.media || []) have.add(isVideo(m) ? 'video' : 'photo');
     }
@@ -58,8 +57,8 @@ var XMCLogic = (function () {
       const kinds = { photos: 'photo', videos: 'video' };
       return ['all', 'photos', 'videos'].filter((v) => v === 'all' || v === current || have.has(kinds[v]));
     }
-    const kindOfView = { posts: 'post', reposts: 'repost', quotes: 'quote', replies: 'reply', media: 'media', nsfw: 'sensitive' };
-    return viewsFor(where, s).filter((v) => v === 'all' || v === current || have.has(kindOfView[v]));
+    const kindOfView = { posts: 'post', reposts: 'repost', quotes: 'quote', replies: 'reply', media: 'media' };
+    return viewsFor(where, s).filter((v) => v === 'all' || v === 'nsfw' || v === current || have.has(kindOfView[v])); // (NSFW only is there whenever the setting adds it: a person who turned it on should not have to wait for X to send a flagged post)
   }
 
   const textOf = (t) => t.segs.map((x) => x.v || x.label || x.handle || x.tag || '').join(' ');

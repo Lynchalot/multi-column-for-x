@@ -258,7 +258,7 @@ test('view buttons: a kind of post only gets a button once the feed has some', (
   assert.ok(!L.availableViews('home', Object.assign({}, s, { repostsHome: 'hide' }), mixed, 'all').includes('reposts'), 'a hidden kind stays hidden');
 });
 
-test('NSFW only: a choice the setting adds (not while the sensitive are hidden), once there are sensitive posts, and it keeps only those', () => {
+test('NSFW only: a choice the setting adds (not while the sensitive are hidden), offered whether or not a flagged post has loaded, and it keeps only those', () => {
   const mk = (over) => Object.assign({ id: '1', author: { handle: 'a' }, segs: [], media: [], quoted: null, repostedBy: null, replyTo: '', sensitive: false }, over);
   const s = Object.assign({}, S.DEFAULTS);
   const items = [mk({}), mk({ sensitive: true }), mk({ quoted: { id: '9', author: { handle: 'q' }, sensitive: true, segs: [] } })];
@@ -267,7 +267,8 @@ test('NSFW only: a choice the setting adds (not while the sensitive are hidden),
   assert.ok(L.viewsFor('home', on).includes('nsfw'));
   assert.ok(!L.viewsFor('home', Object.assign({}, on, { nsfw: 'hide' })).includes('nsfw'), 'not while the sensitive are hidden');
   assert.ok(L.availableViews('home', on, items, 'all').includes('nsfw'));
-  assert.ok(!L.availableViews('home', on, [mk({})], 'all').includes('nsfw'), 'nothing sensitive yet: no button');
+  assert.ok(L.availableViews('home', on, [mk({})], 'all').includes('nsfw'), 'there before a flagged post has loaded');
+  assert.ok(!L.availableViews('home', s, items, 'all').includes('nsfw'), 'and not without the setting');
   assert.deepEqual(items.map((t) => L.passes(t, ctx({ view: 'nsfw' }, on))), [false, true, true], 'the post, or the one it quotes');
 });
 
