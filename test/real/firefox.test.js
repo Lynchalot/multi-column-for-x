@@ -25,6 +25,9 @@ async function home(r, d, url = 'https://x.com/home/') {
   await d.switchTo(r.main);
   await d.go(url);
   await d.waitFor(() => document.querySelectorAll('.xmc-card').length > 0, [], 25000, 'the columns');
+  // (a fresh profile has not seen the first-run tip: it comes in a moment after the first posts and moves everything down, so a press made before it is aimed at where a card was)
+  try { await d.waitFor(() => { const tip = document.querySelector('.xmc-hint'); return !!tip && !tip.hidden; }, [], 3000, 'the first-run tip'); } catch { /* seen already (a test dismissed it), or not due */ }
+  await sleep(250);
 }
 // Runs fn inside the settings panel's page (the gear opens it over x.com), then comes back out to the page.
 async function panel(d, fn) {
