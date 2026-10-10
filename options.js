@@ -32,9 +32,11 @@
     st.colorScheme = th ? (th.dark ? 'dark' : 'light') : '';
     syncThemeCards();
   }
+  let keysRedraw = null; // the Keyboard section's: it shows the keys of the scheme that is chosen
   function persist(partial) {
     Object.assign(settings, partial);
     if ('theme' in partial) applyTheme();
+    if ('keyScheme' in partial && keysRedraw) setTimeout(keysRedraw, 0);
     setTimeout(refreshPresets, 0);
     setTimeout(refreshMarks, 0);
     if (storage) storage.set(Object.assign({ v: S.VERSION }, partial)).catch((e) => say('Could not save: ' + e));
@@ -437,7 +439,14 @@
 
   // The keys of a post's panel: what each does and the key it has now; press a row's key to choose another (Backspace puts the default back).
   function keysBlock() {
-    const wrap = h('div', { className: 'keysblock' });
+    const wrap = h('div', { className: 'keysblock' }), classic = classicKeys(), vim = vimKeysTable();
+    keysRedraw = () => { const v = settings.keyScheme === 'vim'; classic.hidden = v; vim.hidden = !v; };
+    keysRedraw();
+    wrap.append(classic, vim);
+    return wrap;
+  }
+  function classicKeys() {
+    const wrap = h('div', { className: 'classickeys' });
     const rows = h('div', { className: 'keyrows' });
     const msg = h('p', { className: 'keymsg', role: 'status' });
     const mineNow = () => { try { const v = JSON.parse(settings.keyMap || '{}'); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } catch { return {}; } };
@@ -480,6 +489,55 @@
     draw();
     wrap.append(h('p', { className: 'muted', textContent: 'The key for each, in a post\u2019s panel and in the picture viewer. Press a key to choose another; Backspace puts the default back.' }), rows, msg,
       h('p', { className: 'keyfixed', textContent: 'Always: \u2190 \u2192 through the pictures and then the posts, Shift with them for posts only, Enter to open the picture in a panel, Esc to close. The letters A, C, E, Q, S and W are ones Vimium leaves alone.' }));
+    return wrap;
+  }
+
+  // The Vim keys: every action with its key (one, or two in a row such as g g); press a row's button, then the key or keys; Backspace puts the default back.
+  function vimKeysTable() {
+    const K = XMCKeys, wrap = h('div', { className: 'vimkeys' });
+    const msg = h('p', { className: 'keymsg', role: 'status' });
+    const host = h('div', { className: 'vimrows' });
+    const assign = (act, str) => {
+      const r = K.assign(settings.vimKeys || '', act, str);
+      if (!r.ok) { msg.textContent = r.why; return false; }
+      persist({ vimKeys: r.mine }); msg.textContent = ''; return true;
+    };
+    function listen(act, btn) {
+      let toks = [], timer = 0;
+      btn.textContent = 'Press a key'; btn.classList.add('listening'); msg.textContent = '';
+      const stop = () => { clearTimeout(timer); document.removeEventListener('keydown', on, true); btn.removeEventListener('blur', stop); draw(); };
+      const commit = () => { if (assign(act, toks.join(' '))) stop(); else { toks = []; btn.textContent = 'Press a key'; } }; // (a key already taken: it says so and waits for another)
+      function on(e) {
+        if (/^(Shift|Control|Alt|Meta|CapsLock|Tab)$/.test(e.key)) return;
+        e.preventDefault(); e.stopPropagation();
+        if (e.key === 'Escape') { stop(); return; }
+        if (e.key === 'Backspace' || e.key === 'Delete') { if (assign(act, null)) stop(); return; }
+        const tok = K.token(e);
+        if (!tok || !K.okToken(tok)) { msg.textContent = 'A letter, number or punctuation mark, Space, or Ctrl with a letter. Two in a row is a sequence (g g).'; return; }
+        clearTimeout(timer);
+        toks.push(tok); btn.textContent = K.label(toks) + (toks.length < 2 ? '…' : '');
+        if (toks.length >= 2) commit(); else timer = setTimeout(commit, 650); // (a second key within a moment makes a sequence)
+      }
+      document.addEventListener('keydown', on, true);
+      btn.addEventListener('blur', stop);
+    }
+    function draw() {
+      const bind = K.bindings(settings.vimKeys);
+      host.replaceChildren(...K.GROUPS.flatMap((g) => [h('h4', { className: 'vimgroup', textContent: g })].concat(K.ACTIONS.filter(([, , grp]) => grp === g).map(([act, label]) => {
+        const seq = bind[act], dflt = K.label(K.parse(K.VIM[act]));
+        const btn = h('button', { type: 'button', className: 'kbtn', textContent: seq ? K.label(seq) : 'none', title: 'Press, then the key (or two in a row)', 'aria-label': label + ': ' + (seq ? K.label(seq) : 'no key') + '. Press to choose another.' });
+        btn.addEventListener('click', () => listen(act, btn));
+        const reset = seq && K.label(seq) === dflt ? h('span', { className: 'kmark' }) : h('button', { type: 'button', className: 'reset', textContent: 'Reset', 'aria-label': 'Put the key for ' + label + ' back to ' + dflt, onclick: () => { assign(act, null); draw(); } });
+        return h('div', { className: 'keyrow vimrow' }, h('span', { className: 'kwhat', textContent: label }), btn, reset);
+      }))));
+    }
+    draw();
+    wrap.append(
+      h('p', { className: 'muted', textContent: 'Press a button, then the key you want, or two in a row for a sequence such as g g. Backspace puts the default back. Keys are by letter, so a different keyboard layout moves them, as it does in Vim.' }),
+      host, msg,
+      h('button', { type: 'button', className: 'reset', textContent: 'Put all of them back', onclick: () => { persist({ vimKeys: '' }); msg.textContent = ''; draw(); } }),
+      h('p', { className: 'keyfixed', textContent: 'Always: the arrow keys, Shift with them for posts only, Enter to open a post from the columns or a picture in a panel, Esc to close or to put the ring away. Letters with nothing here are kept from X’s own shortcuts.' }),
+      h('p', { className: 'keyfixed', textContent: 'If you use Vimium: it sees a key before this does, so give x.com an exclusion rule in its settings (the pattern https?://(x|twitter).com/*, with the keys left empty).' }));
     return wrap;
   }
 

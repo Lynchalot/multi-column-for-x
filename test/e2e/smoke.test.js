@@ -4798,3 +4798,337 @@ browserTest('Reels on a profile: a Reels button in the bar starts at the first p
     assert.equal(await off.page.locator('.xmc-reelsbtn:not([hidden])').count(), 0, 'with the setting off, no button');
   });
 });
+
+// ---- the Vim keys (0.43.0): Settings, Keyboard, Keys: Vim ----
+const vimSettings = (more) => Object.assign({ v: 10, hintSeen: true, keyScheme: 'vim', cols: 3 }, more);
+const ringId = (page) => page.evaluate(() => { const c = document.querySelector('.xmc-card.xmc-kcard'); return c ? (/(?:tweet|number) (\d+)\b/.exec(c.innerText) || [])[1] : ''; });
+const ringCount = (page) => page.locator('.xmc-card.xmc-kcard').count();
+
+browserTest('Vim keys on the columns: j and k scroll, G and gg go to the end and back, Ctrl+D, Ctrl+U and Space page, and X’s own letter keys never see them', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { window.__seen = []; document.addEventListener('keydown', (ev) => window.__seen.push(ev.key)); });
+    const top = () => page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop);
+    const room = () => page.evaluate(() => document.querySelector('.xmc-scroller').clientHeight);
+    assert.equal(await top(), 0);
+    await page.keyboard.press('j');
+    assert.equal(await top(), 100, 'j: a little down');
+    await page.keyboard.press('k');
+    assert.equal(await top(), 0, 'k: back up');
+    await page.keyboard.press('Control+d');
+    assert.ok(Math.abs((await top()) - (await room()) / 2) <= 2, 'Ctrl+D: half a page');
+    await page.keyboard.press('Control+u');
+    assert.equal(await top(), 0, 'Ctrl+U: half a page back');
+    await page.keyboard.press('Space');
+    assert.ok(Math.abs((await top()) - (await room()) * 0.9) <= 2, 'Space: a page');
+    await page.keyboard.press('Shift+Space');
+    assert.equal(await top(), 0, 'Shift+Space: a page back');
+    await page.keyboard.press('G');
+    await page.waitForFunction(() => { const sc = document.querySelector('.xmc-scroller'); return sc.scrollTop > 100 && sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4; });
+    await page.keyboard.press('g'); await page.keyboard.press('g');
+    assert.equal(await top(), 0, 'gg: the top');
+    // a held key goes on scrolling; the keys that are bound or are plain letters never reach X's page
+    await page.keyboard.press('x'); await page.keyboard.press('n'); await page.keyboard.press('j');
+    assert.deepEqual((await page.evaluate(() => window.__seen)).filter((k) => !/^(Control|Shift)$/.test(k)), [], 'X’s page saw none of them');
+  });
+}, 90000);
+
+browserTest('Vim keys: a ring on a card moves with w a s d (and h l), starts on what is in view, opens with o or Enter, goes with Esc, and follows a click', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    assert.equal(await ringCount(page), 0);
+    await page.keyboard.press('s');
+    assert.equal(await ringCount(page), 1, 'the first press only shows where it is');
+    const first = await ringId(page);
+    const info = () => page.evaluate(() => { const c = document.querySelector('.xmc-card.xmc-kcard'); const cols = [...document.querySelectorAll('.xmc-col')]; return { col: cols.indexOf(c.parentElement), at: [...c.parentElement.children].indexOf(c) }; });
+    const a = await info();
+    await page.keyboard.press('s');
+    const b = await info();
+    assert.deepEqual([b.col, b.at], [a.col, a.at + 1], 's: the card below');
+    await page.keyboard.press('w');
+    assert.equal(await ringId(page), first, 'w: and back up');
+    await page.keyboard.press('d');
+    assert.equal((await info()).col, a.col + 1, 'd: the next column over');
+    await page.keyboard.press('a');
+    assert.equal((await info()).col, a.col, 'a: and back');
+    await page.keyboard.press('l');
+    assert.equal((await info()).col, a.col + 1, 'l: the same as d');
+    await page.keyboard.press('h');
+    assert.equal((await info()).col, a.col, 'h: the same as a');
+    // moving down far enough scrolls the ring into view
+    for (let i = 0; i < 6; i++) await page.keyboard.press('s');
+    assert.ok(await page.evaluate(() => { const c = document.querySelector('.xmc-card.xmc-kcard').getBoundingClientRect(), s = document.querySelector('.xmc-scroller').getBoundingClientRect(); return c.top >= s.top - 2 && c.top < s.bottom - 40; }), 'the ringed card is in view');
+    const id = await ringId(page);
+    await page.keyboard.press('o');
+    await page.waitForSelector('.xmc-view', { timeout: 8000 });
+    assert.equal(await openPostId(page), id, 'o: opens the ringed card');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
+    assert.equal(await ringId(page), id, 'the ring is where it was');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.xmc-view:not(.xmc-out)', { timeout: 8000 });
+    assert.equal(await openPostId(page), id, 'Enter: the same');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
+    await page.keyboard.press('Escape');
+    assert.equal(await ringCount(page), 0, 'Esc puts the ring away');
+    // a click on a card puts the ring there
+    const card = page.locator('.xmc-card').nth(2);
+    const want = await card.evaluate((c) => (/(?:tweet|number) (\d+)\b/.exec(c.innerText) || [])[1]);
+    await card.locator('.xmc-text').click();
+    await page.waitForSelector('.xmc-view', { timeout: 8000 });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
+    assert.equal(await ringId(page), want, 'the click marked it');
+  });
+}, 90000);
+
+browserTest('Vim keys for a post: f likes, b bookmarks, y copies the link, t reposts, c opens the comment box, from the ringed card (nothing until there is one) and from the panel', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const acts = () => page.evaluate(() => Array.from(window.__actions || []));
+    const n0 = (await acts()).length;
+    await page.keyboard.press('f');
+    assert.equal(await ringCount(page), 1, 'no ring: it comes up, and nothing is liked');
+    await page.waitForTimeout(600);
+    assert.equal((await acts()).length, n0, 'nothing was pressed');
+    await page.keyboard.press('f');
+    await page.waitForFunction((n) => Array.from(window.__actions || []).slice(n).some((x) => /^liked:/.test(x)), n0, { timeout: 15000 });
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-card.xmc-kcard [data-act="like"]').classList.contains('on')), true, 'the heart on the ringed card');
+    await page.keyboard.press('b');
+    await page.waitForFunction(() => document.querySelector('.xmc-card.xmc-kcard [data-act="bookmark"]').classList.contains('on'), null, { timeout: 8000 });
+    await page.keyboard.press('y');
+    await page.waitForFunction(() => /Link copied|Couldn.t copy/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
+    await page.keyboard.press('c');
+    await page.waitForSelector('.xmc-view .xmc-cbox, .xmc-card.xmc-kcard textarea', { timeout: 8000 });
+    // the box has the keys now: letters are letters
+    await page.keyboard.type('jkfbyt');
+    assert.equal(await page.evaluate(() => document.activeElement.value), 'jkfbyt');
+    await page.keyboard.press('Escape');
+    // in the panel the same keys are for that post, and the arrows and Enter are the old ones
+    await page.waitForFunction(() => document.activeElement && document.activeElement.className !== 'xmc-cbox');
+    const n1 = (await acts()).length;
+    await page.keyboard.press('t');
+    await page.waitForFunction((n) => Array.from(window.__actions || []).slice(n).some((x) => /^reposted:/.test(x)) || /posted|Repost|Undo/.test(document.getElementById('xmc-toast').textContent), n1, { timeout: 8000 });
+    // a key that was f, remapped
+  });
+}, 120000);
+
+browserTest('Vim keys in a panel: l and h go through the pictures and then the posts, s and d the posts, j and k the comments, o the picture full size (where l and h go on, Esc closes), Space plays and pauses, m mutes, ? lists the keys', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await standInPlay(page);
+    await e.ready(page);
+    await openCard(page, 90000);
+    const title = () => page.evaluate(() => document.querySelector('.xmc-view').getAttribute('aria-label'));
+    const first = await title();
+    await page.keyboard.press('l');
+    await page.waitForFunction((t) => document.querySelector('.xmc-view') && document.querySelector('.xmc-view').getAttribute('aria-label') !== t, first, { timeout: 4000 });
+    const second = await title();
+    await page.keyboard.press('h');
+    await page.waitForFunction((t) => document.querySelector('.xmc-view').getAttribute('aria-label') === t, first, { timeout: 4000 });
+    await page.keyboard.press('d');
+    await page.waitForFunction((t) => document.querySelector('.xmc-view').getAttribute('aria-label') === t, second, { timeout: 4000 });
+    await page.keyboard.press('a');
+    await page.waitForFunction((t) => document.querySelector('.xmc-view').getAttribute('aria-label') === t, first, { timeout: 4000 });
+    // the keys card is the Vim one
+    await page.keyboard.press('?');
+    await page.waitForSelector('.xmc-vimlegend', { timeout: 3000 });
+    const legend = await page.locator('.xmc-vimlegend').innerText();
+    assert.match(legend, /gg\s+To the top/); assert.match(legend, /f\s+Like/); assert.match(legend, /Ctrl\+D\s+Half a page down/);
+    await page.keyboard.press('Escape'); // it goes first (the panel stays open behind)
+    await page.waitForFunction(() => !document.querySelector('.xmc-vimlegend'));
+    assert.equal(await page.locator('.xmc-view:not(.xmc-out)').count(), 1, 'the panel is still open');
+    await page.keyboard.press('?');
+    await page.waitForSelector('.xmc-vimlegend', { timeout: 3000 });
+    await page.mouse.click(40, 450); // anywhere else: it goes too
+    await page.waitForFunction(() => !document.querySelector('.xmc-vimlegend'));
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
+    // a picture full size
+    await openCard(page, 89999);
+    const hasPic = await page.evaluate(() => !!document.querySelector('.xmc-view img[data-lb]:not(.sensitive img)'));
+    if (hasPic) {
+      await page.keyboard.press('o');
+      await page.waitForSelector('#xmc-lightbox', { timeout: 4000 });
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.getElementById('xmc-lightbox'));
+    }
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
+    // a video: m mutes, Space pauses and plays
+    await openCard(page, 89997);
+    await page.waitForSelector('.xmc-vm video[data-video]', { timeout: 15000 });
+    await page.evaluate(() => { document.querySelector('.xmc-vm video[data-video]').muted = false; });
+    await page.keyboard.press('m');
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-vm video[data-video]').muted), true, 'm: muted');
+    await page.evaluate(() => { const v = document.querySelector('.xmc-vm video[data-video]'); Object.defineProperty(v, 'paused', { get: () => !!window.__paused, configurable: true }); v.pause = () => { window.__paused = true; }; v.play = () => { window.__paused = false; return Promise.resolve(); }; window.__paused = false; });
+    await page.keyboard.press('Space');
+    assert.equal(await page.evaluate(() => window.__paused), true, 'Space: paused');
+    await page.keyboard.press('Space');
+    assert.equal(await page.evaluate(() => window.__paused), false, 'Space again: playing');
+  });
+}, 120000);
+
+browserTest('Vim keys: r turns a panel into Reels and back out, and in Reels j and k go from post to post, G and gg to the last and first, and r from the columns starts at the ringed card', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await openCard(page, 90000);
+    assert.equal(await page.locator('#xmc-root.xmc-reels').count(), 0, 'an ordinary panel');
+    const id0 = await openPostId(page);
+    const idIs = (id, not) => page.waitForFunction(([want, no]) => { const v = document.querySelector('.xmc-view'), m = v && /(?:tweet|number) (\d+)\b/.exec(v.innerText), cur = m ? m[1] : ''; return no ? !!cur && cur !== want : cur === want; }, [id, !!not], { timeout: 5000 });
+    await page.keyboard.press('r');
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 6000 });
+    assert.equal(await openPostId(page), id0, 'the same post');
+    await page.keyboard.press('j');
+    await idIs(id0, true);
+    assert.notEqual(await openPostId(page), id0, 'j: the next post');
+    await page.keyboard.press('k');
+    await idIs(id0);
+    await page.keyboard.press('G');
+    const lastId = await page.evaluate(() => { const c = window.__xmc.view.cards; return String(c[c.length - 1].id); });
+    await idIs(lastId);
+    await page.keyboard.press('g'); await page.keyboard.press('g');
+    const firstId = await page.evaluate(() => String(window.__xmc.view.cards[0].id));
+    await idIs(firstId);
+    await page.keyboard.press('r');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)') && !document.getElementById('xmc-root').classList.contains('xmc-reels'), null, { timeout: 5000 });
+    // from the columns, r starts Reels at the ringed card
+    await page.keyboard.press('s');
+    await page.keyboard.press('s');
+    const id = await ringId(page);
+    await page.keyboard.press('r');
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 6000 });
+    assert.equal(await openPostId(page), id, 'at the ringed card');
+  });
+}, 120000);
+
+browserTest('Vim keys: a key halfway through two shows at the bottom left and goes after a moment or on Esc, a wrong second key is tried on its own, g h goes Home, / takes X’s search box, Esc and the unbound letters do what they should, and keyEcho shows every key', async (e) => {
+  const h = await e.open('/user7/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const hud = () => page.evaluate(() => { const el = document.getElementById('xmc-keyhud'); return el && !el.hidden ? el.textContent : ''; });
+    await page.keyboard.press('g');
+    assert.equal(await hud(), 'g…');
+    await page.waitForFunction(() => { const el = document.getElementById('xmc-keyhud'); return !el || el.hidden; }, null, { timeout: 3000 });
+    await page.keyboard.press('g');
+    await page.keyboard.press('Escape');
+    assert.equal(await hud(), '', 'Esc takes the g away');
+    // g, then a key that is not a pair: the g goes and the key is tried alone (j scrolls)
+    await page.keyboard.press('g'); await page.keyboard.press('j');
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop), 100);
+    // g h: X's own Home link is pressed
+    await page.evaluate(() => { window.__went = []; for (const a of document.querySelectorAll('a[data-testid="AppTabBar_Home_Link"], a[data-testid="AppTabBar_Profile_Link"]')) a.addEventListener('click', (ev) => { ev.preventDefault(); window.__went.push(a.getAttribute('href')); }); });
+    await page.keyboard.press('g'); await page.keyboard.press('h');
+    assert.deepEqual(await page.evaluate(() => window.__went), ['/home']);
+    await page.keyboard.press('g'); await page.keyboard.press('p');
+    assert.deepEqual(await page.evaluate(() => window.__went), ['/home', '/user1']);
+    // / takes X's search box and the slash is not typed into it
+    await page.keyboard.press('/');
+    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-testid')), 'SearchBox_Search_Input');
+    await page.keyboard.type('jkg');
+    assert.equal(await page.evaluate(() => document.activeElement.value), 'jkg', 'in the box, letters are letters');
+    await page.evaluate(() => document.activeElement.blur());
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop), 100, 'and they did not scroll');
+  });
+  const tabs = await e.open('/user/media/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(tabs, async () => {
+    const { page } = tabs;
+    await e.ready(page);
+    const on = (re) => page.waitForFunction((src) => new RegExp(src).test((document.querySelector('.xmc-tabs .on') || {}).textContent || ''), re, { timeout: 8000 });
+    await on('Videos');
+    await page.keyboard.press('[');
+    await on('Reposts');
+    await page.keyboard.press(']');
+    await on('Videos');
+  });
+  const echo = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings({ keyEcho: true }) });
+  await checked(echo, async () => {
+    const { page } = echo;
+    await e.ready(page);
+    await page.keyboard.press('j');
+    assert.equal(await page.evaluate(() => document.getElementById('xmc-keyhud').textContent), 'j');
+    await page.keyboard.press('Control+d');
+    assert.equal(await page.evaluate(() => document.getElementById('xmc-keyhud').textContent), 'Ctrl+D');
+    await page.keyboard.press('z'); // (a key with nothing: shown too)
+    assert.equal(await page.evaluate(() => document.getElementById('xmc-keyhud').textContent), 'z');
+  });
+}, 120000);
+
+browserTest('Classic stays the default: j does nothing on the columns, A likes in a panel; Vim is off with the letter keys off; and with Vim on a person’s own key replaces the default', async (e) => {
+  const classic = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(classic, async () => {
+    const { page } = classic;
+    await e.ready(page);
+    await page.keyboard.press('j'); await page.keyboard.press('s');
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop), 0, 'j: nothing');
+    assert.equal(await ringCount(page), 0);
+    assert.equal(await page.evaluate(() => window.__xmc.settings.keyScheme), 'classic');
+  });
+  const off = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings({ panelKeys: false }) });
+  await checked(off, async () => {
+    const { page } = off;
+    await e.ready(page);
+    await page.keyboard.press('j');
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop), 0, 'the letter keys are off');
+  });
+  const own = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings({ vimKeys: JSON.stringify({ down: 'n', like: 'x' }) }) });
+  await checked(own, async () => {
+    const { page } = own;
+    await e.ready(page);
+    await page.keyboard.press('j');
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop), 0, 'j is not down any more');
+    await page.keyboard.press('n');
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop), 100, 'n is');
+  });
+}, 120000);
+
+browserTest('Settings, Keyboard: choosing Vim shows its table (and hides the classic rows), a key or two in a row can be chosen, a taken key is refused, Backspace and Reset put the default back', async (e) => {
+  const o = await e.open('/ext/options.html');
+  await checked(o, async () => {
+    const page = o.page;
+    await page.waitForSelector('#sec-keys .classickeys');
+    assert.equal(await page.locator('#sec-keys .vimkeys').isVisible(), false, 'Classic: no Vim table');
+    await page.selectOption('#opt-keyScheme', 'vim');
+    await page.waitForFunction(() => !document.querySelector('#sec-keys .classickeys').offsetParent && document.querySelector('#sec-keys .vimkeys').offsetParent);
+    const row = (label) => page.locator('#sec-keys .vimrow', { hasText: new RegExp('^' + label) });
+    assert.equal((await row('Scroll down').locator('.kbtn').innerText()).trim(), 'j');
+    assert.equal((await row('To the top').locator('.kbtn').innerText()).trim(), 'gg');
+    // one key
+    await row('Like').locator('.kbtn').click();
+    await page.keyboard.press('x');
+    await page.waitForFunction(() => /like\W+x\W/.test(localStorage.getItem('xmc.settings') || ''), null, { timeout: 4000 });
+    assert.equal((await row('Like').locator('.kbtn').innerText()).trim(), 'x');
+    // two in a row
+    await row('Bookmark').locator('.kbtn').click();
+    await page.keyboard.press('z'); await page.keyboard.press('z');
+    await page.waitForFunction(() => /bookmark\W+z z/.test(localStorage.getItem('xmc.settings') || ''), null, { timeout: 4000 });
+    assert.equal((await row('Bookmark').locator('.kbtn').innerText()).trim(), 'zz');
+    // a taken key, and one that begins another
+    await row('Repost').locator('.kbtn').click();
+    await page.keyboard.press('j');
+    await page.waitForFunction(() => /already/.test([...document.querySelectorAll('#sec-keys .keymsg')].map((m) => m.textContent).join(' ')), null, { timeout: 4000 });
+    await page.keyboard.press('Escape');
+    await row('Repost').locator('.kbtn').click();
+    await page.keyboard.press('g');
+    await page.waitForFunction(() => /begins|already/.test([...document.querySelectorAll('#sec-keys .keymsg')].map((m) => m.textContent).join(' ')), null, { timeout: 4000 });
+    await page.keyboard.press('Escape');
+    // back to the default: Reset, and Backspace
+    await row('Like').locator('button.reset').click();
+    assert.equal((await row('Like').locator('.kbtn').innerText()).trim(), 'f');
+    await row('Bookmark').locator('.kbtn').click();
+    await page.keyboard.press('Backspace');
+    await page.waitForFunction(() => [...document.querySelectorAll('#sec-keys .vimrow')].find((r) => /Bookmark/.test(r.textContent)).querySelector('.kbtn').textContent.trim() === 'b');
+    assert.ok(!/vimKeys/.test(await page.evaluate(() => localStorage.getItem('xmc.settings') || '')), 'the defaults are not kept as choices');
+  });
+}, 90000);

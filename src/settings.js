@@ -144,9 +144,12 @@ var XMCSettings = (function () {
     },
     {
       id: 'keys', title: 'Keyboard', custom: 'keys', items: [
-        { key: 'panelKeys', type: 'bool', def: true, label: 'Keyboard shortcuts in a post\u2019s panel and the picture viewer', help: 'Only while a panel or the viewer is open and nothing is being typed into. The arrow keys are always on.' },
+        { key: 'panelKeys', type: 'bool', def: true, label: 'Letter keys', help: 'Classic: only while a panel or the viewer is open. Vim: on the columns as well. Never while something is being typed into. The arrow keys are always on.' },
+        { key: 'keyScheme', type: 'select', def: 'classic', label: 'Keys', help: 'Classic is the few letters for a post in its panel. Vim is j k h l, gg, G, Ctrl+D and the rest, on the columns too, and X\u2019s own letter shortcuts stay quiet there.', options: [['classic', 'Classic (A S W E Q C in a panel)'], ['vim', 'Vim (j k h l, gg, G, f like, r Reels\u2026)']] },
+        { key: 'keyEcho', type: 'bool', def: false, label: 'Show each key pressed (Vim keys), bottom left', help: 'A key pressed halfway through two (the first g of gg) always shows.' },
         { key: 'keysAdvance', type: 'bool', def: false, label: 'Move to the next post after the Like, Bookmark or Repost key' },
         { key: 'keyMap', type: 'text', def: '', label: 'Keys that are not the defaults', hidden: true }, // a JSON object, action to key, written by the Keyboard section
+        { key: 'vimKeys', type: 'text', def: '', label: 'Vim keys that are not the defaults', hidden: true }, // a JSON object, action to key or two keys ("g g"), written by the Keyboard section
         { key: 'keysHintSeen', type: 'bool', def: false, label: 'The keys were pointed out', hidden: true },
       ],
     },

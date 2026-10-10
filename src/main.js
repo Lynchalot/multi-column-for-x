@@ -990,6 +990,7 @@
     root.classList.toggle('xmc-flat', settings.cardStyle === 'flat');
     root.style.setProperty('--xmc-ts', String(textScale()));
     fitSync();
+    if (!vimOn() && (state.kcard || vk.toks.length)) { mark(null); vimClear(); }
     root.classList.toggle('xmc-blur', !!settings.blurBehind && !blurGuard.off);
     applyBar();
     if (columns.length && (colCount() !== columns.length || layoutSig() !== view.layoutSig)) relayout(); // column or post-size settings changed
@@ -1045,7 +1046,12 @@
   // Q copy the link, C comment. Left and right walk the pictures and then the posts; with Shift, the posts only. Only while a panel or the
   // viewer is open and nothing is being typed into; X's own page does not see these keys (it has shortcuts of its own, S among them).
   const keyMap = () => XMCSettings.panelKeyMap(settings.keyMap); // action -> key (the defaults, or what the person chose in Settings, Keyboard)
-  const keyHint = (act, bare) => { const k = settings.panelKeys && keyMap()[act]; return k ? (bare ? k.toUpperCase() : ' (' + k.toUpperCase() + ')') : ''; };
+  const keyHint = (act, bare) => {
+    if (!settings.panelKeys) return '';
+    const k = settings.keyScheme === 'vim' ? XMCKeys.bindings(settings.vimKeys)[act] : keyMap()[act];
+    const text = !k ? '' : Array.isArray(k) ? XMCKeys.label(k) : k.toUpperCase();
+    return text ? (bare ? text : ' (' + text + ')') : '';
+  };
   const typingIn = (el) => !!el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName || '') || !!(el.closest && el.closest('.xmc-emoji'))); // (the emoji picker's keys are its own)
   function keyedButton(t, kind) { // the real button for this post, in the panel if it is open for it, else on its card
     for (const scope of [postView && postView.t === t ? (postView.rail || postView.side.querySelector(':scope > .xmc-actions')) : null, t.el]) {
@@ -1085,30 +1091,37 @@
     if (!kind || kind === 'open' || !t) return false; // ('open' is the feed's key: in a panel Enter opens the picture)
     e.preventDefault(); e.stopPropagation();
     if (e.repeat) return true; // (held down: once)
+    postKeyAction(kind, t);
+    return true;
+  }
+  // like, bookmark, repost, reply, share, download for a post: from the panel or viewer, and (Vim keys) from the marked card
+  function postKeyAction(kind, t) {
     const comment = !!(postView && postView.parent && postView.t === t); // a comment in the panel: its own buttons, X's page has none for it
-    if (kind === 'reply') { // comment: the panel's box (from the viewer: the viewer goes, and the panel opens if it was not)
-      if (lightbox) { const open = postView && postView.t === t; closeLightbox(); if (!open) { openPostView(t, false, true); return true; } }
+    if (kind === 'reply') {
+      if (!postView && !lightbox) { act(t, 'reply', keyedButton(t, 'reply') || document.createElement('button')); return; } // (on a card: as its own button does)
+      // comment: the panel's box (from the viewer: the viewer goes, and the panel opens if it was not)
+      if (lightbox) { const open = postView && postView.t === t; closeLightbox(); if (!open) { openPostView(t, false, true); return; } }
       const pv = postView, take = (tries) => { // (the box is drawn with the comments: if they are still on their way it is taken the moment it is there)
         if (postView !== pv) return;
         const box = pv.side.querySelector('.xmc-cbox');
         if (box) { box.scrollIntoView({ block: 'nearest' }); box.focus({ preventScroll: true }); } else if (tries > 0) setTimeout(() => take(tries - 1), 150); else toast('The comments did not come, so there is no box yet');
       };
       take(60);
-      return true;
+      return;
     }
     const advance = () => { if (settings.keysAdvance && postView && !lightbox) setTimeout(() => stepPostView(1), 350); };
-    if (kind === 'repost') { if (!comment) { repost(t, false); advance(); } return true; } // (straight away, no menu: Undo is in the toast)
-    if (kind === 'download') { if (lightbox) downloadMedia(t, lightbox.photos[lightbox.i]); else if (hasMedia(t)) downloadMedia(t); return true; }
-    if (kind === 'share') { copyLink(t); return true; }
+    if (kind === 'repost') { if (!comment) { repost(t, false); advance(); } return; } // (straight away, no menu: Undo is in the toast)
+    if (kind === 'download') { if (lightbox) downloadMedia(t, lightbox.photos[lightbox.i]); else if (hasMedia(t)) downloadMedia(t); return; }
+    if (kind === 'share') { copyLink(t); return; }
     const b = keyedButton(t, kind);
     if (b && !comment) act(t, kind, b); // like, bookmark: the same path as pressing the button
     else if (b) b.click(); // (a comment's buttons are wired to its own handlers)
     else act(t, kind, document.createElement('button')); // (the card's contents were given back: the press still goes to X)
     advance();
-    return true;
   }
   // What the keys are, as a small card over the panel (the keyboard button at its corner opens it): the current keys, not the defaults
   function keyLegend(host) {
+    if (vimOn()) { const mine = host.querySelector(':scope > .xmc-keylegend'); if (mine && !mine.classList.contains('xmc-vimlegend')) mine.remove(); vimLegend(host); return; }
     const old = host.querySelector('.xmc-keylegend');
     if (old) { old.remove(); return; }
     const km = keyMap(), row = (k, what) => h('div', { className: 'kl-row' }, h('kbd', { textContent: k }), h('span', { textContent: what }));
@@ -1125,6 +1138,7 @@
   function pointOutKeys() {
     if (settings.keysHintSeen || !settings.panelKeys || !settings.hintSeen) return;
     settings.keysHintSeen = true; save();
+    if (vimOn()) { toast('Vim keys are on: ' + XMCKeys.label(XMCKeys.bindings(settings.vimKeys).help || ['?']) + ' lists them', () => openOptions('keys'), 'Change', 10000); return; }
     const km = keyMap();
     toast('Keys here: \u2190 \u2192 pictures and posts, ' + XMCSettings.PANEL_KEY_ACTIONS.filter(([a]) => km[a] && a !== 'open').map(([a, label]) => XMCSettings.keyLabel(km[a]) + ' ' + label.toLowerCase()).join(', '), () => openOptions('keys'), 'Change', 10000);
   }
@@ -1222,6 +1236,220 @@
     if (car && car._pos) { const [i, n] = car._pos(); if (dir > 0 ? i < n - 1 : i > 0) { car._go(dir); return; } }
     stepPostView(dir);
   }
+  // ---- The Vim keys (Settings, Keyboard, Keys: Vim) ----
+  // src/keys.js has the table and the matching; this is what each key does, where. The places: the columns, a post's panel, Reels and the picture viewer. Keys are
+  // by letter (a different layout makes different keys, as in Vim). The arrows, Enter in a panel and Esc are the same as ever; X's own letter shortcuts are kept
+  // from the hidden page while these are on, since two sets of keys on one page would fight.
+  const vimOn = () => settings.keyScheme === 'vim' && settings.panelKeys;
+  let vimBinds = null, vimBindsFor = null;
+  const vimMatch = (toks) => {
+    if (!vimBinds || vimBindsFor !== settings.vimKeys) { vimBindsFor = settings.vimKeys; vimBinds = XMCKeys.matcher(XMCKeys.bindings(settings.vimKeys)); }
+    return vimBinds(toks);
+  };
+  const vk = { toks: [], timer: 0, hudTimer: 0 };
+  const keyHud = h('div', { id: 'xmc-keyhud', hidden: true, 'aria-hidden': 'true' });
+  function vimHud(text, ms) { // bottom left: the key (or the first of two) just pressed
+    if (!keyHud.isConnected) document.body.append(keyHud);
+    keyHud.textContent = text; keyHud.hidden = false;
+    clearTimeout(vk.hudTimer);
+    if (ms) vk.hudTimer = setTimeout(() => { if (!vk.toks.length) keyHud.hidden = true; }, ms);
+  }
+  function vimClear() { vk.toks = []; clearTimeout(vk.timer); clearTimeout(vk.hudTimer); keyHud.hidden = true; }
+  const vimWhere = () => (lightbox ? 'viewer' : postView ? (postView.reels ? 'reels' : 'panel') : document.documentElement.classList.contains('xmc-on') && !root.hidden ? 'columns' : '');
+  // the card the ring is on (the keys for a post in the columns are for it), if it is still there
+  const marked = () => { const t = state.kcard; return t && t.el && t.el.isConnected && view.cards.includes(t) ? t : null; };
+  const cardSeen = (t) => { // some of it is in view
+    const el = t && t.el; if (!el || !el.isConnected || el.hidden) return false;
+    const box = scroller.getBoundingClientRect(), r = el.getBoundingClientRect();
+    return r.height > 0 && r.bottom > box.top + 40 && r.top < box.bottom - 40;
+  };
+  const markedSeen = () => { const t = marked(); return t && cardSeen(t) ? t : null; };
+  function mark(t, reveal) {
+    for (const el of colsEl.querySelectorAll('.xmc-kcard')) if (!t || el !== t.el) el.classList.remove('xmc-kcard');
+    state.kcard = t || null;
+    if (!t || !t.el) return;
+    t.el.classList.add('xmc-kcard');
+    if (!reveal) return;
+    const box = scroller.getBoundingClientRect(), r = t.el.getBoundingClientRect();
+    if (r.height && (r.top < box.top + 8 || r.bottom > box.bottom - 8)) scroller.scrollBy({ top: r.top < box.top + 8 || r.height > box.height - 24 ? r.top - box.top - 12 : r.bottom - box.bottom + 12, behavior: 'instant' });
+  }
+  function moveCard(dir) { // up, down: along the column; left, right: the next column over, at about the same height
+    const cur = markedSeen();
+    if (!cur) { const first = firstCardInView(); if (first) mark(first, true); return; } // (the first press only shows where it is)
+    const el = cur.el, col = el.parentElement, i = columns.indexOf(col);
+    const cardsIn = (c) => [...c.children].filter((x) => tweetOf.has(x) && !x.hidden);
+    let next = null;
+    if (i < 0) { const first = firstCardInView(); if (first) mark(first, true); return; }
+    if (dir === 'up' || dir === 'down') { const sib = cardsIn(col); next = sib[sib.indexOf(el) + (dir === 'down' ? 1 : -1)]; }
+    else {
+      const to = columns[i + (dir === 'right' ? 1 : -1)];
+      if (to) {
+        const box = scroller.getBoundingClientRect(), y = Math.max(el.getBoundingClientRect().top, box.top + 40);
+        const sib = cardsIn(to), over = sib.find((c) => { const r = c.getBoundingClientRect(); return r.top <= y && r.bottom > y; });
+        next = over || sib.slice().sort((a, b) => Math.abs(a.getBoundingClientRect().top - y) - Math.abs(b.getBoundingClientRect().top - y))[0];
+      }
+    }
+    if (next) mark(tweetOf.get(next), true);
+  }
+  colsEl.addEventListener('pointerdown', (e) => { // a press on a card puts the ring there (so the keys go on from where the mouse was)
+    if (!vimOn()) return;
+    const card = e.target.closest && e.target.closest('.xmc-card'), t = card && tweetOf.get(card);
+    if (t) mark(t, false);
+  }, true);
+  const panelScroller = (dy) => { // Reels: a very tall picture scrolls first, then the words
+    const tall = postView.reels && postView.panel.querySelector('.xmc-vm.xmc-tall:not([hidden])');
+    if (tall && tall.scrollHeight > tall.clientHeight + 2 && (dy > 0 ? tall.scrollTop + tall.clientHeight < tall.scrollHeight - 2 : tall.scrollTop > 0)) return tall;
+    return postView.side;
+  };
+  const interactive = (el) => !!(el && el.closest && el.closest('a, button, input, textarea, select, video, summary, [role="button"], [role="menuitem"]') && !el.closest('.xmc-vclose, .xmc-lb-close'));
+  const VIM_GO = {
+    goHome: ['a[data-testid="AppTabBar_Home_Link"]', 'a[href="/home"]'], goExplore: ['a[data-testid="AppTabBar_Explore_Link"]', 'a[href="/explore"]'],
+    goNotifications: ['a[data-testid="AppTabBar_Notifications_Link"]', 'a[href="/notifications"]'], goProfile: ['a[data-testid="AppTabBar_Profile_Link"]'],
+    goBookmarks: ['a[href="/i/bookmarks"]'], goLists: ['nav a[href$="/lists"]', 'a[href$="/lists"]'], goMessages: ['a[data-testid="AppTabBar_DirectMessage_Link"]', 'a[href="/messages"]'],
+  };
+  function vimGo(act) { // X's own menu link, pressed as a mouse would (a panel or the viewer goes first)
+    const link = VIM_GO[act].map((sel) => document.querySelector(sel)).find(Boolean);
+    if (!link) { toast('X’s menu has no link for that just now'); return; }
+    const was = !!(postView || lightbox);
+    if (lightbox) closeLightbox();
+    if (postView) closePostView();
+    if (was) setTimeout(() => link.click(), 250); else link.click(); // (the panel's history entry is taken away first)
+  }
+  function vimDo(act, where) { // true: the key was for the Vim keys, whether or not there was anything to do
+    const cols = where === 'columns', viewer = where === 'viewer', reels = where === 'reels', panel = where === 'panel';
+    const scrollBox = (dy) => (cols ? scroller : viewer || !postView ? null : panelScroller(dy));
+    const by = (frac, sign, px) => { const el = scrollBox(sign); if (el) el.scrollBy({ top: sign * (px || Math.round(el.clientHeight * frac)), behavior: 'instant' }); };
+    switch (act) {
+      case 'down': case 'up': {
+        const d = act === 'down' ? 1 : -1;
+        if (viewer) stepLightbox(d); else if (reels) stepPostView(d); else by(0, d, 100);
+        return true;
+      }
+      case 'left': case 'right': {
+        const d = act === 'right' ? 1 : -1;
+        if (viewer) stepLightbox(d); else if (cols) moveCard(act); else walkPanel(d, false);
+        return true;
+      }
+      case 'top': case 'bottom': {
+        const end = act === 'bottom';
+        if (viewer) stepLightbox(end ? 1e3 : -1e3);
+        else if (reels) { const t = view.cards[end ? view.cards.length - 1 : 0]; if (t && t !== postView.t) openPostView(t, true, false, { dir: end ? 1 : -1 }); }
+        else { const el = scrollBox(end ? 1 : -1); if (el) el.scrollTo({ top: end ? el.scrollHeight : 0, behavior: 'instant' }); }
+        return true;
+      }
+      case 'halfDown': case 'halfUp': by(0.5, act === 'halfDown' ? 1 : -1); return true;
+      case 'pageDown': case 'pageUp': {
+        if (act === 'pageDown' && !cols && !viewer) { const v = activeVideo(); if (v) { if (v.paused) v.play().catch(() => {}); else v.pause(); return true; } } // (Space on a video in a panel: play or pause, as on YouTube)
+        by(0.9, act === 'pageDown' ? 1 : -1);
+        return true;
+      }
+      case 'cardUp': case 'cardDown': case 'cardLeft': case 'cardRight':
+        if (cols) moveCard(act.slice(4).toLowerCase()); else if (!viewer) stepPostView(act === 'cardDown' || act === 'cardRight' ? 1 : -1); // (in a panel: the posts, without the pictures)
+        return true;
+      case 'open':
+        if (cols) { const t = markedSeen() || firstCardInView(); if (t) openPostView(t, false); }
+        else if (postView && !lightbox) { const pic = postView.panel.querySelector('.xmc-vm:not([hidden]) img[data-lb], img[data-lb]'); if (pic && !pic.closest('.sensitive')) openLightbox(postView.t, Number(pic.dataset.lb)); }
+        return true;
+      case 'like': case 'bookmark': case 'repost': case 'reply': case 'share': case 'download': {
+        let t = viewer ? lightbox.t : postView ? postView.t : markedSeen();
+        if (!t) { const first = firstCardInView(); if (first) mark(first, true); return true; } // (no ring yet: it comes up on the first post in view, and the next press is for that one)
+        postKeyAction(act, t);
+        return true;
+      }
+      case 'reels':
+        if (reels) { if (!postView.parent) closePostView(); }
+        else if (panel) { if (settings.openIn === 'view' && !postView.parent) { state.reelsAsk = feedRoute(); openPostView(postView.t, true, false, { reels: true }); } }
+        else if (cols) { const t = markedSeen() || firstCardInView(); if (t) enterReels(t); }
+        return true;
+      case 'mute': case 'fullscreen': {
+        const t = cols ? markedSeen() : null;
+        const v = activeVideo() || (t && t.el.querySelector('video'));
+        if (!v) return true;
+        if (act === 'mute') toggleMute(v);
+        else if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        else { try { const p = (v.requestFullscreen || v.webkitRequestFullscreen).call(v); if (p && p.catch) p.catch(() => {}); } catch { /* not allowed just now */ } }
+        return true;
+      }
+      case 'tabPrev': case 'tabNext': {
+        const d = act === 'tabNext' ? 1 : -1;
+        if (reels) {
+          if (feedKind() === 'profile') reelsFilter(d > 0 ? 'all' : 'media');
+          else if (feedKind() === 'home' && state.homeTabs && state.homeTabs.length > 1 && !settings.hideForYou) reelsFeed(Math.max(0, Math.min(1, state.sel + d)));
+        } else if (cols) {
+          const bs = [...tabsEl.children].filter((b) => b.tagName === 'BUTTON'), at = bs.findIndex((b) => b.classList.contains('on')), to = bs[at + d];
+          if (to) to.click();
+        }
+        return true;
+      }
+      case 'newPosts': if (cols) refreshBtn.click(); return true;
+      case 'search': {
+        const input = document.querySelector('[data-testid="SearchBox_Search_Input"]');
+        if (!input) { toast('X’s search box is not on this page'); return true; }
+        if (rightAway()) { setPanel('right'); setTimeout(() => input.focus(), 380); } else input.focus();
+        return true;
+      }
+      case 'settings': openOptions(); return true;
+      case 'help': vimLegend(postView ? postView.el : lightbox ? lightbox.el : root); return true;
+      default:
+        if (VIM_GO[act]) { vimGo(act); return true; }
+        return false;
+    }
+  }
+  const VIM_REPEAT = new Set(['down', 'up', 'halfDown', 'halfUp', 'pageDown', 'pageUp', 'cardUp', 'cardDown', 'cardLeft', 'cardRight', 'left', 'right']);
+  function vimKey(e) {
+    if (!vimOn() || e.isComposing || e.altKey || e.metaKey || typingIn(e.target) || menuEl || settingsPanel) return false;
+    const where = vimWhere();
+    if (!where) return false;
+    const tok = XMCKeys.token(e);
+    if (!tok) return false;
+    if (tok === 'Esc') { // a key halfway through two goes; with none, the ring goes (in the columns); anything else is the usual Esc
+      if (vk.toks.length) { vimClear(); e.preventDefault(); e.stopPropagation(); return true; }
+      const card = document.querySelector('.xmc-vimlegend');
+      if (card) { card.remove(); e.preventDefault(); e.stopPropagation(); return true; } // (the card of keys goes first)
+      if (where === 'columns' && marked()) { mark(null); e.preventDefault(); e.stopPropagation(); return true; }
+      return false;
+    }
+    if (/^(Enter|Space|S-Space|S-Enter)$/.test(tok) && interactive(e.target)) return false; // (a button, a link or a video has these for itself)
+    if (/^(Left|Right|Up|Down|Enter|S-Left|S-Right|S-Up|S-Down)$/.test(tok) && !vk.toks.length) { // (the arrows and Enter are the usual ones unless a key is bound to them)
+      if (vimMatch([tok]).kind !== 'match') { if (tok === 'Enter' && where === 'columns' && !e.repeat) { const t = markedSeen() || firstCardInView(); if (t) { e.preventDefault(); e.stopPropagation(); openPostView(t, false); return true; } } return false; }
+    }
+    let toks = vk.toks.concat(tok), r = vimMatch(toks);
+    if (r.kind === 'none' && vk.toks.length) { vimClear(); toks = [tok]; r = vimMatch(toks); } // (g, then x: the g is dropped and x tried on its own)
+    if (r.kind === 'none') { // not a key of ours: a plain letter is kept from X's page (its own shortcuts), the rest is left alone
+      vimClear();
+      if (tok.length === 1) { e.stopPropagation(); if (settings.keyEcho) vimHud(XMCKeys.label([tok]), 700); return true; }
+      return false;
+    }
+    e.preventDefault(); e.stopPropagation();
+    clearTimeout(vk.timer);
+    if (r.kind === 'pending') {
+      vk.toks = toks;
+      vimHud(XMCKeys.label(toks) + '…');
+      vk.timer = setTimeout(vimClear, 900);
+      return true;
+    }
+    vimClear();
+    if (settings.keyEcho) vimHud(XMCKeys.label(toks), 700);
+    if (e.repeat && !(VIM_REPEAT.has(r.act) && (where === 'columns' || where === 'panel'))) return true;
+    markSync();
+    vimDo(r.act, where);
+    return true;
+  }
+  function markSync() { const t = marked(); if (t && !t.el.classList.contains('xmc-kcard')) t.el.classList.add('xmc-kcard'); } // (a card drawn again keeps its ring)
+  // The Vim keys as a card (the ? key): the keys as they are now, the person's own included
+  function vimLegend(host) {
+    const old = host.querySelector(':scope > .xmc-keylegend.xmc-vimlegend');
+    if (old) { old.remove(); return; }
+    const bind = XMCKeys.bindings(settings.vimKeys), short = (l) => l.split(/[;(]/)[0].trim();
+    const groups = XMCKeys.GROUPS.map((g) => h('div', { className: 'kl-group' }, h('div', { className: 'kl-head', textContent: g }),
+      ...XMCKeys.ACTIONS.filter(([, , grp]) => grp === g).filter(([a]) => bind[a]).map(([a, label]) => h('div', { className: 'kl-row' }, h('kbd', { textContent: XMCKeys.label(bind[a]) }), h('span', { textContent: short(label) })))));
+    const card = h('div', { className: 'xmc-keylegend xmc-vimlegend', role: 'dialog', 'aria-label': 'Keyboard shortcuts' }, h('div', { className: 'kl-cols' }, ...groups),
+      h('div', { className: 'kl-foot' }, 'Arrows, Enter on a picture and Esc work as they always do. ', h('button', { type: 'button', textContent: 'Change keys', onclick: (e) => { e.stopPropagation(); card.remove(); openOptions('keys'); } })));
+    card.addEventListener('click', (e) => e.stopPropagation());
+    host.append(card);
+    const away = (e) => { if (!card.contains(e.target)) { card.remove(); document.removeEventListener('pointerdown', away, true); } };
+    setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
+  }
   window.addEventListener('keydown', (e) => {
     if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.code === 'BracketLeft' || e.code === 'BracketRight') && !/^(input|textarea|select)$/i.test((e.target || {}).tagName || '') && !(e.target && e.target.isContentEditable) && document.documentElement.classList.contains('xmc-on') && !root.hidden) {
       e.preventDefault(); e.stopPropagation(); setPanel(e.code === 'BracketLeft' ? 'left' : 'right'); return; // Alt+[ the menu, Alt+] the right panel
@@ -1229,7 +1457,7 @@
     if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) { const open = lightbox ? lightbox.el : postView ? postView.el : null; if (open) trapTab(e, open); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.dataset && e.target.dataset.lb !== undefined && e.target.getAttribute('role') === 'button') { e.preventDefault(); e.target.click(); }
     if (e.target && e.target.closest && e.target.closest('.xmc-emoji') && (e.key === 'Escape' || /^Arrow/.test(e.key))) return; // (the emoji picker's own: it moves over the emoji and closes itself)
-    if (panelKey(e) || feedKey(e)) return;
+    if (settings.keyScheme === 'vim' ? vimKey(e) : (panelKey(e) || feedKey(e))) return;
     if (e.key === 'Escape' && !lightbox && !menuEl && e.target && e.target.matches && e.target.matches('textarea.xmc-cbox')) { e.preventDefault(); e.stopPropagation(); e.target.blur(); return; } // (Esc leaves the comment box first: what is typed stays, the panel stays)
     if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else closePostView(); } }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
@@ -3203,7 +3431,7 @@
     const parent = opts && opts.parent;
     trace('panel-open', t.id + (parent ? ' (comment)' : '') + (postView ? ' (switch)' : ''));
     const reopen = !!postView;
-    const reels = reopen ? !!postView.reels : reelsWanted(); // (stepping keeps what it was; a first open is in Reels when it is wanted)
+    const reels = opts && typeof opts.reels === 'boolean' ? opts.reels : reopen ? !!postView.reels : reelsWanted(); // (stepping keeps what it was; a first open is in Reels when it is wanted; the Reels key says which)
     if (!parent && reopen) wantMoreIfNear(t); // (stepping, not a first click: that one is never held back)
     // a video of this post that is playing (or previewing) behind the panel hands over to the panel's own: the one behind stops, the
     // panel's starts where it was; any other video that is playing stops too, so two never play at once

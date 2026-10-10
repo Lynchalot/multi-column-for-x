@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Multi-Column for X",
-  "version": "0.42.0",
+  "version": "0.43.0",
   "description": "Your X (Twitter) timeline in multiple columns, with in-card video, filters and media download button.",
   "icons": {
     "48": "icons/icon.svg",
@@ -43,6 +43,7 @@
       "js": [
         "src/settings.js",
         "src/logic.js",
+        "src/keys.js",
         "src/parse.js",
         "src/site.js",
         "src/meta.js",
@@ -86,6 +87,7 @@
         "src/settings.js",
         "src/meta.js",
         "src/logic.js",
+        "src/keys.js",
         "icons/icon.svg"
       ],
       "matches": [
