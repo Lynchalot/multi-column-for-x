@@ -2191,6 +2191,22 @@
   // (done when more posts are drawn or loaded, or after four seconds)
   function wantMore(f) { state.moreUntil = Date.now() + 4000; state.moreBase = view.cards.length + f.items.length; }
   function moreWanted() { const f = viewFeed(); return !!f && Date.now() < (state.moreUntil || 0) && view.cards.length + f.items.length <= state.moreBase && !f.exhausted; }
+  // When a timeline request fails X stops asking and shows "Something went wrong" with a Retry button, which a person presses. After a quiet
+  // while (and not before a rate limit's own reset), the same button is pressed here: the hidden page is the only one that has it. English only,
+  // like X's other words here. Not seen on real X: the wording and the markup of that button are from memory.
+  const RETRY_WORD = /^\s*retry\s*$/i;
+  function pressXRetry() {
+    const fl = state.fail, now = Date.now();
+    if (!fl || !state.shown || document.hidden || state.peek || state.posting) return;
+    if (now - fl.at < (state.retryAfter || 20000) || now - fl.at > 180000 || now - (state.retryPressAt || 0) < 30000) return;
+    if (fl.reset && fl.reset * 1000 > now) return; // a rate limit: not before it ends
+    const col = mainCol();
+    const btn = col && [...col.querySelectorAll('[role="button"], button')].find((b) => RETRY_WORD.test(b.textContent || '') && !b.closest('#xmc-root'));
+    if (!btn) return;
+    state.retryPressAt = now;
+    trace('x-retry', 'pressed X\u2019s Retry ' + Math.round((now - fl.at) / 1000) + ' s after a ' + fl.status);
+    fire(btn);
+  }
   function pump() {
     if (Date.now() < state.proxyUntil) return;
     if (settings.disableHome && where() === 'home') return;
@@ -5544,6 +5560,7 @@
     if (tickN % 10 === 6) guard('keys room', keepHiddenPageRoom);
     if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); guard('viewer entry', ensureViewerEntry); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
+    if (state.fail && tickN % 10 === 7) guard('x retry', pressXRetry);
     if ((tickN % 10 === 5 && Date.now() - lastScrollAt > 500) || (tickN % 3 === 2 && view.cards.length - recycled > RECYCLE_LIVE)) guard('recycle', () => recycleCards(false)); // (and while scrolling on and on, once a lot is on the page: far-off posts give their nodes back without waiting for a pause)
     if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);
     const quiet = state.posting && isModalRoute(); // our own reply automation: X's reply box is open, out of sight

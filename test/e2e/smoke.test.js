@@ -6002,6 +6002,44 @@ browserTest('NSFW only with few flagged posts: it goes on loading until it finds
   } finally { await rare.teardown(); }
 }, 120000);
 
+browserTest('a timeline request that fails: after a while X\u2019s own Retry button is pressed and loading goes on (and nothing is pressed when X shows no such button)', async (e) => {
+  let n = 0;
+  const h = await e.open('/home/', { width: 2000, height: 1000, routes: async (ctx) => {
+    await ctx.route(/\/i\/api\/graphql\/[^/]+\/HomeLatestTimeline/, (route) => { n++; return n === 3 ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"errors":[{"message":"boom"}]}' }) : route.continue(); });
+  } });
+  try {
+    const { page } = h;
+    await e.ready(page, 8);
+    await page.evaluate(() => { window.__xmc.state.retryAfter = 1500; });
+    const pushDown = () => page.evaluate(() => { const sc = document.querySelector('.xmc-scroller'); sc.scrollTop = sc.scrollHeight; });
+    await page.waitForFunction(() => !!document.getElementById('xerr'), null, { timeout: 30000 }).catch(async () => { for (let i = 0; i < 30 && !(await page.evaluate(() => !!document.getElementById('xerr'))); i++) { await pushDown(); await page.waitForTimeout(500); } });
+    assert.equal(await page.evaluate(() => !!document.getElementById('xerr')), true, 'the stand-in showed its error and a Retry button');
+    const before = await page.evaluate(() => window.__xmc.view.cards.length);
+    for (let i = 0; i < 40 && !(await page.evaluate(() => window.__retries >= 1)); i++) { await pushDown(); await page.waitForTimeout(500); }
+    assert.equal(await page.evaluate(() => window.__retries), 1, 'Retry was pressed once');
+    await page.waitForFunction((b) => window.__xmc.view.cards.length > b + 6, before, { timeout: 20000 });
+    assert.equal(await page.evaluate(() => window.__retries), 1, 'and only once');
+    assert.ok((await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).trace.some((l) => /x-retry/.test(JSON.stringify(l))))), 'the trace says so');
+  } finally { await h.close(); }
+  assert.deepEqual(h.errors.filter((m) => !/Failed to load resource/.test(m)), []);
+  // and when X shows no such button, nothing is pressed
+  let m = 0;
+  const bare = await e.open('/home/', { width: 2000, height: 1000, init: () => { window.__noErrCell = true; }, routes: async (ctx) => {
+    await ctx.route(/\/i\/api\/graphql\/[^/]+\/HomeLatestTimeline/, (route) => { m++; return m === 3 ? route.fulfill({ status: 500, contentType: 'application/json', body: '{}' }) : route.continue(); });
+  } });
+  try {
+    const { page } = bare;
+    await e.ready(page, 8);
+    await page.evaluate(() => { window.__xmc.state.retryAfter = 1500; });
+    for (let i = 0; i < 24 && m < 3; i++) { await page.evaluate(() => { const sc = document.querySelector('.xmc-scroller'); sc.scrollTop = sc.scrollHeight; }); await page.waitForTimeout(400); }
+    assert.ok(m >= 3, 'the third request was made and refused');
+    await page.waitForTimeout(6000);
+    assert.equal(await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).trace.some((l) => /x-retry/.test(JSON.stringify(l)))), false, 'nothing to press: nothing pressed');
+    assert.equal(await page.evaluate(() => window.__retries || 0), 0);
+  } finally { await bare.close(); }
+  assert.deepEqual(bare.errors.filter((x) => !/Failed to load resource/.test(x)), []);
+}, 150000);
+
 browserTest('NSFW only with nothing marked: it says how many posts it looked at, not just that nothing is there', async () => {
   const none = await setup({ pages: 3, sensEvery: 1000000 });
   if (!none) return;

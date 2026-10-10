@@ -43,13 +43,16 @@ function timelinePage(cfg) {
   const body = `<div style="margin-left:480px;width:600px"><div data-testid="primaryColumn">${cfg.header || ''}<div role="tablist">${tabs}</div><div id="list" style="position:relative"></div></div></div>`;
   const script = `<script>
 const CFG = ${JSON.stringify(cfg)};
-const H=320; let items=[], feed=CFG.tabs[CFG.selected].feed, cursor=null, loading=false, done=false; const list=document.getElementById('list');
+const H=320; let items=[], feed=CFG.tabs[CFG.selected].feed, cursor=null, loading=false, done=false, errored=false; const list=document.getElementById('list');
+// what X does when a timeline request fails: it stops asking, and says so with a button (as far as anyone here remembers; a person presses it)
+function showError(){ if(document.getElementById('xerr')) return; const c=document.createElement('div'); c.id='xerr'; c.setAttribute('data-testid','cellInnerDiv'); c.style.cssText='position:relative;width:100%'; c.innerHTML='<div>Something went wrong. Try reloading.</div><div role="button" tabindex="0"><span>Retry</span></div>'; list.parentNode.append(c); c.lastChild.onclick=()=>{ window.__retries=(window.__retries||0)+1; c.remove(); errored=false; load(false); }; }
 window.__actions=[]; const state={liked:new Set(),bm:new Set()};
 const newer=()=> window.__pick==='popular'?1000: window.__pick==='photos'?2000:0;
 async function load(first){ if(loading) return; loading=true;
   const v={count:20}; if(!first&&cursor) v.cursor=cursor; if(newer()) v.newer=newer();
   if(window.__delay) await new Promise(r=>setTimeout(r,window.__delay));
-  const r=await fetch('/i/api/graphql/abc/'+feed,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({variables:v,queryId:'abc'})}); const j=await r.json();
+  const r=await fetch('/i/api/graphql/abc/'+feed,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({variables:v,queryId:'abc'})});
+  if(!r.ok){ errored=true; loading=false; if(!window.__noErrCell) showError(); return; } const j=await r.json();
   const ents=(j.data.home?j.data.home.home_timeline_urt:j.data.user.result.timeline.timeline).instructions[0].entries; if(first){items=[];done=false}
   cursor=null; for(const e of ents){ if(e.entryId.startsWith('cursor-bottom')) cursor=e.content.value; else if(!e.entryId.startsWith('promoted')) items.push(e.entryId.replace('tweet-','')); else items.push('ad'); }
   if(!cursor) done=true; loading=false; render(); }
@@ -68,7 +71,7 @@ function render(){ const d=Math.abs(scrollY-lastY); lastY=scrollY; if(d>innerHei
   [...list.children].forEach(c=>{ if(window.__neverMount||!want.has(+c.dataset.i)) c.remove() });
   const have=new Set([...list.children].map(c=>+c.dataset.i));
   for(const i of want) if(!have.has(i)&&!window.__neverMount) list.append(mk(items[i],i));
-  if(!done && okSteps>=2 && scrollY+innerHeight>=items.length*H-1500) load(false); }
+  if(!done && !errored && okSteps>=2 && scrollY+innerHeight>=items.length*H-1500) load(false); }
 // a post link opens its page (the page keeps showing the list, like a router that has not repainted yet) and fetches the conversation
 window.__pg={}; const pv=document.createElement('div'); pv.id='postview'; pv.style.display='none'; list.after(pv); new MutationObserver(()=>{ if(!window.__spamCell||pv.querySelector('#spamcell')||pv.style.display==='none') return; const c=document.createElement('div'); c.setAttribute('data-testid','cellInnerDiv'); c.innerHTML='<div id="spamcell" role="button" tabindex="0">Show probable spam</div>'; c.firstChild.onclick=()=>{ window.__spam=(window.__spam||0)+1; }; pv.append(c); }).observe(pv,{childList:true,subtree:true}); new MutationObserver(()=>{ if(!window.__xlNoise) return; pv.querySelectorAll('[data-testid="tweetText"]').forEach(t=>{ if(t.__noisy) return; t.__noisy=1; ['Other option','Another choice'].forEach(x=>{ const d=document.createElement('div'); d.setAttribute('role','button'); d.tabIndex=0; d.textContent=x; t.after(d); }); }); }).observe(pv,{childList:true,subtree:true}); new MutationObserver(()=>{ if(!window.__xlLate) return; pv.querySelectorAll('[role="button"]').forEach(e=>{ if(/^Translate/.test(e.textContent.trim()) && !e.__late){ e.__late=1; const par=e.parentElement; e.remove(); setTimeout(()=>par.appendChild(e), window.__xlLate); } }); }).observe(pv,{childList:true,subtree:true});
 function showPost(id){ list.style.display='none'; pv.style.display=''; pv.style.minHeight='2600px'; window.__pvAt=performance.now(); window.__pg[id]=1; pv.innerHTML=[0,1,2,3,4,5,6].map(k=>{ const i=k?Number(id)*10+k:id; return '<article data-testid="tweet" tabindex="'+(k?0:-1)+'" style="border-bottom:1px solid #333;padding:12px"><a href="/user/status/'+i+'"><time>t</time></a><div data-testid="tweetText">Post '+i+'</div><div role="group">'
