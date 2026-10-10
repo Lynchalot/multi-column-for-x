@@ -143,6 +143,7 @@
     feeds: new Map(),         // feedKey -> { key, items[], keys:Set, index:Map(id -> position), version, pending[], cursors:Set, topCursors:Set }
     latestByRoute: new Map(), // route -> feedKey of the most recent first page
     feedByTab: new Map(),     // route|tabIndex -> feedKey
+    reelsAsk: '', // the feed route a post was asked for in Reels on (a profile's button, a post's menu)
     focusLeft: false, focusRight: false, // Reels focus: the menu / right panel brought back for as long as Reels is up
     cur: { route: '', key: null }, // the feed currently on screen for this route; changes only when YOU change it
     awaiting: null,           // {until, cached}: you just switched tabs and we are waiting for the new feed
@@ -1149,19 +1150,54 @@
   // Esc, the cross or Back leaves it (until the page is left, or the Reels button in the top bar is pressed).
   const feedRoute = () => (state.cur && state.cur.route) || routeKey(); // (by where the feed is, not by the address: that is a post's while X's page is away on a visit)
   const feedKind = () => XMCLogic.routeKind(feedRoute().split('?')[0]);
-  const reelsWanted = () => !!settings.reels && settings.openIn === 'view' && state.reelsOff !== feedRoute() && ['home', 'list'].includes(feedKind());
+  // Reels is wanted on Home and Lists with the setting on (until it is left there), and anywhere a post was asked for in it (a profile's Reels button, a post's menu)
+  const reelsWanted = () => settings.openIn === 'view' && ((!!settings.reels && state.reelsOff !== feedRoute() && ['home', 'list'].includes(feedKind())) || (!!state.reelsAsk && state.reelsAsk === feedRoute()));
   function reelsTick() {
     if (state.reelsOff && state.reelsOff !== feedRoute()) state.reelsOff = ''; // (another page since: it starts afresh when you come back)
-    if (!settings.reels && root.classList.contains('xmc-reels') && !postView) root.classList.remove('xmc-reels');
-    reelsBtn.hidden = !(settings.reels && settings.openIn === 'view' && state.reelsOff && ['home', 'list'].includes(feedKind()));
+    if (state.reelsAsk && state.reelsAsk !== feedRoute()) state.reelsAsk = '';
+    if (!settings.reels && !state.reelsAsk && root.classList.contains('xmc-reels') && !postView) root.classList.remove('xmc-reels');
+    reelsBtn.hidden = !(settings.openIn === 'view' && ((settings.reels && state.reelsOff && ['home', 'list'].includes(feedKind())) || (settings.reelsProfiles && feedKind() === 'profile' && !postView && !!view.cards.length)));
     if (!reelsWanted() || postView || lightbox || menuEl || !state.shown || root.hidden || document.hidden || state.peek || state.posting || state.reelsSwitching || isModalRoute() || !view.cards.length) return;
     const first = firstCardInView();
     if (first) openPostView(first, true);
   }
-  function enterReels() { state.reelsOff = ''; reelsTick(); }
+  function enterReels(at) { // the Reels button (the first post in view) or a post's menu (that post); on Home and Lists with the setting on it is the way back in
+    state.reelsOff = '';
+    if (settings.reels && ['home', 'list'].includes(feedKind()) && !at) { reelsTick(); return; }
+    if (settings.openIn !== 'view' || postView) return;
+    state.reelsAsk = feedRoute();
+    const t = at || firstCardInView();
+    if (t) openPostView(t, false);
+  }
+  // A profile's Reels: who it is and how far through (a chip at the top left of the post), and what is in it (pictures and video, or all its posts)
+  function reelsWho(t) {
+    const i = view.cards.indexOf(t), n = view.cards.length, f = viewFeed(), more = !!f && !f.exhausted && !view.caughtUp;
+    const chip = h('button', { className: 'xmc-vwho', type: 'button', title: 'Back to the profile (Esc)', onclick: (e) => { e.stopPropagation(); closePostView(); } },
+      h('img', { src: t.author.avatar, alt: '' }), h('b', { textContent: t.author.name }), h('span', { textContent: (i + 1) + ' of ' + n + (more ? '+' : '') }));
+    return chip;
+  }
+  async function reelsFilter(kind) { // pictures and video / all posts: the Show list, from Reels; the post you are on stays put if it is still in the list
+    if (state.reelsSwitching || !postView || !postView.reels || (kind === 'media') === (settings.filter === 'media')) return;
+    state.reelsSwitching = true;
+    const keep = postView.t.id, sig = view.sig;
+    const wait = h('div', { className: 'xmc-reelswait' }, h('span', { className: 'xmc-spin' }), (kind === 'media' ? 'Pictures and video' : 'All posts') + '\u2026');
+    try {
+      closePostView(false, true);
+      root.append(wait);
+      settings.filter = kind; save(); settingsChanged();
+      await waitFor(() => view.sig !== sig && view.cards.length, 5000);
+      const t = view.cards.find((c) => c.id === keep) || firstCardInView();
+      if (t) openPostView(t, true);
+    } finally { wait.remove(); state.reelsSwitching = false; }
+  }
   // For you / Following over the post, on Home (the bar that has these tabs is not showing in Reels). Pressing the other one lets the post go, has X switch its tab
   // and, when that feed is in, reelsTick opens its first post. The page stays Reels-coloured meanwhile, with a line saying what is coming.
   function reelsFeedSwitch() {
+    if (feedKind() === 'profile') {
+      const on = settings.filter === 'media' ? 'media' : 'all';
+      const tab = (k, label) => h('button', { className: 'xmc-vfeedtab' + (on === k ? ' on' : ''), type: 'button', 'aria-pressed': String(on === k), onclick: (e) => { e.stopPropagation(); reelsFilter(k); } }, label);
+      return h('div', { className: 'xmc-vfeed', role: 'group', 'aria-label': 'What is in it' }, tab('media', 'Pictures and video'), tab('all', 'All posts'));
+    }
     if (feedKind() !== 'home' || settings.hideForYou || !state.homeTabs || state.homeTabs.length < 2) return null;
     const tab = (i) => h('button', { className: 'xmc-vfeedtab' + (i === state.sel ? ' on' : ''), type: 'button', 'aria-pressed': String(i === state.sel), onclick: (e) => { e.stopPropagation(); reelsFeed(i); } }, state.homeTabs[i]);
     return h('div', { className: 'xmc-vfeed', role: 'group', 'aria-label': 'Feed' }, tab(0), tab(1));
@@ -2797,6 +2833,7 @@
         const plain = t.segs.map((s) => (s.t === 'text' ? s.v : s.t === 'url' ? s.href : s.t === 'mention' ? '@' + s.handle : '#' + s.tag)).join('');
         try { await navigator.clipboard.writeText(plain); toast('Copied'); } catch { toast('Couldn’t copy'); }
       }],
+      ...(settings.reelsProfiles && settings.openIn === 'view' && !postView && t.el && t.el.isConnected && view.cards.includes(t) ? [['Open in Reels from here', () => enterReels(t)]] : []),
       ['Open in a new tab', () => window.open('https://' + location.host + t.url, '_blank', 'noopener')],
       ['Copy diagnostics', () => copyDiagnostics()],
       ['Save sample for the developer', () => saveSample()],
@@ -3279,7 +3316,11 @@
       (mediaHost || panel).append(rail);
       postView.rail = rail;
       const feedSwitch = reelsFeedSwitch();
-      if (feedSwitch) (mediaHost || panel).append(feedSwitch);
+      if (feedKind() === 'profile') { // (the chip and the switch side by side)
+        const top = h('div', { className: 'xmc-vtop' }, reelsWho(t));
+        if (feedSwitch) top.append(feedSwitch);
+        (mediaHost || panel).append(top);
+      } else if (feedSwitch) (mediaHost || panel).append(feedSwitch);
     }
     if (reels && settings.reelsQuiet) quietWatch(el);
     if (reels) {
@@ -3461,7 +3502,7 @@
     const el = postView.el;
     if (el._ro) el._ro.disconnect();
     if (postView.panel && postView.panel._so) postView.panel._so.forEach((o) => o.disconnect());
-    if (!instant) { if (postView.reels) state.reelsOff = feedRoute(); root.classList.remove('xmc-reels'); if (settings.reelsFocus) setTimeout(() => { applyPanels(); positionTab(); }, 0); } // (left Reels: the columns, until the page is left or the Reels button is pressed; the menu and the right panel come back)
+    if (!instant) { if (postView.reels) { state.reelsOff = feedRoute(); state.reelsAsk = ''; } root.classList.remove('xmc-reels'); if (settings.reelsFocus) setTimeout(() => { applyPanels(); positionTab(); }, 0); } // (left Reels: the columns, until the page is left or the Reels button is pressed; the menu and the right panel come back)
     postView = null;
     if (!instant && panelOpener && panelOpener.isConnected && el.contains(document.activeElement)) panelOpener.focus({ preventScroll: true }); // keyboard user: back to the button they pressed
     if (!instant) panelOpener = null;

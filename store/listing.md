@@ -28,7 +28,7 @@ By default your feed shows in columns that fit your window (up to eight), on the
 - Comments load as you scroll and can be sorted by relevance, newest or most liked. Like, bookmark and reply to posts and to comments, and translate them with X's own translation.
 - **Reply with pictures, a GIF or emoji** from the comment box, to the post or to any comment, without leaving the panel.
 - **Keys:** ← → go through a post's pictures and then the posts, Shift and the wheel step through the posts from anywhere on the panel, A S W E Q C like, bookmark, repost, download, copy the link and comment, M mutes the video. The keyboard button on the panel lists them all, and you can change any key.
-- **Reels view (optional):** like TikTok. One post at a time fills the page, scrolled up and down; videos play with sound and loop; posts you have already seen are skipped; a switch at the top changes between For you and Following; the menu and side panel fold away while it is up; double-click a picture or video to like it. It is one of the starting points below.
+- **Reels view (optional):** like TikTok. One post at a time fills the page, scrolled up and down; videos play with sound and loop; posts you have already seen are skipped; a switch at the top changes between For you and Following; the menu and side panel fold away while it is up; double-click a picture or video to like it. It works on a profile too (a Reels button in its bar): that account's pictures and video, one at a time. It is one of the starting points below.
 
 **Video and media**
 - Video and GIFs play in the post. Pointing at a video plays it muted; pressing it turns the sound on and carries on; a speaker button turns sound on or off.

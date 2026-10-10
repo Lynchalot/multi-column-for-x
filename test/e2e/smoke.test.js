@@ -4747,3 +4747,54 @@ browserTest('M mutes and unmutes the video in the panel (and keeps it for the ne
     assert.equal(await page.evaluate(() => document.getElementById('xmc-toast').hidden), true, 'no video, no toast');
   });
 });
+
+// ---- Reels on a profile (0.42.0) ----
+browserTest('Reels on a profile: a Reels button in the bar starts at the first post in view, a chip says who and how far, pictures and video / all posts changes the list, Esc comes back, and a post’s menu starts it at that post', async (e) => {
+  const h = await e.open('/user7/', { settings: { cols: 3 }, width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    assert.equal(await page.evaluate(() => window.__xmc.settings.reels), false, 'the setting for Home is off: this is on demand');
+    await page.waitForFunction(() => !document.querySelector('.xmc-reelsbtn').hidden, null, { timeout: 8000 });
+    assert.equal(await page.locator('#xmc-root.xmc-reels').count(), 0, 'nothing opened by itself');
+    await page.locator('.xmc-reelsbtn').click();
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view .xmc-vtop', { timeout: 8000 });
+    await page.waitForTimeout(500);
+    const chip = await page.evaluate(() => { const c = document.querySelector('.xmc-vwho'), sw = document.querySelector('.xmc-vtop .xmc-vfeed'); return { text: c.textContent, tabs: [...sw.querySelectorAll('button')].map((b) => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')), reels: document.getElementById('xmc-root').classList.contains('xmc-reels') }; });
+    assert.match(chip.text, /1 of \d+/); assert.deepEqual(chip.tabs, ['Pictures and video', 'All posts*'], JSON.stringify(chip));
+    const first = await openPostId(page);
+    await page.keyboard.press('ArrowDown');
+    await page.waitForFunction((n) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] !== n; }, first, { timeout: 5000 });
+    await page.waitForFunction(() => /2 of \d+/.test(document.querySelector('.xmc-vwho').textContent), null, { timeout: 3000 });
+    // pictures and video: the list changes, and the switch says so
+    await page.locator('.xmc-vtop .xmc-vfeedtab', { hasText: 'Pictures and video' }).click();
+    await page.waitForFunction(() => !document.querySelector('.xmc-reelswait') && document.querySelector('.xmc-vtop .xmc-vfeedtab.on') && /Pictures/.test(document.querySelector('.xmc-vtop .xmc-vfeedtab.on').textContent), null, { timeout: 15000 });
+    assert.equal(await page.evaluate(() => window.__xmc.settings.filter), 'media');
+    assert.equal(await page.evaluate(() => window.__xmc.view.cards.every((c) => c.media.length > 0)), true, 'only posts with pictures or video');
+    // Esc: the profile's columns, and Reels is not opened again by itself
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)') && !document.getElementById('xmc-root').classList.contains('xmc-reels'), null, { timeout: 5000 });
+    await page.waitForTimeout(1200);
+    assert.equal(await page.locator('#xmc-root.xmc-reels').count(), 0);
+    assert.equal(await page.locator('.xmc-reelsbtn:not([hidden])').count(), 1, 'the button is back');
+  });
+  const menu = await e.open('/user7/', { settings: { cols: 3 }, width: 1700, height: 900 });
+  await checked(menu, async () => {
+    const { page } = menu;
+    await e.ready(page);
+    const card = page.locator('.xmc-card').nth(3);
+    const id = await card.evaluate((c) => (/(?:tweet|number) (\d+)\b/.exec(c.innerText) || [])[1]);
+    await card.hover();
+    await card.locator('[data-act="more"]').click();
+    await page.locator('.xmc-menu button', { hasText: 'Open in Reels from here' }).click();
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 8000 });
+    await page.waitForTimeout(500);
+    assert.equal(await openPostId(page), id, 'at that post');
+  });
+  const off = await e.open('/user7/', { settings: { cols: 3, reelsProfiles: false }, width: 1700, height: 900 });
+  await checked(off, async () => {
+    await e.ready(off.page);
+    await off.page.waitForTimeout(1200);
+    assert.equal(await off.page.locator('.xmc-reelsbtn:not([hidden])').count(), 0, 'with the setting off, no button');
+  });
+});
