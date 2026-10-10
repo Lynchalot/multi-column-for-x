@@ -103,6 +103,21 @@ function makeApi(origin, pages, media) {
     return { data: { threaded_conversation_with_injections_v2: { instructions: [{ type: 'TimelineAddEntries', entries }] } } };
   }
 
+  // Followers, Following and a List's members: twenty people a page, a bottom cursor on all but the last page. The people are 1000 + their place in the list;
+  // on Followers every third one is followed back, on Following every second one follows back, and every fourth has a paid mark.
+  function peoplePage(op, cur) {
+    const p = cur ? Number(String(cur).slice(1)) : 0, entries = [];
+    for (let k = 0; k < 20; k++) {
+      const n = p * 20 + k + 1, id = 1000 + n;
+      const rel = op === 'Following' ? { following: true, followed_by: n % 2 === 0 } : { following: n % 3 === 0, followed_by: true };
+      const u = { __typename: 'User', rest_id: String(id), is_blue_verified: n % 4 === 0, core: { name: `Person ${n}`, screen_name: `person${n}` }, avatar: { image_url: `${imgHost}/img/a${n % 9}_normal.svg` },
+        relationship_perspectives: rel, legacy: { description: n % 5 === 0 ? '' : `Bio of person ${n}${n % 7 === 0 ? ' who likes herons and long walks by the water, and writes about both at some length' : ''}` } };
+      entries.push({ entryId: `user-${id}`, sortIndex: String(id), content: { entryType: 'TimelineTimelineItem', itemContent: { itemType: 'TimelineUser', user_results: { result: u } } } });
+    }
+    if (p < pages) entries.push({ entryId: 'cursor-bottom-1', content: { entryType: 'TimelineTimelineCursor', value: `c${p + 1}`, cursorType: 'Bottom' } });
+    return { data: { user: { result: { timeline: { timeline: { instructions: [{ type: 'TimelineAddEntries', entries }] } } } } } };
+  }
+
   // op = the GraphQL operation name, vars = its variables
   function respond(op, vars) {
     if (op === 'TweetDetail') return detail(vars.focalTweetId, vars.cursor);
@@ -111,6 +126,7 @@ function makeApi(origin, pages, media) {
         avatar: { image_url: `${imgHost}/img/a5_normal.svg` }, location: { location: 'Valley Forge' },
         legacy: { description: 'Bio of user five', followers_count: 1234, friends_count: 97, profile_banner_url: `${imgHost}/img/b5`, entities: { description: { urls: [] } } } } } } };
     }
+    if (/^(Followers|Following|ListMembers)$/.test(op)) return peoplePage(op, vars.cursor);
     if (op === 'ListByRestId') return { data: { list: { __typename: 'List', id_str: '123', name: 'Psyop' } } };
     return page(op, vars.cursor, vars.newer || 0);
   }

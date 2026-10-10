@@ -5,12 +5,15 @@ var XMCLogic = (function () {
 
   const kindOf = (t) => (t.repostedBy ? 'repost' : t.quoted ? 'quote' : t.replyTo ? 'reply' : 'post');
 
+  // Followers, Following, the verified ones and the ones you know, of a profile; a List's members and followers
+  const isPeoplePage = (pathname) => /^\/(?!i\/)[^/]+\/(followers|following|verified_followers|followers_you_follow)\/?$/.test(pathname || '') || /^\/i\/lists\/\d+\/(members|followers)\/?$/.test(pathname || '');
   function routeKind(pathname) {
     const p = (pathname || '').replace(/\/+$/, '') || '/';
     if (p === '/home') return 'home';
     if (p === '/search') return 'search';
     if (p === '/explore' || p.startsWith('/explore/')) return 'explore';
     if (p === '/i/bookmarks') return 'bookmarks';
+    if (isPeoplePage(p)) return 'people';
     if (p.startsWith('/i/lists/')) return 'list';
     return 'profile';
   }
@@ -69,6 +72,7 @@ var XMCLogic = (function () {
     pictures: (t) => t.media.some((m) => !isVideo(m)),
     video: (t) => t.media.some(isVideo),
     links: (t) => !!(t.card && !t.card.poll) || t.segs.some((x) => x.t === 'url'),
+    noback: () => true, // (people: asked in findMatch, which knows which page)
   };
   function findHay(t) {
     const part = (x) => textOf(x) + ' ' + x.author.name + ' ' + x.author.handle + ' ' + (x.media || []).map((m) => m.alt || '').join(' ') + ' ' + (x.card && x.card.title ? x.card.title + ' ' + (x.card.desc || '') : '');
@@ -81,6 +85,7 @@ var XMCLogic = (function () {
     if (words.length) { const hay = findHay(t); if (!words.every((w) => hay.includes(w))) return false; }
     if (skip !== 'accounts' && f.accounts && f.accounts.length && !f.accounts.includes(t.author.handle.toLowerCase())) return false;
     if (skip !== 'kinds' && f.kinds && f.kinds.length && !f.kinds.some((k) => FIND_KINDS[k] && FIND_KINDS[k](t))) return false;
+    if ((f.people === 'followers' || f.people === 'following') && f.kinds && f.kinds.includes('noback') && !(f.people === 'following' ? t.followedBy === false : t.author.following === false)) return false; // (people: the ones who do not follow you back, or that you do not)
     return true;
   }
   // The accounts among the posts, most posts first: [{ handle, name, avatar, n }]; ok(t) says which posts count at all (the ones the rest of the settings let through)
@@ -97,6 +102,7 @@ var XMCLogic = (function () {
   // c = { s: settings, view, where, words:[], accounts:Set, quoteIds:Set }
   function passes(t, c) {
     const s = c.s;
+    if (t.person) return !c.accounts.has(t.author.handle.toLowerCase()) && (!c.find || findMatch(t, c.find)); // (a person: only a muted account and the search can hide one)
     const handle = t.author.handle.toLowerCase();
     if (c.accounts.has(handle)) return false;
     if (t.repostedBy && c.accounts.has(t.repostedBy.handle.toLowerCase())) return false;
@@ -366,7 +372,7 @@ var XMCLogic = (function () {
     return m ? { id: m[1], kind: m[2], n: Number(m[3]) } : null;
   }
 
-  const api = { viewerRoute, attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, isLikesPage, findWords, findOn, findMatch, findAccounts, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  const api = { viewerRoute, attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, isPeoplePage, isLikesPage, findWords, findOn, findMatch, findAccounts, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

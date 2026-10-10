@@ -321,6 +321,13 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
 .xmc-bar2 { display: flex; gap: 6px; padding: 2px 12px 8px; overflow-x: auto; scrollbar-width: none; }
 .xmc-bar2[hidden] { display: none; }
 .xmc-bar2 .xmc-chip { flex: none; }
+/* A person in Followers, Following and a List's members */
+.xmc-person { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; cursor: pointer; }
+.xmc-person .xmc-head { margin-bottom: 0; }
+.xmc-pmarks { display: flex; flex-wrap: wrap; gap: 6px; }
+.xmc-pmark { padding: 1px 8px; border-radius: 999px; border: 1px solid var(--xmc-border); font-size: 12.5px; color: var(--xmc-muted); }
+.xmc-pmark.on { color: var(--xmc-fg); }
+.xmc-pbio { font-size: 14.5px; line-height: 1.4; color: var(--xmc-fg); overflow-wrap: anywhere; }
 /* Likes and Bookmarks: search, a chip for each account, Pictures / Video / Links, and what has been read */
 .xmc-bar3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 12px 10px; }
 .xmc-bar3[hidden] { display: none; }
@@ -329,6 +336,7 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
 .xmc-bar3 .xmc-find::placeholder { color: var(--xmc-muted); }
 .xmc-bar3 .xmc-find[hidden] { display: none; }
 .xmc-fchips, .xmc-fkinds { display: contents; }
+.xmc-bar .xmc-fchip[hidden] { display: none; }
 .xmc-bar .xmc-fchip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 5px; border: 1px solid var(--xmc-border); font-size: 13.5px; font-weight: 500; }
 .xmc-bar .xmc-fkind { padding: 5px 12px; }
 .xmc-bar .xmc-fchip.on { font-weight: 700; border-color: var(--xmc-accent); background: color-mix(in srgb, var(--xmc-accent) 18%, transparent); }

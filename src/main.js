@@ -127,7 +127,7 @@
     const seg = p.split('/').filter(Boolean);
     if (seg.length === 1) return !RESERVED.has(seg[0].toLowerCase());
     if (seg.length === 2 && !RESERVED.has(seg[0].toLowerCase())) {
-      return ['with_replies', 'media', 'likes', 'highlights', 'articles'].includes(seg[1]);
+      return ['with_replies', 'media', 'likes', 'highlights', 'articles', 'followers', 'following', 'verified_followers', 'followers_you_follow'].includes(seg[1]);
     }
     return false;
   }
@@ -196,7 +196,7 @@
   function onResponse(url, body, reqBody) {
     const op = XMCParse.opOf(url);
     if (op) state.seenOps[op] = (state.seenOps[op] || 0) + 1;
-    if (op && body && typeof body === 'object' && /Timeline|TweetDetail|Bookmarks|Likes|ListLatest|SearchTimeline|UserTweets|UserMedia/.test(op)) { rawByOp.delete(op); rawByOp.set(op, { url: url.split('?')[0], body }); while (rawByOp.size > 8) rawByOp.delete(rawByOp.keys().next().value); }
+    if (op && body && typeof body === 'object' && /Timeline|TweetDetail|Bookmarks|Likes|ListLatest|SearchTimeline|UserTweets|UserMedia|Followers|Following|ListMembers/.test(op)) { rawByOp.delete(op); rawByOp.set(op, { url: url.split('?')[0], body }); while (rawByOp.size > 8) rawByOp.delete(rawByOp.keys().next().value); }
     try { noteList(op, body); } catch { /* not a list */ }
     if (/^User(Result)?By/.test(op || '')) {
       try {
@@ -678,7 +678,21 @@
   }
   // a short post that is only words (no picture, video, link card or quote) is set larger, so it holds its own beside the pictures
   const onlyWords = (t) => settings.bigText && !t.media.length && !t.card && !t.quoted && textLength(t.segs) <= 140;
+  // A person (Followers, Following, a List's members): the picture, the name, the handle, what the page says about the follow, and the bio. A press goes to their profile.
+  function renderPerson(t) {
+    const u = t.author, card = h('article', { className: 'xmc-card xmc-person' });
+    tweetOf.set(card, t);
+    card.append(h('div', { className: 'xmc-head' },
+      h('a', { className: 'xmc-avatar xmc-nav', href: t.url, tabIndex: -1, 'aria-hidden': 'true' }, h('img', { src: u.avatar, alt: '', loading: 'lazy' })),
+      h('div', { className: 'xmc-who' }, h('a', { className: 'xmc-name xmc-nav', href: t.url }, u.name, badge(u)), h('div', { className: 'xmc-sub', textContent: '@' + u.handle }))));
+    const kind = peopleKind(); // (what the page already says is not said again: on Followers all of them follow you, on Following you follow all of them)
+    const marks = [u.following && kind !== 'following' ? 'Following' : '', t.followedBy && kind !== 'followers' ? 'Follows you' : ''].filter(Boolean);
+    if (marks.length) card.append(h('div', { className: 'xmc-pmarks' }, ...marks.map((m) => h('span', { className: 'xmc-pmark' + (m === 'Following' ? ' on' : ''), textContent: m }))));
+    if (t.bio) card.append(h('div', { className: 'xmc-text xmc-pbio' }, renderSegs(t.segs)));
+    return card;
+  }
   function renderCard(t) {
+    if (t.person) return renderPerson(t);
     const card = h('article', { className: 'xmc-card' });
     tweetOf.set(card, t);
     if (t.repostedBy) card.append(h('div', { className: 'xmc-ctx' }, icon('repost'), h('span', { textContent: ctxText(t) })));
@@ -824,7 +838,7 @@
   const findInput = h('input', { className: 'xmc-find', type: 'text', placeholder: 'Search', 'aria-label': 'Search your likes', spellcheck: false, autocomplete: 'off' });
   const findChips = h('div', { className: 'xmc-fchips' });
   const findKindEls = {};
-  for (const [k, label] of [['pictures', 'Pictures'], ['video', 'Video'], ['links', 'Links']]) findKindEls[k] = h('button', { className: 'xmc-fchip xmc-fkind', type: 'button', textContent: label, 'aria-pressed': 'false', onclick: () => findToggle('kinds', k) });
+  for (const [k, label] of [['pictures', 'Pictures'], ['video', 'Video'], ['links', 'Links'], ['noback', '']]) findKindEls[k] = h('button', { className: 'xmc-fchip xmc-fkind', type: 'button', textContent: label, 'aria-pressed': 'false', onclick: () => findToggle('kinds', k) });
   const findStatus = h('div', { className: 'xmc-fstatus', role: 'status' });
   const findRow = h('div', { className: 'xmc-bar3', hidden: true }, findInput, findChips, h('div', { className: 'xmc-fkinds' }, ...Object.values(findKindEls)), findStatus);
   const bar = h('div', { className: 'xmc-bar' }, row1, findRow); // (row2, the chips, is no longer shown: its choices are in the Show menu)
@@ -1024,7 +1038,7 @@
     }
     const kind = subFor(state.sel);
     for (const key of Object.keys(kindEls)) { kindEls[key].hidden = !split; kindEls[key].classList.toggle('on', kind === key); }
-    showBtn.hidden = !split && views.length <= 1; // nothing to choose between yet
+    showBtn.hidden = (!split && views.length <= 1) || where() === 'people'; // nothing to choose between yet (and a list of people has no kinds of post)
     const cur = split ? (kind === 'photos' ? 'Photos' : 'Videos') : VIEW_LABELS[settings.filter]();
     if (showLabel.textContent !== 'Show: ' + cur) showLabel.textContent = 'Show: ' + cur;
     const [ic, label] = NSFW[settings.nsfw] || NSFW.blur;
@@ -1109,6 +1123,7 @@
   }
   // like, bookmark, repost, reply, share, download for a post: from the panel or viewer, and (Vim keys) from the marked card
   function postKeyAction(kind, t) {
+    if (t.person) return; // (like, repost and the rest are for posts)
     const comment = !!(postView && postView.parent && postView.t === t); // a comment in the panel: its own buttons, X's page has none for it
     if (kind === 'parent') { openRelated(t); return; }
     if (kind === 'reply') {
@@ -1534,13 +1549,15 @@
   // Automatic: as many as fit at the chosen width. A fixed number you picked is honoured only while columns stay at least
   // MIN_COL wide; on a narrower window it gives way (down to one) instead of squeezing them to slivers.
   const MIN_COL = 320;
+  const PEOPLE_COL = 300;
   function colCount() {
     const w = colsEl.clientWidth;
     const lay = pageLayout();
     if (lay.cols > 0) return Math.min(lay.cols, XMCLogic.autoCols(w, { minColWidth: MIN_COL, maxAutoCols: 8 }, GAP));
+    if (where() === 'people') return XMCLogic.autoCols(w, { minColWidth: PEOPLE_COL, maxAutoCols: 12 }, GAP); // (a person is a small card: more of them across)
     return XMCLogic.autoCols(w, { minColWidth: XMCLogic.minColFor(settings, lay.density), maxAutoCols: settings.maxAutoCols }, GAP);
   }
-  const layoutSig = () => { const l = pageLayout(); return l.cols + '|' + l.density + '|' + XMCLogic.minColFor(settings, l.density) + '|' + settings.maxAutoCols; };
+  const layoutSig = () => { const l = pageLayout(); return l.cols + '|' + l.density + '|' + XMCLogic.minColFor(settings, l.density) + '|' + settings.maxAutoCols + '|' + (where() === 'people' ? 'p' : ''); };
   // everything that changes which posts pass; when it changes the view is rebuilt
   const FILTER_KEYS = ['filter', 'repostsHome', 'quotesHome', 'repliesHome', 'repostsProfile', 'repostsLists', 'onlyFollowed',
     'hideBlueReplies', 'hideMutedQuotes', 'mutedWords', 'mutedAccounts', 'nsfw', 'seen', 'collapseReposts', 'foldThreads'];
@@ -1611,7 +1628,7 @@
     const real = view.cards.map((t) => (t.el ? t.el.offsetHeight : 0));
     columns = Array.from({ length: n }, () => h('div', { className: 'xmc-col' }));
     colsEl.classList.toggle('auto', !lay.cols); // automatic: columns keep about one width, the window shows more or fewer
-    root.style.setProperty('--xmc-colw', XMCLogic.minColFor(settings, lay.density) + 'px');
+    root.style.setProperty('--xmc-colw', (where() === 'people' ? PEOPLE_COL : XMCLogic.minColFor(settings, lay.density)) + 'px');
     colsEl.replaceChildren(...columns);
     if (!profileEl.hidden) columns[0].prepend(profileEl); // a profile's header is the first card of the first column; the posts flow round it
     if (galleryOn()) { gal.els = view.cards.map((t) => t.el).filter(Boolean); gal.ratios = view.cards.filter((t) => t.el).map(galRatio); galLayout(true); return; } // (the gallery's tiles are the posts' els: laid in rows, not columns)
@@ -1900,10 +1917,13 @@
   // you press Read older (a thousand more posts a press, with a Stop): a search that loaded everything unasked would be a great many requests.
   // Likes has the search box (X has none there); Bookmarks does not (X searches those itself) but has the chips.
   const FIND_DEEP = 1000;
-  const findPage = () => !!settings.findBar && (XMCLogic.isLikesPage(feedRoute().split('?')[0]) || feedKind() === 'bookmarks');
+  const findPage = () => !!settings.findBar && (XMCLogic.isLikesPage(feedRoute().split('?')[0]) || feedKind() === 'bookmarks' || feedKind() === 'people');
+  // which list of people this is: Followers (the ones who follow you back can be told from the rest), Following, or a List's members (no \"back\")
+  const peopleKind = () => { const p = feedRoute().split('?')[0]; return feedKind() !== 'people' ? '' : /\/following\/?$/.test(p) ? 'following' : /\/(followers|verified_followers|followers_you_follow)\/?$/.test(p) && !/^\/i\/lists\//.test(p) ? 'followers' : 'list'; };
   function findState() {
     const route = feedRoute().split('?')[0];
-    if (!state.find || state.find.route !== route) state.find = { route, q: '', accounts: [], kinds: [], deep: 0, chipSig: '', statusSig: '' };
+    if (!state.find || state.find.route !== route) state.find = { route, q: '', accounts: [], kinds: [], deep: 0, chipSig: '', statusSig: '', people: '' };
+    state.find.people = peopleKind();
     return state.find;
   }
   const findCtx = () => { if (!findPage()) return null; const f = findState(); return XMCLogic.findOn(f) ? f : null; };
@@ -1932,15 +1952,18 @@
     const on = findPage() && !!f && f.items.length > 0;
     findRow.hidden = !on;
     if (!on) { if (state.find) state.find.deep = 0; return; }
-    const fnd = findState(), likes = XMCLogic.isLikesPage(feedRoute().split('?')[0]), noun = likes ? 'likes' : 'bookmarks';
-    findInput.hidden = !likes;
+    const fnd = findState(), likes = XMCLogic.isLikesPage(feedRoute().split('?')[0]), people = feedKind() === 'people', noun = people ? 'people' : likes ? 'likes' : 'bookmarks';
+    findInput.hidden = !(likes || people);
+    findInput.setAttribute('aria-label', people ? 'Search these people' : 'Search your likes');
+    for (const [k, el] of Object.entries(findKindEls)) el.hidden = k === 'noback' ? !(people && fnd.people !== 'list') : people; // (people: only the one choice, and not on a List)
+    findKindEls.noback.textContent = fnd.people === 'following' ? 'Doesn\u2019t follow you back' : 'You don\u2019t follow back';
     if (document.activeElement !== findInput && findInput.value !== fnd.q) findInput.value = fnd.q;
     if (fnd.deep && (f.exhausted || f.items.length >= fnd.deep)) fnd.deep = 0; // (read what was asked, or all there is)
     const chipSig = f.key + '|' + f.items.length + '|' + fnd.q.trim().toLowerCase() + '|' + fnd.accounts.join(',') + '|' + fnd.kinds.join(',');
     if (fnd.chipSig !== chipSig) {
       fnd.chipSig = chipSig;
       const ctx = Object.assign({}, passCtx(), { find: null }), ok = (t) => XMCLogic.passes(t, ctx); // (counted among what the rest of the settings let through)
-      const shown = new Map(XMCLogic.findAccounts(f.items, fnd, 8, ok).map((a) => [a.handle.toLowerCase(), a]));
+      const shown = new Map(people ? [] : XMCLogic.findAccounts(f.items, fnd, 8, ok).map((a) => [a.handle.toLowerCase(), a])); // (people: a chip for each would be the whole list)
       for (const hd of fnd.accounts) if (!shown.has(hd)) { const t = f.items.find((x) => x.author.handle.toLowerCase() === hd); shown.set(hd, { handle: hd, name: t ? t.author.name : hd, avatar: t ? t.author.avatar : '', n: 0 }); } // (one you chose stays, however few it has now)
       findChips.replaceChildren(...[...shown.entries()].map(([hd, a]) => {
         const picked = fnd.accounts.includes(hd);
@@ -1956,7 +1979,7 @@
     const line = view.cards.length + ' of ' + f.items.length + ' ' + noun + ' match';
     findStatus.replaceChildren(h('span', { textContent: fnd.deep ? line + ' · reading older…' : line + (f.exhausted ? ' · that is all of them' : '') }),
       ...(fnd.deep ? [h('button', { className: 'xmc-fbtn', type: 'button', textContent: 'Stop', onclick: () => findDeep(false) })]
-        : !f.exhausted ? [h('button', { className: 'xmc-fbtn', type: 'button', textContent: 'Read older ' + noun, onclick: () => findDeep(true) })] : []));
+        : !f.exhausted ? [h('button', { className: 'xmc-fbtn', type: 'button', textContent: people ? 'Read more people' : 'Read older ' + noun, onclick: () => findDeep(true) })] : []));
   }
   // the "N read" button in the top bar, and the "you're up to date" note under the posts
   function updateSeenUi(f) {
@@ -3634,6 +3657,7 @@
     requestAnimationFrame(step);
   }
   function openPostView(t, still, focusBox, opts) {
+    if (t && t.person) { navigate(t.url, t); return; } // (a person has no panel: their profile)
     const parent = opts && opts.parent;
     trace('panel-open', t.id + (parent ? ' (comment)' : '') + (postView ? ' (switch)' : ''));
     const reopen = !!postView;

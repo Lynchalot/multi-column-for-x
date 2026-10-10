@@ -50,7 +50,7 @@ async function load(first){ if(loading) return; loading=true;
   const v={count:20}; if(!first&&cursor) v.cursor=cursor; if(newer()) v.newer=newer();
   if(window.__delay) await new Promise(r=>setTimeout(r,window.__delay));
   const r=await fetch('/i/api/graphql/abc/'+feed,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({variables:v,queryId:'abc'})}); const j=await r.json();
-  const ents=j.data.home.home_timeline_urt.instructions[0].entries; if(first){items=[];done=false}
+  const ents=(j.data.home?j.data.home.home_timeline_urt:j.data.user.result.timeline.timeline).instructions[0].entries; if(first){items=[];done=false}
   cursor=null; for(const e of ents){ if(e.entryId.startsWith('cursor-bottom')) cursor=e.content.value; else if(!e.entryId.startsWith('promoted')) items.push(e.entryId.replace('tweet-','')); else items.push('ad'); }
   if(!cursor) done=true; loading=false; render(); }
 function mk(id,i){ const c=document.createElement('div'); c.setAttribute('data-testid','cellInnerDiv'); c.dataset.i=i; c.style.cssText='position:absolute;width:100%;transform:translateY('+(i*H)+'px);height:'+H+'px';
@@ -121,6 +121,9 @@ function pageFor(path) {
   if (p === '/user/media') return timelinePage({ title: 'user / Media / X', tabs: [{ label: 'Posts' }, { label: 'Replies' }, { label: 'Reposts' }, { label: 'Videos', feed: 'UserMedia' }], selected: 3, dropdown: { tab: 3, items: ['Videos', 'Photos'], kind: 'media' } });
   if (p === '/user1/likes') return timelinePage({ title: 'user1 / Likes / X', tabs: [{ label: 'Posts' }, { label: 'Replies' }, { label: 'Media' }, { label: 'Likes', feed: 'Likes' }], selected: 3 });
   if (p === '/i/bookmarks') return timelinePage({ title: 'Bookmarks / X', tabs: [{ label: 'Bookmarks', feed: 'Bookmarks' }], selected: 0 });
+  if (p === '/user1/followers') return timelinePage({ title: 'user1 / Followers / X', tabs: [{ label: 'Followers you know' }, { label: 'Followers', feed: 'Followers' }, { label: 'Verified Followers' }], selected: 1 });
+  if (p === '/user1/following') return timelinePage({ title: 'user1 / Following / X', tabs: [{ label: 'Following', feed: 'Following' }], selected: 0 });
+  if (p === '/i/lists/123/members') return timelinePage({ title: 'List members / X', tabs: [{ label: 'Members', feed: 'ListMembers' }], selected: 0 });
   if (p === '/search') return timelinePage({ title: 'Search / X', tabs: [{ label: 'Top' }, { label: 'Latest', feed: 'SearchTimeline' }], selected: 1 });
   if (p === '/explore') return timelinePage({ title: 'Explore / X', tabs: [{ label: 'For you', feed: 'ExplorePage' }, { label: 'Trending', feed: 'ExplorePage' }], selected: 0 });
   if (p === '/threads') return timelinePage({ title: 'threads / X', tabs: [{ label: 'Posts', feed: 'ThreadsTimeline' }], selected: 0 });

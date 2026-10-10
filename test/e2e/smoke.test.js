@@ -5553,3 +5553,78 @@ browserTest('the ring is let go when it is scrolled mostly out of view, and the 
     assert.notEqual(await ringId(page), target.id, 'and moves on from there');
   });
 }, 90000);
+
+// ---- lists of people (0.47.0): Followers, Following, a List's members as cards ----
+browserTest('Followers: the people are cards in columns (name, handle, what the page says about the follow, the bio), there is no Show menu, a search narrows by name and bio, "You don’t follow back" keeps those you do not follow, a press opens the profile, and the post keys leave a person alone', async (e) => {
+  const h = await e.open('/user1/followers/', { width: 2000, height: 1000, settings: { v: 10, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page, 16);
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-person').length >= 20 && !document.querySelector('.xmc-bar3').hidden, null, { timeout: 8000 });
+    assert.ok((await page.locator('.xmc-col').count()) >= 4, 'a person is a small card: more columns across');
+    assert.equal(await page.locator('.xmc-showbtn:not([hidden])').count(), 0, 'no kinds of post to show');
+    const first = await page.locator('.xmc-person').first().innerText();
+    assert.match(first, /Person 1\b/); assert.match(first, /@person1/); assert.match(first, /Bio of person 1/);
+    assert.doesNotMatch(await page.locator('.xmc-col').first().innerText(), /Follows you/, 'on Followers they all do: it is not said');
+    assert.match(await page.locator('.xmc-person', { hasText: /@person3(?!\d)/ }).innerText(), /Following/, 'a follow back is marked');
+    assert.deepEqual(await page.locator('.xmc-bar3 .xmc-fkind:not([hidden])').allInnerTexts(), ['You don’t follow back'], 'the one choice');
+    assert.equal(await page.locator('.xmc-fchips > *').count(), 0, 'no chip for each person');
+    // search: the bio and the name
+    await page.fill('.xmc-find', 'person7');
+    await page.waitForFunction(() => window.__xmc.view.cards.length === 1, null, { timeout: 5000 });
+    assert.match(await page.locator('.xmc-person').first().innerText(), /Person 7\n/);
+    assert.match(await page.locator('.xmc-fstatus').innerText(), /^1 of \d+ people match/);
+    assert.equal(await page.locator('.xmc-fbtn', { hasText: 'Read more people' }).count(), 1);
+    await page.fill('.xmc-find', 'herons');
+    await page.waitForFunction(() => window.__xmc.view.cards.length >= 2 && window.__xmc.view.cards.every((t) => /herons/.test(t.bio)), null, { timeout: 5000 });
+    await page.fill('.xmc-find', '');
+    await page.waitForFunction(() => window.__xmc.view.cards.length >= 40, null, { timeout: 5000 });
+    // the ones you do not follow back
+    await page.locator('.xmc-fkind', { hasText: 'You don’t follow back' }).click();
+    await page.waitForFunction(() => window.__xmc.view.cards.length > 0 && window.__xmc.view.cards.every((t) => t.author.following === false), null, { timeout: 5000 });
+    assert.equal(await page.locator('.xmc-person', { hasText: /@person3(?!\d)/ }).count(), 0);
+    await page.waitForTimeout(300);
+    await page.locator('.xmc-fkind', { hasText: 'You don’t follow back' }).click();
+    await page.waitForFunction(() => window.__xmc.view.cards.some((t) => t.author.following === true), null, { timeout: 5000 });
+    // a press opens the profile (a new tab, as a profile link in a card does)
+    const opened = h.page.context().waitForEvent('page', { timeout: 6000 });
+    await page.locator('.xmc-person', { hasText: /@person2(?!\d)/ }).locator('.xmc-pbio').click();
+    const tab = await opened;
+    assert.match(tab.url(), /\/person2$/);
+    await tab.close();
+  });
+}, 90000);
+
+browserTest('Following and a List’s members: "Doesn’t follow you back" on Following, the search only on a List; and with the Vim keys the ring moves over people and a post key does nothing to one', async (e) => {
+  const f = await e.open('/user1/following/', { width: 2000, height: 1000, settings: vimSettings({ cols: 0 }) });
+  await checked(f, async () => {
+    const { page } = f;
+    await e.ready(page, 16);
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-person').length >= 20 && !document.querySelector('.xmc-bar3').hidden, null, { timeout: 8000 });
+    assert.deepEqual(await page.locator('.xmc-bar3 .xmc-fkind:not([hidden])').allInnerTexts(), ['Doesn’t follow you back']);
+    assert.doesNotMatch(await page.locator('.xmc-col').first().innerText(), /\bFollowing\b/, 'on Following you follow all of them: it is not said');
+    assert.match(await page.locator('.xmc-person', { hasText: /@person2(?!\d)/ }).innerText(), /Follows you/);
+    await page.locator('.xmc-fkind', { hasText: 'Doesn’t follow you back' }).click();
+    await page.waitForFunction(() => window.__xmc.view.cards.length > 0 && window.__xmc.view.cards.every((t) => t.followedBy === false), null, { timeout: 5000 });
+    await page.locator('.xmc-fkind', { hasText: 'Doesn’t follow you back' }).click();
+    // the ring moves over people; a post key does nothing and nothing is wrong
+    const n0 = await page.evaluate(() => Array.from(window.__actions || []).length);
+    await page.mouse.move(60, 400);
+    await page.keyboard.press('s');
+    assert.equal(await ringCount(page), 1);
+    await page.keyboard.press('s');
+    await page.keyboard.press('f'); await page.keyboard.press('b'); await page.keyboard.press('t');
+    await page.waitForTimeout(500);
+    assert.equal(await page.evaluate(() => Array.from(window.__actions || []).length), n0, 'a person is not liked, bookmarked or reposted');
+    assert.equal(await page.locator('.xmc-view').count(), 0, 'and has no panel');
+  });
+  const l = await e.open('/i/lists/123/members/', { width: 2000, height: 1000, settings: { v: 10, hintSeen: true } });
+  await checked(l, async () => {
+    const { page } = l;
+    await e.ready(page, 16);
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-person').length >= 20 && !document.querySelector('.xmc-bar3').hidden, null, { timeout: 8000 });
+    assert.equal(await page.locator('.xmc-find').isVisible(), true, 'the search is there');
+    assert.equal(await page.locator('.xmc-bar3 .xmc-fkind:not([hidden])').count(), 0, 'a List has no “back”');
+    assert.match(await page.locator('.xmc-person', { hasText: /@person3(?!\d)/ }).innerText(), /Following/);
+  });
+}, 90000);

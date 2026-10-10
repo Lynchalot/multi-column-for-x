@@ -7,6 +7,8 @@ var XMCParse = (function () {
   // X renames operations now and then, so match by family rather than an exact list
   const FEED_OPS = /Timeline|^UserTweets|^UserMedia|^UserHighlights|^Likes$|^Bookmarks|^CommunityTweets|^ExplorePage/;
   const NOT_FEEDS = /Notification|Lists?Management|Trends|ExploreSidebar|Discover|Topics?|Spaces?|AudioSpace|Jobs|Pinned|Sidebar/;
+  // People lists: Followers, Following, who a profile is followed by that you know, a List's members: the items are people, drawn as cards of their own
+  const PEOPLE_OPS = /^(Followers|Following|BlueVerifiedFollowers|FollowersYouKnow|ListMembers|ListSubscribers)$/;
 
   const opOf = (url) => { const m = /\/graphql\/[^/]+\/([A-Za-z0-9_]+)/.exec(url); return m ? m[1] : null; };
   // The request's variables: in the address (GET) or in the JSON body (POST). known=false when neither shows
@@ -168,6 +170,30 @@ var XMCParse = (function () {
     }).filter((m) => m.thumb);
   }
 
+  // The users in a timeline entry (what X calls `user_results`), found by what they hold rather than where they sit
+  function userResults(entry) {
+    const found = [];
+    (function dfs(n) {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(dfs); return; }
+      if (n.user_results && typeof n.user_results === 'object') { found.push(n.user_results); return; }
+      for (const k in n) dfs(n[k]);
+    })(entry && entry.content);
+    return found;
+  }
+  // A person as the rest of the extension sees an item: an id, a key, an author, no media; `person: true`, the bio, and what the page says about the follow.
+  // (Whether X sends the bio as `profile_bio.description` or `legacy.description`, and the follow flags in `relationship_perspectives` or `legacy`: either.)
+  function normalizePerson(ur) {
+    const user = parseUser(ur);
+    if (!user) return null;
+    const r = (ur && ur.result) || ur || {}, legacy = r.legacy || {}, rp = r.relationship_perspectives || {};
+    const bio = String((r.profile_bio && r.profile_bio.description) || legacy.description || '').trim();
+    const followedBy = [rp.followed_by, legacy.followed_by, r.followed_by].find((v) => typeof v === 'boolean');
+    const id = 'u' + String(user.id || user.handle);
+    return { id, key: id, person: true, author: user, followedBy, bio, segs: bio ? [{ t: 'text', v: bio }] : [], media: [], quoted: null, card: null, repostedBy: null, replyTo: '', replyToId: '',
+      sensitive: false, counts: { reply: 0, repost: 0, quote: 0, like: 0, bookmark: 0, views: 0 }, state: { liked: false, reposted: false, bookmarked: false }, createdAt: 0, url: '/' + user.handle, lang: '', source: '', long: false };
+  }
+
   function parseCard(r, legacy) {
     const c = r.card && r.card.legacy;
     if (!c || !Array.isArray(c.binding_values)) return null;
@@ -260,8 +286,8 @@ var XMCParse = (function () {
   // Whole response -> { op, feedKey, first, reqCursor, topCursor, bottomCursor, items }.
   // Returns null for responses that aren't timelines.
   function parseResponse(json, url, reqBody) {
-    const op = opOf(url);
-    if (!op || !FEED_OPS.test(op) || NOT_FEEDS.test(op)) {
+    const op = opOf(url), people = !!op && PEOPLE_OPS.test(op);
+    if (!op || !(FEED_OPS.test(op) || people) || NOT_FEEDS.test(op)) {
       // an operation this version does not treat as a timeline that still carries posts (X renamed one?): not read, but counted, with its name
       if (op && !NOT_FEEDS.test(op) && hasTweetItems(json)) stats.ignoredOps[op] = (stats.ignoredOps[op] || 0) + 1;
       return null;
@@ -281,6 +307,7 @@ var XMCParse = (function () {
       if (cur && cur.type === 'top') topCursor = cur.value;
       const eid = String(entry.entryId || '');
       if (/^(cursor|who-to-follow|promoted|toptabsfilter|label|messageprompt)/i.test(eid)) continue;
+      if (people) { for (const ur of userResults(entry)) { stats.tweetItems++; nItems++; const p = normalizePerson(ur); if (p) { stats.tweets++; items.push(p); } } continue; }
       const group = []; // X sends a reply together with the post it answers as one entry: keep that link
       for (const item of tweetItems(entry)) {
         stats.tweetItems++; nItems++;
@@ -367,7 +394,7 @@ var XMCParse = (function () {
     };
   }
 
-  const api = { stats, parseProfile, parseResponse, parseDetail, normalizeTweet, buildSegments, parseDate, opOf, varsOf, requestVars, feedKeyOf };
+  const api = { stats, parseProfile, parseResponse, parseDetail, normalizeTweet, buildSegments, parseDate, opOf, varsOf, requestVars, feedKeyOf, normalizePerson, PEOPLE_OPS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();
