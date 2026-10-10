@@ -6002,6 +6002,17 @@ browserTest('NSFW only with few flagged posts: it goes on loading until it finds
   } finally { await rare.teardown(); }
 }, 120000);
 
+browserTest('NSFW only with nothing marked: it says how many posts it looked at, not just that nothing is there', async () => {
+  const none = await setup({ pages: 3, sensEvery: 1000000 });
+  if (!none) return;
+  try {
+    const h = await none.open('/home/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 2, nsfwView: true, filter: 'nsfw', seen: 'off' } });
+    await checked(h, async () => {
+      await h.page.waitForFunction(() => /marked none of the \d+ posts loaded so far as sensitive\./.test((document.querySelector('.xmc-status') || {}).textContent || ''), null, { timeout: 40000 });
+    });
+  } finally { await none.teardown(); }
+}, 90000);
+
 browserTest('a timeline recorded from real X (test/fixtures/real) is drawn: posts, a quote, a video, a long note, no script errors of ours', async (e) => {
   const sample = require('../fixtures/real/multi-column-for-x-sample-2026-10-09.json');
   const h = await e.open('/home/', { width: 2000, height: 1000, routes: async (ctx) => {

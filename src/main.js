@@ -1896,7 +1896,7 @@
     const drawn = view.upto >= f.items.length;
     const found = findCtx(), held = !!found && !found.deep && !postView; // (a search is on and nothing more is being asked for: no spinner, whatever was asked before)
     setStatus(!view.cards.length && drawn && (f.exhausted || !state.waitingPage || held)
-      ? (view.hiddenSeen ? 'You\u2019re all caught up: everything here is posts you\u2019ve read.' : findCtx() ? 'None of the ' + f.items.length + ' that have loaded match.' : f.exhausted ? 'Nothing in this view.' : 'Nothing here matches this view yet...') : '');
+      ? (view.hiddenSeen ? 'You\u2019re all caught up: everything here is posts you\u2019ve read.' : findCtx() ? 'None of the ' + f.items.length + ' that have loaded match.' : settings.filter === 'nsfw' ? 'X has marked none of the ' + f.items.length + ' posts loaded so far as sensitive' + (f.exhausted ? '.' : ', and is still being asked...') : f.exhausted ? 'Nothing in this view.' : 'Nothing here matches this view yet...') : '');
     // spinner while we're fetching more; a note when X has no more to give
     const waiting = state.waitingPage && !f.exhausted && !view.caughtUp && !held;
     loaderEl.hidden = !waiting;
