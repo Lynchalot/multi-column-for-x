@@ -1053,9 +1053,29 @@
     }
     return null;
   }
+  // The video the mute key is for: the one in the browser's full screen, else the one showing in the open panel
+  function activeVideo() {
+    const fe = document.fullscreenElement;
+    if (fe) return fe.tagName === 'VIDEO' ? fe : (fe.querySelector && fe.querySelector('video')) || null;
+    if (lightbox || !postView) return null;
+    return postView.panel.querySelector('.xmc-vm:not([hidden]) video[data-video], .xmc-vm:not([hidden]) video');
+  }
+  function toggleMute(v) {
+    v.muted = !v.muted;
+    if (!v.muted && v.volume === 0) v.volume = 1;
+    settings.videoMuted = v.muted; settings.volume = v.volume; save(); // (kept for the next video, as a change on the player's own controls is)
+    toast(v.muted ? 'Muted' : 'Sound on', null, null, 900);
+  }
   function panelKey(e) {
     if (!settings.panelKeys || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.isComposing || typingIn(e.target)) return false;
     const pressed = e.key.toLowerCase(), kind = (Object.entries(keyMap()).find(([, k]) => k === pressed) || [])[0];
+    if (kind === 'mute') { // as on YouTube: the video in the panel, or in the browser's full screen, is muted or not (the key is left alone when there is none)
+      const v = activeVideo();
+      if (!v) return false;
+      e.preventDefault(); e.stopPropagation();
+      if (!e.repeat) toggleMute(v);
+      return true;
+    }
     let t = lightbox ? lightbox.t : postView ? postView.t : null;
     if (!t && kind === 'download') { // a video in the browser's own full screen shows nothing of ours, but the key can still save it
       const fe = document.fullscreenElement, card = fe && fe.tagName === 'VIDEO' && fe.closest('.xmc-card');
@@ -2915,6 +2935,7 @@
       const box = h('div', { className: 'xmc-vm' + (t.sensitive ? ' sensitive' : '') });
       if (m.type === 'photo') {
         const img = h('img', { src: photoUrl(m.thumb, 'large'), alt: m.alt || '', decoding: 'async' }); img.dataset.lb = String(photo++);
+        if (m.w && m.h && m.h > m.w * 2.4) box.classList.add('xmc-tall'); // (Reels shows a very tall picture at full width and lets it scroll; any other whole)
         img.tabIndex = 0; img.setAttribute('role', 'button'); img.setAttribute('aria-label', 'Open photo full size');
         box.style.setProperty('--xmc-vbg', 'url("' + photoUrl(m.thumb, 'large') + '")'); // (the same address as the picture: nothing more to download)
         box.classList.add('xmc-loading');
@@ -3264,7 +3285,14 @@
     if (reels) {
       prevBtn.title = 'Previous post (\u2191)'; prevBtn.setAttribute('aria-label', 'Previous post'); nextBtn.title = 'Next post (\u2193)'; nextBtn.setAttribute('aria-label', 'Next post');
       if (media) { // the wheel over the post goes to the next or previous post
-        media.addEventListener('wheel', (e) => { e.preventDefault(); e.stopImmediatePropagation(); wheelStep(e, wheelPx(e, e.deltaY), true); }, { passive: false, capture: true });
+        media.addEventListener('wheel', (e) => {
+          const tall = e.target.closest && e.target.closest('.xmc-vm.xmc-tall');
+          if (tall && tall.scrollHeight > tall.clientHeight + 2) { // a very tall picture: the wheel scrolls it, and goes on to the next post only from a fresh flick at its end
+            const edge = e.deltaY > 0 ? tall.scrollTop + tall.clientHeight >= tall.scrollHeight - 2 : tall.scrollTop <= 2;
+            if (!edge || e.timeStamp - tallWheelAt < 260) { tallWheelAt = e.timeStamp; e.stopPropagation(); return; } // (not on to the carousel's own wheel: the picture scrolls, which is the default)
+          }
+          e.preventDefault(); e.stopImmediatePropagation(); wheelStep(e, wheelPx(e, e.deltaY), true);
+        }, { passive: false, capture: true });
       }
       if (!postView.rail) placeNav();
     }
@@ -3299,6 +3327,7 @@
   // if every one ahead was read it is the next one anyway, and the way back is always the one before.
   // One step for each flick of a wheel or trackpad (a trackpad goes on sending events for a second or more after the finger has left; a step is not taken
   // from the tail of the one before, and the panel that comes up after a step has no memory of it, so the gate is here)
+  let tallWheelAt = -1e9; // Reels: the last wheel event that scrolled a very tall picture (the wheel steps to the next post only after a pause at its end)
   let lbWait = 0; // Reels: a press on a picture waits a moment to see whether it is the first of two
   let wheelStepAt = -1e9, wheelSeenAt = -1e9;
   function wheelStep(e, d, pictures) { // pictures: through the post's own pictures first, as the arrow keys do (the wheel over a post in Reels); not: straight to the next post (Shift and the wheel)

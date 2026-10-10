@@ -272,8 +272,8 @@ var XMCSettings = (function () {
   const handles = (s) => words(s).map((w) => w.replace(/^@/, ''));
 
   // The panel's keys: what each does and its key out of the box (letters Vimium leaves alone), and the map a person's own choices make of them.
-  const PANEL_KEY_ACTIONS = [['open', 'Open the first post in view'], ['like', 'Like'], ['bookmark', 'Bookmark'], ['repost', 'Repost'], ['download', 'Download'], ['share', 'Copy link'], ['reply', 'Comment']];
-  const PANEL_KEY_DEFAULTS = { open: 'enter', like: 'a', bookmark: 's', repost: 'w', download: 'e', share: 'q', reply: 'c' };
+  const PANEL_KEY_ACTIONS = [['open', 'Open the first post in view'], ['like', 'Like'], ['bookmark', 'Bookmark'], ['repost', 'Repost'], ['download', 'Download'], ['share', 'Copy link'], ['reply', 'Comment'], ['mute', 'Mute or unmute the video']];
+  const PANEL_KEY_DEFAULTS = { open: 'enter', like: 'a', bookmark: 's', repost: 'w', download: 'e', share: 'q', reply: 'c', mute: 'm' };
   const okKey = (k) => k === 'enter' || (typeof k === 'string' && k.length === 1 && k.trim() === k && /[\p{L}\p{N}.,;'\[\]\-=\/\\`]/u.test(k));
   const keyLabel = (k) => (k === 'enter' ? 'Enter' : String(k || '').toUpperCase());
   // text (the JSON in `keyMap`) -> { like: 'a', ... } for every action: an unknown action, a key that is not one printable character, or a key already

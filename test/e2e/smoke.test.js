@@ -4669,3 +4669,81 @@ browserTest('motion: pictures of one post slide in from the side the arrow point
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-car > .xmc-vm:not([hidden])')).animationName), 'xmc-slide-p');
   });
 });
+
+// ---- Reels: the whole picture fits the room; a very tall one scrolls (0.41.1) ----
+browserTest('Reels: a picture is shown whole in a wide window, and a very tall one at full width, scrolling with the wheel before it goes on to the next post', async (e) => {
+  const h = await e.open('/home/', { settings: { reels: true, filter: 'media' }, width: 2800, height: 1000 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view .xmc-vmediapane', { timeout: 20000 });
+    for (let k = 0; k < 14 && !(await page.locator('.xmc-vmwrap .xmc-vm:not(.sensitive) img[data-lb]').count()); k++) { await page.keyboard.press('ArrowDown'); await page.waitForTimeout(700); }
+    await page.waitForFunction(() => { const i = document.querySelector('.xmc-vmwrap .xmc-vm img[data-lb]'); return i && i.complete && i.naturalWidth > 0; }, null, { timeout: 8000 });
+    // a normal picture: all of it, in the room there is
+    const fit = await page.evaluate(() => { const i = document.querySelector('.xmc-vmwrap .xmc-vm img[data-lb]'), vm = i.closest('.xmc-vm').getBoundingClientRect(), r = i.getBoundingClientRect(); return { inside: r.left >= vm.left - 1 && r.right <= vm.right + 1 && r.top >= vm.top - 1 && r.bottom <= vm.bottom + 1, ratio: Math.abs(r.width / r.height - i.naturalWidth / i.naturalHeight) }; });
+    assert.equal(fit.inside, true, 'the whole picture is inside its pane'); assert.ok(fit.ratio < 0.03, 'and not stretched or cut: ' + fit.ratio);
+    // a very tall one (made so for the test): at the pane's width, taller than the pane, and the wheel scrolls it first
+    const id = await openPostId(page);
+    await page.evaluate(() => { const t = window.__xmc.postView.t; t.media[0].w = 1000; t.media[0].h = 5000; });
+    await page.keyboard.press('ArrowDown'); await page.waitForTimeout(900);
+    await page.keyboard.press('ArrowUp');
+    await page.waitForFunction((n) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] === n && document.querySelector('.xmc-vmwrap .xmc-vm.xmc-tall'); }, id, { timeout: 6000 });
+    await page.waitForTimeout(500);
+    await page.evaluate(() => { const i = document.querySelector('.xmc-vm.xmc-tall img'); i.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="2000"><rect width="400" height="2000" fill="#335"/></svg>'); });
+    await page.waitForFunction(() => { const vm = document.querySelector('.xmc-vm.xmc-tall'); return vm.scrollHeight > vm.clientHeight + 100; }, null, { timeout: 5000 });
+    const g = await page.evaluate(() => { const vm = document.querySelector('.xmc-vm.xmc-tall'), i = vm.querySelector('img'); return { w: Math.abs(i.getBoundingClientRect().width - vm.clientWidth), more: vm.scrollHeight - vm.clientHeight }; });
+    assert.ok(g.w < 3, 'full width of the pane'); assert.ok(g.more > 200, 'and more of it below');
+    const box = await page.locator('.xmc-vmwrap').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 300);
+    await page.waitForFunction(() => document.querySelector('.xmc-vm.xmc-tall').scrollTop > 100, null, { timeout: 3000 });
+    assert.equal(await openPostId(page), id, 'the wheel scrolled the picture, not on to the next post');
+    await page.evaluate(() => { const vm = document.querySelector('.xmc-vm.xmc-tall'); vm.scrollTop = vm.scrollHeight; });
+    await page.waitForTimeout(600); // a pause at the end, then a fresh flick goes on
+    await page.mouse.wheel(0, 300); // (this post has several pictures: the next one comes, then the next post)
+    await page.waitForFunction((n) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return (m && m[1] !== n) || !document.querySelector('.xmc-vm.xmc-tall:not([hidden])'); }, id, { timeout: 4000 });
+  });
+});
+
+// ---- the M key mutes and unmutes the video in the panel or the browser's full screen (0.41.1) ----
+browserTest('M mutes and unmutes the video in the panel (and keeps it for the next), in full screen too, is left alone when there is no video or a box has the focus, and is in the keys card', async (e) => {
+  const h = await e.open('/home/', { settings: { cols: 3 }, width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await standInPlay(page);
+    await e.ready(page);
+    await openCard(page, 89997); // (a video)
+    await page.waitForSelector('.xmc-vm video[data-video]', { timeout: 15000 });
+    await page.waitForTimeout(500);
+    const muted = () => page.evaluate(() => ({ v: document.querySelector('.xmc-vm video[data-video]').muted, kept: window.__xmc.settings.videoMuted, toast: document.getElementById('xmc-toast').hidden ? '' : document.getElementById('xmc-toast').textContent }));
+    await page.evaluate(() => { document.querySelector('.xmc-vm video[data-video]').muted = false; });
+    await page.keyboard.press('m');
+    let x = await muted();
+    assert.deepEqual([x.v, x.kept, x.toast], [true, true, 'Muted']);
+    await page.keyboard.press('m');
+    x = await muted();
+    assert.deepEqual([x.v, x.kept, x.toast], [false, false, 'Sound on']);
+    // a box with the focus: the letter is typed
+    await page.locator('.xmc-vside textarea.xmc-cbox').click();
+    await page.keyboard.press('m');
+    assert.equal(await page.locator('.xmc-vside textarea.xmc-cbox').inputValue(), 'm');
+    assert.equal((await muted()).v, false, 'the video is as it was');
+    await page.evaluate(() => document.activeElement.blur());
+    // the card of keys lists it
+    await page.locator('.xmc-vkeys').click();
+    assert.match(await page.locator('.xmc-keylegend').innerText(), /M\s+Mute or unmute/);
+    await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'), null, { timeout: 4000 });
+    // full screen on a video in the columns (the browser's own: simulated here), with no panel
+    await page.evaluate(() => { const v = document.querySelector('.xmc-card video[data-video]'); window.__fsv = v; v.muted = false; Object.defineProperty(document, 'fullscreenElement', { get: () => v, configurable: true }); });
+    await page.keyboard.press('m');
+    assert.equal(await page.evaluate(() => window.__fsv.muted), true, 'the video in full screen');
+    await page.evaluate(() => { delete document.fullscreenElement; });
+    // no video: nothing happens (the toast was not asked for)
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => { document.getElementById('xmc-toast').hidden = true; });
+    await openCard(page, 90000); // (words only)
+    await page.waitForSelector('.xmc-view', { timeout: 8000 });
+    await page.keyboard.press('m');
+    assert.equal(await page.evaluate(() => document.getElementById('xmc-toast').hidden), true, 'no video, no toast');
+  });
+});
