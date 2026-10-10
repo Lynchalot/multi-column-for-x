@@ -36,3 +36,13 @@ test('motion is short: no animation or transition over 0.2s', () => {
   for (const m of js.matchAll(/transition = '([^']*)'/g)) for (const d of m[1].matchAll(/(\d*\.?\d+)s\b/g)) if (Number(d[1]) > 0.2) long.push(m[1]);
   assert.deepEqual(long, []);
 });
+
+// A plain-text font (DejaVu Sans on most Linux) has black-and-white glyphs for the first block of faces and gets there first unless a
+// colour emoji font is named: the picker came out as dark outlines.
+test('the emoji picker names a colour emoji font', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const body = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, sel]) => /\.xmc-emo\b/.test(sel)).map((m) => m[2]).join(';');
+  assert.match(body, /font-family:[^;]*Noto Color Emoji/);
+  assert.match(body, /font-family:[^;]*Segoe UI Emoji/);
+  assert.match(body, /font-family:[^;]*Apple Color Emoji/);
+});

@@ -9,6 +9,8 @@ TweetDeck-style columns for X (Twitter): read your feed across the whole screen,
 **Description:** (the first 250 characters matter most; Markdown: bold, lists and links work)
 Multi-Column for X has three aims: let you see far more of X at once, let you open a post without losing your place, and keep the algorithm out of the way.
 
+The first time you open the settings page it asks how you want to start: Just columns, Calm (no algorithmic content), Media wall or Reels. Each is only a set of ordinary settings, and every one can be changed afterwards.
+
 By default your feed shows in columns that fit your window (up to eight), on the "Following" timeline, with "For you" hidden. Most settings apply the moment you change them, so open the settings page (the gear in the top bar) and make it yours.
 
 **Columns and layout**
@@ -24,6 +26,9 @@ By default your feed shows in columns that fit your window (up to eight), on the
 - A panel opens over the columns with the picture large on one side and the words, actions and comments on the other. Esc closes it and you are exactly where you were.
 - Several pictures show one at a time with arrows and dots (the wheel and the sides of a picture flick between them). A quoted post opens in the panel too.
 - Comments load as you scroll and can be sorted by relevance, newest or most liked. Like, bookmark and reply to posts and to comments, and translate them with X's own translation.
+- **Reply with pictures, a GIF or emoji** from the comment box, to the post or to any comment, without leaving the panel.
+- **Keys:** ← → go through a post's pictures and then the posts, Shift and the wheel step through the posts from anywhere on the panel, A S W E Q C like, bookmark, repost, download, copy the link and comment. The keyboard button on the panel lists them all, and you can change any key.
+- **Reels view (optional):** like TikTok. One post at a time fills the page, scrolled up and down; videos play with sound and loop; posts you have already seen are skipped. It is one of the starting points below.
 
 **Video and media**
 - Video and GIFs play in the post. Pointing at a video plays it muted; pressing it turns the sound on and carries on; a speaker button turns sound on or off.
@@ -50,16 +55,20 @@ It works with what X's own page already loads, so if X redesigns something a sma
 X and Twitter are trademarks of X Corp. This add-on is not affiliated with, endorsed by, or sponsored by X Corp.
 
 **Release notes (current version):**
-Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its picture, comments (loading as you scroll), like, bookmark, reply and translate; video in the post; one-click media downloads; filters; sensitive-media handling; Bookmarks, Likes and Lists in the left menu; a menu for narrow windows; a settings page.
+Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its picture, comments (loading as you scroll), like, bookmark, reply (with pictures, a GIF or emoji) and translate; video in the post; a Reels view; keys for everything; one-click media downloads; filters; sensitive-media handling; four starting points on first run; Bookmarks, Likes and Lists in the left menu; a menu for narrow windows; a settings page.
 
-**Screenshots** (upload the headline slides in `store/screenshots/slides/`, in this order; `node store/make-screenshots.js` then `node store/make-slides.js` makes them: 1280x800, invented accounts and posts, nothing from X; the plain shots are in `store/screenshots/` if you want any without a headline):
-1. `01-columns.png` Your feed in columns, using the whole screen.
-2. `02-post-panel.png` A post open in the panel: its picture large, comments beside it, reply and like right there.
-3. `03-photo-viewer.png` Photos open in a viewer with one-click Download and Copy link.
-4. `04-filters.png` Filter by posts, reposts, quotes or media.
-5. `05-more-room.png` Fold the menu to icons and slide the side panel away: five columns.
-6. `06-settings-panel.png` The settings in a panel over the page, from the gear or the toolbar button: presets, and every section folded below.
-7. `07-settings.png` Every setting on one page: filters, sidebar, downloads and more.
+**Screenshots** (upload the headline slides in `store/screenshots/slides/`, in this order; `node store/make-screenshots.js` then `node store/make-slides.js` makes them: 1280x800, invented accounts and posts, nothing from X; the plain shots are in `store/screenshots/` if you want any without a headline. A shot of your own saved as `store/screenshots/own/<name>.png` replaces the generated one of that name; the feed shots (1, 7, 8, 9) are the ones worth replacing with real X):
+1. `01-columns.png` Your feed, in columns.
+2. `02-reels.png` Scroll like TikTok: one post at a time, with the rail of buttons on the picture.
+3. `03-post-panel.png` Open a post without losing your place: its picture large, comments beside it.
+4. `04-reply-tools.png` Reply with pictures and emoji, from the comment box in the panel.
+5. `05-keys.png` Browse with your keyboard: the card of keys.
+6. `06-photo-viewer.png` Photos and video done properly: the viewer with Download and Copy link.
+7. `07-media-wall.png` A wall of pictures and video: Media only, menu folded, side panel away.
+8. `08-filters.png` Show only what you came for: posts, reposts, quotes or media.
+9. `09-more-room.png` More room when you want it: five columns with the menu folded.
+10. `10-start.png` Start the way you like: the four starting points.
+(Not in the slides, still in `store/screenshots/`: `06-settings.png`, the settings page, and `07-settings-panel.png`, the settings in a panel over the columns.)
 
 **Support link ("Support" / contributions field):** https://ko-fi.com/falsehamartia
 **Homepage:** https://github.com/Lynchalot/multi-column-for-x

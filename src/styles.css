@@ -295,7 +295,7 @@ html.xmc-nsfw-show .xmc-qmedia.sens { filter: none; }
 .xmc-emoji { position: absolute; left: 0; top: calc(100% + 4px); z-index: 3; width: min(100%, 340px); box-sizing: border-box; padding: 8px; border-radius: 14px; background: #16181c; color: #e7e9ea; border: 1px solid #2f3336; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); }
 .xmc-emoji.up { top: auto; bottom: calc(100% + 4px); }
 .xmc-etabs { display: flex; gap: 2px; padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid #2f3336; }
-.xmc-etab, .xmc-emo { appearance: none; border: 0; background: none; cursor: pointer; font: inherit; font-size: 18px; line-height: 1; width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+.xmc-etab, .xmc-emo { appearance: none; border: 0; background: none; cursor: pointer; font: inherit; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif; font-size: 18px; line-height: 1; width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
 .xmc-etab:hover, .xmc-emo:hover { background: rgba(255, 255, 255, .1); }
 .xmc-etab.on { background: rgba(29, 155, 240, .25); }
 .xmc-etab:focus-visible, .xmc-emo:focus-visible { outline: 2px solid #1d9bf0; outline-offset: -2px; }

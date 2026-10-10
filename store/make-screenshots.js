@@ -174,8 +174,9 @@ function dressTheMock() {
   const avatarUrl = (hdl) => '/art/avatar/' + hdl + '.svg';
   const css = document.createElement('style');
   css.textContent = `body{font-family:'Liberation Sans',Arial,sans-serif !important}
-    header[role=banner] nav a:not([data-testid=SideNav_NewTweet_Button]), #xmc-navfreeze nav a:not([data-testid=SideNav_NewTweet_Button]){color:#e7e9ea !important;text-decoration:none !important;font-size:20px;line-height:24px}
+    header[role=banner] nav a:not([data-testid=SideNav_NewTweet_Button]), #xmc-navfreeze nav a:not([data-xmc-tid=SideNav_NewTweet_Button]){color:#e7e9ea !important;text-decoration:none !important;font-size:20px;line-height:24px}
     header[role=banner] nav a[href="/home"] span, #xmc-navfreeze nav a[href="/home"] span{font-weight:700}
+    #xmc-navfreeze nav a[data-xmc-tid=SideNav_NewTweet_Button]{text-decoration:none}
     header[role=banner] nav br, #xmc-navfreeze nav br{display:none}
     [data-testid=sidebarColumn] a{color:inherit;text-decoration:none}
     [data-testid=SideNav_AccountSwitcher_Button]{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:9999px;color:#e7e9ea;font-size:15px;line-height:20px}`;
@@ -211,10 +212,10 @@ async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch({ executablePath: process.env.XMC_BROWSER, headless: true });
   const server = await start({ pages: 12 });
-  const SETTINGS = { v: 10, hintSeen: true, branding: 'x', cardStyle: 'raised' };
+  const SETTINGS = { v: 10, hintSeen: true, keysHintSeen: true, branding: 'x', cardStyle: 'raised' };
 
-  async function context(width, height, settings) {
-    const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
+  async function context(width, height, settings, scheme) {
+    const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, colorScheme: scheme || 'light' });
     await ctx.addInitScript((s) => { try { localStorage.setItem('xmc.settings', JSON.stringify(s)); } catch { /* ignore */ } }, settings === null ? {} : Object.assign({}, SETTINGS, settings));
     await ctx.addInitScript(`document.addEventListener('DOMContentLoaded', ${dressTheMock.toString().replace(/^function dressTheMock/, 'function')}.bind(null))`);
     await ctx.route(/\/i\/api\/graphql\//, async (route) => { const res = await route.fetch(); route.fulfill({ response: res, json: remix(server.origin, await res.json()) }); });
@@ -276,7 +277,7 @@ async function main() {
   await ctx.close();
 
   // 6. the settings page
-  ctx = await context(1280, 800, null);
+  ctx = await context(1280, 800, null, 'dark');
   page = await ctx.newPage();
   await page.goto(server.origin + '/ext/options.html');
   await page.waitForSelector('#opt-cols', { timeout: 8000 }).catch(() => {});
@@ -298,6 +299,77 @@ async function main() {
   await frame.locator('#sections h2 button.fold', { hasText: 'Presets' }).click();
   await page.waitForTimeout(900);
   await save(page, '07-settings-panel');
+  await ctx.close();
+
+  // ---- the features added since: Reels, replying with pictures and emoji, the keyboard, a wall of pictures, the starting points ----
+  const png = async (seed, w, h) => { const p = await browser.newPage({ viewport: { width: w, height: h } }); await p.setContent('<body style="margin:0">' + scene(seed, w, h) + '</body>'); const buf = await p.screenshot(); await p.close(); return buf; };
+  const openPhotoPost = async (pg) => {
+    await pg.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector('[data-lb]') && /^(1|2)$/.test(String(Number((x.dataset.id || '0')) % 8))) || document.querySelector('.xmc-card:has([data-lb])'); c.querySelector('.xmc-text, .xmc-head').click(); });
+    await pg.waitForSelector('.xmc-view', { timeout: 8000 });
+    await pg.waitForFunction(() => /The thermos|nearly slept|ten minute/.test(document.querySelector('.xmc-view').innerText), null, { timeout: 15000 }).catch(() => {});
+    await pg.waitForTimeout(1500);
+  };
+
+  // 8. Reels: one post at a time over the whole page, one rail on the post
+  ctx = await context(1920, 1200, { cols: 4, reels: true, filter: 'media', panelVideo: 'sound', videoEnd: 'loop', skipSeen: true, keysAdvance: true });
+  page = await ctx.newPage();
+  await page.goto(server.origin + '/home/');
+  await ready(page);
+  await page.waitForSelector('#xmc-root.xmc-reels .xmc-vmediapane', { timeout: 20000 });
+  for (let k = 0; k < 12; k++) { // on to a picture with a few comments
+    const ok = await page.evaluate(() => { const t = window.__xmc.postView && window.__xmc.postView.t; return !!t && t.media.length === 1 && t.media[0].type === 'photo' && t.counts.reply > 5 && t.media[0].h <= t.media[0].w * 1.1; });
+    if (ok) break;
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(900);
+  }
+  await page.waitForFunction(() => /The thermos|nearly slept|ten minute|best thing|Saved|caption/.test(document.querySelector('.xmc-view').innerText), null, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  await save(page, '08-reels');
+  await ctx.close();
+
+  // 9. replying with pictures and emoji
+  ctx = await context(1920, 1200, { cols: 4 });
+  page = await ctx.newPage();
+  await page.goto(server.origin + '/home/');
+  await ready(page);
+  await openPhotoPost(page);
+  await page.locator('.xmc-view textarea.xmc-cbox').fill('That light is unreal. Where was this taken?');
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('.xmc-view .xmc-cimg').click();
+  await (await chooser).setFiles([{ name: 'harbour.png', mimeType: 'image/png', buffer: await png(21, 600, 420) }, { name: 'ridge.png', mimeType: 'image/png', buffer: await png(34, 600, 420) }]);
+  await page.waitForSelector('.xmc-view .xmc-cthumb', { timeout: 5000 });
+  await page.locator('.xmc-view .xmc-cemo').click();
+  await page.waitForSelector('.xmc-view .xmc-emoji .xmc-emo', { timeout: 3000 });
+  await page.waitForTimeout(700);
+  await save(page, '09-reply-tools');
+
+  // 10. the keys, on the card behind the keyboard button
+  await page.keyboard.press('Escape'); // (closes the emoji picker; a second would close the post)
+  await page.evaluate(() => { const b = document.querySelector('.xmc-view .xmc-cbox'); if (b) b.blur(); });
+  await page.waitForTimeout(300);
+  await page.locator('.xmc-vkeys').click();
+  await page.waitForSelector('.xmc-keylegend', { timeout: 3000 });
+  await page.waitForTimeout(500);
+  await save(page, '10-keys');
+  await ctx.close();
+
+  // 11. a wall of pictures: Media only, six columns, the menu as icons and the side panel away
+  ctx = await context(1920, 1200, { cols: 6, filter: 'media', leftPanel: 'rail', rightPanel: 'hidden', tallPhotos: 'cap', hideViews: true });
+  page = await ctx.newPage();
+  await page.goto(server.origin + '/home/');
+  await ready(page, 14);
+  await page.evaluate(() => { window.scrollTo(0, 0); const c = document.querySelector('.xmc-cols'); if (c) c.scrollTop = 0; });
+  await page.waitForTimeout(900);
+  await save(page, '11-media-wall');
+  await ctx.close();
+
+  // 12. the starting points, on the page the install opens
+  ctx = await context(1280, 800, Object.assign({}, S.PRESETS.find((p) => p.id === 'calm').set), 'dark');
+  page = await ctx.newPage();
+  await page.goto(server.origin + '/ext/options.html?welcome=1');
+  await page.waitForSelector('#welcome .wchoice', { timeout: 8000 });
+  await page.waitForTimeout(800);
+  await save(page, '12-start', { scale: false });
   await ctx.close();
 
   await browser.close(); await server.close();
