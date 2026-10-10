@@ -569,6 +569,36 @@ html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive v
 .xmc-vnav svg { stroke-width: 2.6; }
 .xmc-vnav.prev { left: 16px; } .xmc-vnav.next { right: 16px; }
 .xmc-vnav[hidden] { display: none; }
+/* Reels: the post fills the page (the columns are behind it, unseen), one at a time, and the next comes up from below */
+#xmc-root.xmc-reels > .xmc-view { position: absolute; padding: 0; background: var(--xmc-bg, #000); cursor: default; }
+#xmc-root.xmc-reels:has(> .xmc-view) > .xmc-bar, #xmc-root.xmc-reels:has(> .xmc-view) > .xmc-scroller, #xmc-root.xmc-reels:has(> .xmc-view) > .xmc-hint { visibility: hidden; }
+#xmc-root.xmc-reels .xmc-vpanel { width: min(1700px, 100%); height: 100%; border: 0; border-radius: 0; box-shadow: none; } /* (the post is as big as the page lets it be) */
+#xmc-root.xmc-reels .xmc-vside { flex: 0 0 min(380px, 100%); }
+#xmc-root.xmc-reels .xmc-vmwrap { position: relative; flex: 1 1 62%; min-width: 0; display: flex; }
+#xmc-root.xmc-reels .xmc-vmwrap > .xmc-vmediapane { flex: 1 1 auto; }
+/* the rail on the post: up, its buttons, down */
+.xmc-vrail { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); z-index: 3; width: 52px; max-height: calc(100% - 24px); display: flex; flex-direction: column; align-items: center; padding: 4px 0; border-radius: 26px; background: rgba(0, 0, 0, .52); color: #fff; overflow: hidden; }
+.xmc-vrail .xmc-vnav { position: static; margin: 0; width: 44px; height: 38px; flex: none; border-radius: 12px; background: none; box-shadow: none; color: #fff; }
+.xmc-vrail .xmc-vnav:hover { background: rgba(255, 255, 255, .16); }
+.xmc-vrail .xmc-actions { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: center; justify-content: flex-start; margin: 0; padding: 2px 0; gap: 0; }
+.xmc-vrail .xmc-vnav:not([hidden]) + .xmc-actions { border-top: 1px solid rgba(255, 255, 255, .25); }
+.xmc-vrail .xmc-actions + .xmc-vnav:not([hidden]) { border-top: 1px solid rgba(255, 255, 255, .25); border-radius: 0 0 12px 12px; }
+.xmc-vrail .xmc-act { color: #fff; flex-direction: column; justify-content: center; gap: 2px; width: 52px; min-height: 52px; padding: 4px 0; border-radius: 0; font-size: 12px; font-weight: 600; }
+.xmc-vrail .xmc-act svg { width: 25px; height: 25px; }
+.xmc-vrail .xmc-act:hover { background: rgba(255, 255, 255, .14); }
+.xmc-vrail .xmc-act .xmc-n { min-height: 14px; line-height: 14px; }
+.xmc-vrail .xmc-gap, .xmc-vrail .xmc-views, .xmc-vrail .xmc-qlink { display: none; }
+.xmc-reels .xmc-cnav.next { right: 80px; }
+@media (max-height: 720px) { .xmc-vrail .xmc-act { min-height: 44px; } .xmc-vrail .xmc-act svg { width: 22px; height: 22px; } }
+#xmc-root.xmc-reels .xmc-vpanel.single { width: min(680px, 100%); height: 100%; max-height: none; margin-top: 0; align-self: stretch; }
+#xmc-root.xmc-reels .xmc-vmediapane > .xmc-vm:only-child img, #xmc-root.xmc-reels .xmc-vm .xmc-video, #xmc-root.xmc-reels .xmc-vm video, #xmc-root.xmc-reels .xmc-car > .xmc-vm img { max-height: 100vh; max-height: 100%; }
+#xmc-root.xmc-reels .xmc-vnav svg { transform: rotate(90deg); }
+#xmc-root.xmc-reels .xmc-view.xmc-still.xmc-sd .xmc-vpanel { animation: xmc-reel-up .18s cubic-bezier(.2, .8, .2, 1); }
+#xmc-root.xmc-reels .xmc-view.xmc-still.xmc-su .xmc-vpanel { animation: xmc-reel-down .18s cubic-bezier(.2, .8, .2, 1); }
+@keyframes xmc-reel-up { from { transform: translateY(56px); opacity: .15; } to { transform: none; opacity: 1; } }
+@keyframes xmc-reel-down { from { transform: translateY(-56px); opacity: .15; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #xmc-root.xmc-reels .xmc-view .xmc-vpanel { animation: none !important; } }
+.xmc-reelsbtn { font-weight: 700 !important; }
 /* several pictures: one at a time, an arrow each side and a dot for each */
 .xmc-vm[hidden] { display: none; }
 .xmc-vmediapane.xmc-car { position: relative; overflow: hidden; }

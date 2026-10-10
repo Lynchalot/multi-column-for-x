@@ -515,7 +515,7 @@ test('the keys of a post\'s panel: the defaults, and a person\'s own choices wit
 
 test('settings: Reels sets the panel to play with sound and go on, and the Show list it also sets is not what makes it the one ticked', () => {
   const reels = S.PRESETS.find((p) => p.id === 'reels');
-  assert.deepEqual([reels.set.panelVideo, reels.set.videoEnd, reels.set.skipSeen, reels.set.keysAdvance, reels.set.autoplayVideo], ['sound', 'next', true, true, S.DEFAULTS.autoplayVideo]);
+  assert.deepEqual([reels.set.panelVideo, reels.set.videoEnd, reels.set.skipSeen, reels.set.keysAdvance, reels.set.autoplayVideo], ['sound', 'loop', true, true, S.DEFAULTS.autoplayVideo]);
   assert.equal(reels.once.filter, 'media');
   assert.ok(!('filter' in reels.set), 'changing the Show list afterwards does not untick it');
   for (const p of S.PRESETS.filter((q) => q.id !== 'reels')) assert.equal(p.set.panelVideo, S.DEFAULTS.panelVideo, p.id + ' puts the panel back');

@@ -717,7 +717,7 @@
     return card;
   }
   function updateActions(t, card) {
-    const places = card ? [card] : [t.el, postView && postView.t === t ? postView.side : null];
+    const places = card ? [card] : [t.el, postView && postView.t === t ? postView.side : null, postView && postView.t === t ? postView.rail || null : null];
     for (const where_ of places) {
       if (!where_) continue;
       const set = (act, on, n) => {
@@ -767,6 +767,8 @@
   const mediaSplit = () => { const tb = realTabs()[state.sel]; return !!tb && /^(videos|photos)$/i.test(tb.textContent.trim()); };
   const gearBtn = h('button', { className: 'xmc-gear', title: 'Settings', type: 'button', onclick: () => openOptions() }, icon('gear'));
   const healthBtn = h('button', { className: 'xmc-health', type: 'button', hidden: true, textContent: '\u26a0', onclick: () => reportProblem() });
+  const reelsBtn = btn('Reels', 'One post at a time, scrolled up and down', () => enterReels(), 'xmc-reelsbtn');
+  reelsBtn.hidden = true;
   const refreshBtn = h('button', { className: 'xmc-refresh', title: 'Refresh', type: 'button', onclick: () => refresh() }, icon('refresh'), h('span', { className: 'xmc-newn' }));
   const nsfwBtn = h('button', { className: 'xmc-nsfw', type: 'button', onclick: () => cycleNsfw() }, h('span', { className: 'xmc-nsfwi' }), h('span', { className: 'xmc-nsfwl', textContent: 'NSFW' }));
 
@@ -809,7 +811,7 @@
     openMenu(menuBtn, items);
   }
   const pageTitleEl = h('span', { className: 'xmc-pagetitle', hidden: true });
-  const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, seenBtn, refreshBtn, showBtn, colBtn, densityBtn, nsfwBtn, gearBtn, menuBtn);
+  const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, reelsBtn, seenBtn, refreshBtn, showBtn, colBtn, densityBtn, nsfwBtn, gearBtn, menuBtn);
   const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
   const bar = h('div', { className: 'xmc-bar' }, row1); // (row2, the chips, is no longer shown: its choices are in the Show menu)
   const statusEl = h('div', { className: 'xmc-status' });
@@ -1043,7 +1045,7 @@
   const keyHint = (act, bare) => { const k = settings.panelKeys && keyMap()[act]; return k ? (bare ? k.toUpperCase() : ' (' + k.toUpperCase() + ')') : ''; };
   const typingIn = (el) => !!el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName || '') || !!(el.closest && el.closest('.xmc-emoji'))); // (the emoji picker's keys are its own)
   function keyedButton(t, kind) { // the real button for this post, in the panel if it is open for it, else on its card
-    for (const scope of [postView && postView.t === t ? postView.side.querySelector(':scope > .xmc-actions') : null, t.el]) {
+    for (const scope of [postView && postView.t === t ? (postView.rail || postView.side.querySelector(':scope > .xmc-actions')) : null, t.el]) {
       const b = scope && scope.querySelector('[data-act="' + kind + '"]');
       if (b) return b;
     }
@@ -1088,7 +1090,7 @@
     if (old) { old.remove(); return; }
     const km = keyMap(), row = (k, what) => h('div', { className: 'kl-row' }, h('kbd', { textContent: k }), h('span', { textContent: what }));
     const card = h('div', { className: 'xmc-keylegend', role: 'dialog', 'aria-label': 'Keyboard shortcuts' },
-      row('\u2190 \u2192', 'Pictures, then posts'), row('Shift \u2190 \u2192', 'Posts only'), row('Esc', 'Close'),
+      ...(postView && postView.reels ? [row('\u2191 \u2193', 'Previous, next post')] : []), row('\u2190 \u2192', 'Pictures, then posts'), row('Shift \u2190 \u2192', 'Posts only'), row('Shift + wheel', 'Previous, next post'), row('Esc', 'Close'),
       ...(settings.panelKeys ? [row('Enter', 'Picture full size')].concat(XMCSettings.PANEL_KEY_ACTIONS.filter(([a]) => km[a] && a !== 'open').map(([a, label]) => row(XMCSettings.keyLabel(km[a]), label))).concat(km.open ? [row(XMCSettings.keyLabel(km.open), 'From the feed: open the first post')] : []) : [h('div', { className: 'kl-off', textContent: 'The letter keys are off.' })]),
       h('div', { className: 'kl-foot' }, h('button', { type: 'button', textContent: 'Change keys', onclick: (e) => { e.stopPropagation(); card.remove(); openOptions('keys'); } })));
     card.addEventListener('click', (e) => e.stopPropagation());
@@ -1109,14 +1111,32 @@
     if (e.key.toLowerCase() !== keyMap().open || typingIn(e.target)) return false;
     const t = e.target;
     if (t && t.closest && t.closest('a, button, input, textarea, select, video, [role="button"]')) return false;
-    const box = scroller.getBoundingClientRect();
-    const seen = view.cards.find((c) => { const el = c.el; if (!el || !el.isConnected || el.hidden) return false; const r = el.getBoundingClientRect(); return r.height > 0 && r.bottom > box.top + 40 && r.top < box.bottom - 40; });
-    const first = seen || view.cards.find((c) => c.el && c.el.isConnected);
+    const first = firstCardInView();
     if (!first) return false;
     e.preventDefault(); e.stopPropagation();
     if (!e.repeat) openPostView(first, false);
     return true;
   }
+  function firstCardInView() {
+    const box = scroller.getBoundingClientRect();
+    const seen = view.cards.find((c) => { const el = c.el; if (!el || !el.isConnected || el.hidden) return false; const r = el.getBoundingClientRect(); return r.height > 0 && r.bottom > box.top + 40 && r.top < box.bottom - 40; });
+    return seen || view.cards.find((c) => c.el && c.el.isConnected) || null;
+  }
+  // ---- Reels: one post at a time over the whole page, scrolled up and down ----
+  // On Home and Lists, with the setting on, the first post opens in the panel at once and the panel fills the page (the columns are behind it, unseen);
+  // Esc, the cross or Back leaves it (until the page is left, or the Reels button in the top bar is pressed).
+  const feedRoute = () => (state.cur && state.cur.route) || routeKey(); // (by where the feed is, not by the address: that is a post's while X's page is away on a visit)
+  const feedKind = () => XMCLogic.routeKind(feedRoute().split('?')[0]);
+  const reelsWanted = () => !!settings.reels && settings.openIn === 'view' && state.reelsOff !== feedRoute() && ['home', 'list'].includes(feedKind());
+  function reelsTick() {
+    if (state.reelsOff && state.reelsOff !== feedRoute()) state.reelsOff = ''; // (another page since: it starts afresh when you come back)
+    if (!settings.reels && root.classList.contains('xmc-reels') && !postView) root.classList.remove('xmc-reels');
+    reelsBtn.hidden = !(settings.reels && settings.openIn === 'view' && state.reelsOff && ['home', 'list'].includes(feedKind()));
+    if (!reelsWanted() || postView || lightbox || menuEl || !state.shown || root.hidden || document.hidden || state.peek || state.posting || isModalRoute() || !view.cards.length) return;
+    const first = firstCardInView();
+    if (first) openPostView(first, true);
+  }
+  function enterReels() { state.reelsOff = ''; reelsTick(); }
   // left and right: through the post's pictures, and past the last (or before the first) to the next (or previous) post; Shift skips the pictures
   function walkPanel(dir, skipPictures) {
     const car = !skipPictures && postView && postView.panel.querySelector('.xmc-car');
@@ -1135,6 +1155,9 @@
     if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else closePostView(); } }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
     if (lightbox && e.key === 'ArrowLeft') stepLightbox(-1);
+    if (postView && postView.reels && !lightbox && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && !/^(input|textarea|select)$/i.test((e.target || {}).tagName || '')) { // Reels: down for the next post, up for the one before
+      e.preventDefault(); stepPostView(e.key === 'ArrowDown' ? 1 : -1); return;
+    }
     if (postView && !lightbox && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.ctrlKey && !e.altKey && !e.metaKey && !/^(input|textarea|select)$/i.test((e.target || {}).tagName || '')) { // through the pictures, then the posts; Shift: the posts (also with a video focused: pressing on it to play leaves the focus there, and the arrows would only have skipped through the video) only
       e.preventDefault(); walkPanel(e.key === 'ArrowRight' ? 1 : -1, e.shiftKey && settings.panelKeys);
     }
@@ -3040,6 +3063,7 @@
     const parent = opts && opts.parent;
     trace('panel-open', t.id + (parent ? ' (comment)' : '') + (postView ? ' (switch)' : ''));
     const reopen = !!postView;
+    const reels = reopen ? !!postView.reels : reelsWanted(); // (stepping keeps what it was; a first open is in Reels when it is wanted)
     if (!parent && reopen) wantMoreIfNear(t); // (stepping, not a first click: that one is never held back)
     // a video of this post that is playing (or previewing) behind the panel hands over to the panel's own: the one behind stops, the
     // panel's starts where it was; any other video that is playing stops too, so two never play at once
@@ -3055,14 +3079,16 @@
     if (media && shown !== t) media.dataset.owner = 'parent';
     if (media) carousel(media);
     const side = viewSide(t, focusBox, parent);
-    const panel = h('div', { className: 'xmc-vpanel' + (media ? '' : ' single') }, media, side);
+    const mediaHost = reels && !parent && media ? h('div', { className: 'xmc-vmwrap' }, media) : media; // (in Reels the rail sits on the post, not scrolling with it)
+    const panel = h('div', { className: 'xmc-vpanel' + (media ? '' : ' single') }, mediaHost, side);
     const idx = view.cards.indexOf(t);
     const nav = (d, ic, label) => h('button', { className: 'xmc-vnav ' + (d < 0 ? 'prev' : 'next'), type: 'button', title: label, hidden: idx < 0 || !view.cards[idx + d], onclick: (e) => { e.stopPropagation(); stepPostView(d); } }, icon(ic));
     const el = h('div', { className: 'xmc-view' + (still ? ' xmc-still' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Post by ' + t.author.name }, panel, nav(-1, 'prev', 'Previous post (\u2190)'), nav(1, 'next', 'Next post (\u2192)'),
       h('button', { className: 'xmc-vclose', type: 'button', title: 'Close (Esc)' }, icon('close')),
       h('button', { className: 'xmc-vkeys', type: 'button', title: 'Keyboard shortcuts', 'aria-label': 'Keyboard shortcuts', onclick: (e) => { e.stopPropagation(); keyLegend(el); } }, icon('keyboard')));
+    if (reels && opts && opts.dir) el.classList.add(opts.dir > 0 ? 'xmc-sd' : 'xmc-su'); // (slides in from below going forward, from above going back)
     el.addEventListener('click', (e) => {
-      if (e.target === el || e.target.closest('.xmc-vclose')) { closePostView(); return; }
+      if (e.target.closest('.xmc-vclose') || (e.target === el && !reels)) { closePostView(); return; } // (in Reels the empty page round the post is not a way out: Esc and the cross are)
       const btn = e.target.closest('[data-act]');
       if (btn) {
         e.preventDefault(); e.stopPropagation();
@@ -3087,6 +3113,12 @@
       if (nl) { e.preventDefault(); navigate(nl.getAttribute('href'), t); }
     });
     el.addEventListener('wheel', (e) => { if (e.target === el) e.preventDefault(); }, { passive: false }); // not onto the columns or X's page behind
+    // Shift and the wheel, anywhere on the panel (over the comments too), go through the posts: no reaching over to the arrow keys
+    el.addEventListener('wheel', (e) => {
+      if (!e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      wheelStep(e, wheelPx(e, Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX)); // (a Mac sends Shift and the wheel as a sideways scroll)
+    }, { passive: false, capture: true });
     root.append(el);
     // The arrows to the next and previous post sit just outside the panel, level with its middle (on a wide screen they were at the edges of the
     // screen, a thousand pixels from it); with no room outside, over its edges. They follow the panel as it grows with the comments and with the window.
@@ -3095,6 +3127,13 @@
       if (!el.isConnected) return;
       const L = panel.offsetLeft, W = panel.offsetWidth, mid = Math.round(panel.offsetTop + panel.offsetHeight / 2 - 20), roomy = L >= 64;
       for (const b of [prevBtn, nextBtn]) { b.style.top = mid + 'px'; b.style.marginTop = '0'; b.style.right = 'auto'; }
+      if (reels && postView && postView.rail) return; // (they are in the rail)
+      if (reels) { // up and down, one above the other, at the right of the post
+        const left = el.clientWidth - (L + W) >= 64 ? L + W + 16 : el.clientWidth - 56;
+        prevBtn.style.left = nextBtn.style.left = left + 'px';
+        prevBtn.style.top = (mid - 28) + 'px'; nextBtn.style.top = (mid + 28) + 'px';
+        return;
+      }
       prevBtn.style.left = (roomy ? L - 56 : 12) + 'px';
       nextBtn.style.left = (roomy ? L + W + 16 : el.clientWidth - 52) + 'px';
     };
@@ -3107,7 +3146,22 @@
       prevBtn.hidden = !walkTarget(-1);
       nextBtn.hidden = !(walkTarget(1) || more);
     };
-    postView = { t, el, panel, side, parent, syncNav };
+    postView = { t, el, panel, side, parent, syncNav, reels };
+    root.classList.toggle('xmc-reels', reels);
+    if (reels && !parent) { // one rail on the post: up, the post's own buttons (the row that is under its words in the ordinary panel), down
+      const actions = side.querySelector(':scope > .xmc-actions');
+      const rail = h('div', { className: 'xmc-vrail' }, prevBtn, ...(actions ? [actions] : []), nextBtn);
+      for (const b of [prevBtn, nextBtn]) for (const k of ['top', 'left', 'right', 'marginTop']) b.style[k] = '';
+      (mediaHost || panel).append(rail);
+      postView.rail = rail;
+    }
+    if (reels) {
+      prevBtn.title = 'Previous post (\u2191)'; prevBtn.setAttribute('aria-label', 'Previous post'); nextBtn.title = 'Next post (\u2193)'; nextBtn.setAttribute('aria-label', 'Next post');
+      if (media) { // the wheel over the post goes to the next or previous post
+        media.addEventListener('wheel', (e) => { e.preventDefault(); e.stopImmediatePropagation(); wheelStep(e, wheelPx(e, e.deltaY)); }, { passive: false, capture: true });
+      }
+      if (!postView.rail) placeNav();
+    }
     syncNav();
     if (!parent) {
       setTimeout(pointOutKeys, 900); // (once: what the keys are, and where to change them)
@@ -3119,8 +3173,7 @@
       // so the Back button closes the panel; never while X's hidden side is on, or on its way to, a post's page (the entry would be that page)
       if (!state.peek && !state.posting && !onPostPage() && !isModalRoute()) { try { window.history.pushState({ xmcView: true }, '', location.href); } catch { /* ignore */ } }
       else needEntry = true; // a visit is running: the entry is added the moment it has ended, so Back still closes the panel
-      growFrom(t, panel);
-      watchBlur();
+      if (!reels) { growFrom(t, panel); watchBlur(); } // (in Reels there is no card to grow out of, and no columns to blur)
     }
     updateActions(t);
     if (carry) {
@@ -3138,6 +3191,16 @@
   }
   // Where the walk goes from the open post: forward past posts already read (when asked), so a refresh does not make you go through the same forty again;
   // if every one ahead was read it is the next one anyway, and the way back is always the one before.
+  // One step for each flick of a wheel or trackpad (a trackpad goes on sending events for a second or more after the finger has left; a step is not taken
+  // from the tail of the one before, and the panel that comes up after a step has no memory of it, so the gate is here)
+  let wheelStepAt = -1e9, wheelSeenAt = -1e9;
+  function wheelStep(e, d) {
+    const quiet = e.timeStamp - wheelSeenAt > 160;
+    wheelSeenAt = e.timeStamp;
+    if (Math.abs(d) < 4 || e.timeStamp - wheelStepAt < 450 || (!quiet && e.timeStamp - wheelStepAt < 1500)) return;
+    wheelStepAt = e.timeStamp;
+    stepPostView(d > 0 ? 1 : -1);
+  }
   const readCard = (t) => seenBefore.has(t.id) || seenNow.has(t.id);
   const openIndex = () => { if (!postView) return -1; const i = view.cards.indexOf(postView.t); return i >= 0 ? i : view.cards.findIndex((c) => c.id === postView.t.id); }; // (the card list is made again when the feed changes: the post is then found by its number)
   function walkAhead(n) {
@@ -3150,7 +3213,7 @@
   const walkTarget = (d) => (!postView ? null : d > 0 ? walkAhead(1)[0] || null : (openIndex() > 0 ? view.cards[openIndex() - 1] : null));
   function stepPostView(d) {
     const next = walkTarget(d);
-    if (next) { openPostView(next, true); return; }
+    if (next) { openPostView(next, true, false, { dir: d }); return; }
     trace('panel-step', 'nowhere to go ' + d + ' from ' + (postView ? postView.t.id : '-') + ' (card ' + openIndex() + ' of ' + view.cards.length + ')');
     const f = viewFeed();
     if (d > 0 && postView && f && !f.exhausted && !view.caughtUp) waitStep(postView.t, Date.now() + 8000); // (the end of what is loaded: the step is made when more arrives)
@@ -3163,7 +3226,7 @@
     pendingStep = setTimeout(() => {
       if (!postView || postView.t !== from) return;
       const next = walkTarget(1);
-      if (next) openPostView(next, true); else if (Date.now() < until) waitStep(from, until);
+      if (next) openPostView(next, true, false, { dir: 1 }); else if (Date.now() < until) waitStep(from, until);
     }, 350);
   }
   // The columns behind a panel follow it (only as far as keeps the post in view), so closing it leaves you where you got to, and the feed goes on
@@ -3242,6 +3305,7 @@
     pagers.clear(); // no panel, no more comments to fetch for it (a visit under way for them stops at its next step)
     const el = postView.el;
     if (el._ro) el._ro.disconnect();
+    if (!instant) { if (postView.reels) state.reelsOff = feedRoute(); root.classList.remove('xmc-reels'); } // (left Reels: the columns, until the page is left or the Reels button is pressed)
     postView = null;
     if (!instant && panelOpener && panelOpener.isConnected && el.contains(document.activeElement)) panelOpener.focus({ preventScroll: true }); // keyboard user: back to the button they pressed
     if (!instant) panelOpener = null;
@@ -4610,6 +4674,7 @@
     if (tickN % 15 === 7) guard('translations', harvestTranslations);
     guard('side panels', applyPanels);
     if (postView && postView.syncNav) guard('panel arrows', postView.syncNav);
+    if (tickN % 5 === 2) guard('reels', reelsTick);
     if (tickN % 5 === 4) guard('menu watch', menuWatch);
     if (tickN % 50 === 25) guard('probe', probeX);
     if (tickN % 20 === 10) guard('publish', publishFeatures);

@@ -87,6 +87,7 @@ var XMCSettings = (function () {
         { key: 'autoplayVideo', type: 'select', def: 'off', label: 'Videos', options: [['off', 'Play when I click'], ['muted', 'Autoplay muted while on screen']] },
         { key: 'panelVideo', type: 'select', def: 'off', label: 'Videos in a post\u2019s panel', options: [['off', 'Play when I click'], ['muted', 'Play at once, muted'], ['sound', 'Play at once, with the sound as I left it']] },
         { key: 'videoEnd', type: 'select', def: 'stop', label: 'When a video in the panel ends', options: [['stop', 'Stop'], ['loop', 'Play it again'], ['next', 'Go to the next post']] },
+        { key: 'reels', type: 'bool', def: false, label: 'Reels view: one post at a time, up and down', help: 'On Home and Lists the post fills the page, with no columns behind it. \u2191 \u2193 or the wheel go to the next post. Esc leaves it; the Reels button in the top bar brings it back.' },
         { key: 'prefetchNext', type: 'bool', def: true, label: 'Get the next post ready while a post is open', help: 'Its pictures, and its comments when the rate of lookups allows.' },
         { key: 'openIn', type: 'select', def: 'view', label: 'Open posts and profiles', options: [['view', 'Posts in a panel over the columns, profiles in a new tab'], ['newtab', 'In a new tab (you keep your place here)'], ['sametab', 'In this tab']] },
         { key: 'blurBehind', type: 'bool', def: true, label: 'Blur the columns behind an open post', help: 'Turns itself off if your computer struggles with it.' },
@@ -230,14 +231,14 @@ var XMCSettings = (function () {
     hideDiscoverMore: true, hidePremiumPromo: true, seen: 'dim', collapseReposts: true, foldThreads: true };
   const MEDIA_WALL = { autoplayVideo: 'muted', minColWidth: 380, maxAutoCols: 8, tallPhotos: 'cap', hideViews: true };
   const MEDIA_OFF = Object.fromEntries(Object.keys(MEDIA_WALL).map((k) => [k, DEFAULTS[k]]));
-  const REELS = { panelVideo: 'sound', videoEnd: 'next', skipSeen: true, keysAdvance: true, prefetchNext: true };
+  const REELS = { reels: true, panelVideo: 'sound', videoEnd: 'loop', skipSeen: true, keysAdvance: true, prefetchNext: true };
   const REELS_OFF = Object.fromEntries(Object.keys(REELS).map((k) => [k, DEFAULTS[k]]));
   // `once` is what picking a preset also does, that is not part of what makes it the one ticked (the Show list is the person's to change afterwards)
   const PRESETS = [
     { id: 'plain', label: 'Just columns', blurb: 'Default X but laid out in columns.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF, REELS_OFF) },
     { id: 'calm', label: 'Calm', blurb: 'All algorithmic content disabled (only people you follow, no trends or suggestions).', set: Object.assign({}, CONTENT_CALM, MEDIA_OFF, REELS_OFF) },
     { id: 'media', label: 'Media wall', blurb: 'Narrower layout with more columns. Videos play muted as you scroll.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_WALL, REELS_OFF) },
-    { id: 'reels', label: 'Reels', blurb: 'Pictures and video only. Enter opens the first post; videos play with sound and the next post follows.',
+    { id: 'reels', label: 'Reels', blurb: 'Like TikTok: one post at a time, full page, scrolled up and down. Videos play with sound and loop.',
       set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF, REELS), once: { filter: 'media' } },
   ];
   // What a fresh install starts with: the Calm preset, stored as a person's own choices (so what is ticked on the settings page is Calm,

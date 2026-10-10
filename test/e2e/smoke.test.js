@@ -720,6 +720,114 @@ browserTest('the page the install opens starts with the starting points as large
   });
 });
 
+// ---- Reels (0.39.0): one post at a time over the whole page, scrolled up and down ----
+browserTest('Reels: the first post opens at once and fills the page with no columns showing; up and down (keys, the arrows, the wheel) go through the posts', async (e) => {
+  const h = await e.open('/home/', { settings: { reels: true, filter: 'media' }, width: 1900, height: 1000 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view .xmc-vmediapane', { timeout: 20000 });
+    await page.waitForTimeout(500);
+    const g = () => page.evaluate(() => {
+      const r = (q) => { const b = document.querySelector(q); if (!b) return null; const x = b.getBoundingClientRect(); return { l: x.left, r: x.right, t: x.top, b: x.bottom, w: x.width, h: x.height }; };
+      return { root: r('#xmc-root'), panel: r('.xmc-vpanel'), prev: r('.xmc-vnav.prev'), next: r('.xmc-vnav.next'), cols: getComputedStyle(document.querySelector('.xmc-scroller')).visibility, bar: getComputedStyle(document.querySelector('.xmc-bar')).visibility,
+        turn: getComputedStyle(document.querySelector('.xmc-vnav svg')).transform };
+    });
+    let x = await g();
+    assert.ok(x.panel.h >= x.root.h - 2, 'the post is as tall as the page: ' + JSON.stringify([x.panel.h, x.root.h]));
+    assert.equal(x.cols, 'hidden', 'no feed behind it'); assert.equal(x.bar, 'hidden');
+    assert.equal(x.prev.w, 0, 'nothing before the first post');
+    const first = await openPostId(page);
+    await page.keyboard.press('ArrowDown');
+    await page.waitForFunction((id) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] !== id; }, first, { timeout: 4000 });
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-view').className.includes('xmc-sd')), true, 'it comes up from below');
+    await page.waitForFunction(() => !document.querySelector('.xmc-vnav.prev').hidden, null, { timeout: 3000 });
+    x = await g();
+    assert.ok(x.prev.b <= x.next.t + 1 && Math.abs(x.prev.l - x.next.l) < 2, 'the arrows are one above the other: ' + JSON.stringify([x.prev, x.next]));
+    assert.notEqual(x.turn, 'none', 'and point up and down');
+    // one rail on the post: up, its buttons, down; and the words' side has no row of buttons of its own
+    const rail = await page.evaluate(() => { const r = document.querySelector('.xmc-vrail'); const post = document.querySelector('.xmc-vmwrap').getBoundingClientRect(), rr = r.getBoundingClientRect(); return { acts: [...r.querySelectorAll('[data-act]')].map((b) => b.dataset.act), navs: r.querySelectorAll('.xmc-vnav').length, inside: rr.right <= post.right && rr.left >= post.left, sideRow: document.querySelectorAll('.xmc-vside > .xmc-actions').length }; });
+    assert.deepEqual(rail, { acts: ['reply', 'repost', 'like', 'bookmark', 'download', 'share'], navs: 2, inside: true, sideRow: 0 }, JSON.stringify(rail));
+    const likeId = await openPostId(page);
+    await page.locator('.xmc-vrail [data-act="like"]').click(); // its buttons work from the rail
+    await page.waitForFunction((id) => (window.__actions || []).includes('liked:' + id), likeId, { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelector('.xmc-vrail [data-act="like"]').classList.contains('on'), null, { timeout: 5000 });
+    await page.keyboard.press('s'); // and the keys find them there
+    await page.waitForFunction(() => document.querySelector('.xmc-vrail [data-act="bookmark"]').classList.contains('on'), null, { timeout: 15000 });
+    await page.keyboard.press('ArrowUp');
+    await page.waitForFunction((id) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] === id; }, first, { timeout: 4000 });
+    await page.locator('.xmc-vnav.next').click();
+    await page.waitForFunction((id) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] !== id; }, first, { timeout: 4000 });
+    const second = await openPostId(page);
+    await page.mouse.move(x.panel.l + 200, x.panel.t + 300);
+    await page.mouse.wheel(0, 240); // the wheel over the post
+    await page.waitForFunction((id) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] !== id; }, second, { timeout: 4000 });
+    await page.waitForTimeout(800);
+    const third = await openPostId(page);
+    await page.mouse.wheel(0, -240);
+    await page.waitForFunction((id) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] === id; }, second, { timeout: 4000 });
+    assert.notEqual(third, second);
+    // the empty page round the post is not a way out
+    await page.mouse.click(x.root.l + 20, x.root.t + 400);
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator('.xmc-view:not(.xmc-out)').count(), 1, 'still there');
+  });
+}, 90000);
+
+browserTest('Reels: Esc leaves it for the columns, which stay as they are until the Reels button brings it back; the setting off does nothing', async (e) => {
+  const h = await e.open('/home/', { settings: { reels: true, filter: 'media' }, width: 1900, height: 1000 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 20000 });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)') && !document.getElementById('xmc-root').classList.contains('xmc-reels'), null, { timeout: 4000 });
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-scroller')).visibility), 'visible', 'the columns');
+    await page.waitForTimeout(2500);
+    assert.equal(await page.locator('.xmc-view').count(), 0, 'it does not come back by itself');
+    assert.equal(await page.locator('.xmc-reelsbtn').isVisible(), true);
+    await page.locator('.xmc-card').first().locator('.xmc-text').click(); // a click on a post now is the ordinary panel over the columns
+    await page.waitForSelector('.xmc-view');
+    assert.equal(await page.evaluate(() => document.getElementById('xmc-root').classList.contains('xmc-reels')), false);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
+    await page.locator('.xmc-reelsbtn').click();
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 6000 });
+    assert.equal(await page.locator('.xmc-reelsbtn').isHidden(), true);
+  });
+  const off = await e.open('/home/', { settings: { reels: false }, width: 1900, height: 1000 });
+  await checked(off, async () => {
+    await e.ready(off.page);
+    await off.page.waitForTimeout(2500);
+    assert.equal(await off.page.locator('.xmc-view').count(), 0);
+    assert.equal(await off.page.locator('.xmc-reelsbtn').isHidden(), true);
+  });
+}, 90000);
+
+browserTest('Shift and the wheel, anywhere on the panel, go through the posts (one step for a flick); the wheel alone still scrolls the comments', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await openCard(page, '90000');
+    await page.waitForSelector('.xmc-vside .xmc-ritem', { timeout: 20000 }); // comments to scroll over
+    const at = () => page.evaluate(() => (/(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText) || [])[1]);
+    const box = await page.locator('.xmc-vside').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 200); // no Shift: the comments
+    await page.waitForTimeout(500);
+    assert.equal(await at(), '90000', 'the wheel alone does not change post');
+    await page.keyboard.down('Shift');
+    await page.evaluate(() => { const side = document.querySelector('.xmc-vside'); for (const dy of [200, 120, 120, 120, 60]) side.dispatchEvent(new WheelEvent('wheel', { deltaY: dy, shiftKey: true, bubbles: true, cancelable: true })); }); // one flick: a burst of events a few milliseconds apart
+    await page.waitForFunction(() => !/(?:tweet|number) 90000\b/.test(document.querySelector('.xmc-view').innerText), null, { timeout: 4000 });
+    await page.waitForTimeout(900);
+    const second = await at();
+    assert.equal(second, '89999', 'one step for a flick, not one for each event');
+    await page.waitForTimeout(800);
+    await page.mouse.wheel(0, -200); // and back
+    await page.waitForFunction(() => /(?:tweet|number) 90000\b/.test(document.querySelector('.xmc-view').innerText), null, { timeout: 4000 });
+    await page.keyboard.up('Shift');
+  });
+}, 60000);
+
 browserTest('a post\'s own page: Download and Copy link buttons, and fewer buttons under replies', async (e) => {
   const h = await e.open('/user/status/90001/');
   await checked(h, async () => {
@@ -1383,7 +1491,8 @@ browserTest('the settings page offers starting points as radio buttons (one pick
     await page.locator('#preset-reels').check(); // Reels: the panel plays videos with sound and goes on by itself; and the Show list is set to Media, which is not part of what ticks it
     await page.waitForFunction(() => document.getElementById('preset-reels').checked && !document.getElementById('preset-media').checked);
     assert.equal(await page.locator('#opt-panelVideo').inputValue(), 'sound');
-    assert.equal(await page.locator('#opt-videoEnd').inputValue(), 'next');
+    assert.equal(await page.locator('#opt-reels').isChecked(), true);
+    assert.equal(await page.locator('#opt-videoEnd').inputValue(), 'loop', 'videos repeat (many on X are made to loop)');
     assert.equal(await page.locator('#opt-skipSeen').isChecked(), true);
     assert.equal(await page.locator('#opt-keysAdvance').isChecked(), true);
     assert.equal(await page.locator('#opt-autoplayVideo').inputValue(), 'off', 'nothing plays behind the panel');
