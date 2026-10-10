@@ -638,6 +638,88 @@ browserTest('the download key works on a video in the browser\'s own full screen
   });
 });
 
+// ---- the permission for x.com (0.38.0): a banner while it is missing, and the button that asks for it ----
+// (a stand-in for the extension API the settings page uses, in memory: `granted` and `answer` say what the browser has and what it will say to a request)
+const fakeExt = (granted, answer, openTabs) => ({ granted, answer, openTabs });
+const installFakeExt = (c) => {
+  const mem = {}; const w = window; w.__perm = { granted: c.granted, requested: 0, reloaded: [], created: [] };
+  w.browser = { runtime: { id: 'test', getManifest: () => ({ version: '9.9.9' }), openOptionsPage: async () => {} },
+    storage: { local: { get: async (k) => (typeof k === 'string' ? { [k]: mem[k] } : { ...mem }), set: async (o) => { Object.assign(mem, o); }, remove: async () => {} }, onChanged: { addListener() {} } },
+    permissions: { contains: async () => w.__perm.granted, request: async () => { w.__perm.requested++; if (c.answer) w.__perm.granted = true; return c.answer; }, onAdded: { addListener() {} }, onRemoved: { addListener() {} } },
+    tabs: { query: async (q) => (q && q.url ? c.openTabs.map((id) => ({ id, url: 'https://x.com/home' })) : []), get: async () => ({ id: 1, url: 'about:blank' }), reload: async (id) => { w.__perm.reloaded.push(id); }, create: async (o) => { w.__perm.created.push(o.url); }, sendMessage: async () => null } };
+};
+const openWithFake = (e, cfg, path = '/ext/options.html?welcome=1') => e.open(path, { init: `(${installFakeExt.toString()})(${JSON.stringify(cfg)})` });
+
+browserTest('without access to x.com a banner says so at the top of the settings page and its button asks; allowed, it reloads the x.com tabs and says what is next', async (e) => {
+  const t = await openWithFake(e, fakeExt(false, true, [11, 12]));
+  await checked(t, async () => {
+    const { page } = t;
+    await page.waitForSelector('#access:not([hidden])', { timeout: 8000 });
+    assert.match(await page.locator('#access').innerText(), /One more step/);
+    assert.match(await page.locator('#access').innerText(), /permission to run on x\.com\.$/m);
+    assert.doesNotMatch(await page.locator('#access').innerText(), /separately|Until you allow/, 'one plain sentence');
+    assert.equal(await page.locator('#here').isHidden(), true, 'the same words are not said twice');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('access')).position), 'sticky', 'it stays at the top');
+    await page.locator('#access button').click();
+    await page.waitForFunction(() => /Allowed/.test(document.getElementById('access').innerText), null, { timeout: 5000 });
+    assert.deepEqual(await page.evaluate(() => ({ asked: window.__perm.requested, reloaded: window.__perm.reloaded })), { asked: 1, reloaded: [11, 12] });
+    assert.match(await page.locator('#access').innerText(), /tabs were reloaded/);
+    assert.equal(await page.locator('#access').evaluate((el) => el.classList.contains('ok')), true);
+  });
+  const none = await openWithFake(e, fakeExt(false, true, []));
+  await checked(none, async () => {
+    const { page } = none;
+    await page.waitForSelector('#access button');
+    await page.locator('#access button').click();
+    await page.waitForFunction(() => /Allowed/.test(document.getElementById('access').innerText), null, { timeout: 5000 });
+    await page.locator('#access button', { hasText: 'Open x.com' }).click();
+    assert.deepEqual(await page.evaluate(() => window.__perm.created), ['https://x.com/home'], 'with no tab open it offers to open one');
+  });
+  const no = await openWithFake(e, fakeExt(false, false, [11]));
+  await checked(no, async () => {
+    const { page } = no;
+    await page.waitForSelector('#access button');
+    await page.locator('#access button').click();
+    await page.waitForFunction(() => /Not allowed yet/.test(document.getElementById('access').innerText), null, { timeout: 5000 });
+    assert.equal(await page.locator('#access button').count(), 1, 'it can be asked again');
+    assert.deepEqual(await page.evaluate(() => window.__perm.reloaded), [], 'nothing reloaded');
+  });
+  const yes = await openWithFake(e, fakeExt(true, true, []));
+  await checked(yes, async () => {
+    const { page } = yes;
+    await page.waitForSelector('#opt-enabled');
+    await page.waitForTimeout(800);
+    assert.equal(await page.locator('#access').isHidden(), true, 'nothing to say when it is allowed');
+  });
+});
+
+browserTest('the page the install opens starts with the starting points as large choices: picking one applies it, in step with Settings below, and it can be put away', async (e) => {
+  const h = await e.open('/ext/options.html?welcome=1');
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#welcome:not([hidden]) .wchoice');
+    assert.deepEqual(await page.locator('#welcome .wname').allInnerTexts(), ['Just columns', 'Calm', 'Media wall', 'Reels']);
+    assert.equal(await page.evaluate(() => document.getElementById('welcome').getBoundingClientRect().top < 400), true, 'at the top, not down with the settings');
+    await page.locator('#welcome-reels').check();
+    await page.waitForFunction(() => document.getElementById('preset-reels').checked && document.getElementById('welcome-reels').checked, null, { timeout: 5000 });
+    assert.equal(await page.locator('#opt-panelVideo').inputValue(), 'sound', 'applied at once');
+    assert.equal(await page.locator('#welcome .wchoice.on .wname').innerText(), 'Reels');
+    await page.locator('#welcome-calm').check();
+    await page.waitForFunction(() => document.getElementById('preset-calm').checked && !document.getElementById('welcome-reels').checked, null, { timeout: 5000 });
+    assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), true);
+    await page.locator('#welcome button', { hasText: 'Done' }).click();
+    assert.equal(await page.locator('#welcome').isHidden(), true);
+    await page.locator('#preset-media').check(); // and the choices in Settings do not bring it back
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator('#welcome').isHidden(), true);
+  });
+  const plain = await e.open('/ext/options.html'); // opened by hand: no banner
+  await checked(plain, async () => {
+    await plain.page.waitForSelector('#opt-enabled');
+    assert.equal(await plain.page.locator('#welcome').isHidden(), true);
+  });
+});
+
 browserTest('a post\'s own page: Download and Copy link buttons, and fewer buttons under replies', async (e) => {
   const h = await e.open('/user/status/90001/');
   await checked(h, async () => {

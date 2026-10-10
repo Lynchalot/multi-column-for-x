@@ -48,5 +48,5 @@ api.runtime.onInstalled.addListener(async (info) => {
     const have = await api.storage.local.get('v');
     if (have.v === undefined && typeof XMCSettings !== 'undefined') await api.storage.local.set(XMCSettings.freshInstall());
   } catch { /* the defaults are fine */ }
-  api.tabs.create({ url: api.runtime.getURL('options.html#sec-presets') });
+  api.tabs.create({ url: api.runtime.getURL('options.html?welcome=1') }); // (welcome: the starting points as large choices at the top, and the banner for the permission, if it is missing, says it is one more step)
 });

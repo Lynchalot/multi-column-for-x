@@ -33,6 +33,33 @@
   }
 
 
+  // Firefox keeps a website's access for an extension as a permission the person can refuse (a temporary load, an install with the box unticked, or
+  // later in about:addons). Without it the extension never runs on x.com and nothing says why, so while it is missing a banner stays at the top of
+  // the settings page and the toolbar panel with the one button that fixes it. (It is asked for from a press: Firefox allows no other way.)
+  const X_ORIGINS = ['https://x.com/*', 'https://twitter.com/*'];
+  async function accessBanner() {
+    const box = $('#access');
+    if (!box || FRAMED || !ext || !ext.permissions || !ext.tabs) return;
+    const welcome = new URLSearchParams(location.search).has('welcome');
+    const show = (cls, ...kids) => { box.className = 'access ' + cls; box.replaceChildren(...kids); box.hidden = false; };
+    let granted = true;
+    try { granted = await ext.permissions.contains({ origins: X_ORIGINS }); } catch { /* the check itself failed: not a reason to nag */ }
+    if (granted) { if (box.dataset.thanks) return; box.hidden = true; return; } // (the "Allowed" line stays until the page is closed)
+    delete box.dataset.thanks;
+    const allow = h('button', { type: 'button', className: 'primary', textContent: 'Allow access to x.com', onclick: async () => {
+      let ok = false; try { ok = await ext.permissions.request({ origins: X_ORIGINS }); } catch { /* refused, or not from a press */ }
+      if (!ok) { show('warn', h('strong', { textContent: 'Not allowed yet. ' }), h('span', { textContent: 'Press the button again and choose Allow.' }), allow); return; }
+      let n = 0;
+      try { const tabs = await ext.tabs.query({ url: X_ORIGINS }); n = tabs.length; for (const t of tabs) ext.tabs.reload(t.id).catch(() => {}); } catch { /* none open */ }
+      box.dataset.thanks = '1';
+      show('ok', h('strong', { textContent: 'Allowed. ' }), h('span', { textContent: n ? 'Your x.com ' + (n > 1 ? 'tabs were' : 'tab was') + ' reloaded.' : '' }),
+        n ? null : h('button', { type: 'button', className: 'primary', textContent: 'Open x.com', onclick: () => ext.tabs.create({ url: 'https://x.com/home' }) }));
+      if (typeof hereCheck === 'function') hereCheck();
+    } });
+    show('warn', h('strong', { textContent: welcome ? 'One more step. ' : 'Not running yet. ' }), h('span', { textContent: 'Multi-Column needs your permission to run on x.com.' }), allow);
+  }
+  if (ext && ext.permissions && ext.permissions.onAdded) { ext.permissions.onAdded.addListener(() => accessBanner()); ext.permissions.onRemoved.addListener(() => accessBanner()); } // (switched on or off in the add-ons page while this is open)
+
   // Is the extension running on the tab you are looking at, and if not, why: it has no access to x.com (a permission that can be switched off),
   // the tab was open before the extension was loaded, or it is switched off. (`?forTab=` names another tab: for the tests.)
   async function hereCheck() {
@@ -52,6 +79,7 @@
       }
       const here = tab && active && tab.id === active.id ? 'this tab' : 'your x.com tab';
       const granted = await ext.permissions.contains({ origins: ORIGINS });
+      if (!granted && $('#access') && !FRAMED) { line.hidden = true; return; } // (the banner at the top has the button)
       if (!granted) {
         say2('The extension is not allowed on x.com, so it cannot run there.', h('button', { type: 'button', textContent: 'Allow x.com', onclick: async () => {
           let ok = false; try { ok = await ext.permissions.request({ origins: ORIGINS }); } catch { /* refused */ }
@@ -218,6 +246,31 @@
   function refreshPresets() {
     const old = document.querySelector('.presets');
     if (old) old.replaceWith(presetsBlock());
+    welcomeBlock(true);
+  }
+  // The opening banner: the page the install opens (?welcome=1) starts with the starting points as large choices, so nobody has to find them
+  // further down; picking one applies it at once (as in Settings, below), and what is ticked there and here is the same.
+  let welcomeShut = false;
+  function welcomeBlock(again) {
+    const host = $('#welcome');
+    if (!host || welcomeShut || (again && host.hidden)) return;
+    if (!new URLSearchParams(location.search).has('welcome')) return;
+    const hadFocus = host.contains(document.activeElement);
+    const current = customPicked ? undefined : S.PRESETS.find((p) => S.presetApplies(p, settings));
+    const choice = (p) => {
+      const id = 'welcome-' + p.id, box = h('input', { type: 'radio', name: 'welcome', id, checked: current === p });
+      box.addEventListener('change', () => { customPicked = false; persist(Object.assign({}, p.once, p.set)); build(); });
+      return h('label', { className: 'wchoice' + (current === p ? ' on' : ''), htmlFor: id }, box, h('span', { className: 'wname', textContent: p.label }), h('span', { className: 'wblurb', textContent: p.blurb }));
+    };
+    const close = () => { welcomeShut = true; host.hidden = true; try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } };
+    host.replaceChildren(
+      h('h2', { textContent: 'How do you want it to start?' }),
+      h('div', { className: 'wchoices', role: 'radiogroup', 'aria-label': 'Starting point' }, ...S.PRESETS.map(choice)),
+      h('div', { className: 'row' },
+        ext && ext.tabs ? h('button', { type: 'button', className: 'primary', textContent: 'Open x.com', onclick: () => { ext.tabs.create({ url: 'https://x.com/home' }); close(); } }) : null,
+        h('button', { type: 'button', textContent: ext && ext.tabs ? 'Look at the settings first' : 'Done', onclick: close })));
+    host.hidden = false;
+    if (hadFocus) { const on = host.querySelector('input:checked'); if (on) on.focus(); }
   }
 
   // ---- what has been changed, and the search ----
@@ -413,6 +466,7 @@
   async function init() {
     await load();
     build();
+    welcomeBlock();
     document.querySelectorAll('section[data-nav]').forEach((s, i) => { if (!s.id) s.id = 'sec-extra-' + i; });
     $('#nav').replaceChildren(...[...document.querySelectorAll('section[data-nav]')].map((s) => h('a', { href: '#' + s.id, textContent: s.dataset.nav })));
     renderHistory();
@@ -448,7 +502,7 @@
       if (!confirm('Put every setting back to its default?')) return;
       persist(S.normalize()); build(); say('All settings reset.');
     });
-    if (!FRAMED && ext && ext.tabs && ext.permissions) hereCheck(); // (the toolbar panel and the settings page; the gear's panel has no tabs API)
+    if (!FRAMED && ext && ext.tabs && ext.permissions) { accessBanner(); hereCheck(); } // (the toolbar panel and the settings page; the gear's panel has no tabs API)
     { // the master switch: the page is dimmed under it while it is off, and nothing else changes
       const sw = $('#opt-enabled');
       if (sw) {

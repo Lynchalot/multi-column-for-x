@@ -237,7 +237,7 @@ var XMCSettings = (function () {
     { id: 'plain', label: 'Just columns', blurb: 'Default X but laid out in columns.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF, REELS_OFF) },
     { id: 'calm', label: 'Calm', blurb: 'All algorithmic content disabled (only people you follow, no trends or suggestions).', set: Object.assign({}, CONTENT_CALM, MEDIA_OFF, REELS_OFF) },
     { id: 'media', label: 'Media wall', blurb: 'Narrower layout with more columns. Videos play muted as you scroll.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_WALL, REELS_OFF) },
-    { id: 'reels', label: 'Reels', blurb: 'Posts with pictures and video only. Press Enter, then keep going: videos play with sound and the next post follows when one ends; posts you have read are skipped.',
+    { id: 'reels', label: 'Reels', blurb: 'Pictures and video only. Enter opens the first post; videos play with sound and the next post follows.',
       set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF, REELS), once: { filter: 'media' } },
   ];
   // What a fresh install starts with: the Calm preset, stored as a person's own choices (so what is ticked on the settings page is Calm,

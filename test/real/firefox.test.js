@@ -45,10 +45,10 @@ firefox('the extension loads: the install opened the settings at the presets, an
   for (let i = 0; i < 60; i++) { // (the install opens it a moment after)
     urls = [];
     for (const h of await d.handles()) { await d.switchTo(h); urls.push(await d.url()); }
-    if (urls.some((u) => /options\.html#sec-presets/.test(u))) break;
+    if (urls.some((u) => /options\.html\?welcome=1/.test(u))) break;
     await sleep(200);
   }
-  assert.ok(urls.some((u) => /options\.html#sec-presets/.test(u)), 'the install opened the settings page at the presets: ' + urls.join(' '));
+  assert.ok(urls.some((u) => /options\.html\?welcome=1/.test(u)), 'the install opened the settings page at the presets: ' + urls.join(' '));
   await home(r, d);
   assert.ok((await d.js(() => document.querySelectorAll('.xmc-col').length)) >= 1, 'columns');
   assert.equal((await d.js(() => document.getElementById('xmc-pill').innerText)).trim(), 'Turn Columns Off');

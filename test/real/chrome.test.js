@@ -13,7 +13,7 @@ const chrome = (name, fn, timeout = 60000) => test(name, { timeout }, async (t) 
 
 chrome('the extension loads: its service worker is up, the first install opened the settings at the presets, and the columns are drawn on x.com', async (r) => {
   for (let i = 0; i < 50 && !r.context.pages().some((p) => /options\.html/.test(p.url())); i++) await new Promise((x) => setTimeout(x, 100)); // (it opens a moment after the install)
-  assert.ok(r.context.pages().some((p) => /options\.html#sec-presets/.test(p.url())), 'the install opened the settings page at the presets: ' + r.context.pages().map((p) => p.url()).join(' '));
+  assert.ok(r.context.pages().some((p) => /options\.html\?welcome=1/.test(p.url())), 'the install opened the settings page at the presets: ' + r.context.pages().map((p) => p.url()).join(' '));
   const page = await r.open();
   await page.waitForSelector('.xmc-card', { timeout: 20000 });
   assert.ok((await page.locator('.xmc-col').count()) >= 1, 'columns');
