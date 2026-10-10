@@ -741,7 +741,8 @@ a[data-xmc-nav]:hover > div, a[data-xmc-nav]:focus-visible > div { background-co
 .xmc-vpanel > .xmc-vclose svg { width: 18px; height: 18px; }
 .xmc-vside > .xmc-head, .xmc-vside > .xmc-vctx .xmc-head { padding-right: 44px; }
 .xmc-vside::-webkit-scrollbar { display: none; }
-.xmc-vscroll { position: absolute; top: 56px; bottom: 14px; right: 3px; width: 10px; z-index: 3; border-radius: 5px; background: color-mix(in srgb, var(--xmc-fg, #fff) 8%, transparent); touch-action: none; }
+.xmc-vscroll { position: absolute; top: 56px; bottom: 14px; right: 3px; width: 10px; z-index: 3; border-radius: 5px; background: color-mix(in srgb, var(--xmc-fg, #fff) 8%, transparent); touch-action: none; opacity: 0; transition: opacity .15s ease; }
+.xmc-vscroll.xmc-on, .xmc-vscroll:hover { opacity: 1; }
 .xmc-vsthumb { position: absolute; left: 1px; right: 1px; top: 0; border-radius: 4px; background: color-mix(in srgb, var(--xmc-fg, #fff) 42%, transparent); }
 .xmc-vsthumb:hover { background: color-mix(in srgb, var(--xmc-fg, #fff) 64%, transparent); }
 
@@ -810,3 +811,48 @@ html.xmc-themed .xmc-keylegend kbd { background: color-mix(in srgb, var(--xmc-fg
 html.xmc-themed .xmc-keylegend .kl-off { color: var(--xmc-muted); }
 html.xmc-themed .xmc-keylegend .kl-foot button { border-color: var(--xmc-border); color: var(--xmc-accent); }
 html.xmc-themed #xmc-sidetab:focus-visible, html.xmc-themed header[role="banner"] [data-xmc-logo]:focus-visible { outline-color: var(--xmc-accent); }
+
+/* Fit to screen: the post panel and Reels grow with the window (--xmc-fit is 1 unless the text size is Fit to screen) */
+.xmc-vpanel { zoom: var(--xmc-fit, 1); }
+/* Reels: the buttons over the post fade when the mouse and keys are still (they stay where they are, so a press still lands) */
+#xmc-root.xmc-reels .xmc-view :is(.xmc-vfeed, .xmc-vclose, .xmc-vkeys) { transition: opacity .15s ease; }
+#xmc-root.xmc-reels .xmc-view.xmc-quiet :is(.xmc-vfeed, .xmc-vclose, .xmc-vkeys) { opacity: 0; }
+.xmc-vprog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 2; background: rgba(255, 255, 255, .2); pointer-events: none; }
+.xmc-vprog i { display: block; height: 100%; width: 0; background: #fff; }
+/* a double-click on the post: a heart where it was pressed */
+.xmc-burst { position: absolute; z-index: 3; width: 96px; height: 96px; margin: -48px 0 0 -48px; pointer-events: none; color: var(--xmc-like, #f91880); animation: xmc-burst .18s ease-out forwards; }
+.xmc-burst svg { width: 100%; height: 100%; fill: currentColor; stroke: currentColor; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, .45)); }
+@keyframes xmc-burst { from { transform: scale(.45); opacity: .95; } to { transform: scale(1.12); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .xmc-burst { animation: none; } }
+/* the slim row that stays at the top of the words' side once the post's own buttons have scrolled away */
+.xmc-vsticky { position: absolute; top: 0; right: 0; z-index: 3; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 8px 56px 8px 16px; background: var(--xmc-solid, var(--xmc-bg)); border-bottom: 1px solid var(--xmc-border); }
+.xmc-vsticky-av img { display: block; width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--xmc-hover); }
+.xmc-vsticky .xmc-actions { flex: 1; margin: 0; min-width: 0; flex-wrap: nowrap; }
+
+/* ---- motion: all of it quick (a fifth of a second at most), opacity and transform only, and none of it when the system asks for less motion ---- */
+/* a press */
+:is(.xmc-act, .xmc-bar button, .xmc-vclose, .xmc-vnav, .xmc-vkeys, .xmc-cnav, .xmc-vfeedtab, .xmc-ctool, .xmc-csend, .xmc-rbtn, .xmc-ract, .xmc-etab, .xmc-emo, .xmc-more-tile, #xmc-pill):active:not(:disabled) { animation: xmc-press .07s ease-out forwards; }
+@keyframes xmc-press { to { transform: scale(.9); } }
+/* stepping through the posts of the ordinary panel: the next one comes in from the side the arrow points to */
+.xmc-view.xmc-still.xmc-sd .xmc-vpanel { animation: xmc-step-n .12s cubic-bezier(.2, .8, .2, 1); }
+.xmc-view.xmc-still.xmc-su .xmc-vpanel { animation: xmc-step-p .12s cubic-bezier(.2, .8, .2, 1); }
+@keyframes xmc-step-n { from { transform: translateX(22px); opacity: .3; } to { transform: none; opacity: 1; } }
+@keyframes xmc-step-p { from { transform: translateX(-22px); opacity: .3; } to { transform: none; opacity: 1; } }
+/* the panel leaves a little smaller as it fades; a picture of several comes in from the side the arrow points to */
+.xmc-view.xmc-out .xmc-vpanel { transform: scale(.975); transition: transform .09s ease-in; }
+.xmc-car[data-dir="n"] > .xmc-vm:not([hidden]) { animation: xmc-slide-n .12s cubic-bezier(.2, .8, .2, 1); }
+.xmc-car[data-dir="p"] > .xmc-vm:not([hidden]) { animation: xmc-slide-p .12s cubic-bezier(.2, .8, .2, 1); }
+@keyframes xmc-slide-n { from { transform: translateX(28px); opacity: .2; } to { transform: none; opacity: 1; } }
+@keyframes xmc-slide-p { from { transform: translateX(-28px); opacity: .2; } to { transform: none; opacity: 1; } }
+/* things that open: the settings, the emoji and the keys card; the line saying a feed is coming; the feed switch */
+#xmc-settings { transform-origin: top right; animation: xmc-pop-r .12s cubic-bezier(.2, .8, .2, 1); }
+.xmc-sback { animation: xmc-fade .1s ease-out; }
+@keyframes xmc-pop-r { from { opacity: 0; transform: translateY(-8px) scale(.97); } to { opacity: 1; transform: none; } }
+.xmc-emoji, .xmc-keylegend { animation: xmc-pop .1s ease-out; transform-origin: bottom left; }
+.xmc-reelswait { animation: xmc-fade .12s ease-out; }
+.xmc-vfeedtab { transition: background-color .12s ease, color .12s ease; }
+@media (prefers-reduced-motion: reduce) {
+  :is(.xmc-act, .xmc-bar button, .xmc-vclose, .xmc-vnav, .xmc-vkeys, .xmc-cnav, .xmc-vfeedtab, .xmc-ctool, .xmc-csend, .xmc-rbtn, .xmc-ract, .xmc-etab, .xmc-emo, .xmc-more-tile, #xmc-pill):active:not(:disabled),
+  .xmc-view.xmc-still.xmc-sd .xmc-vpanel, .xmc-view.xmc-still.xmc-su .xmc-vpanel, .xmc-car > .xmc-vm, #xmc-settings, .xmc-sback, .xmc-emoji, .xmc-keylegend, .xmc-reelswait { animation: none !important; }
+  .xmc-view.xmc-out .xmc-vpanel, .xmc-vscroll, .xmc-vfeedtab { transition: none; }
+}

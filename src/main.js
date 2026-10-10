@@ -143,6 +143,7 @@
     feeds: new Map(),         // feedKey -> { key, items[], keys:Set, index:Map(id -> position), version, pending[], cursors:Set, topCursors:Set }
     latestByRoute: new Map(), // route -> feedKey of the most recent first page
     feedByTab: new Map(),     // route|tabIndex -> feedKey
+    focusLeft: false, focusRight: false, // Reels focus: the menu / right panel brought back for as long as Reels is up
     cur: { route: '', key: null }, // the feed currently on screen for this route; changes only when YOU change it
     awaiting: null,           // {until, cached}: you just switched tabs and we are waiting for the new feed
     refreshing: null,         // {until}: you pressed refresh and the next first page should replace the view
@@ -717,7 +718,7 @@
     return card;
   }
   function updateActions(t, card) {
-    const places = card ? [card] : [t.el, postView && postView.t === t ? postView.side : null, postView && postView.t === t ? postView.rail || null : null];
+    const places = card ? [card] : [t.el, postView && postView.t === t ? postView.side : null, postView && postView.t === t ? postView.rail || null : null, postView && postView.t === t ? postView.panel.querySelector('.xmc-vsticky') : null];
     for (const where_ of places) {
       if (!where_) continue;
       const set = (act, on, n) => {
@@ -987,6 +988,7 @@
     XMCSite.apply(settings);
     root.classList.toggle('xmc-flat', settings.cardStyle === 'flat');
     root.style.setProperty('--xmc-ts', String(textScale()));
+    fitSync();
     root.classList.toggle('xmc-blur', !!settings.blurBehind && !blurGuard.off);
     applyBar();
     if (columns.length && (colCount() !== columns.length || layoutSig() !== view.layoutSig)) relayout(); // column or post-size settings changed
@@ -1209,6 +1211,9 @@
   const RENDER_KEYS = ['branding', 'showSource', 'autoplayVideo', 'tallPhotos', 'hoverActions', 'bigText', 'textSize'];
   const TEXT_SCALE = { small: 0.92, normal: 1, large: 1.15, xlarge: 1.3 }; // the stylesheet multiplies every text size in posts and the panel by --xmc-ts
   const textScale = () => TEXT_SCALE[settings.textSize] || 1;
+  // Fit to screen: the post panel and Reels (not the posts in the columns) grow with the window, from 1 at 1600 px wide to 1.6 at 3400 and over (CSS zoom on the panel)
+  const fitScale = () => (settings.textSize === 'fit' ? Math.round(Math.min(1.6, Math.max(1, 1 + (window.innerWidth - 1600) / 3000)) * 100) / 100 : 1);
+  const fitSync = () => { const v = String(fitScale()); if (root.style.getPropertyValue('--xmc-fit') !== v) root.style.setProperty('--xmc-fit', v); };
   const sigOf = (keys) => keys.map((k) => String(settings[k])).join('|') + '|' + where() + '|' + settings.mutedQuoteIds.length;
   const filterSig = () => sigOf(FILTER_KEYS) + '|' + (state.showSeen ? 1 : 0) + '|' + seenEpoch;
   const renderSig = () => RENDER_KEYS.map((k) => String(settings[k])).join('|') + '|' + pageLayout().density;
@@ -2924,7 +2929,27 @@
   }
   // A post with several pictures shows one at a time in the panel, with arrows and a dot for each, so the person can see how many there are
   // The words' side scrolls, and a system scrollbar that hides itself until the mouse moves (an overlay one, as on most Linux) gave no sign that there was more:
-  // so the bar is drawn here, always there while the side has more than fits, and can be dragged or pressed on.
+  // so the bar is drawn here: it shows while the words scroll (and when the mouse is on it) and fades a moment after, and can be dragged or pressed on.
+  // The ordinary panel: once the row of the post's buttons has scrolled out of the words' side, a slim row with the author and the same buttons stays at its top
+  // (over the comments, not in their flow: nothing moves when it comes and goes). Its buttons are copies with the same data-act, so the panel's click handler
+  // and updateActions treat them as the ones below.
+  function stickyActions(panel, side, t) {
+    const actions = side.querySelector(':scope > .xmc-actions');
+    if (!actions) return;
+    const row = actions.cloneNode(true);
+    for (const b of row.querySelectorAll('button')) b.tabIndex = -1;
+    const bar = h('div', { className: 'xmc-vsticky', hidden: true, 'aria-hidden': 'true' }, h('span', { className: 'xmc-vsticky-av' }, h('img', { src: t.author.avatar, alt: '' })), row);
+    panel.append(bar);
+    const sync = () => {
+      const gone = actions.getBoundingClientRect().bottom < side.getBoundingClientRect().top + 6;
+      if (bar.hidden === gone) bar.hidden = !gone;
+      if (gone) { const w = side.clientWidth + 'px'; if (bar.style.width !== w) bar.style.width = w; }
+    };
+    let queued = 0;
+    const soon = () => { if (!queued) queued = requestAnimationFrame(() => { queued = 0; sync(); }); };
+    side.addEventListener('scroll', soon, { passive: true });
+    if (typeof ResizeObserver !== 'undefined') { const ro = new ResizeObserver(soon); ro.observe(side); (panel._so = panel._so || []).push(ro); }
+  }
   function sideScrollbar(panel, side) {
     const thumb = h('div', { className: 'xmc-vsthumb' });
     const bar = h('div', { className: 'xmc-vscroll', 'aria-hidden': 'true' }, thumb);
@@ -2936,15 +2961,17 @@
       thumb.style.height = len + 'px';
       thumb.style.transform = 'translateY(' + Math.round((track - len) * side.scrollTop / (sh - ch)) + 'px)';
     };
-    let queued = 0;
+    let queued = 0, hideAt = 0, dragging = false;
     const soon = () => { if (!queued) queued = requestAnimationFrame(() => { queued = 0; sync(); }); };
-    side.addEventListener('scroll', soon, { passive: true });
+    const seen = () => { bar.classList.add('xmc-on'); clearTimeout(hideAt); hideAt = setTimeout(() => { if (!dragging) bar.classList.remove('xmc-on'); }, 900); } // (while the words scroll, and a moment after)
+    side.addEventListener('scroll', () => { soon(); seen(); }, { passive: true });
     thumb.addEventListener('pointerdown', (e) => {
       e.preventDefault(); e.stopPropagation();
+      dragging = true; seen();
       thumb.setPointerCapture(e.pointerId);
       const y0 = e.clientY, top0 = side.scrollTop, k = (side.scrollHeight - side.clientHeight) / Math.max(1, bar.clientHeight - thumb.offsetHeight);
       const move = (m) => { side.scrollTop = top0 + (m.clientY - y0) * k; };
-      const up = () => { thumb.removeEventListener('pointermove', move); thumb.removeEventListener('pointerup', up); thumb.removeEventListener('pointercancel', up); };
+      const up = () => { dragging = false; seen(); thumb.removeEventListener('pointermove', move); thumb.removeEventListener('pointerup', up); thumb.removeEventListener('pointercancel', up); };
       thumb.addEventListener('pointermove', move); thumb.addEventListener('pointerup', up); thumb.addEventListener('pointercancel', up);
     });
     bar.addEventListener('pointerdown', (e) => { if (e.target !== bar) return; e.stopPropagation(); side.scrollBy({ top: (e.clientY < thumb.getBoundingClientRect().top ? -1 : 1) * side.clientHeight * 0.9 }); }); // (on the track: a page up or down)
@@ -2964,6 +2991,7 @@
     const prev = h('button', { className: 'xmc-cnav prev', type: 'button', title: 'Previous picture', 'aria-label': 'Previous picture', onclick: (e) => { e.stopPropagation(); pane._go(-1); } }, icon('prev'));
     const next = h('button', { className: 'xmc-cnav next', type: 'button', title: 'Next picture', 'aria-label': 'Next picture', onclick: (e) => { e.stopPropagation(); pane._go(1); } }, icon('next'));
     pane._go = (d) => {
+      if (d) pane.dataset.dir = d > 0 ? 'n' : 'p'; // (the new picture slides in from that side)
       i = Math.max(0, Math.min(slides.length - 1, i + d));
       slides.forEach((sl, k) => { sl.hidden = k !== i; if (k !== i) for (const v of sl.querySelectorAll('video')) v.pause(); });
       [...dots.children].forEach((dot, k) => dot.classList.toggle('on', k === i));
@@ -3137,11 +3165,23 @@
     const closeBtn = h('button', { className: 'xmc-vclose', type: 'button', title: 'Close (Esc)', 'aria-label': 'Close' }, icon('close')); // (in the panel's top right corner: its own, not the page's)
     const panel = h('div', { className: 'xmc-vpanel' + (media ? '' : ' single') }, mediaHost, side, closeBtn);
     sideScrollbar(panel, side);
+    if (!reels && !parent) stickyActions(panel, side, t);
     const idx = view.cards.indexOf(t);
     const nav = (d, ic, label) => h('button', { className: 'xmc-vnav ' + (d < 0 ? 'prev' : 'next'), type: 'button', title: label, hidden: idx < 0 || !view.cards[idx + d], onclick: (e) => { e.stopPropagation(); stepPostView(d); } }, icon(ic));
     const el = h('div', { className: 'xmc-view' + (still ? ' xmc-still' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Post by ' + t.author.name }, panel, nav(-1, 'prev', 'Previous post (\u2190)'), nav(1, 'next', 'Next post (\u2192)'),
       h('button', { className: 'xmc-vkeys', type: 'button', title: 'Keyboard shortcuts', 'aria-label': 'Keyboard shortcuts', onclick: (e) => { e.stopPropagation(); keyLegend(el); } }, icon('keyboard')));
-    if (reels && opts && opts.dir) el.classList.add(opts.dir > 0 ? 'xmc-sd' : 'xmc-su'); // (slides in from below going forward, from above going back)
+    if (reels && !parent) { // double-click a picture or video: like it, with a heart where it was pressed (a post already liked is not unliked)
+      el.addEventListener('dblclick', (e) => {
+        if (!settings.doubleLike || !e.target.closest('.xmc-vmwrap') || e.target.closest('button, a, .xmc-vrail, .xmc-vfeed, .xmc-reveal, .xmc-vprog')) return;
+        e.preventDefault(); e.stopPropagation(); clearTimeout(lbWait);
+        const wrap = el.querySelector('.xmc-vmwrap'), r = wrap.getBoundingClientRect(), z = r.width && wrap.offsetWidth ? r.width / wrap.offsetWidth : 1;
+        const burst = h('div', { className: 'xmc-burst', 'aria-hidden': 'true' }, icon('like'));
+        burst.style.left = Math.round((e.clientX - r.left) / z) + 'px'; burst.style.top = Math.round((e.clientY - r.top) / z) + 'px';
+        wrap.append(burst); setTimeout(() => burst.remove(), 240);
+        if (!t.state.liked) act(t, 'like', (postView && postView.rail && postView.rail.querySelector('[data-act="like"]')) || null);
+      }, true); // (capture: a video's own controls turn a double-click into full screen)
+    }
+    if (opts && opts.dir) el.classList.add(opts.dir > 0 ? 'xmc-sd' : 'xmc-su'); // (slides in from below going forward, from above going back)
     el.addEventListener('click', (e) => {
       if (e.target.closest('.xmc-vclose') || (e.target === el && !reels)) { closePostView(); return; } // (in Reels the empty page round the post is not a way out: Esc and the cross are)
       const btn = e.target.closest('[data-act]');
@@ -3159,7 +3199,14 @@
         return;
       }
       const lb = e.target.closest('[data-lb]');
-      if (lb) { e.preventDefault(); if (!lb.closest('.sensitive')) openLightbox(lb.closest('[data-owner="parent"]') ? parent : t, Number(lb.dataset.lb)); return; }
+      if (lb) {
+        e.preventDefault();
+        if (lb.closest('.sensitive')) return;
+        const open = () => openLightbox(lb.closest('[data-owner="parent"]') ? parent : t, Number(lb.dataset.lb));
+        if (reels && settings.doubleLike && !parent) { if (e.detail > 1) return; clearTimeout(lbWait); lbWait = setTimeout(open, 260); } // (the second press of a double-click likes: the viewer waits to see)
+        else open();
+        return;
+      }
       const near = e.target.closest('.xmc-tpost, .xmc-pctx');
       if (near && !e.target.closest('a[href], video, .xmc-reveal')) { e.preventDefault(); navigate(near.dataset.href, null); return; }
       const quote = e.target.closest('.xmc-quote[data-href]');
@@ -3203,6 +3250,7 @@
     };
     postView = { t, el, panel, side, parent, syncNav, reels };
     root.classList.toggle('xmc-reels', reels);
+    if (settings.reelsFocus) { applyPanels(); positionTab(); } // (the menu folds and the right panel slides away as Reels comes up)
     if (reels && !parent) { // one rail on the post: up, the post's own buttons (the row that is under its words in the ordinary panel), down
       const actions = side.querySelector(':scope > .xmc-actions');
       const rail = h('div', { className: 'xmc-vrail' }, prevBtn, ...(actions ? [actions] : []), nextBtn);
@@ -3212,6 +3260,7 @@
       const feedSwitch = reelsFeedSwitch();
       if (feedSwitch) (mediaHost || panel).append(feedSwitch);
     }
+    if (reels && settings.reelsQuiet) quietWatch(el);
     if (reels) {
       prevBtn.title = 'Previous post (\u2191)'; prevBtn.setAttribute('aria-label', 'Previous post'); nextBtn.title = 'Next post (\u2193)'; nextBtn.setAttribute('aria-label', 'Next post');
       if (media) { // the wheel over the post goes to the next or previous post
@@ -3250,6 +3299,7 @@
   // if every one ahead was read it is the next one anyway, and the way back is always the one before.
   // One step for each flick of a wheel or trackpad (a trackpad goes on sending events for a second or more after the finger has left; a step is not taken
   // from the tail of the one before, and the panel that comes up after a step has no memory of it, so the gate is here)
+  let lbWait = 0; // Reels: a press on a picture waits a moment to see whether it is the first of two
   let wheelStepAt = -1e9, wheelSeenAt = -1e9;
   function wheelStep(e, d, pictures) { // pictures: through the post's own pictures first, as the arrow keys do (the wheel over a post in Reels); not: straight to the next post (Shift and the wheel)
     const quiet = e.timeStamp - wheelSeenAt > 160;
@@ -3324,6 +3374,12 @@
   function wirePanelVideo(el, t, parent, carried) {
     const vids = [...el.querySelectorAll('.xmc-vmediapane video[data-video]')];
     if (!vids.length) return;
+    const wrap = el.querySelector('.xmc-vmwrap'); // Reels: a thin line along the bottom of the post showing how far the video has played, which stays when the buttons have faded
+    if (wrap) {
+      const fill = h('i'), line = h('div', { className: 'xmc-vprog', 'aria-hidden': 'true' }, fill);
+      wrap.append(line);
+      for (const v of vids) v.addEventListener('timeupdate', () => { if (v.closest('.xmc-vm[hidden]')) return; fill.style.width = (v.duration > 0 ? Math.min(100, v.currentTime / v.duration * 100) : 0) + '%'; });
+    }
     for (const v of vids) {
       if (settings.videoEnd === 'loop') v.loop = true;
       v.addEventListener('ended', () => afterVideo(v));
@@ -3333,6 +3389,19 @@
     if (first.closest('.xmc-vm.sensitive') && !document.documentElement.classList.contains('xmc-nsfw-show')) return; // (blurred until it is asked for)
     if (settings.panelVideo === 'muted') first.muted = true;
     first.play().catch(() => { first.muted = true; first.play().catch(() => {}); });
+  }
+  // Reels: after two seconds without the mouse or a key, the buttons over the post (the feed switch, the cross, the keyboard button) fade; any movement or key brings them back
+  function quietWatch(el) {
+    let timer = 0;
+    const busy = () => {
+      const a = document.activeElement;
+      return !!(a && el.contains(a) && a.closest('textarea, input, select')) || !!el.querySelector('.xmc-keylegend, .xmc-emoji') || !!menuEl || !!el.querySelector('.xmc-vfeed:hover, .xmc-vclose:hover, .xmc-vkeys:hover');
+    };
+    const arm = () => { clearTimeout(timer); timer = setTimeout(() => { if (!el.isConnected) return; if (busy()) arm(); else el.classList.add('xmc-quiet'); }, 2000); };
+    const wake = () => { if (!el.isConnected) { window.removeEventListener('keydown', wake, true); return; } el.classList.remove('xmc-quiet'); arm(); };
+    for (const ev of ['pointermove', 'pointerdown', 'wheel', 'focusin']) el.addEventListener(ev, wake, { passive: true, capture: true });
+    window.addEventListener('keydown', wake, true); // (focus is often on the page itself: the keys are not seen by the panel)
+    arm();
   }
   function afterVideo(v) {
     if (settings.videoEnd !== 'next' || !postView || postView.parent || !postView.el.contains(v) || v.loop || lightbox || menuEl || document.hidden) return;
@@ -3363,7 +3432,7 @@
     const el = postView.el;
     if (el._ro) el._ro.disconnect();
     if (postView.panel && postView.panel._so) postView.panel._so.forEach((o) => o.disconnect());
-    if (!instant) { if (postView.reels) state.reelsOff = feedRoute(); root.classList.remove('xmc-reels'); } // (left Reels: the columns, until the page is left or the Reels button is pressed)
+    if (!instant) { if (postView.reels) state.reelsOff = feedRoute(); root.classList.remove('xmc-reels'); if (settings.reelsFocus) setTimeout(() => { applyPanels(); positionTab(); }, 0); } // (left Reels: the columns, until the page is left or the Reels button is pressed; the menu and the right panel come back)
     postView = null;
     if (!instant && panelOpener && panelOpener.isConnected && el.contains(document.activeElement)) panelOpener.focus({ preventScroll: true }); // keyboard user: back to the button they pressed
     if (!instant) panelOpener = null;
@@ -4018,6 +4087,7 @@
   let resizeTimer = 0;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
+    fitSync();
     resizeTimer = setTimeout(() => { // once you stop: X may have swapped layouts, so re-measure the sidebars
       navRestore();
       if (!root.hidden) { guard('position', position); relayoutIfNeeded(); }
@@ -4135,9 +4205,12 @@
   // Left: the menu folds to a rail of icons (its names fade out) when X's logo at the top of it is pressed (the logo is otherwise a second
   // link to Home, so it costs no row). Right: the whole panel slides off the edge, and a tab on its edge brings it back.
   // Alt+[ and Alt+] do the same. The choice is kept. Both only while the columns are showing.
-  const rightAway = () => settings.rightPanel === 'hidden';
+  // Reels focus: while the Reels view is up the menu is icons and the right panel is away, whatever was chosen; the edge tab and the logo bring them back for as long as it is up
+  const reelsFocus = () => !!settings.reelsFocus && root.classList.contains('xmc-reels');
+  const wantRail = () => (reelsFocus() ? !state.focusLeft : settings.leftPanel === 'rail');
+  const rightAway = () => (reelsFocus() ? !state.focusRight : settings.rightPanel === 'hidden');
   const navHasNames = () => { const hdr = pin.nav.el(); return !!hdr && [...hdr.querySelectorAll('nav a[href]')].some((a) => a.textContent.trim()); }; // (X's narrow layout already shows icons only)
-  function railOn() { return settings.leftPanel === 'rail' && document.documentElement.classList.contains('xmc-on') && navHasNames(); }
+  function railOn() { return wantRail() && document.documentElement.classList.contains('xmc-on') && navHasNames(); }
   function railWidth() { // where the right edge of the menu is when only the icons are left
     const hdr = pin.nav.el();
     const a = hdr && [...hdr.querySelectorAll('nav a[href]')].find((x) => x.querySelector('svg') && !x.matches('[data-testid="SideNav_NewTweet_Button"]'));
@@ -4241,7 +4314,7 @@
   function syncLogoToggle() {
     const a = logoLink();
     if (!a) return;
-    const on = document.documentElement.classList.contains('xmc-on') && (navHasNames() || settings.leftPanel === 'rail');
+    const on = document.documentElement.classList.contains('xmc-on') && (navHasNames() || wantRail());
     if (!on) {
       if (a.dataset.xmcLogo) { // put X's own back
         const was = JSON.parse(a.dataset.xmcWas || '{}');
@@ -4251,7 +4324,7 @@
       return;
     }
     if (!a.dataset.xmcLogo) { a.dataset.xmcWas = JSON.stringify({ role: a.getAttribute('role'), 'aria-label': a.getAttribute('aria-label'), title: a.getAttribute('title') }); a.dataset.xmcLogo = '1'; a.setAttribute('role', 'button'); }
-    const rail = settings.leftPanel === 'rail';
+    const rail = wantRail();
     const name = rail ? 'Show the menu with names' : 'Fold the menu to icons';
     if (a.getAttribute('aria-label') !== name) { a.setAttribute('aria-label', name); a.title = name + ' (Alt+[)'; }
     a.setAttribute('aria-expanded', String(!rail));
@@ -4295,6 +4368,7 @@
   function applyPanels() {
     const html = document.documentElement;
     if (!html.classList.contains('xmc-on') || !pin.nav.el()) { html.classList.remove('xmc-rail', 'xmc-sidehide'); return; }
+    if (!reelsFocus() && (state.focusLeft || state.focusRight)) { state.focusLeft = false; state.focusRight = false; } // (left Reels: what was brought back for it is put away again)
     const rail = railOn(), away = rightAway();
     const sig = (rail ? 'R' : 'F') + (away ? 'A' : 'S');
     if (html.classList.contains('xmc-rail') !== rail) { markNavLabels(); html.classList.toggle('xmc-rail', rail); }
@@ -4311,12 +4385,14 @@
     const html = document.documentElement;
     markNavLabels();
     html.classList.add('xmc-panelanim'); void html.offsetWidth; // (the slide is switched on before what slides is changed)
+    const focus = reelsFocus(); // (in Reels the press is for as long as it is up, not a choice to keep)
     if (side === 'left') {
-      settings.leftPanel = settings.leftPanel === 'rail' ? 'full' : 'rail';
-      const target = settings.leftPanel === 'rail' ? railWidth() : (pin.nav.fullW || 270);
+      if (focus) state.focusLeft = !state.focusLeft; else settings.leftPanel = settings.leftPanel === 'rail' ? 'full' : 'rail';
+      const target = wantRail() ? railWidth() : (pin.nav.fullW || 270);
       pin.nav.width = target; root.style.left = (target + 20) + 'px'; // the columns' edge goes where it will end up, and slides there
-    } else settings.rightPanel = settings.rightPanel === 'hidden' ? 'shown' : 'hidden';
-    save();
+    } else if (focus) state.focusRight = !state.focusRight;
+    else settings.rightPanel = settings.rightPanel === 'hidden' ? 'shown' : 'hidden';
+    if (!focus) save();
     applyPanels();
     html.classList.add('xmc-panelanim'); // (applyPanels has already started the timer when the state changed)
     positionSide(); positionTab();

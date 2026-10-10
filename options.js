@@ -30,6 +30,7 @@
     const th = S.themeOf(settings.theme), st = document.documentElement.style;
     for (const k in THEME_VARS) { if (th) st.setProperty(k, th[THEME_VARS[k]]); else st.removeProperty(k); }
     st.colorScheme = th ? (th.dark ? 'dark' : 'light') : '';
+    syncThemeCards();
   }
   function persist(partial) {
     Object.assign(settings, partial);
@@ -105,6 +106,34 @@
     } catch (e) { say2('Could not check this tab (' + ((e && e.message) || e) + ').'); }
   }
 
+  // Look > Colour theme: a card for each theme showing its page, a post's card, its text, its accent and its heart (X's own is drawn as its black theme)
+  function themeCards(it, id) {
+    const all = [{ id: 'x', name: 'X (as it is)', bg: '#000000', card: '#16181c', fg: '#e7e9ea', muted: '#8b98a5', line: '#2f3336', accent: '#1d9bf0', like: '#f91880' }].concat(S.THEMES);
+    const box = h('div', { id, className: 'themes', role: 'radiogroup' });
+    box.setAttribute('aria-label', it.label);
+    for (const t of all) {
+      const paint = (node, css) => { Object.assign(node.style, css); return node; };
+      const swatch = paint(h('span', { className: 'sw' }), { background: t.bg, borderColor: t.line });
+      swatch.append(
+        paint(h('span', { className: 'swcard' }, paint(h('i'), { background: t.fg }), paint(h('i'), { background: t.muted }), paint(h('b'), { background: t.accent })), { background: t.card }),
+        paint(h('em'), { background: t.like }));
+      const b = h('button', { type: 'button', className: 'theme', role: 'radio' }, swatch, h('span', { className: 'tn', textContent: t.name }));
+      b.dataset.themeId = t.id;
+      b.addEventListener('click', () => persist({ theme: t.id }));
+      box.append(b);
+    }
+    box.addEventListener('keydown', (e) => { // arrow keys move the choice, as in any radio group
+      const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (!d || e.ctrlKey || e.altKey || e.metaKey) return;
+      const cards = [...box.querySelectorAll('.theme')], at = cards.findIndex((c) => c === document.activeElement || c.dataset.themeId === (settings.theme || 'x'));
+      const next = cards[(Math.max(0, at) + d + cards.length) % cards.length];
+      e.preventDefault(); next.focus(); next.click();
+    });
+    return box;
+  }
+  function syncThemeCards() {
+    for (const b of document.querySelectorAll('.theme[data-theme-id]')) { const on = b.dataset.themeId === (settings.theme || 'x'); b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; }
+  }
   function control(it) {
     const id = 'opt-' + it.key;
     let el;
@@ -113,6 +142,8 @@
       el.addEventListener('change', () => {
         persist({ [it.key]: el.checked });
       });
+    } else if (it.key === 'theme') { // the colour theme: a card for each, drawn in its own colours
+      el = themeCards(it, id);
     } else if (it.type === 'select') {
       el = h('select', { id }, ...it.options.map(([val, label]) => h('option', { value: val, textContent: label, selected: settings[it.key] === val })));
       el.addEventListener('change', () => persist({ [it.key]: el.value }));
@@ -299,6 +330,7 @@
   function resetItem(it) {
     const def = JSON.parse(JSON.stringify(S.DEFAULTS[it.key]));
     settings[it.key] = def;
+    if (it.key === 'theme') applyTheme();
     const el = document.getElementById('opt-' + it.key);
     if (el) { if (el.type === 'checkbox') el.checked = !!def; else el.value = def; }
     if (storage) storage.remove(it.key).catch((e) => say('Could not save: ' + e));
@@ -365,6 +397,7 @@
   function build() {
     const host = $('#sections');
     host.replaceChildren();
+    setTimeout(syncThemeCards, 0);
     for (const sec of S.SCHEMA) {
       const section = h('section', { id: 'sec-' + sec.id });
       section.dataset.nav = sec.title;

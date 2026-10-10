@@ -106,6 +106,9 @@ var XMCSettings = (function () {
         { key: 'panelVideo', type: 'select', def: 'off', label: 'Videos in a post\u2019s panel', options: [['off', 'Play when I click'], ['muted', 'Play at once, muted'], ['sound', 'Play at once, with the sound as I left it']] },
         { key: 'videoEnd', type: 'select', def: 'stop', label: 'When a video in the panel ends', options: [['stop', 'Stop'], ['loop', 'Play it again'], ['next', 'Go to the next post']] },
         { key: 'reels', type: 'bool', def: false, label: 'Reels view: one post at a time, up and down', help: 'On Home and Lists the post fills the page, with no columns behind it. \u2191 \u2193 or the wheel go to the next post. Esc leaves it; the Reels button in the top bar brings it back.' },
+        { key: 'reelsFocus', type: 'bool', def: true, label: 'Reels: fold the menu and slide the side panel away while it is open', help: 'Both come back when you leave Reels (the tab on the edge and the logo still bring them back while you are in it).' },
+        { key: 'reelsQuiet', type: 'bool', def: true, label: 'Reels: hide the buttons over the post when the mouse and keys are still', help: 'The feed switch, the close cross and the keyboard button fade after two seconds and come back when you move the mouse or press a key.' },
+        { key: 'doubleLike', type: 'bool', def: true, label: 'Reels: double-click a picture or video to like it' },
         { key: 'prefetchNext', type: 'bool', def: true, label: 'Get the next post ready while a post is open', help: 'Its pictures, and its comments when the rate of lookups allows.' },
         { key: 'openIn', type: 'select', def: 'view', label: 'Open posts and profiles', options: [['view', 'Posts in a panel over the columns, profiles in a new tab'], ['newtab', 'In a new tab (you keep your place here)'], ['sametab', 'In this tab']] },
         { key: 'blurBehind', type: 'bool', def: true, label: 'Blur the columns behind an open post', help: 'Turns itself off if your computer struggles with it.' },
@@ -132,7 +135,7 @@ var XMCSettings = (function () {
     {
       id: 'look', title: 'Look', items: [
         { key: 'branding', type: 'select', def: 'x', label: 'Name and logo', native: true, options: [['x', 'X (as X ships it)'], ['twitter', 'Twitter (bird logo, “Tweet”, “Retweet”)']] },
-        { key: 'textSize', type: 'select', def: 'normal', label: 'Text size in posts and the post panel', options: [['small', 'Smaller'], ['normal', 'Normal'], ['large', 'Larger'], ['xlarge', 'Largest']] },
+        { key: 'textSize', type: 'select', def: 'normal', label: 'Text size in posts and the post panel', options: [['small', 'Smaller'], ['normal', 'Normal'], ['large', 'Larger'], ['xlarge', 'Largest'], ['fit', 'Fit to screen (the post panel and Reels grow with the window; posts in columns stay Normal)']] },
         { key: 'theme', type: 'select', def: 'x', label: 'Colour theme', help: 'For the columns, the post panel, the picture viewer and these settings, and the page behind them while the columns show. X\u2019s own pages keep X\u2019s colours.', native: true, options: [['x', 'X (as it is)']].concat(THEMES.map((t) => [t.id, t.name])) },
         { key: 'cardStyle', type: 'select', def: 'raised', label: 'Card background', options: [['raised', 'Slightly lighter (or darker) than the page'], ['flat', 'None']] },
         { key: 'customCss', type: 'textarea', def: '', label: 'Custom CSS', help: 'Added to every x.com page.', native: true },

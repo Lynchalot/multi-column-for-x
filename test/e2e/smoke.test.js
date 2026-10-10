@@ -3508,15 +3508,15 @@ browserTest('in a post\'s panel the arrow keys walk the pictures and then the po
     const before = (await acts()).length;
     await page.keyboard.press('a');
     await page.waitForFunction((n) => Array.from(window.__actions || []).slice(n).some((x) => /^liked:/.test(x)), before, { timeout: 15000 });
-    assert.equal(await page.evaluate(() => document.querySelector('.xmc-view .xmc-actions [data-act="like"]').classList.contains('on')), true, 'A: liked, and the heart shows it');
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-vside > .xmc-actions [data-act="like"]').classList.contains('on')), true, 'A: liked, and the heart shows it');
     await page.keyboard.press('s');
-    assert.equal(await page.evaluate(() => document.querySelector('.xmc-view .xmc-actions [data-act="bookmark"]').classList.contains('on')), true, 'S: bookmarked');
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-vside > .xmc-actions [data-act="bookmark"]').classList.contains('on')), true, 'S: bookmarked');
     await page.keyboard.press('q');
     await page.waitForFunction(() => /Link copied|Couldn.t copy/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
     await page.keyboard.press('e');
     await page.waitForFunction(() => /Downloading|Nothing to download|Download failed/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
     await page.keyboard.press('w');
-    await page.waitForFunction(() => document.querySelector('.xmc-view .xmc-actions [data-act="repost"]').classList.contains('on') || /posted|Repost|Undo/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 8000 });
+    await page.waitForFunction(() => document.querySelector('.xmc-vside > .xmc-actions [data-act="repost"]').classList.contains('on') || /posted|Repost|Undo/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 8000 });
     // comment: the box has the keyboard; letters typed there are letters; Esc leaves the box and the panel stays
     await page.keyboard.press('c');
     assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.className), 'xmc-cbox', 'C: the comment box');
@@ -3561,8 +3561,8 @@ browserTest('in the panel a remapped key does what the old one did, the tooltips
     await e.ready(page);
     await page.evaluate(() => { document.querySelector('.xmc-card .xmc-text').click(); });
     await page.waitForSelector('.xmc-view');
-    assert.match(await page.locator('.xmc-view .xmc-actions [data-act="like"]').getAttribute('title'), /\(F\)/);
-    assert.match(await page.locator('.xmc-view .xmc-actions [data-act="bookmark"]').getAttribute('title'), /\(G\)/);
+    assert.match(await page.locator('.xmc-vside > .xmc-actions [data-act="like"]').getAttribute('title'), /\(F\)/);
+    assert.match(await page.locator('.xmc-vside > .xmc-actions [data-act="bookmark"]').getAttribute('title'), /\(G\)/);
     const n = await page.evaluate(() => Array.from(window.__actions || []).length);
     await page.keyboard.press('a'); await page.waitForTimeout(800); // the old key: nothing
     assert.equal(await page.evaluate(() => Array.from(window.__actions || []).length), n);
@@ -3647,7 +3647,7 @@ browserTest('the panel\'s keys are off when the setting is off (the arrows still
     const n = await page.evaluate(() => Array.from(window.__actions || []).length);
     await page.keyboard.press('a'); await page.keyboard.press('s'); await page.waitForTimeout(1500);
     assert.equal(await page.evaluate(() => Array.from(window.__actions || []).length), n, 'nothing pressed');
-    assert.ok(!(await page.evaluate(() => document.querySelector('.xmc-view .xmc-actions [data-act="like"]').title)).includes('(A)'), 'and no key in the tooltips');
+    assert.ok(!(await page.evaluate(() => document.querySelector('.xmc-vside > .xmc-actions [data-act="like"]').title)).includes('(A)'), 'and no key in the tooltips');
   });
 }, 60000);
 
@@ -4359,19 +4359,27 @@ browserTest('a colour theme: the columns, the page behind them and the left menu
   });
 });
 
-browserTest('a colour theme in the settings page: every theme is listed, picking one recolours the page at once, and X’s own colours come back', async (e) => {
+browserTest('a colour theme in the settings page: a card for each theme, picking one recolours the page at once, and X\u2019s own colours come back', async (e) => {
   const h = await e.open('/ext/options.html', { settings: { theme: 'gruvbox-dark' } });
   await checked(h, async () => {
     const { page } = h;
-    await page.waitForSelector('#opt-theme', { timeout: 8000 });
+    await page.waitForSelector('#opt-theme .theme', { timeout: 8000 });
     const v = () => page.evaluate(() => ({ bg: document.documentElement.style.getPropertyValue('--bg'), accent: document.documentElement.style.getPropertyValue('--accent'), body: getComputedStyle(document.body).backgroundColor, scheme: document.documentElement.style.colorScheme }));
-    assert.deepEqual(await page.locator('#opt-theme option').allInnerTexts(), ['X (as it is)', 'Catppuccin Mocha', 'Catppuccin Macchiato', 'Catppuccin Frappé', 'Catppuccin Latte', 'Gruvbox Dark', 'Gruvbox Light']);
-    assert.equal(await page.locator('#opt-theme').inputValue(), 'gruvbox-dark');
+    assert.deepEqual(await page.locator('#opt-theme .theme .tn').allInnerTexts(), ['X (as it is)', 'Catppuccin Mocha', 'Catppuccin Macchiato', 'Catppuccin Frapp\u00e9', 'Catppuccin Latte', 'Gruvbox Dark', 'Gruvbox Light']);
+    const checked_ = () => page.evaluate(() => [...document.querySelectorAll('#opt-theme .theme[aria-checked="true"]')].map((b) => b.dataset.themeId));
+    assert.deepEqual(await checked_(), ['gruvbox-dark'], 'the one in use is ticked');
     assert.deepEqual(await v(), { bg: '#282828', accent: '#83a598', body: 'rgb(40, 40, 40)', scheme: 'dark' });
-    await page.locator('#opt-theme').selectOption('catppuccin-latte');
+    const sw = await page.evaluate(() => { const c = document.querySelector('#opt-theme .theme[data-theme-id="catppuccin-mocha"] .sw'); return { bg: getComputedStyle(c).backgroundColor, card: getComputedStyle(c.querySelector('.swcard')).backgroundColor }; });
+    assert.deepEqual(sw, { bg: 'rgb(30, 30, 46)', card: 'rgb(49, 50, 68)' }, 'each card is drawn in its own colours');
+    await page.locator('#opt-theme .theme', { hasText: 'Catppuccin Latte' }).click();
     assert.deepEqual(await v(), { bg: '#eff1f5', accent: '#1e66f5', body: 'rgb(239, 241, 245)', scheme: 'light' });
-    await page.locator('#opt-theme').selectOption('x');
+    assert.deepEqual(await checked_(), ['catppuccin-latte']);
+    await page.locator('#opt-theme .theme[aria-checked="true"]').focus();
+    await page.keyboard.press('ArrowRight'); // the arrow keys move the choice
+    assert.deepEqual(await checked_(), ['gruvbox-dark']);
+    await page.locator('#opt-theme .theme', { hasText: 'X (as it is)' }).click();
     assert.deepEqual(await v(), { bg: '', accent: '', body: (await v()).body, scheme: '' });
+    assert.deepEqual(await checked_(), ['x']);
   });
 });
 
@@ -4432,7 +4440,156 @@ browserTest('a panel has its close cross in its top right corner, in Reels too, 
   }
 });
 
-browserTest('the panel’s scrollbar is drawn by the extension: there while the words overflow, it follows the scrolling, and it can be dragged and pressed on', async (e) => {
+browserTest('the panel\u2019s scrollbar is drawn by the extension: it shows while the words scroll and when the mouse is on it, fades after, and can be dragged and pressed on', async (e) => {
+  const h = await e.open('/home/', { settings: { cols: 3 }, width: 1700, height: 600 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await openCard(page, 90000);
+    await page.waitForSelector('.xmc-vscroll:not([hidden])', { timeout: 15000 });
+    await page.waitForTimeout(1500);
+    const m = () => page.evaluate(() => { const s = document.querySelector('.xmc-vside'), b = document.querySelector('.xmc-vscroll'), br = b.getBoundingClientRect(), t = document.querySelector('.xmc-vsthumb').getBoundingClientRect(), p = document.querySelector('.xmc-vpanel').getBoundingClientRect(); return { top: s.scrollTop, native: getComputedStyle(s).scrollbarWidth, op: getComputedStyle(b).opacity, thumbTop: t.top - br.top, thumbH: t.height, trackH: br.height, inPanel: br.right <= p.right && br.left >= p.left && br.top >= p.top && br.bottom <= p.bottom, w: br.width }; });
+    let x = await m();
+    assert.equal(x.op, '0', 'not while nothing scrolls'); assert.equal(x.native, 'none', 'the system\u2019s own bar is not drawn as well'); assert.equal(x.inPanel, true); assert.ok(x.w >= 6, 'wide enough to see when it shows');
+    assert.ok(x.thumbH < x.trackH, 'the thumb is a part of the track'); assert.ok(x.thumbTop < 2, 'at the top');
+    await page.locator('.xmc-vside').hover();
+    await page.mouse.wheel(0, 300);
+    await page.waitForFunction(() => document.querySelector('.xmc-vside').scrollTop > 100, null, { timeout: 3000 });
+    await page.waitForTimeout(250);
+    const y = await m();
+    assert.equal(y.op, '1', 'seen while it scrolls'); assert.ok(y.thumbTop > x.thumbTop + 5, 'the thumb moved with it: ' + JSON.stringify([x.thumbTop, y.thumbTop]));
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.xmc-vscroll')).opacity === '0', null, { timeout: 3000 }); // and gone a moment after
+    const tr = await page.locator('.xmc-vscroll').boundingBox();
+    await page.mouse.move(tr.x + tr.width / 2, tr.y + tr.height / 2);
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.xmc-vscroll')).opacity === '1', null, { timeout: 2000 }); // the mouse on it shows it
+    const t = await page.locator('.xmc-vsthumb').boundingBox();
+    await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2); await page.mouse.down(); await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2 + 60, { steps: 4 }); await page.mouse.up();
+    await page.waitForTimeout(150);
+    const z = await m();
+    assert.ok(z.top > y.top, 'dragging the thumb scrolls the words: ' + JSON.stringify([y.top, z.top]));
+    await page.mouse.click(tr.x + tr.width / 2, tr.y + 3); // a press on the track above the thumb: a page back
+    await page.waitForTimeout(400);
+    assert.ok((await m()).top < z.top, 'a press on the track above the thumb goes back a page');
+  });
+});
+
+// ---- 0.41.0: Reels focus, fit to screen, double-click to like, quiet controls, actions that stay in view ----
+browserTest('Reels focus: the menu folds to icons and the right panel slides away while Reels is up, nothing saved, and both come back when it is left', async (e) => {
+  const h = await e.open('/home/', { settings: { reels: true, filter: 'media', leftPanel: 'full', rightPanel: 'shown' }, width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 20000 });
+    const cls = () => page.evaluate(() => ({ rail: document.documentElement.classList.contains('xmc-rail'), away: document.documentElement.classList.contains('xmc-sidehide'), left: window.__xmc.settings.leftPanel, right: window.__xmc.settings.rightPanel }));
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && document.documentElement.classList.contains('xmc-sidehide'), null, { timeout: 5000 });
+    assert.deepEqual(await cls(), { rail: true, away: true, left: 'full', right: 'shown' }, 'folded and away, and the choice kept is as it was');
+    await page.locator('#xmc-sidetab').click(); // the tab brings the right panel back for as long as Reels is up
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-sidehide'), null, { timeout: 3000 });
+    assert.equal((await cls()).right, 'shown'); assert.equal((await cls()).rail, true);
+    await page.keyboard.press('Escape'); // leave Reels: the page is as it was chosen
+    await page.waitForFunction(() => !document.getElementById('xmc-root').classList.contains('xmc-reels') && !document.documentElement.classList.contains('xmc-rail'), null, { timeout: 5000 });
+    assert.deepEqual(await cls(), { rail: false, away: false, left: 'full', right: 'shown' });
+    await page.locator('.xmc-reelsbtn').click(); // and back in: folded again, the brought-back panel put away again
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && document.documentElement.classList.contains('xmc-sidehide'), null, { timeout: 5000 });
+  });
+  const off = await e.open('/home/', { settings: { reels: true, filter: 'media', reelsFocus: false, leftPanel: 'full', rightPanel: 'shown' }, width: 1700, height: 900 });
+  await checked(off, async () => {
+    const { page } = off;
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 20000 });
+    await page.waitForTimeout(900);
+    assert.deepEqual(await page.evaluate(() => [document.documentElement.classList.contains('xmc-rail'), document.documentElement.classList.contains('xmc-sidehide')]), [false, false], 'with the setting off, nothing folds');
+  });
+});
+
+browserTest('Fit to screen: the post panel and Reels grow with the window, the posts in the columns do not', async (e) => {
+  const measure = async (textSize) => {
+    const h = await e.open('/home/', { settings: { reels: true, filter: 'media', textSize }, width: 2800, height: 1100 });
+    let out;
+    await checked(h, async () => {
+      const { page } = h;
+      await page.waitForSelector('#xmc-root.xmc-reels .xmc-vpanel', { timeout: 20000 });
+      await page.waitForTimeout(500);
+      out = await page.evaluate(() => { const p = document.querySelector('.xmc-vpanel').getBoundingClientRect(), v = document.querySelector('.xmc-view').getBoundingClientRect(), side = document.querySelector('.xmc-vside').getBoundingClientRect(), c = document.querySelector('.xmc-card') && document.querySelector('.xmc-card').getBoundingClientRect(); return { w: p.width, h: p.height, vw: v.width, side: side.width, fit: document.getElementById('xmc-root').style.getPropertyValue('--xmc-fit'), ts: document.getElementById('xmc-root').style.getPropertyValue('--xmc-ts'), inside: p.left >= v.left - 1 && p.right <= v.right + 1 }; });
+    });
+    return out;
+  };
+  const normal = await measure('normal'), fit = await measure('fit');
+  assert.equal(normal.fit, '1'); assert.equal(fit.ts, '1', 'posts in the columns stay Normal');
+  assert.ok(Number(fit.fit) > 1.3 && Number(fit.fit) <= 1.6, 'the scale for 2800 px: ' + fit.fit);
+  assert.ok(fit.w > normal.w * 1.25, 'the post is bigger: ' + normal.w + ' -> ' + fit.w);
+  assert.ok(fit.side > normal.side * 1.25, 'and so are its words: ' + normal.side + ' -> ' + fit.side);
+  assert.equal(fit.inside, true, 'and still inside the page');
+});
+
+browserTest('Reels: a double-click on a picture likes the post with a heart where it was pressed, never unlikes, and a single click still opens the picture', async (e) => {
+  const h = await e.open('/home/', { settings: { reels: true, filter: 'media' }, width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view .xmc-vmediapane', { timeout: 20000 });
+    for (let k = 0; k < 14 && !(await page.locator('.xmc-vmwrap .xmc-vm:not(.sensitive) img[data-lb]').count()); k++) { await page.keyboard.press('ArrowDown'); await page.waitForTimeout(700); }
+    await page.waitForTimeout(500);
+    const id = await openPostId(page);
+    await page.locator('.xmc-vmwrap .xmc-vm:not(.sensitive) img[data-lb]').first().dblclick({ position: { x: 120, y: 120 } });
+    await page.waitForSelector('.xmc-burst', { timeout: 1500 });
+    const at = await page.evaluate(() => { const b = document.querySelector('.xmc-burst'), w = document.querySelector('.xmc-vmwrap').getBoundingClientRect(); return { x: parseFloat(b.style.left), inside: parseFloat(b.style.left) > 0 && parseFloat(b.style.left) < w.width }; });
+    assert.equal(at.inside, true, 'the heart is on the post');
+    await page.waitForFunction((n) => (window.__actions || []).includes('liked:' + n), id, { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelector('.xmc-vrail [data-act="like"]').classList.contains('on'), null, { timeout: 5000 });
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator('#xmc-lightbox').count(), 0, 'the viewer did not open');
+    await page.waitForFunction(() => !document.querySelector('.xmc-burst'), null, { timeout: 2000 });
+    await page.locator('.xmc-vmwrap .xmc-vm:not(.sensitive) img[data-lb]').first().dblclick({ position: { x: 150, y: 150 } }); // again: a heart, and no second like (which would be an unlike)
+    await page.waitForSelector('.xmc-burst', { timeout: 1500 });
+    await page.waitForTimeout(700);
+    assert.equal(await page.evaluate((n) => window.__actions.filter((a) => a === 'liked:' + n).length, id), 1, 'liked once, not undone');
+    assert.equal(await page.locator('.xmc-vrail [data-act="like"].on').count(), 1);
+    await page.locator('.xmc-vmwrap .xmc-vm:not(.sensitive) img[data-lb]').first().click({ position: { x: 60, y: 200 } }); // one press: the picture opens
+    await page.waitForSelector('#xmc-lightbox', { timeout: 3000 });
+  });
+});
+
+browserTest('Reels: the buttons over the post fade when the mouse and keys are still, come back with either, and the setting turns it off', async (e) => {
+  const h = await e.open('/home/', { settings: { reels: true, filter: 'media', hideForYou: false }, width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view .xmc-vfeed', { timeout: 20000 });
+    const op = () => page.evaluate(() => ({ quiet: document.querySelector('.xmc-view').classList.contains('xmc-quiet'), feed: getComputedStyle(document.querySelector('.xmc-vfeed')).opacity, close: getComputedStyle(document.querySelector('.xmc-vclose')).opacity, keys: getComputedStyle(document.querySelector('.xmc-vkeys')).opacity, rail: getComputedStyle(document.querySelector('.xmc-vrail')).opacity }));
+    await page.mouse.move(900, 400);
+    await page.waitForFunction(() => document.querySelector('.xmc-view').classList.contains('xmc-quiet'), null, { timeout: 5000 });
+    await page.waitForTimeout(350);
+    assert.deepEqual(await op(), { quiet: true, feed: '0', close: '0', keys: '0', rail: '1' }, 'the three fade, the rail stays');
+    await page.mouse.move(920, 420);
+    await page.waitForFunction(() => !document.querySelector('.xmc-view').classList.contains('xmc-quiet'), null, { timeout: 2000 });
+    await page.waitForTimeout(350);
+    const back = await op();
+    assert.deepEqual([back.quiet, back.feed, back.close, back.rail, Number(back.keys) > 0.5], [false, '1', '1', '1', true], 'the mouse brings them back: ' + JSON.stringify(back));
+    await page.waitForFunction(() => document.querySelector('.xmc-view').classList.contains('xmc-quiet'), null, { timeout: 5000 });
+    await page.keyboard.press('Shift'); // a key does too
+    await page.waitForFunction(() => !document.querySelector('.xmc-view').classList.contains('xmc-quiet'), null, { timeout: 2000 });
+  });
+  const off = await e.open('/home/', { settings: { reels: true, filter: 'media', hideForYou: false, reelsQuiet: false }, width: 1700, height: 900 });
+  await checked(off, async () => {
+    const { page } = off;
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view .xmc-vfeed', { timeout: 20000 });
+    await page.waitForTimeout(3200);
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-view').classList.contains('xmc-quiet')), false);
+  });
+});
+
+browserTest('Reels: a video has a progress line along the bottom of the post', async (e) => {
+  const h = await e.open('/home/', { settings: { reels: true, filter: 'media' }, width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await standInPlay(page);
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view .xmc-vmediapane', { timeout: 20000 });
+    for (let k = 0; k < 16 && !(await page.locator('.xmc-vmwrap video').count()); k++) { await page.keyboard.press('ArrowDown'); await page.waitForTimeout(700); }
+    assert.equal(await page.locator('.xmc-vmwrap video').count() > 0, true, 'a post with a video');
+    await page.evaluate(() => { const v = document.querySelector('.xmc-vmwrap video'); Object.defineProperty(v, 'duration', { value: 10, configurable: true }); Object.defineProperty(v, 'currentTime', { value: 4, configurable: true }); v.dispatchEvent(new Event('timeupdate')); });
+    const w = await page.evaluate(() => { const i = document.querySelector('.xmc-vprog i'), line = i.parentElement.getBoundingClientRect(), wrap = document.querySelector('.xmc-vmwrap').getBoundingClientRect(); return { pct: i.style.width, atBottom: Math.abs(line.bottom - wrap.bottom) < 2, full: Math.abs(line.width - wrap.width) < 2 }; });
+    assert.deepEqual(w, { pct: '40%', atBottom: true, full: true });
+  });
+});
+
+browserTest('the post panel: a slim row with the author and the post\u2019s buttons stays at the top once the real row has scrolled away, and its buttons work', async (e) => {
   const h = await e.open('/home/', { settings: { cols: 3 }, width: 1700, height: 600 });
   await checked(h, async () => {
     const { page } = h;
@@ -4440,24 +4597,75 @@ browserTest('the panel’s scrollbar is drawn by the extension: there while the 
     await openCard(page, 90000);
     await page.waitForSelector('.xmc-vscroll:not([hidden])', { timeout: 15000 });
     await page.waitForTimeout(800);
-    const m = () => page.evaluate(() => { const s = document.querySelector('.xmc-vside'), b = document.querySelector('.xmc-vscroll').getBoundingClientRect(), t = document.querySelector('.xmc-vsthumb').getBoundingClientRect(), p = document.querySelector('.xmc-vpanel').getBoundingClientRect(); return { top: s.scrollTop, max: s.scrollHeight - s.clientHeight, native: getComputedStyle(s).scrollbarWidth, thumbTop: t.top - b.top, thumbH: t.height, trackH: b.height, inPanel: b.right <= p.right && b.left >= p.left && b.top >= p.top && b.bottom <= p.bottom, w: b.width }; });
-    let x = await m();
-    assert.equal(x.native, 'none', 'the system’s own bar is not drawn as well'); assert.equal(x.inPanel, true); assert.ok(x.w >= 6, 'wide enough to see');
-    assert.ok(x.thumbH < x.trackH, 'the thumb is a part of the track'); assert.ok(x.thumbTop < 2, 'at the top');
+    const bar = () => page.evaluate(() => { const b = document.querySelector('.xmc-vsticky'), s = document.querySelector('.xmc-vside'), p = document.querySelector('.xmc-vpanel').getBoundingClientRect(); const r = b.getBoundingClientRect(); return { hidden: b.hidden, h: s.scrollHeight, top: r.top - p.top, acts: [...b.querySelectorAll('[data-act]')].map((x) => x.dataset.act), tabs: [...b.querySelectorAll('button')].every((x) => x.tabIndex === -1) }; });
+    let x = await bar();
+    assert.equal(x.hidden, true, 'not while the real row is in view');
     await page.locator('.xmc-vside').hover();
-    await page.mouse.wheel(0, 300);
-    await page.waitForFunction(() => document.querySelector('.xmc-vside').scrollTop > 100, null, { timeout: 3000 });
-    await page.waitForTimeout(200);
-    const y = await m();
-    assert.ok(y.thumbTop > x.thumbTop + 5, 'the thumb moved with it: ' + JSON.stringify([x.thumbTop, y.thumbTop]));
-    const t = await page.locator('.xmc-vsthumb').boundingBox();
-    await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2); await page.mouse.down(); await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2 + 60, { steps: 4 }); await page.mouse.up();
-    await page.waitForTimeout(150);
-    const z = await m();
-    assert.ok(z.top > y.top, 'dragging the thumb scrolls the words: ' + JSON.stringify([y.top, z.top]));
-    const tr = await page.locator('.xmc-vscroll').boundingBox(); // a press on the track above the thumb: a page back
-    await page.mouse.click(tr.x + tr.width / 2, tr.y + 3);
-    await page.waitForTimeout(400);
-    assert.ok((await m()).top < z.top, 'a press on the track above the thumb goes back a page');
+    await page.mouse.wheel(0, 500);
+    await page.waitForFunction(() => !document.querySelector('.xmc-vsticky').hidden, null, { timeout: 4000 });
+    const y = await bar();
+    assert.ok(Math.abs(y.top) < 2, 'at the top of the panel: ' + y.top); assert.equal(y.h, x.h, 'nothing moved when it came');
+    assert.ok(y.acts.includes('like') && y.acts.includes('bookmark') && y.acts.includes('share'), JSON.stringify(y.acts)); assert.equal(y.tabs, true, 'not a second set of tab stops');
+    const id = await openPostId(page);
+    await page.locator('.xmc-vsticky [data-act="like"]').click();
+    await page.waitForFunction((n) => (window.__actions || []).includes('liked:' + n), id, { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelector('.xmc-vsticky [data-act="like"]').classList.contains('on') && document.querySelector('.xmc-vside > .xmc-actions [data-act="like"]').classList.contains('on'), null, { timeout: 5000 });
+    await page.evaluate(() => { document.querySelector('.xmc-vside').scrollTop = 0; });
+    await page.waitForFunction(() => document.querySelector('.xmc-vsticky').hidden, null, { timeout: 3000 });
+  });
+  const reels = await e.open('/home/', { settings: { reels: true, filter: 'media' }, width: 1700, height: 900 });
+  await checked(reels, async () => {
+    await reels.page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 20000 });
+    assert.equal(await reels.page.locator('.xmc-vsticky').count(), 0, 'Reels has its rail instead');
+  });
+});
+
+// ---- motion (0.41.0): quick, on a few things that had none; none when the system asks for less ----
+browserTest('motion: a press, stepping through posts, and the settings each move quickly and not at all for reduced motion', async (e) => {
+  const h = await e.open('/home/', { settings: { cols: 3 }, width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const secs = (v) => Math.max(...String(v).split(',').map((x) => parseFloat(x) || 0)) * (/ms/.test(String(v)) ? 0.001 : 1);
+    await openCard(page, 90000);
+    await page.waitForSelector('.xmc-view .xmc-vpanel', { timeout: 15000 });
+    await page.waitForTimeout(600);
+    const act = page.locator('.xmc-vside > .xmc-actions [data-act="share"]');
+    const b = await act.boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+    const press = await page.evaluate(() => { const c = getComputedStyle(document.querySelector('.xmc-vside > .xmc-actions [data-act="share"]')); return { name: c.animationName, d: c.animationDuration }; });
+    await page.mouse.up();
+    assert.equal(press.name, 'xmc-press'); assert.ok(secs(press.d) <= 0.1, 'quick: ' + press.d);
+    await page.locator('.xmc-vnav.next').click();
+    const step = await page.evaluate(() => { const v = document.querySelector('.xmc-view'), c = getComputedStyle(document.querySelector('.xmc-vpanel')); return { cls: v.classList.contains('xmc-sd'), name: c.animationName, d: c.animationDuration }; });
+    assert.deepEqual([step.cls, step.name], [true, 'xmc-step-n']); assert.ok(secs(step.d) <= 0.2, step.d);
+    await page.waitForTimeout(300);
+    await page.locator('.xmc-vnav.prev').click();
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-vpanel')).animationName), 'xmc-step-p');
+    await page.locator('.xmc-vclose').click();
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'), null, { timeout: 4000 });
+    await page.locator('.xmc-gear').click();
+    await page.waitForSelector('#xmc-settings', { timeout: 5000 });
+    const gear = await page.evaluate(() => { const c = getComputedStyle(document.getElementById('xmc-settings')); return { name: c.animationName, d: c.animationDuration }; });
+    assert.equal(gear.name, 'xmc-pop-r'); assert.ok(secs(gear.d) <= 0.2, gear.d);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('xmc-settings')).animationName), 'none');
+  });
+});
+
+browserTest('motion: pictures of one post slide in from the side the arrow points to', async (e) => {
+  const h = await e.open('/home/', { settings: { cols: 3 }, width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await openCard(page, 89998); // (three pictures)
+    await page.waitForSelector('.xmc-vpanel .xmc-car', { timeout: 15000 });
+    await page.waitForTimeout(500);
+    await page.locator('.xmc-car .xmc-cnav.next').click();
+    const n = await page.evaluate(() => { const c = document.querySelector('.xmc-car'); return { dir: c.dataset.dir, name: getComputedStyle(c.querySelector(':scope > .xmc-vm:not([hidden])')).animationName }; });
+    assert.deepEqual(n, { dir: 'n', name: 'xmc-slide-n' });
+    await page.waitForTimeout(250);
+    await page.locator('.xmc-car .xmc-cnav.prev').click();
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-car > .xmc-vm:not([hidden])')).animationName), 'xmc-slide-p');
   });
 });
