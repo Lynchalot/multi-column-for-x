@@ -1758,9 +1758,11 @@ browserTest('a profile\'s header is a copy of X\'s own: its links open, and its 
     await page.waitForSelector('[data-testid="aboutpop"]', { timeout: 5000 });
     await page.waitForFunction(() => { const p = document.querySelector('[data-testid="aboutpop"]'), j = [...document.querySelectorAll('.xmc-profile [role="button"]')].find((x) => /Joined/.test(x.textContent)); if (!p || !j) return false; const a = p.getBoundingClientRect(), b = j.getBoundingClientRect(); return Math.abs(a.left - b.left) < 20 && a.top >= b.bottom - 2 && a.top < b.bottom + 40; }, null, { timeout: 4000 });
     await page.mouse.click(5, 5); await page.evaluate(() => document.querySelectorAll('#layers > *').forEach((x) => x.remove()));
-    // a button presses X's real one
-    await page.locator('.xmc-profile [data-testid="user7-follow"]').click();
-    await page.waitForFunction(() => window.__follow === 1, null, { timeout: 8000 });
+    // a button presses X's real one (Unfollow is asked on the card first, and then X's own button and question are pressed)
+    await page.locator('.xmc-profile [data-testid="user7-unfollow"]').click();
+    await page.waitForFunction(() => /Unfollow @user7\?/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
+    await page.locator('#xmc-toast .xmc-undo').click();
+    await page.waitForFunction(() => window.__unfollowPressed === 1 && window.__unfollowed === 1, null, { timeout: 8000 });
   });
 });
 
@@ -5736,7 +5738,7 @@ browserTest('under a colour theme the strip behind X’s search box takes the pa
 }, 60000);
 
 // ---- 0.48.0: the profile card's buttons, and the Reposts tab ----
-browserTest('the profile card: ... brings X’s menu up over the columns, under the button; Following brings X’s question up over them and the card follows the answer; and both work after X has built its header again', async (e) => {
+browserTest('the profile card: ... brings X’s menu up over the columns, under the button; Following asks on the card, unfollows through X’s own button and question, and the card follows; and both work after X has built its header again', async (e) => {
   const h = await e.open('/user7/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
   await checked(h, async () => {
     const { page } = h;
@@ -5753,15 +5755,14 @@ browserTest('the profile card: ... brings X’s menu up over the columns, under 
     assert.ok(Math.abs(m.left - Math.round(btn.x)) < 6 && m.top > btn.y && m.top < btn.y + btn.height + 30, 'and under the button pressed here (' + JSON.stringify(m) + ' for ' + JSON.stringify(btn) + ')');
     await page.evaluate(() => { document.getElementById('layers').innerHTML = ''; }); // (X closes it)
     await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-layers-up') && !document.getElementById('layers').dataset.xmcMenuUp, null, { timeout: 3000 });
-    // Following: X asks, over the columns; the answer is pressed there; the card says Follow
-    await page.locator('.xmc-profile [data-testid="user7-follow"]').click();
-    await page.waitForSelector('#layers [data-testid="confirmationSheetConfirm"]', { timeout: 4000 });
-    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-layers-up'), null, { timeout: 2000 });
-    const sheet = await visible('#layers [data-testid="confirmationSheetConfirm"]');
-    assert.equal(sheet.on, true, 'the question is over the columns');
-    await page.locator('#layers [data-testid="confirmationSheetConfirm"]').click();
-    await page.waitForFunction(() => window.__unfollowed === 1, null, { timeout: 3000 });
+    // Following: the question is asked on the card; on yes X's own button and question are pressed for it, out of sight, and the card says Follow
+    await page.locator('.xmc-profile [data-testid="user7-unfollow"]').click();
+    await page.waitForFunction(() => /Unfollow @user7\?/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
+    assert.equal(await page.evaluate(() => window.__followAsked || 0), 0, 'X has not been pressed yet');
+    await page.locator('#xmc-toast .xmc-undo').click();
+    await page.waitForFunction(() => window.__unfollowed === 1, null, { timeout: 8000 });
     await page.waitForFunction(() => /^Follow$/.test((document.querySelector('.xmc-profile [data-testid="user7-follow"]') || {}).textContent || ''), null, { timeout: 5000 });
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-acting') && !document.getElementById('layers').children.length, null, { timeout: 4000 });
     // X builds its header again (the page was walked away from it): ids that are all new; the buttons still go to the right place
     await page.evaluate(() => window.__dropHeader());
     await page.waitForFunction(() => !document.querySelector('#react-root [data-testid="UserName"]'), null, { timeout: 2000 });
@@ -5774,6 +5775,22 @@ browserTest('the profile card: ... brings X’s menu up over the columns, under 
     assert.equal(await page.evaluate(() => /Couldn.t reach that button/.test(document.getElementById('xmc-toast').textContent)), false, 'with no complaint');
   });
 }, 90000);
+
+browserTest('Unfollow when X does not ask: the card says it could not, X’s layer is not left hidden, and nothing stays pressed', async (e) => {
+  const h = await e.open('/user7/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 3 } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('.xmc-profile.xmc-native [data-testid="user7-unfollow"]', { timeout: 8000 });
+    await page.evaluate(() => { window.__noSheet = true; });
+    await page.locator('.xmc-profile [data-testid="user7-unfollow"]').click();
+    await page.locator('#xmc-toast .xmc-undo').click();
+    await page.waitForFunction(() => /Couldn.t unfollow just now \(X did not ask\)/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 8000 });
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-acting'), null, { timeout: 3000 });
+    assert.equal(await page.evaluate(() => window.__unfollowed || 0), 0);
+    assert.equal(await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).trace.some((t) => t[1] === 'unfollow')), true, 'the trace says why');
+  });
+}, 60000);
 
 browserTest('a profile’s Reposts tab is a profile page like the others (X’s own tab bar says it is one), and Joined is underlined as it is pointed at with a chevron after it', async (e) => {
   const h = await e.open('/user7/reposts', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });

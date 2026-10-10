@@ -3180,6 +3180,42 @@
       if (!open && (seen || Date.now() - start > 3000) || Date.now() - start > 180000 || retired) { clearInterval(layerPoll); lift(false); }
     }, 100);
   }
+  // Unfollow: X's Following button asks "Unfollow @name?" in a layer of its own. The question is put on the card (a toast with the button), and on yes X's own button
+  // and its question are pressed for it, out of sight, as a like is; if X does not ask, or does not say it is done, X's layer is brought up over the columns to be answered there.
+  const isUnfollow = (el) => { // (X's test id says so; failing that, a button that says Following)
+    const id = el.getAttribute('data-testid') || '';
+    return /-unfollow$/.test(id) || ((el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') && (el.textContent || '').trim() === 'Following');
+  };
+  const unfollowBtn = (box) => box && ([...box.querySelectorAll('[data-testid]')].find((n) => isUnfollow(n)) || null);
+  async function unfollowViaX(handle) {
+    const doc = document.documentElement, layers = document.getElementById('layers');
+    state.proxyUntil = Date.now() + 15000;
+    doc.classList.add('xmc-acting'); state.actingSince = Date.now();
+    let done = false, why = '';
+    try {
+      let orig = nativeHeader(handle);
+      if (!orig) { window.scrollTo(0, 0); orig = await waitFor(() => nativeHeader(handle), 2500); }
+      const btn = unfollowBtn(orig);
+      if (!btn) why = 'X\u2019s Following button is not there';
+      else {
+        const asked = () => layers && layers.querySelector('[data-testid="confirmationSheetConfirm"]');
+        fire(btn);
+        let yes = await waitFor(asked, 1500);
+        if (!yes && btn.isConnected) { btn.click(); yes = await waitFor(asked, 2500); } // (the full press first, then a plain click)
+        if (!yes) why = 'X did not ask';
+        else {
+          const over = () => { const o = nativeHeader(handle); return !!o && !unfollowBtn(o); };
+          fire(yes);
+          done = !!(await waitFor(over, 1500));
+          if (!done && yes.isConnected) { yes.click(); done = !!(await waitFor(over, 3000)); }
+          if (!done) why = 'X did not say it was done';
+        }
+      }
+    } finally { setTimeout(() => doc.classList.remove('xmc-acting'), 600); settleProxy(); }
+    trace('unfollow', done ? 'done' : why);
+    if (done) toast('Unfollowed @' + handle, null, null, 2500);
+    else { toast('Couldn\u2019t unfollow just now (' + why + '). Answer X\u2019s question if it is up, or try again.', null, null, 5000); if (layers) layerWatch(layers); }
+  }
   async function pressHeaderButton(position, anchor) {
     state.proxyUntil = Date.now() + 8000;
     const layers = document.getElementById('layers'), before = new Set(layers ? [...layers.children] : []);
@@ -3192,6 +3228,7 @@
       if (!target) { how = 'sense'; target = headerTargetBySense(orig, anchor); }
       trace('header-press', how + ' ' + (target ? (target.getAttribute('data-testid') || target.tagName) : 'none'));
       if (!target) { toast('Couldn\u2019t reach that button just now. Try again in a moment.'); return; }
+      if (isUnfollow(target)) { toast('Unfollow @' + headerCopy.handle + '?', () => unfollowViaX(headerCopy.handle), 'Unfollow', 9000); return; } // (X asks it in its own layer, which has to be seen and pressed: here it is asked on the card)
       fire(target);
       if (layers) {
         layerWatch(layers);
