@@ -5133,3 +5133,138 @@ browserTest('Settings, Keyboard: choosing Vim shows its table (and hides the cla
     assert.ok(!/vimKeys/.test(await page.evaluate(() => localStorage.getItem('xmc.settings') || '')), 'the defaults are not kept as choices');
   });
 }, 90000);
+
+// ---- Likes: search and narrowing; Reels on Bookmarks and Search (0.44.0) ----
+const feedItems = (page) => page.evaluate(() => [...window.__xmc.state.feeds.values()].reduce((n, f) => n + f.items.length, 0));
+
+browserTest('Likes: a search box narrows what has loaded as you type, loads nothing more on its own, reads older ones when asked (and stops when told), and Esc clears it', async (e) => {
+  const h = await e.open('/user1/likes/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => !document.querySelector('.xmc-bar3').hidden, null, { timeout: 8000 });
+    assert.equal(await page.locator('.xmc-find').isVisible(), true, 'Likes has the box');
+    const all = await page.evaluate(() => window.__xmc.view.cards.length);
+    await page.fill('.xmc-find', 'tweet 89990 ');
+    await page.waitForFunction(() => window.__xmc.view.cards.length === 1, null, { timeout: 5000 });
+    assert.match(await page.locator('.xmc-card').first().innerText(), /tweet 89990 /);
+    assert.match(await page.locator('.xmc-fstatus').innerText(), /^1 of \d+ likes match/);
+    // nothing more is loaded unasked, however empty the columns are
+    const n0 = await feedItems(page);
+    await page.waitForTimeout(2500);
+    assert.equal(await feedItems(page), n0, 'no more posts asked for');
+    // Read older: it goes on until stopped (or a thousand more)
+    await page.locator('.xmc-fbtn', { hasText: 'Read older likes' }).click();
+    await page.waitForFunction((n) => [...window.__xmc.state.feeds.values()].reduce((a, f) => a + f.items.length, 0) > n + 20, n0, { timeout: 15000 });
+    assert.match(await page.locator('.xmc-fstatus').innerText(), /reading older/);
+    await page.locator('.xmc-fbtn', { hasText: 'Stop' }).click();
+    await page.waitForFunction(() => /Read older likes/.test(document.querySelector('.xmc-fstatus').textContent), null, { timeout: 5000 });
+    await page.waitForTimeout(1500);
+    const n1 = await feedItems(page);
+    await page.waitForTimeout(2500);
+    assert.equal(await feedItems(page), n1, 'stopped: no more');
+    // Esc in the box: the words go, and the posts are back
+    await page.locator('.xmc-find').focus();
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.xmc-find').inputValue(), '');
+    await page.waitForFunction((k) => window.__xmc.view.cards.length >= k, all, { timeout: 5000 });
+    assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('.xmc-find')), true, 'the first Esc only clears');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('.xmc-find')), false, 'the second lets go');
+    // a word that is nowhere
+    await page.fill('.xmc-find', 'zzzzqqq');
+    await page.waitForFunction(() => /None of the \d+ that have loaded match/.test(document.querySelector('.xmc-status').textContent), null, { timeout: 5000 });
+  });
+}, 90000);
+
+browserTest('Likes and Bookmarks: a chip for each account (with how many), Pictures, Video and Links narrow the posts, and choosing again undoes it; Bookmarks has the chips and no box', async (e) => {
+  const h = await e.open('/user1/likes/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-fchip:not(.xmc-fkind)').length >= 3, null, { timeout: 8000 });
+    const total = await page.evaluate(() => window.__xmc.view.cards.length);
+    const chip = page.locator('.xmc-fchip:not(.xmc-fkind)').first();
+    const handle = (await chip.getAttribute('title')).replace('@', '').toLowerCase();
+    const n = Number(await chip.locator('.xmc-fn').innerText());
+    await chip.click();
+    await page.waitForFunction((k) => window.__xmc.view.cards.length === k, n, { timeout: 5000 });
+    assert.equal(await page.evaluate((hd) => window.__xmc.view.cards.every((t) => t.author.handle.toLowerCase() === hd), handle), true, 'only that account');
+    assert.equal(await chip.getAttribute('aria-pressed'), 'true');
+    await chip.click();
+    await page.waitForFunction((k) => window.__xmc.view.cards.length >= k, total, { timeout: 5000 });
+    // kinds
+    await page.locator('.xmc-fkind', { hasText: 'Video' }).click();
+    await page.waitForFunction(() => window.__xmc.view.cards.length > 0 && window.__xmc.view.cards.every((t) => t.media.some((m) => m.type === 'video' || m.type === 'gif')), null, { timeout: 5000 });
+    await page.locator('.xmc-fkind', { hasText: 'Pictures' }).click(); // (video or pictures)
+    await page.waitForFunction(() => window.__xmc.view.cards.length > 0 && window.__xmc.view.cards.every((t) => t.media.length > 0), null, { timeout: 5000 });
+    assert.equal(await page.evaluate(() => window.__xmc.view.cards.some((t) => t.media.some((m) => m.type === 'photo'))), true, 'both: pictures too');
+    await page.locator('.xmc-fkind', { hasText: 'Video' }).click();
+    await page.locator('.xmc-fkind', { hasText: 'Pictures' }).click();
+    await page.waitForFunction((k) => window.__xmc.view.cards.length >= k, total, { timeout: 5000 });
+  });
+  const bm = await e.open('/i/bookmarks/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(bm, async () => {
+    const { page } = bm;
+    await e.ready(page);
+    await page.waitForFunction(() => !document.querySelector('.xmc-bar3').hidden, null, { timeout: 8000 });
+    assert.equal(await page.locator('.xmc-find').isVisible(), false, 'X searches Bookmarks itself');
+    assert.ok((await page.locator('.xmc-fchip:not(.xmc-fkind)').count()) >= 3, 'but the chips are there');
+  });
+  const off = await e.open('/user1/likes/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3, findBar: false } });
+  await checked(off, async () => {
+    await e.ready(off.page);
+    await off.page.waitForTimeout(1000);
+    assert.equal(await off.page.locator('.xmc-bar3:not([hidden])').count(), 0, 'switched off');
+  });
+}, 120000);
+
+browserTest('Reels on Bookmarks and Search: the button is in the bar, it opens at the first post in view, and Esc comes back; on Likes it goes through the posts the search left', async (e) => {
+  for (const path of ['/i/bookmarks/', '/search/']) {
+    const h = await e.open(path, { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+    await checked(h, async () => {
+      const { page } = h;
+      await e.ready(page);
+      await page.waitForSelector('.xmc-reelsbtn:not([hidden])', { timeout: 8000 });
+      await page.locator('.xmc-reelsbtn').click();
+      await page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 8000 });
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)') && !document.getElementById('xmc-root').classList.contains('xmc-reels'), null, { timeout: 5000 });
+    });
+  }
+  const likes = await e.open('/user1/likes/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(likes, async () => {
+    const { page } = likes;
+    await e.ready(page);
+    await page.waitForFunction(() => !document.querySelector('.xmc-bar3').hidden, null, { timeout: 8000 });
+    await page.locator('.xmc-fkind', { hasText: 'Video' }).click();
+    await page.waitForFunction(() => window.__xmc.view.cards.length > 0 && window.__xmc.view.cards.every((t) => t.media.some((m) => m.type === 'video' || m.type === 'gif')));
+    await page.waitForSelector('.xmc-reelsbtn:not([hidden])', { timeout: 8000 });
+    await page.locator('.xmc-reelsbtn').click();
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 8000 });
+    const id = await openPostId(page);
+    assert.equal(await page.evaluate((i) => window.__xmc.view.cards.some((t) => String(t.id) === i), id), true, 'a post the narrowing left');
+    await page.keyboard.press('ArrowDown');
+    await page.waitForFunction((i) => { const v = document.querySelector('.xmc-view'), m = v && /(?:tweet|number) (\d+)\b/.exec(v.innerText); return m && m[1] !== i; }, id, { timeout: 5000 });
+    const next = await openPostId(page);
+    assert.equal(await page.evaluate((i) => window.__xmc.view.cards.some((t) => String(t.id) === i && t.media.some((m) => m.type === 'video' || m.type === 'gif')), next), true, 'the next one is a video too');
+  });
+}, 120000);
+
+browserTest('Likes with the Vim keys: / puts the cursor in the search box (X has none there), letters typed in it are letters, and Esc clears it and then lets go', async (e) => {
+  const h = await e.open('/user1/likes/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => !document.querySelector('.xmc-bar3').hidden, null, { timeout: 8000 });
+    await page.keyboard.press('/');
+    assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('.xmc-find')), true);
+    await page.keyboard.type('jkf tweet');
+    assert.equal(await page.locator('.xmc-find').inputValue(), 'jkf tweet', 'letters are letters');
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop), 0, 'and did not scroll');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.xmc-find').inputValue(), '');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('.xmc-find')), false);
+  });
+}, 90000);

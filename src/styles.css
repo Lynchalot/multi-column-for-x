@@ -321,6 +321,22 @@ html.xmc-hideDiscoverMore :is([aria-label="Discover more"], [aria-label*="Discov
 .xmc-bar2 { display: flex; gap: 6px; padding: 2px 12px 8px; overflow-x: auto; scrollbar-width: none; }
 .xmc-bar2[hidden] { display: none; }
 .xmc-bar2 .xmc-chip { flex: none; }
+/* Likes and Bookmarks: search, a chip for each account, Pictures / Video / Links, and what has been read */
+.xmc-bar3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 12px 10px; }
+.xmc-bar3[hidden] { display: none; }
+.xmc-bar3 .xmc-find { width: 190px; box-sizing: border-box; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--xmc-border); background: none; color: var(--xmc-fg); font: inherit; font-size: 14px; outline: none; }
+.xmc-bar3 .xmc-find:focus { border-color: var(--xmc-accent); }
+.xmc-bar3 .xmc-find::placeholder { color: var(--xmc-muted); }
+.xmc-bar3 .xmc-find[hidden] { display: none; }
+.xmc-fchips, .xmc-fkinds { display: contents; }
+.xmc-bar .xmc-fchip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 5px; border: 1px solid var(--xmc-border); font-size: 13.5px; font-weight: 500; }
+.xmc-bar .xmc-fkind { padding: 5px 12px; }
+.xmc-bar .xmc-fchip.on { font-weight: 700; border-color: var(--xmc-accent); background: color-mix(in srgb, var(--xmc-accent) 18%, transparent); }
+.xmc-fchip img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+.xmc-fchip .xmc-fname { max-width: 11em; overflow: hidden; text-overflow: ellipsis; }
+.xmc-fchip .xmc-fn { color: var(--xmc-muted); font-weight: 500; }
+.xmc-fstatus { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; font-size: 13.5px; color: var(--xmc-muted); }
+.xmc-bar .xmc-fbtn { padding: 5px 12px; border: 1px solid var(--xmc-border); font-size: 13.5px; font-weight: 700; color: var(--xmc-accent); }
 .xmc-colbtn, .xmc-showbtn { display: inline-flex !important; align-items: center; gap: 6px; padding: 8px 12px !important; }
 .xmc-colbtn svg, .xmc-showbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .xmc-colbtn svg:last-child, .xmc-showbtn svg:last-child { width: 14px; height: 14px; opacity: .7; }

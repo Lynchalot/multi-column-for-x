@@ -119,6 +119,9 @@ function pageFor(path) {
   if (p === '/home') return timelinePage(HOME);
   if (p === '/menu') return timelinePage({ ...HOME, title: 'Menu / X', dropdown: { tab: 1, items: ['Recent', 'Popular'], kind: 'sort' } });
   if (p === '/user/media') return timelinePage({ title: 'user / Media / X', tabs: [{ label: 'Posts' }, { label: 'Replies' }, { label: 'Reposts' }, { label: 'Videos', feed: 'UserMedia' }], selected: 3, dropdown: { tab: 3, items: ['Videos', 'Photos'], kind: 'media' } });
+  if (p === '/user1/likes') return timelinePage({ title: 'user1 / Likes / X', tabs: [{ label: 'Posts' }, { label: 'Replies' }, { label: 'Media' }, { label: 'Likes', feed: 'Likes' }], selected: 3 });
+  if (p === '/i/bookmarks') return timelinePage({ title: 'Bookmarks / X', tabs: [{ label: 'Bookmarks', feed: 'Bookmarks' }], selected: 0 });
+  if (p === '/search') return timelinePage({ title: 'Search / X', tabs: [{ label: 'Top' }, { label: 'Latest', feed: 'SearchTimeline' }], selected: 1 });
   if (p === '/explore') return timelinePage({ title: 'Explore / X', tabs: [{ label: 'For you', feed: 'ExplorePage' }, { label: 'Trending', feed: 'ExplorePage' }], selected: 0 });
   if (p === '/threads') return timelinePage({ title: 'threads / X', tabs: [{ label: 'Posts', feed: 'ThreadsTimeline' }], selected: 0 });
   if (p === '/i/lists/123') return timelinePage({ title: 'List / X', tabs: [{ label: 'Posts', feed: 'ListLatestTimeline' }], selected: 0, meta: 'ListByRestId' });

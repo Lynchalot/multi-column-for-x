@@ -6,6 +6,7 @@ and, if you ask for it with the **Try columns** pill, Explore (which is left as 
 
 ## What you get
 - **Columns** — automatic (about 500px wide each, never more than 5 by default; a narrower window drops columns down to one instead of squeezing them) or fixed 1–8.
+- **Search on Likes** *(option)* — X has no search there. A box, a chip for each account and Pictures / Video / Links narrow the likes that have loaded; **Read older likes** loads more when you ask. Bookmarks gets the chips, and Bookmarks and Search get a Reels button.
 - **A layout for each page** *(option)* — Home, Search, Lists, Bookmarks and profiles each remember the column count you last picked there.
 - **Posts you've read** *(option)* — hide them or fade them. A post counts as read once it has been on screen for a second; only its number is kept, on your device. What you read on this visit stays until you refresh, so nothing disappears while you read, and a **N hidden** button in the top bar brings them back. When everything recent is read it says you're up to date instead of loading older posts for ever (**Keep loading older posts** goes on). Applies to Home and Lists.
 - **Reposts folded** *(option)* — when several people repost the same post it is one card: "A, B and 2 others reposted".

@@ -544,3 +544,74 @@ test('X\'s own viewer is recognised by its address: the post, picture or video, 
   assert.equal(L.viewerRoute('/someone/status/123/quotes'), null);
   assert.equal(L.viewerRoute(''), null);
 });
+
+// ---- search and narrowing on Likes and Bookmarks ----
+const mkPost = (o) => Object.assign({ id: '1', key: '1', author: { name: 'Ann Lee', handle: 'AnnLee', avatar: 'a.png' }, segs: [{ t: 'text', v: 'a walk in the park' }], media: [], quoted: null, card: null, repostedBy: null, replyTo: '', sensitive: false }, o);
+
+test('Likes is a profile’s own tab, and only that', () => {
+  assert.equal(L.isLikesPage('/me/likes'), true);
+  assert.equal(L.isLikesPage('/me/likes/'), true);
+  assert.equal(L.isLikesPage('/me'), false);
+  assert.equal(L.isLikesPage('/me/media'), false);
+  assert.equal(L.isLikesPage('/i/likes'), false);
+  assert.equal(L.isLikesPage(''), false);
+});
+
+test('a search needs every word, anywhere in the post, its quote, its picture’s description, its link card or the names', () => {
+  const p = mkPost({ quoted: mkPost({ id: '2', author: { name: 'Bo', handle: 'bo', avatar: '' }, segs: [{ t: 'text', v: 'violins and cellos' }] }), media: [{ type: 'photo', alt: 'a heron over water' }], card: { title: 'Field notes', desc: 'on birds', url: '#' } });
+  const m = (q) => L.findMatch(p, { q, accounts: [], kinds: [] });
+  assert.equal(m('walk park'), true);
+  assert.equal(m('WALK'), true);
+  assert.equal(m('walk zebra'), false);
+  assert.equal(m('cellos'), true); // the quoted post
+  assert.equal(m('heron'), true); // the picture’s description
+  assert.equal(m('field notes'), true); // the link card
+  assert.equal(m('annlee'), true); // the handle
+  assert.equal(m('ann lee'), true); // the name
+  assert.equal(m('   '), true); // nothing asked
+  assert.equal(L.findMatch(mkPost({ quoted: { unavailable: true } }), { q: 'park', accounts: [], kinds: [] }), true);
+});
+
+test('accounts are any-of, kinds are any-of, and the three groups are all asked', () => {
+  const pic = mkPost({ id: '1', media: [{ type: 'photo' }] });
+  const vid = mkPost({ id: '2', author: { name: 'Bo', handle: 'Bo', avatar: '' }, media: [{ type: 'video' }, { type: 'gif' }] });
+  const link = mkPost({ id: '3', author: { name: 'Cy', handle: 'cy', avatar: '' }, segs: [{ t: 'text', v: 'see' }, { t: 'url', href: 'https://example.org', label: 'example.org' }] });
+  const text = mkPost({ id: '4', author: { name: 'Cy', handle: 'cy', avatar: '' } });
+  const poll = mkPost({ id: '5', card: { poll: true } });
+  const f = (o) => [pic, vid, link, text, poll].filter((t) => L.findMatch(t, Object.assign({ q: '', accounts: [], kinds: [] }, o))).map((t) => t.id);
+  assert.deepEqual(f({}), ['1', '2', '3', '4', '5']);
+  assert.deepEqual(f({ kinds: ['pictures'] }), ['1']);
+  assert.deepEqual(f({ kinds: ['video'] }), ['2']);
+  assert.deepEqual(f({ kinds: ['links'] }), ['3']);
+  assert.deepEqual(f({ kinds: ['pictures', 'video'] }), ['1', '2']);
+  assert.deepEqual(f({ accounts: ['cy'] }), ['3', '4']);
+  assert.deepEqual(f({ accounts: ['cy', 'bo'] }), ['2', '3', '4']);
+  assert.deepEqual(f({ accounts: ['cy'], kinds: ['links'] }), ['3']);
+  assert.deepEqual(f({ accounts: ['cy'], q: 'see' }), ['3']);
+  assert.equal(L.findOn({ q: ' ', accounts: [], kinds: [] }), false);
+  assert.equal(L.findOn({ q: '', accounts: ['x'], kinds: [] }), true);
+  assert.equal(L.findOn(null), false);
+});
+
+test('the account chips count what the words and kinds let through, most first, and leave out what the settings hide', () => {
+  const by = (h, n, extra) => Array.from({ length: n }, (_, i) => mkPost(Object.assign({ id: h + i, author: { name: h.toUpperCase(), handle: h, avatar: '' } }, extra)));
+  const items = [].concat(by('ann', 3), by('bo', 5, { media: [{ type: 'photo' }] }), by('cy', 1), by('dee', 5, { segs: [{ t: 'text', v: 'zebra' }] }));
+  assert.deepEqual(L.findAccounts(items, { q: '', accounts: [], kinds: [] }, 8).map((a) => [a.handle, a.n]), [['bo', 5], ['dee', 5], ['ann', 3], ['cy', 1]]);
+  assert.deepEqual(L.findAccounts(items, { q: '', accounts: [], kinds: ['pictures'] }, 8).map((a) => [a.handle, a.n]), [['bo', 5]]);
+  assert.deepEqual(L.findAccounts(items, { q: 'zebra', accounts: [], kinds: [] }, 8).map((a) => [a.handle, a.n]), [['dee', 5]]);
+  assert.deepEqual(L.findAccounts(items, { q: '', accounts: ['ann'], kinds: [] }, 8).map((a) => a.handle), ['bo', 'dee', 'ann', 'cy'], 'the choice of an account does not empty the others');
+  assert.equal(L.findAccounts(items, { q: '', accounts: [], kinds: [] }, 2).length, 2);
+  assert.deepEqual(L.findAccounts(items, { q: '', accounts: [], kinds: [] }, 8, (t) => t.author.handle !== 'bo').map((a) => a.handle), ['dee', 'ann', 'cy']);
+});
+
+test('passes: a find narrows the posts, and none is the same as before', () => {
+  const posts = [mkPost({ id: '1' }), mkPost({ id: '2', segs: [{ t: 'text', v: 'zebra crossing' }] })];
+  const keep = (find) => posts.filter((t) => L.passes(t, ctx(find === undefined ? {} : { find }))).map((t) => t.id);
+  assert.deepEqual(keep(), ['1', '2']);
+  assert.deepEqual(keep(null), ['1', '2']);
+  assert.deepEqual(keep({ q: 'zebra', accounts: [], kinds: [] }), ['2']);
+});
+
+test('the find bar is a setting, on by default', () => {
+  assert.equal(S.DEFAULTS.findBar, true);
+});

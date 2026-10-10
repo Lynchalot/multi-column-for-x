@@ -815,7 +815,15 @@
   const pageTitleEl = h('span', { className: 'xmc-pagetitle', hidden: true });
   const row1 = h('div', { className: 'xmc-bar1' }, pageTitleEl, tabsEl, h('span', { className: 'xmc-spacer' }), healthBtn, reelsBtn, seenBtn, refreshBtn, showBtn, colBtn, densityBtn, nsfwBtn, gearBtn, menuBtn);
   const row2 = h('div', { className: 'xmc-bar2' }, ...Object.values(viewEls), ...Object.values(kindEls)); // the "All / Tweets / Retweets / ..." views, on a line of their own
-  const bar = h('div', { className: 'xmc-bar' }, row1); // (row2, the chips, is no longer shown: its choices are in the Show menu)
+  // Likes and Bookmarks: a row of its own under the bar (see "Search and narrowing" below): a search box (Likes only: X searches Bookmarks itself), a chip for
+  // each account among the posts loaded, Pictures / Video / Links, and what has been read, with a button to read older ones
+  const findInput = h('input', { className: 'xmc-find', type: 'text', placeholder: 'Search', 'aria-label': 'Search your likes', spellcheck: false, autocomplete: 'off' });
+  const findChips = h('div', { className: 'xmc-fchips' });
+  const findKindEls = {};
+  for (const [k, label] of [['pictures', 'Pictures'], ['video', 'Video'], ['links', 'Links']]) findKindEls[k] = h('button', { className: 'xmc-fchip xmc-fkind', type: 'button', textContent: label, 'aria-pressed': 'false', onclick: () => findToggle('kinds', k) });
+  const findStatus = h('div', { className: 'xmc-fstatus', role: 'status' });
+  const findRow = h('div', { className: 'xmc-bar3', hidden: true }, findInput, findChips, h('div', { className: 'xmc-fkinds' }, ...Object.values(findKindEls)), findStatus);
+  const bar = h('div', { className: 'xmc-bar' }, row1, findRow); // (row2, the chips, is no longer shown: its choices are in the Show menu)
   const statusEl = h('div', { className: 'xmc-status' });
   const colsEl = h('div', { className: 'xmc-cols' });
   const loaderText = h('span', { textContent: 'Loading more…' });
@@ -1170,7 +1178,7 @@
     if (state.reelsOff && state.reelsOff !== feedRoute()) state.reelsOff = ''; // (another page since: it starts afresh when you come back)
     if (state.reelsAsk && state.reelsAsk !== feedRoute()) state.reelsAsk = '';
     if (!settings.reels && !state.reelsAsk && root.classList.contains('xmc-reels') && !postView) root.classList.remove('xmc-reels');
-    reelsBtn.hidden = !(settings.openIn === 'view' && ((settings.reels && state.reelsOff && ['home', 'list'].includes(feedKind())) || (settings.reelsProfiles && feedKind() === 'profile' && !postView && !!view.cards.length)));
+    reelsBtn.hidden = !(settings.openIn === 'view' && ((settings.reels && state.reelsOff && ['home', 'list'].includes(feedKind())) || (settings.reelsProfiles && ['profile', 'bookmarks', 'search'].includes(feedKind()) && !postView && !!view.cards.length)));
     if (!reelsWanted() || postView || lightbox || menuEl || !state.shown || root.hidden || document.hidden || state.peek || state.posting || state.reelsSwitching || isModalRoute() || !view.cards.length) return;
     const first = firstCardInView();
     if (first) openPostView(first, true);
@@ -1383,6 +1391,7 @@
       }
       case 'newPosts': if (cols) refreshBtn.click(); return true;
       case 'search': {
+        if (cols && !findRow.hidden && !findInput.hidden) { findInput.focus(); findInput.select(); return true; } // (Likes: our own box, X has none there)
         const input = document.querySelector('[data-testid="SearchBox_Search_Input"]');
         if (!input) { toast('X’s search box is not on this page'); return true; }
         if (rightAway()) { setPanel('right'); setTimeout(() => input.focus(), 380); } else input.focus();
@@ -1499,11 +1508,11 @@
   const fitScale = () => (settings.textSize === 'fit' ? Math.round(Math.min(1.6, Math.max(1, 1 + (window.innerWidth - 1600) / 3000)) * 100) / 100 : 1);
   const fitSync = () => { const v = String(fitScale()); if (root.style.getPropertyValue('--xmc-fit') !== v) root.style.setProperty('--xmc-fit', v); };
   const sigOf = (keys) => keys.map((k) => String(settings[k])).join('|') + '|' + where() + '|' + settings.mutedQuoteIds.length;
-  const filterSig = () => sigOf(FILTER_KEYS) + '|' + (state.showSeen ? 1 : 0) + '|' + seenEpoch;
+  const filterSig = () => sigOf(FILTER_KEYS) + '|' + (state.showSeen ? 1 : 0) + '|' + seenEpoch + '|' + findSig();
   const renderSig = () => RENDER_KEYS.map((k) => String(settings[k])).join('|') + '|' + pageLayout().density;
   const passCtx = () => ({
     s: settings, view: settings.filter, where: where(), words: XMCSettings.words(settings.mutedWords),
-    accounts: new Set(XMCSettings.handles(settings.mutedAccounts)), quoteIds: new Set(settings.mutedQuoteIds),
+    accounts: new Set(XMCSettings.handles(settings.mutedAccounts)), quoteIds: new Set(settings.mutedQuoteIds), find: findCtx(),
   });
 
   // Read the real column heights once per batch (one layout pass), then spread the batch using estimates.
@@ -1683,7 +1692,7 @@
     if (!f || !f.items.length || state.homeHold) {
       if (view.feedKey) resetView(null);
       setStatus('Loading…', true);
-      loaderEl.hidden = true; endEl.hidden = true; seenBtn.hidden = true; caughtEl.hidden = true;
+      loaderEl.hidden = true; endEl.hidden = true; seenBtn.hidden = true; caughtEl.hidden = true; findRow.hidden = true;
       updateRefreshBtn(null);
       return;
     }
@@ -1739,10 +1748,11 @@
     updateSeenUi(f);
     updateRefreshBtn(f);
     const drawn = view.upto >= f.items.length;
-    setStatus(!view.cards.length && drawn && (f.exhausted || !state.waitingPage)
-      ? (view.hiddenSeen ? 'You\u2019re all caught up: everything here is posts you\u2019ve read.' : f.exhausted ? 'Nothing in this view.' : 'Nothing here matches this view yet...') : '');
+    const found = findCtx(), held = !!found && !found.deep && !postView; // (a search is on and nothing more is being asked for: no spinner, whatever was asked before)
+    setStatus(!view.cards.length && drawn && (f.exhausted || !state.waitingPage || held)
+      ? (view.hiddenSeen ? 'You\u2019re all caught up: everything here is posts you\u2019ve read.' : findCtx() ? 'None of the ' + f.items.length + ' that have loaded match.' : f.exhausted ? 'Nothing in this view.' : 'Nothing here matches this view yet...') : '');
     // spinner while we're fetching more; a note when X has no more to give
-    const waiting = state.waitingPage && !f.exhausted && !view.caughtUp;
+    const waiting = state.waitingPage && !f.exhausted && !view.caughtUp && !held;
     loaderEl.hidden = !waiting;
     syncGhosts(waiting && shortestBottom() < scroller.scrollTop + scroller.clientHeight);
     loaderEl.classList.toggle('xmc-sticky', waiting && shortestBottom() < scroller.scrollTop + scroller.clientHeight); // blank space on screen: keep the spinner in view
@@ -1753,6 +1763,70 @@
     if (loaderText.textContent !== loaderMsg) loaderText.textContent = loaderMsg;
     diagBtn.hidden = !(waiting && Date.now() - state.waitSince > 20000 || waiting && fl);
     endEl.hidden = !(f.exhausted && drawn && view.cards.length);
+    findSync(f);
+  }
+  // ---- Search and narrowing on Likes and Bookmarks ----
+  // The posts that have loaded (what X has sent so far) are narrowed as you type, by words, account and kind. While it is on, nothing more is asked of X unless
+  // you press Read older (a thousand more posts a press, with a Stop): a search that loaded everything unasked would be a great many requests.
+  // Likes has the search box (X has none there); Bookmarks does not (X searches those itself) but has the chips.
+  const FIND_DEEP = 1000;
+  const findPage = () => !!settings.findBar && (XMCLogic.isLikesPage(feedRoute().split('?')[0]) || feedKind() === 'bookmarks');
+  function findState() {
+    const route = feedRoute().split('?')[0];
+    if (!state.find || state.find.route !== route) state.find = { route, q: '', accounts: [], kinds: [], deep: 0, chipSig: '', statusSig: '' };
+    return state.find;
+  }
+  const findCtx = () => { if (!findPage()) return null; const f = findState(); return XMCLogic.findOn(f) ? f : null; };
+  const findSig = () => { const f = findCtx(); return f ? f.q.trim().toLowerCase().replace(/\s+/g, ' ') + '#' + f.accounts.join(',') + '#' + f.kinds.join(',') : ''; };
+  function findToggle(group, v) {
+    const f = findState(), i = f[group].indexOf(v);
+    if (i >= 0) f[group].splice(i, 1); else f[group].push(v);
+    guard('render', renderFeed);
+  }
+  let findTimer = 0;
+  findInput.addEventListener('input', () => { clearTimeout(findTimer); findTimer = setTimeout(() => { findState().q = findInput.value; guard('render', renderFeed); }, 160); });
+  findInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { // the words go first, then the box lets go
+      e.preventDefault(); e.stopPropagation();
+      if (findInput.value) { clearTimeout(findTimer); findInput.value = ''; findState().q = ''; guard('render', renderFeed); } else findInput.blur();
+    } else if (e.key === 'Enter') e.stopPropagation();
+  });
+  function findDeep(on) {
+    const fnd = findState(), f = activeFeed();
+    fnd.deep = on && f ? f.items.length + FIND_DEEP : 0;
+    fnd.statusSig = '';
+    guard('render', renderFeed);
+  }
+  // in step with the page (each tick): the row is there on Likes and Bookmarks once the feed has posts; the chips are redrawn when the posts or the choices change
+  function findSync(f) {
+    const on = findPage() && !!f && f.items.length > 0;
+    findRow.hidden = !on;
+    if (!on) { if (state.find) state.find.deep = 0; return; }
+    const fnd = findState(), likes = XMCLogic.isLikesPage(feedRoute().split('?')[0]), noun = likes ? 'likes' : 'bookmarks';
+    findInput.hidden = !likes;
+    if (document.activeElement !== findInput && findInput.value !== fnd.q) findInput.value = fnd.q;
+    if (fnd.deep && (f.exhausted || f.items.length >= fnd.deep)) fnd.deep = 0; // (read what was asked, or all there is)
+    const chipSig = f.key + '|' + f.items.length + '|' + fnd.q.trim().toLowerCase() + '|' + fnd.accounts.join(',') + '|' + fnd.kinds.join(',');
+    if (fnd.chipSig !== chipSig) {
+      fnd.chipSig = chipSig;
+      const ctx = Object.assign({}, passCtx(), { find: null }), ok = (t) => XMCLogic.passes(t, ctx); // (counted among what the rest of the settings let through)
+      const shown = new Map(XMCLogic.findAccounts(f.items, fnd, 8, ok).map((a) => [a.handle.toLowerCase(), a]));
+      for (const hd of fnd.accounts) if (!shown.has(hd)) { const t = f.items.find((x) => x.author.handle.toLowerCase() === hd); shown.set(hd, { handle: hd, name: t ? t.author.name : hd, avatar: t ? t.author.avatar : '', n: 0 }); } // (one you chose stays, however few it has now)
+      findChips.replaceChildren(...[...shown.entries()].map(([hd, a]) => {
+        const picked = fnd.accounts.includes(hd);
+        return h('button', { className: 'xmc-fchip' + (picked ? ' on' : ''), type: 'button', title: '@' + a.handle, 'aria-pressed': String(picked), onclick: () => findToggle('accounts', hd) },
+          ...(a.avatar ? [h('img', { src: a.avatar, alt: '' })] : []), h('span', { className: 'xmc-fname', textContent: a.name || a.handle }), h('span', { className: 'xmc-fn', textContent: String(a.n) }));
+      }));
+      for (const [k, el] of Object.entries(findKindEls)) { const picked = fnd.kinds.includes(k); el.classList.toggle('on', picked); el.setAttribute('aria-pressed', String(picked)); }
+    }
+    const active = XMCLogic.findOn(fnd), statusSig = [active, f.items.length, view.cards.length, fnd.deep, f.exhausted, noun].join('|');
+    if (fnd.statusSig === statusSig) return;
+    fnd.statusSig = statusSig;
+    if (!active) { findStatus.replaceChildren(); return; }
+    const line = view.cards.length + ' of ' + f.items.length + ' ' + noun + ' match';
+    findStatus.replaceChildren(h('span', { textContent: fnd.deep ? line + ' · reading older…' : line + (f.exhausted ? ' · that is all of them' : '') }),
+      ...(fnd.deep ? [h('button', { className: 'xmc-fbtn', type: 'button', textContent: 'Stop', onclick: () => findDeep(false) })]
+        : !f.exhausted ? [h('button', { className: 'xmc-fbtn', type: 'button', textContent: 'Read older ' + noun, onclick: () => findDeep(true) })] : []));
   }
   // the "N read" button in the top bar, and the "you're up to date" note under the posts
   function updateSeenUi(f) {
@@ -1890,9 +1964,11 @@
     if (settings.disableHome && where() === 'home') return;
     const f = activeFeed();
     if (!f || f.exhausted || view.caughtUp) return;
+    const fnd = findCtx(), held = !!fnd && !fnd.deep; // a search or narrowing is on: more is loaded only when asked (Read older), or for a panel being stepped through
+    if (held && !postView) return;
     const ahead = Date.now() - lastScrollAt < 4000 ? 120 : 50; // scrolling: keep about six pages waiting; reading: two or three
     if (f.items.length - view.upto > ahead) return; // plenty already waiting to be drawn
-    const need = moreWanted() || scroller.scrollTop + scroller.clientHeight > shortestBottom() - innerHeight * 8;
+    const need = !!(fnd && fnd.deep) || moreWanted() || (!held && scroller.scrollTop + scroller.clientHeight > shortestBottom() - innerHeight * 8);
     if (!need) return;
     const now = Date.now();
     const doc = document.documentElement;
