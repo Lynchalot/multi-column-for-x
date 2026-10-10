@@ -21,6 +21,7 @@ Debug in the console with `window.__xmc`.
 - Keep settings text short and plain. The owner dislikes explanatory AI-style sentences and quick-settings popovers.
 - Card heights: recycled cards keep their exact measured height (don't round). `t.elSig` records how a card was built; stamp it only when creating the card.
 - `t.id` of a repost is the ORIGINAL post's id.
+- In `tick()` every step that reads `view`, `state` or the DOM goes inside `guard(...)`, conditions included: an `if` that throws outside a guard ends the tick before it can toggle `xmc-on`, so the columns can no longer fail open (the e2e test "keeps stopping with an error in the steps that draw the columns" is the one that notices).
 - Never `git add -A`. Never commit a different add-on ID: the AMO ID is `multi-column-for-x@lynchalot.github.io` and can't change.
 - Verify before saying something is fixed: reproduce it, run the tests, look at the output. The owner tests on real X straight away.
 

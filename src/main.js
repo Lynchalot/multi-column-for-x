@@ -5561,7 +5561,7 @@
     if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); guard('viewer entry', ensureViewerEntry); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
     if (state.fail && tickN % 10 === 7) guard('x retry', pressXRetry);
-    if ((tickN % 10 === 5 && Date.now() - lastScrollAt > 500) || (tickN % 3 === 2 && view.cards.length - recycled > RECYCLE_LIVE)) guard('recycle', () => recycleCards(false)); // (and while scrolling on and on, once a lot is on the page: far-off posts give their nodes back without waiting for a pause)
+    guard('recycle', () => { if ((tickN % 10 === 5 && Date.now() - lastScrollAt > 500) || (tickN % 3 === 2 && view.cards.length - recycled > RECYCLE_LIVE)) recycleCards(false); }); // (and while scrolling on and on, once a lot is on the page: far-off posts give their nodes back without waiting for a pause. Inside the guard: whatever this reads may throw, and the tick must go on to fail open)
     if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);
     const quiet = state.posting && isModalRoute(); // our own reply automation: X's reply box is open, out of sight
     const modal = isModalRoute() && state.shown && !state.posting;
