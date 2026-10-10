@@ -1131,7 +1131,7 @@
     if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else closePostView(); } }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
     if (lightbox && e.key === 'ArrowLeft') stepLightbox(-1);
-    if (postView && !lightbox && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.ctrlKey && !e.altKey && !e.metaKey && !/^(input|textarea|select|video)$/i.test((e.target || {}).tagName || '')) { // through the pictures, then the posts; Shift: the posts only
+    if (postView && !lightbox && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.ctrlKey && !e.altKey && !e.metaKey && !/^(input|textarea|select)$/i.test((e.target || {}).tagName || '')) { // through the pictures, then the posts; Shift: the posts (also with a video focused: pressing on it to play leaves the focus there, and the arrows would only have skipped through the video) only
       e.preventDefault(); walkPanel(e.key === 'ArrowRight' ? 1 : -1, e.shiftKey && settings.panelKeys);
     }
     if ((postView || lightbox) && e.key === 'Enter' && !e.ctrlKey && !e.altKey && !e.metaKey && !lightbox && (!e.target || e.target === document.body || e.target === postView.el || postView.el.contains(e.target) && !e.target.closest('a, button, input, textarea, select, video, [role="button"], [tabindex]'))) { // Enter on nothing in particular: the picture showing, full size
@@ -3060,7 +3060,27 @@
     });
     el.addEventListener('wheel', (e) => { if (e.target === el) e.preventDefault(); }, { passive: false }); // not onto the columns or X's page behind
     root.append(el);
-    postView = { t, el, panel, side, parent };
+    // The arrows to the next and previous post sit just outside the panel, level with its middle (on a wide screen they were at the edges of the
+    // screen, a thousand pixels from it); with no room outside, over its edges. They follow the panel as it grows with the comments and with the window.
+    const prevBtn = el.querySelector(':scope > .xmc-vnav.prev'), nextBtn = el.querySelector(':scope > .xmc-vnav.next');
+    const placeNav = () => {
+      if (!el.isConnected) return;
+      const L = panel.offsetLeft, W = panel.offsetWidth, mid = Math.round(panel.offsetTop + panel.offsetHeight / 2 - 20), roomy = L >= 64;
+      for (const b of [prevBtn, nextBtn]) { b.style.top = mid + 'px'; b.style.marginTop = '0'; b.style.right = 'auto'; }
+      prevBtn.style.left = (roomy ? L - 56 : 12) + 'px';
+      nextBtn.style.left = (roomy ? L + W + 16 : el.clientWidth - 52) + 'px';
+    };
+    placeNav();
+    if (typeof ResizeObserver !== 'undefined') { const ro = new ResizeObserver(placeNav); ro.observe(panel); ro.observe(el); el._ro = ro; }
+    // whether there is a post to go to is looked at again as the feed changes (it was looked at once, when the panel opened: an arrow that was off because the next post was not drawn yet stayed off)
+    const syncNav = () => {
+      if (!el.isConnected || postView == null || postView.el !== el || parent) return;
+      const f = viewFeed(), more = !!f && !f.exhausted && !view.caughtUp; // (at the end of what is loaded the arrow stays, and waits for more)
+      prevBtn.hidden = !walkTarget(-1);
+      nextBtn.hidden = !(walkTarget(1) || more);
+    };
+    postView = { t, el, panel, side, parent, syncNav };
+    syncNav();
     if (!parent) {
       setTimeout(pointOutKeys, 900); // (once: what the keys are, and where to change them)
       if (reopen) followInColumns(t);
@@ -3091,17 +3111,19 @@
   // Where the walk goes from the open post: forward past posts already read (when asked), so a refresh does not make you go through the same forty again;
   // if every one ahead was read it is the next one anyway, and the way back is always the one before.
   const readCard = (t) => seenBefore.has(t.id) || seenNow.has(t.id);
+  const openIndex = () => { if (!postView) return -1; const i = view.cards.indexOf(postView.t); return i >= 0 ? i : view.cards.findIndex((c) => c.id === postView.t.id); }; // (the card list is made again when the feed changes: the post is then found by its number)
   function walkAhead(n) {
-    const i = postView ? view.cards.indexOf(postView.t) : -1;
+    const i = openIndex();
     if (i < 0) return [];
     const out = [];
     for (let j = i + 1; view.cards[j] && out.length < n; j++) if (!settings.skipSeen || !readCard(view.cards[j])) out.push(view.cards[j]);
     return out.length ? out : (view.cards[i + 1] ? [view.cards[i + 1]] : []);
   }
-  const walkTarget = (d) => (!postView ? null : d > 0 ? walkAhead(1)[0] || null : view.cards[view.cards.indexOf(postView.t) - 1] || null);
+  const walkTarget = (d) => (!postView ? null : d > 0 ? walkAhead(1)[0] || null : (openIndex() > 0 ? view.cards[openIndex() - 1] : null));
   function stepPostView(d) {
     const next = walkTarget(d);
     if (next) { openPostView(next, true); return; }
+    trace('panel-step', 'nowhere to go ' + d + ' from ' + (postView ? postView.t.id : '-') + ' (card ' + openIndex() + ' of ' + view.cards.length + ')');
     const f = viewFeed();
     if (d > 0 && postView && f && !f.exhausted && !view.caughtUp) waitStep(postView.t, Date.now() + 8000); // (the end of what is loaded: the step is made when more arrives)
   }
@@ -3191,6 +3213,7 @@
     trace('panel-close', (instant ? 'switching' : keepHistory ? 'by Back' : 'closed') + ' ' + postView.t.id);
     pagers.clear(); // no panel, no more comments to fetch for it (a visit under way for them stops at its next step)
     const el = postView.el;
+    if (el._ro) el._ro.disconnect();
     postView = null;
     if (!instant && panelOpener && panelOpener.isConnected && el.contains(document.activeElement)) panelOpener.focus({ preventScroll: true }); // keyboard user: back to the button they pressed
     if (!instant) panelOpener = null;
@@ -4543,6 +4566,7 @@
     if (tickN % 4 === 0) { guard('logo toggle', syncLogoToggle); guard('menu names', markNavLabels); }
     if (tickN % 15 === 7) guard('translations', harvestTranslations);
     guard('side panels', applyPanels);
+    if (postView && postView.syncNav) guard('panel arrows', postView.syncNav);
     if (tickN % 5 === 4) guard('menu watch', menuWatch);
     if (tickN % 50 === 25) guard('probe', probeX);
     if (tickN % 20 === 10) guard('publish', publishFeatures);

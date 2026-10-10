@@ -493,6 +493,78 @@ browserTest('the GIF button opens X\'s own reply box for this post in a new tab,
   });
 });
 
+browserTest('the arrows to the next and previous post sit beside the panel, level with its middle, and work from the very first post', async (e) => {
+  const h = await e.open('/home/', { width: 2600, height: 1000 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.locator('.xmc-card').first().locator('.xmc-text').click(); // the first post
+    await page.waitForSelector('.xmc-view .xmc-vnav.next');
+    await page.waitForTimeout(600); // (the panel grows out of the card: measured once it has)
+    const geo = () => page.evaluate(() => {
+      const r = (q) => { const b = document.querySelector(q); if (!b || b.hidden || getComputedStyle(b).display === 'none') return null; const x = b.getBoundingClientRect(); return { l: x.left, r: x.right, t: x.top, b: x.bottom }; };
+      const nx = document.querySelector('.xmc-vnav.next'), at = nx.getBoundingClientRect();
+      const top = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2);
+      return { panel: r('.xmc-vpanel'), prev: r('.xmc-vnav.prev'), next: r('.xmc-vnav.next'), nextHit: nx === top || nx.contains(top), vw: innerWidth };
+    });
+    let g = await geo();
+    assert.equal(g.prev, null, 'nothing before the first post');
+    assert.ok(g.next.l >= g.panel.r + 8 && g.next.l - g.panel.r <= 40, 'next is just outside the panel: ' + JSON.stringify(g));
+    assert.ok(Math.abs((g.next.t + g.next.b) / 2 - (g.panel.t + g.panel.b) / 2) <= 6, 'level with the middle of the panel');
+    assert.equal(g.nextHit, true, 'nothing covers it');
+    const first = await openPostId(page);
+    await page.locator('.xmc-vnav.next').click();
+    await page.waitForFunction((id) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] !== id; }, first, { timeout: 5000 });
+    g = await geo();
+    assert.ok(g.prev && g.panel.l - g.prev.r >= 8 && g.panel.l - g.prev.r <= 40, 'previous is just outside the panel on the other side: ' + JSON.stringify(g));
+    await page.locator('.xmc-vnav.prev').click();
+    await page.waitForFunction((id) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] === id; }, first, { timeout: 5000 });
+    // a window with no room beside the panel: the arrows are over its edges, on screen
+    await page.setViewportSize({ width: 900, height: 900 });
+    await page.waitForTimeout(400);
+    g = await geo();
+    assert.ok(g.next && g.next.r <= g.vw && g.next.l >= 0, 'on screen: ' + JSON.stringify(g));
+  });
+}, 90000);
+
+browserTest('the arrows follow the feed: one that was off because there was nothing after the post comes on when posts are drawn, and a step with nowhere to go says so in the trace', async (e) => {
+  const h = await e.open('/home/', { width: 2000, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await openCard(page, '90000');
+    await page.waitForTimeout(500);
+    // take away everything after the open post and say the feed has no more: no next arrow
+    await page.evaluate(() => {
+      const x = window.__xmc, f = x.state.feeds.get(x.view.feedKey);
+      f.exhausted = true; x.view.upto = f.items.length; window.__kept = x.view.cards.splice(1); window.__f = f; // (all drawn, nothing more to draw or load)
+    });
+    await page.waitForFunction(() => document.querySelector('.xmc-vnav.next').hidden, null, { timeout: 3000 });
+    await page.keyboard.press('Shift+ArrowRight'); // and the key has nowhere to go
+    await page.waitForFunction(() => window.__xmc.diagnostics().includes('nowhere to go 1'), null, { timeout: 3000 });
+    // the posts are there again (drawn as the feed grew)
+    await page.evaluate(() => { const x = window.__xmc; x.view.cards.push(...window.__kept); window.__f.exhausted = false; });
+    await page.waitForFunction(() => !document.querySelector('.xmc-vnav.next').hidden, null, { timeout: 3000 });
+    const at = await openPostId(page);
+    await page.locator('.xmc-vnav.next').click();
+    await page.waitForFunction((id) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] !== id; }, at, { timeout: 5000 });
+  });
+});
+
+browserTest('the arrows step through posts when a video in the panel has the focus (after pressing on it to play)', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await openCard(page, '89997'); // a post with a video
+    await page.waitForSelector('.xmc-view video[data-video]');
+    await page.evaluate(() => document.querySelector('.xmc-view video[data-video]').focus());
+    assert.equal(await page.evaluate(() => document.activeElement.tagName), 'VIDEO');
+    await page.keyboard.press('ArrowRight');
+    await page.waitForFunction(() => !/(?:tweet|number) 89997\b/.test(document.querySelector('.xmc-view').innerText), null, { timeout: 4000 });
+  });
+});
+
 browserTest('a post\'s own page: Download and Copy link buttons, and fewer buttons under replies', async (e) => {
   const h = await e.open('/user/status/90001/');
   await checked(h, async () => {
