@@ -3184,6 +3184,7 @@
   // Unfollow: X's Following button asks "Unfollow @name?" in a layer of its own. The question is put on the card (a toast with the button), and on yes X's own button
   // and its question are pressed for it, out of sight, as a like is; if X does not ask, or does not say it is done, X's layer is brought up over the columns to be answered there.
   const isUnfollow = (el) => { // (X's test id says so; failing that, a button that says Following, in words or in its label (the icon next to Subscribe has no words))
+    if (/\bsubscribe\b/i.test((el.textContent || '') + ' ' + (el.getAttribute('aria-label') || ''))) return false; // (Subscribe, and Subscribe to @name, which the Following icon becomes once it has unfollowed)
     const id = el.getAttribute('data-testid') || '';
     if (/-unfollow$/.test(id)) return true;
     return (el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') && (/^(Following|Unfollow)$/i.test((el.textContent || '').trim()) || /^(Following|Unfollow)\b/i.test(el.getAttribute('aria-label') || ''));
@@ -3199,7 +3200,10 @@
     if (!orig) return { orig: null, target: null, how: 'no header' };
     let target = null, how = 'place';
     if (headerShape(orig) === headerCopy.shape) target = [orig, ...orig.querySelectorAll('*')][position];
-    if (!target) { how = 'sense'; target = headerTargetBySense(orig, anchor); }
+    // What is pressed must be the same kind of thing as what was pressed here: the Following button is never taken for Subscribe or the other way round (the Following icon
+    // unfollows at once, so a wrong place would be an unfollow nobody asked for); if the place gives the other kind, the button is looked for by sense, and else not pressed
+    const wrong = (t) => !t || isUnfollow(t) !== isUnfollow(anchor);
+    if (wrong(target)) { if (target) trace('header-mismatch', describeEl(anchor) + ' / ' + describeEl(target)); how = 'sense'; target = headerTargetBySense(orig, anchor); if (wrong(target)) target = null; }
     return { orig, target, how };
   }
   const layersSeen = (layers) => (layers ? [...layers.children].slice(0, 3).map((c) => ((c.innerText || '').trim().slice(0, 24) || '-') + '|' + [...c.querySelectorAll('[data-testid]')].slice(0, 3).map((n) => n.getAttribute('data-testid')).join(',')).join(' ; ') : '');
@@ -3242,6 +3246,7 @@
     else { toast('Couldn’t unfollow just now (' + why + '). Answer X’s question if it is up, or try again.', null, null, 5000); if (layers) layerWatch(layers); }
   }
   async function pressHeaderButton(position, anchor) {
+    toastEl.hidden = true; // (an Unfollow question from an earlier press, still up, is not the answer to this one)
     state.proxyUntil = Date.now() + 8000;
     const layers = document.getElementById('layers'), before = new Set(layers ? [...layers.children] : []);
     try {

@@ -5830,6 +5830,29 @@ browserTest('a profile with Subscribe: the icon next to it unfollows once (X ask
   }
 }, 120000);
 
+browserTest('Subscribe on the card is never taken for Unfollow (not even with a test id that says unfollow), and a question still up from an earlier press goes when another button is pressed', async (e) => {
+  const h = await e.open('/user9/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 3 } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('.xmc-profile.xmc-native [data-testid="subscribe"]', { timeout: 8000 });
+    const toast = () => page.evaluate(() => { const t = document.getElementById('xmc-toast'); return t.hidden ? '' : t.textContent; });
+    // the question from the icon is up; pressing Subscribe puts it away
+    await page.locator('.xmc-profile [data-testid="user9-unfollow"]').click();
+    await page.waitForFunction(() => /Unfollow @user9\?/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
+    await page.locator('.xmc-profile [data-testid="subscribe"]').click();
+    await page.waitForFunction(() => window.__subscribed === 1, null, { timeout: 5000 });
+    assert.doesNotMatch(await toast(), /Unfollow @/, 'the old question is gone');
+    // X's Subscribe button carries a test id that ends in -unfollow: it is still Subscribe
+    await page.evaluate(() => { document.querySelector('#react-root [data-testid="subscribe"]').setAttribute('data-testid', 'user9-unfollow'); });
+    await page.waitForFunction(() => [...document.querySelectorAll('.xmc-profile [data-testid="user9-unfollow"]')].length === 2, null, { timeout: 4000 }); // (the card has the new test id)
+    const pill = page.locator('.xmc-profile button', { hasText: 'Subscribe' });
+    await pill.click();
+    await page.waitForTimeout(700);
+    assert.doesNotMatch(await toast(), /Unfollow @/, 'Subscribe asked about unfollowing');
+  });
+}, 60000);
+
 browserTest('a profile’s Reposts tab is a profile page like the others (X’s own tab bar says it is one), and Joined is underlined as it is pointed at with a chevron after it', async (e) => {
   const h = await e.open('/user7/reposts', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
   await checked(h, async () => {
