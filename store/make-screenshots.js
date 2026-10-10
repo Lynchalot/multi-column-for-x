@@ -372,6 +372,15 @@ async function main() {
   await save(page, '12-start', { scale: false });
   await ctx.close();
 
+  // 13. a colour theme
+  ctx = await context(1920, 1200, { cols: 4, theme: 'catppuccin-mocha' });
+  page = await ctx.newPage();
+  await page.goto(server.origin + '/home/');
+  await ready(page);
+  await page.waitForTimeout(1000);
+  await save(page, '13-themes');
+  await ctx.close();
+
   await browser.close(); await server.close();
 }
 main().catch((e) => { console.error(e); process.exit(1); });

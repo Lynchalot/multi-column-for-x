@@ -69,8 +69,9 @@ Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its pi
 3. `03-post-panel.png` Open a post without losing your place.
 4. `04-reply-tools.png` Reply with pictures and emoji, from the comment box in the panel.
 5. `05-keys.png` Browse with your keyboard: the card of keys.
-6. `06-photo-viewer.png` Photos and video, done properly: the viewer with Download and Copy link.
-(Not in the slides, still in `store/screenshots/`: the media wall, the filters, the room, the starting points, the settings page and the settings in a panel.)
+6. `06-themes.png` Fourteen colour themes (the feed in Catppuccin Mocha).
+7. `07-photo-viewer.png` Photos and video, done properly: the viewer with Download and Copy link.
+(Not in the slides, still in `store/screenshots/`: the media wall, the filters, the room, the starting points (the welcome page), the settings page and the settings in a panel.)
 
 **Support link ("Support" / contributions field):** https://ko-fi.com/falsehamartia
 **Homepage:** https://github.com/Lynchalot/multi-column-for-x
