@@ -535,3 +535,12 @@ test('attachments: up to four pictures, or one GIF or video, never both; other f
   assert.match(L.attachPlan([], [pdf]).notes[0], /can.t be attached/);
   assert.deepEqual(L.attachPlan([], []), { taken: [], notes: [] });
 });
+
+test('X\'s own viewer is recognised by its address: the post, picture or video, and which one', () => {
+  assert.deepEqual(L.viewerRoute('/someone/status/2108686576624562639/photo/2'), { id: '2108686576624562639', kind: 'photo', n: 2 });
+  assert.deepEqual(L.viewerRoute('/i/status/123/video/1/'), { id: '123', kind: 'video', n: 1 });
+  assert.equal(L.viewerRoute('/someone/status/123'), null);
+  assert.equal(L.viewerRoute('/someone/status/123/photo'), null);
+  assert.equal(L.viewerRoute('/someone/status/123/quotes'), null);
+  assert.equal(L.viewerRoute(''), null);
+});

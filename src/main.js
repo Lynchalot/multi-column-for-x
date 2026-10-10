@@ -1052,7 +1052,11 @@
   function panelKey(e) {
     if (!settings.panelKeys || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.isComposing || typingIn(e.target)) return false;
     const pressed = e.key.toLowerCase(), kind = (Object.entries(keyMap()).find(([, k]) => k === pressed) || [])[0];
-    const t = lightbox ? lightbox.t : postView ? postView.t : null;
+    let t = lightbox ? lightbox.t : postView ? postView.t : null;
+    if (!t && kind === 'download') { // a video in the browser's own full screen shows nothing of ours, but the key can still save it
+      const fe = document.fullscreenElement, card = fe && fe.tagName === 'VIDEO' && fe.closest('.xmc-card');
+      t = card ? tweetOf.get(card) || null : null;
+    }
     if (!kind || kind === 'open' || !t) return false; // ('open' is the feed's key: in a panel Enter opens the picture)
     e.preventDefault(); e.stopPropagation();
     if (e.repeat) return true; // (held down: once)
@@ -3435,11 +3439,27 @@
     try { await navigator.clipboard.writeText('https://x.com' + t.url); toast('Link copied'); } catch { toast('Couldn\u2019t copy the link'); }
   }
   // Download and Copy-link buttons on X's own posts (a post's own page, or anywhere the columns aren't showing)
+  // Download and Copy link on X's own pages: in the row of buttons under a post, and in the row of X's own full-size viewer
+  // (over the page at /user/status/ID/photo/N or video/N), where the download is of the one picture or video on show.
+  function natButtons(id, item) { // item(post): the one picture or video to save (the viewer's), or nothing: all of the post's
+    const stop = (e) => e.stopPropagation(); // pressing it must not also open the post, or move the viewer
+    const mk = (cls, title, ico, fn) => {
+      const b = h('button', { type: 'button', className: 'xmc-nat-btn ' + cls, title, ariaLabel: title }, icon(ico));
+      b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fn(); });
+      for (const ev of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) b.addEventListener(ev, stop);
+      return b;
+    };
+    const live = () => state.byId.get(id);
+    return h('div', { className: 'xmc-nat' },
+      mk('dl', item ? 'Download this picture or video' : 'Download the media in this post', 'download', () => { const p = live(); if (p) downloadMedia(p, item ? item(p) || undefined : undefined); else toast('Open the post once so the extension can see it'); }),
+      mk('lnk', 'Copy link to this post', 'link', () => copyLink(live() || { url: '/i/status/' + id })));
+  }
   function decorateNative() {
     if (!settings.nativeTools) return;
     const col = mainCol();
-    if (!col) return;
-    for (const art of col.querySelectorAll('article[data-testid="tweet"]')) {
+    const layers = document.getElementById('layers');
+    const arts = [...(col ? col.querySelectorAll('article[data-testid="tweet"]') : []), ...(layers ? layers.querySelectorAll('article[data-testid="tweet"]') : [])]; // (the viewer's own side panel has the post too)
+    for (const art of arts) {
       const id = articleId(art);
       if (!id) continue;
       let wrap = art.querySelector('.xmc-nat');
@@ -3448,22 +3468,20 @@
         const replyBtn = art.querySelector('[data-testid="reply"]');
         const bar = replyBtn && replyBtn.closest('[role="group"]');
         if (!bar) continue;
-        const stop = (e) => e.stopPropagation(); // pressing it must not also open the post
-        const mk = (cls, title, ico, fn) => {
-          const b = h('button', { type: 'button', className: 'xmc-nat-btn ' + cls, title, ariaLabel: title }, icon(ico));
-          b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fn(); });
-          for (const ev of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) b.addEventListener(ev, stop);
-          return b;
-        };
-        const live = () => state.byId.get(id);
-        wrap = h('div', { className: 'xmc-nat' },
-          mk('dl', 'Download the media in this post', 'download', () => { const p = live(); if (p) downloadMedia(p); else toast('Open the post once so the extension can see it'); }),
-          mk('lnk', 'Copy link to this post', 'link', () => copyLink(live() || { url: '/i/status/' + id })));
+        wrap = natButtons(id);
         bar.append(wrap);
       }
       const dl = wrap.querySelector('.dl');
       const has = !!(t && t.media && t.media.length);
       if (dl.hidden === has) dl.hidden = !has;
+    }
+    const vr = XMCLogic.viewerRoute(location.pathname);
+    if (vr) { // X's viewer: its own row of buttons (not one inside a post)
+      for (const rb of document.querySelectorAll('#layers [data-testid="reply"], [aria-modal="true"] [data-testid="reply"]')) {
+        const bar = rb.closest('[role="group"]');
+        if (!bar || rb.closest('article') || bar.querySelector('.xmc-nat')) continue;
+        bar.append(natButtons(vr.id, (p) => collectMedia(p).map((x) => x.m).filter((m) => (vr.kind === 'photo') === (m.type === 'photo'))[vr.n - 1]));
+      }
     }
   }
   async function composeReply(t) {

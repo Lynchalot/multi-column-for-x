@@ -605,6 +605,39 @@ browserTest('Back closes a full-size picture and nothing behind it moves (from t
   });
 }, 90000);
 
+browserTest('X\'s own full-size viewer gets Download and Copy link in its row of buttons, and the download is of the picture on show', async (e) => {
+  const h = await e.open('/user/status/90001/');
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-nat').length === 7, null, { timeout: 15000 });
+    await page.evaluate(() => { // X's viewer: a route over the page, a dialog in #layers with its own row of buttons
+      history.pushState({}, '', '/user/status/90001/photo/1');
+      document.getElementById('layers').innerHTML = '<div role="dialog" aria-modal="true" id="fakeviewer"><div role="group"><button data-testid="reply">r</button><button data-testid="like">l</button></div></div>';
+    });
+    await page.waitForFunction(() => document.querySelectorAll('#fakeviewer .xmc-nat').length === 1, null, { timeout: 10000 });
+    assert.equal(await page.locator('#fakeviewer .xmc-nat .dl').getAttribute('title'), 'Download this picture or video');
+    assert.equal(await page.locator('#fakeviewer .xmc-nat .dl').isVisible(), true);
+    await page.locator('#fakeviewer .xmc-nat .dl').click();
+    await page.waitForFunction(() => /Downloading/.test((document.getElementById('xmc-toast') || {}).textContent || ''), null, { timeout: 8000 });
+    assert.ok(await page.evaluate(() => [...window.__xmc.downloads()].length >= 1), 'recorded as downloaded');
+    // not on a viewer's address: nothing is added to a group that is not a post's
+    await page.evaluate(() => { history.pushState({}, '', '/user/status/90001/'); document.getElementById('layers').innerHTML = '<div role="dialog" aria-modal="true" id="other"><div role="group"><button data-testid="reply">r</button></div></div>'; });
+    await page.waitForTimeout(1200);
+    assert.equal(await page.locator('#other .xmc-nat').count(), 0);
+  });
+});
+
+browserTest('the download key works on a video in the browser\'s own full screen (nothing of ours shows there)', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { const v = document.querySelector('.xmc-card video[data-video]'); Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => v }); });
+    await page.keyboard.press('e');
+    await page.waitForFunction(() => /Downloading/.test((document.getElementById('xmc-toast') || {}).textContent || ''), null, { timeout: 8000 });
+  });
+});
+
 browserTest('a post\'s own page: Download and Copy link buttons, and fewer buttons under replies', async (e) => {
   const h = await e.open('/user/status/90001/');
   await checked(h, async () => {

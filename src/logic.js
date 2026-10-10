@@ -323,7 +323,13 @@ var XMCLogic = (function () {
     return { taken, notes: [...new Set(notes)] };
   }
 
-  const api = { attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  // X's own full-size viewer is a route over the page: /user/status/ID/photo/N (or video/N), N counting from 1 among that post's pictures (or videos)
+  function viewerRoute(pathname) {
+    const m = /\/status\/(\d+)\/(photo|video)\/(\d+)\/?$/.exec(String(pathname || ''));
+    return m ? { id: m[1], kind: m[2], n: Number(m[3]) } : null;
+  }
+
+  const api = { viewerRoute, attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();
