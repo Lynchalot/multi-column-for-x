@@ -2665,7 +2665,13 @@
     needEntry = false;
     if (!(window.history.state && window.history.state.xmcView)) { try { window.history.pushState({ xmcView: true }, '', location.href); trace('history', 'panel entry added after the visit'); } catch { /* ignore */ } }
   }
-  function tidyHistory() { if (Date.now() - ownBackAt > 4000 && !postView && !state.peek && !state.posting && !onPostPage() && window.history.state && window.history.state.xmcView) stepBack(); }
+  function tidyHistory() { // an entry of ours with nothing to show for it (Forward onto it, or what a panel left behind) is taken away once things are quiet
+    if (Date.now() - ownBackAt <= 4000 || state.peek || state.posting || onPostPage()) return;
+    const st = window.history.state;
+    if (!st) return;
+    if (st.xmcLb && !lightbox) stepBack();
+    else if (st.xmcView && !postView && !lightbox) stepBack();
+  }
   function updateHint() { const show = !settings.hintSeen && state.shown && view.cards.length >= 3 && !postView; if (hintEl.hidden === show) hintEl.hidden = !show; }
 
   // ---------- popover menus ----------
@@ -2791,15 +2797,16 @@
   function openLightbox(t, start) {
     const photos = t.media.filter((m) => m.type === 'photo');
     if (!photos.length) return;
-    closeLightbox();
+    const prior = lightbox ? { entry: lightbox.entry, needEntry: lightbox.needEntry } : null; // (one viewer after another keeps the one history entry)
+    if (lightbox) { lightbox.el.remove(); lightbox = null; }
     const img = h('img', { alt: '' });
     const prev = h('button', { className: 'xmc-lb-nav prev', type: 'button', title: 'Previous picture', 'aria-label': 'Previous picture', onclick: (e) => { e.stopPropagation(); stepLightbox(-1); } }, icon('prev'));
     const next = h('button', { className: 'xmc-lb-nav next', type: 'button', title: 'Next picture', 'aria-label': 'Next picture', onclick: (e) => { e.stopPropagation(); stepLightbox(1); } }, icon('next'));
-    const close = h('button', { className: 'xmc-lb-close', type: 'button', title: 'Close (Esc)', onclick: closeLightbox }, icon('close'));
+    const close = h('button', { className: 'xmc-lb-close', type: 'button', title: 'Close (Esc)', onclick: () => closeLightbox() }, icon('close'));
     const tools = h('div', { className: 'xmc-lb-tools', onclick: (e) => e.stopPropagation() },
       h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Download this image' + keyHint('download'), onclick: () => downloadMedia(t, lightbox && lightbox.photos[lightbox.i]) }, icon('download')),
       h('button', { className: 'xmc-lb-btn', type: 'button', title: 'Copy link to the post' + keyHint('share'), onclick: () => copyLink(t) }, icon('link')));
-    const el = h('div', { id: 'xmc-lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Photo', onclick: closeLightbox }, img, prev, next, close, tools);
+    const el = h('div', { id: 'xmc-lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Photo', onclick: () => closeLightbox() }, img, prev, next, close, tools);
     const was = document.activeElement;
     img.addEventListener('click', (e) => e.stopPropagation());
     let wheelAt = 0; // the wheel steps between the pictures, as it does in the panel (a trackpad sends a burst: one step per flick)
@@ -2809,7 +2816,12 @@
       if (!lightbox || lightbox.photos.length < 2 || Math.abs(d) < 4 || e.timeStamp - wheelAt < 380) return;
       wheelAt = e.timeStamp; stepLightbox(d > 0 ? 1 : -1);
     }, { passive: false });
-    lightbox = { el, img, photos, i: start, prev, next, was, t };
+    lightbox = { el, img, photos, i: start, prev, next, was, t, entry: false, needEntry: false };
+    // The viewer has a history entry of its own, so Back (the button, the mouse's, Alt+Left) closes it and nothing behind it moves; never while X's hidden
+    // side is on, or on its way to, a post's page (the entry would be that page's): it is added the moment that has ended, as the panel's is.
+    if (prior) { lightbox.entry = prior.entry; lightbox.needEntry = prior.needEntry; }
+    else if (!state.peek && !state.posting && !onPostPage() && !isModalRoute()) { try { window.history.pushState({ xmcLb: true }, '', location.href); lightbox.entry = true; } catch { /* ignore */ } }
+    else lightbox.needEntry = true;
     document.body.append(el);
     close.focus({ preventScroll: true });
     document.documentElement.classList.add('xmc-viewer'); // lets the page hook route Escape/arrows to us
@@ -2822,9 +2834,21 @@
     L.img.src = photoUrl(L.photos[L.i].thumb, 'large');
     L.prev.hidden = L.i === 0; L.next.hidden = L.i === L.photos.length - 1;
   }
-  function closeLightbox() {
-    if (lightbox) { const was = lightbox.was; lightbox.el.remove(); lightbox = null; if (was && was.isConnected) was.focus({ preventScroll: true }); }
+  // fromBack: the person pressed Back, which has taken the viewer's own history entry away already; otherwise it is taken away here
+  function closeLightbox(fromBack) {
+    if (lightbox) {
+      const was = lightbox.was, entry = lightbox.entry;
+      lightbox.el.remove(); lightbox = null;
+      if (was && was.isConnected) was.focus({ preventScroll: true });
+      if (fromBack !== true && entry && window.history.state && window.history.state.xmcLb) stepBack();
+    }
     document.documentElement.classList.remove('xmc-viewer');
+  }
+  function ensureViewerEntry() {
+    if (!lightbox || !lightbox.needEntry || needEntry) return; // (the panel's own entry first, if it is still to be added)
+    if (state.peek || state.posting || onPostPage() || isModalRoute() || Date.now() - ownBackAt < 1500) return;
+    lightbox.needEntry = false;
+    if (!(window.history.state && window.history.state.xmcLb)) { try { window.history.pushState({ xmcLb: true }, '', location.href); lightbox.entry = true; trace('history', 'viewer entry added after the visit'); } catch { /* ignore */ } }
   }
 
   // ---------- the post panel ----------
@@ -3224,6 +3248,7 @@
     if (routerPoke) return;
     while (ownBacks.length && Date.now() - ownBacks[0] > 12000) ownBacks.shift();
     if (ownBacks.length) { ownBacks.shift(); trace('popstate', 'answer to ours'); return; } // the answer to one of ours, however late
+    if (lightbox) { trace('popstate', 'you went Back: viewer closed'); closeLightbox(true); return; } // the viewer's entry was what Back took away: the panel and the page behind stay as they are
     if (window.history.state && window.history.state.xmcView) { // landed on the panel's own entry
       if (postView && state.peek && !state.posting) { trace('popstate', 'you went Back during a visit: panel closed'); closePostView(false); return; } // the visit's page was above it: this Back was yours
       trace('popstate', 'on the panel\u2019s entry'); return;
@@ -4571,7 +4596,7 @@
     if (tickN % 50 === 25) guard('probe', probeX);
     if (tickN % 20 === 10) guard('publish', publishFeatures);
     if (tickN % 10 === 6) guard('keys room', keepHiddenPageRoom);
-    if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); }
+    if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); guard('viewer entry', ensureViewerEntry); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
     if (tickN % 10 === 5 && Date.now() - lastScrollAt > 500) guard('recycle', () => recycleCards(false));
     if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);

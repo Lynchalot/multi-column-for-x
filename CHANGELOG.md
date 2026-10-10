@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.37.2
+- **Back closes a full-size picture.** The viewer had no place in the browser's history, so Back (the button, the mouse's back button, Alt+Left, Vimium's H) went past it: from the columns it left the page, and from a post's panel it closed the panel and left the picture up. The viewer has a history entry of its own now, as the panel does: Back takes it away and closes the viewer, and the panel or the page behind stays exactly as it was; the next Back is the panel's, as before. Esc, a click on the backdrop and the cross close it and take the entry away. While X's hidden page is away on a visit (a post's comments are being fetched, which a pause over a post can start) the entry is added the moment the visit has ended, as the panel's is. Forward onto an entry left behind is tidied away once things are quiet.
+- Tests: Back from the columns and from the panel, Forward afterwards, and Esc; and the browser's own Back in real Firefox.
+
 ## 0.37.1
 - **The arrows to the next and previous post are beside the panel**, level with its middle, as Instagram's are (they were at the edges of the screen: on a wide screen a thousand pixels from the post, where they were easy to take for missing). With no room beside the panel (a narrow window) they sit over its edges. They follow the panel as it grows with the comments and with the window.
 - **They work when they are meant to.** Whether there was a post to go to was looked at once, when the panel opened, so an arrow that was off because the next post had not been drawn yet stayed off. It is looked at as the feed changes now, and at the end of what is loaded the next arrow stays on (pressed, it steps when more posts arrive). If the card list was made again while a panel was open the post is found by its number, and a step that has nowhere to go leaves a `panel-step` line in the trace (Copy diagnostics).

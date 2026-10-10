@@ -565,6 +565,46 @@ browserTest('the arrows step through posts when a video in the panel has the foc
   });
 });
 
+browserTest('Back closes a full-size picture and nothing behind it moves (from the columns, and from the panel); Esc takes its history entry away', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const lbOpen = () => page.evaluate(() => !!document.getElementById('xmc-lightbox'));
+    const state = () => page.evaluate(() => JSON.stringify(history.state || null));
+    // from the columns
+    await page.locator('.xmc-card', { hasText: 'tweet 89991 kind' }).first().locator('[data-lb]').first().click();
+    await page.waitForSelector('#xmc-lightbox');
+    await page.waitForFunction(() => history.state && history.state.xmcLb, null, { timeout: 15000 }); // (at once, or the moment a background visit that was running has ended)
+    await page.goBack();
+    await page.waitForFunction(() => !document.getElementById('xmc-lightbox'), null, { timeout: 4000 });
+    assert.equal(await page.evaluate(() => location.pathname), '/home/', 'the page behind did not move');
+    assert.equal(await page.evaluate(() => !!document.querySelector('.xmc-view:not(.xmc-out)')), false);
+    await page.goForward(); // Forward onto the entry that is left: nothing shows, and it is tidied away
+    await page.waitForFunction(() => !(history.state && history.state.xmcLb), null, { timeout: 15000 });
+    assert.equal(await lbOpen(), false);
+    // Esc
+    await page.locator('.xmc-card', { hasText: 'tweet 89991 kind' }).first().locator('[data-lb]').first().click();
+    await page.waitForSelector('#xmc-lightbox');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('xmc-lightbox') && !(history.state && history.state.xmcLb), null, { timeout: 5000 });
+    // from the panel
+    await page.locator('.xmc-card', { hasText: 'tweet 89991 kind' }).first().locator('.xmc-text').click();
+    await page.waitForSelector('.xmc-view .xmc-vm img[data-lb]');
+    await page.waitForFunction(() => history.state && history.state.xmcView, null, { timeout: 15000 });
+    await page.locator('.xmc-view img[data-lb]').first().click();
+    await page.waitForSelector('#xmc-lightbox');
+    await page.waitForFunction(() => history.state && history.state.xmcLb, null, { timeout: 15000 });
+    await page.goBack();
+    await page.waitForFunction(() => !document.getElementById('xmc-lightbox'), null, { timeout: 4000 });
+    assert.equal(await page.evaluate(() => !!document.querySelector('.xmc-view:not(.xmc-out)')), true, 'the panel is still there');
+    assert.equal(await page.evaluate(() => location.pathname), '/home/');
+    await page.goBack(); // and the next Back is the panel's, as before
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'), null, { timeout: 6000 });
+    assert.equal(await page.evaluate(() => location.pathname), '/home/');
+  });
+}, 90000);
+
 browserTest('a post\'s own page: Download and Copy link buttons, and fewer buttons under replies', async (e) => {
   const h = await e.open('/user/status/90001/');
   await checked(h, async () => {

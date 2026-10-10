@@ -345,3 +345,14 @@ firefox('a picture is attached to a comment in Firefox: chosen in the box, hande
   assert.equal(sent.files.length, 1);
   assert.equal(sent.files[0], 'pic.png:' + PNG.length + ':image/png', 'X\'s page read the file the content script put in its input');
 });
+
+firefox('Back (the browser\'s own) closes a full-size picture in Firefox and the page behind stays', async (r, d) => {
+  await home(r, d);
+  await d.press('.xmc-card [data-lb]');
+  await d.waitFor(() => !!document.getElementById('xmc-lightbox'), [], 6000, 'the viewer');
+  await d.waitFor(() => !!(history.state && history.state.xmcLb), [], 15000, 'the viewer\'s history entry');
+  await d.call('POST', '/back', {});
+  await d.waitFor(() => !document.getElementById('xmc-lightbox'), [], 5000, 'Back to close the viewer');
+  assert.equal(await d.js(() => location.pathname), '/home/', 'the page behind did not go back');
+  assert.equal(await d.js(() => document.querySelectorAll('.xmc-card').length > 0 && !document.querySelector('.xmc-view:not(.xmc-out)')), true, 'the columns are still there');
+});
