@@ -1,6 +1,6 @@
 # Putting Multi-Column for X on Firefox
 
-What is already done: `web-ext lint` is clean (0 errors, 0 warnings), the zip builds with only the 14 files that run (no tests or docs),
+What is already done: `web-ext lint` is clean (0 errors, 0 warnings), the zip builds with only the files that run (the 15 scripts, styles and pages, the icon and the manifest; no tests or docs),
 listing text / reviewer notes / icon are in `store/`, privacy policy is `PRIVACY.md`, licence is MIT.
 
 ## 1. Decide three things before the first upload

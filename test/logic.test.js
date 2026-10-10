@@ -636,3 +636,28 @@ test('passes: a find narrows the posts, and none is the same as before', () => {
 test('the find bar is a setting, on by default', () => {
   assert.equal(S.DEFAULTS.findBar, true);
 });
+
+test('whatever is in storage, settings load: no throw, every value inside its limits, and loading again changes nothing', () => {
+  const hostile = [null, undefined, NaN, Infinity, -Infinity, -1e9, 1e9, 0, -1, 1.5, true, false, '', 'x'.repeat(100000), '{"a":', '__proto__', [], [1, 'a', null, {}], {}, { cols: 3 }, { __proto__: { polluted: 1 } }, () => 1];
+  const items = S.SCHEMA.flatMap((x) => x.items);
+  const keys = [...new Set([...Object.keys(S.DEFAULTS), 'v', 'bogus', 'constructor', 'toString'])];
+  for (const key of keys) {
+    for (const value of hostile) {
+      for (const v of [undefined, 0, 3, 11, 99, 'x']) {
+        const raw = { v, [key]: value };
+        let n;
+        assert.doesNotThrow(() => { n = S.normalize(raw); }, key + ' = ' + String(value).slice(0, 20));
+        for (const it of items) {
+          const got = n[it.key];
+          if (it.type === 'bool') assert.equal(typeof got, 'boolean', it.key);
+          else if (it.type === 'number') assert.ok(Number.isFinite(got) && got >= it.min && got <= it.max, it.key + ' = ' + got);
+          else if (it.type === 'select') assert.ok(it.options.some(([val]) => val === got), it.key + ' = ' + got);
+          else assert.ok(typeof got === 'string' && got.length <= 20000, it.key);
+        }
+        assert.deepEqual(S.normalize(Object.assign({ v: S.VERSION }, n)), n, 'normalising what was normalised: ' + key);
+      }
+    }
+  }
+  assert.equal(({}).polluted, undefined, 'nothing reached Object.prototype');
+  for (const bad of [null, undefined, 5, 'x', [], () => 1]) assert.deepEqual(S.normalize(bad), S.normalize({}), 'not an object: the defaults');
+});

@@ -9,7 +9,7 @@ TweetDeck-style columns for X (Twitter): read your feed across the whole screen,
 **Description:** (the first 250 characters matter most; Markdown: bold, lists and links work)
 Multi-Column for X has three aims: let you see far more of X at once, let you open a post without losing your place, and keep the algorithm out of the way.
 
-The first time you open the settings page it asks how you want to start: Just columns, Calm (no algorithmic content), Media wall or Reels. Each is only a set of ordinary settings, and every one can be changed afterwards.
+On install a welcome page asks four things on one screen: whether it may run on x.com (Firefox asks), how you want to start (Just columns, Calm with no algorithmic content, Media wall or Reels), which keys (Vim, Simple or none) and which colours. Each is only a set of ordinary settings, picked as you choose it, and every one can be changed afterwards.
 
 By default your feed shows in columns that fit your window (up to eight), on the "Following" timeline, with "For you" hidden. Most settings apply the moment you change them, so open the settings page (the gear in the top bar) and make it yours.
 
@@ -27,11 +27,12 @@ By default your feed shows in columns that fit your window (up to eight), on the
 - Several pictures show one at a time with arrows and dots (the wheel and the sides of a picture flick between them). A quoted post opens in the panel too.
 - Comments load as you scroll and can be sorted by relevance, newest or most liked. Like, bookmark and reply to posts and to comments, and translate them with X's own translation.
 - **Reply with pictures, a GIF or emoji** from the comment box, to the post or to any comment, without leaving the panel.
-- **Keys:** ← → go through a post's pictures and then the posts, Shift and the wheel step through the posts from anywhere on the panel, A S W E Q C like, bookmark, repost, download, copy the link and comment, M mutes the video. The keyboard button on the panel lists them all, and you can change any key. An optional Vim set (Settings, Keyboard) puts j k, gg G, Ctrl+D, w a s d, f like, r Reels and the rest on the columns too.
+- **Keys:** the Vim set is the one the welcome page offers first: j k scroll, gg G, Ctrl+D and Ctrl+U, w a s d move a ring over the posts (the arrow keys do too, and so does the mouse: a key acts on the post under the pointer), o opens, f likes, b bookmarks, q copies the link, r starts Reels, ? lists every key. The Simple set (A S W E Q C in a post's panel) and no keys at all are the other two. ← → go through a post's pictures and then the posts, Shift and the wheel step through the posts from anywhere on the panel, M mutes the video. You can change any key in Settings, Keyboard.
 - **Reels view (optional):** like TikTok. One post at a time fills the page, scrolled up and down; videos play with sound and loop; posts you have already seen are skipped; a switch at the top changes between For you and Following; the menu and side panel fold away while it is up; double-click a picture or video to like it. It works on a profile too (a Reels button in its bar): that account's pictures and video, one at a time. It is one of the starting points below.
 - **Search on Likes:** X has none there. A search box, a chip for each account and Pictures, Video and Links narrow the likes that have loaded, with a button to read older ones when you ask. Bookmarks gets the chips (X searches those itself) and, like Search, a Reels button.
 - **Gallery (optional):** a profile's Media tab as rows of pictures, edge to edge, instead of columns of posts; a switch in the bar.
 - **Followers and Following as a grid:** the people as cards with their bios in narrow columns, a search, and a choice of the ones who do not follow back.
+- **A profile's header as a card** at the top of the columns, with its Follow, notification and More buttons pressing X's own.
 
 **Video and media**
 - Video and GIFs play in the post. Pointing at a video plays it muted; pressing it turns the sound on and carries on; a speaker button turns sound on or off.
@@ -40,13 +41,14 @@ By default your feed shows in columns that fit your window (up to eight), on the
 
 **Filters (defaults marked)**
 - Following timeline, "For you" hidden (default).
-- Only accounts you follow, mute words and accounts, show or hide reposts, quotes and replies, sensitive media blurred (default), shown or hidden.
+- Only accounts you follow, mute words and accounts, show or hide reposts, quotes and replies, sensitive media blurred (default), shown or hidden. An optional **NSFW only** choice in the Show menu keeps just the posts X marks as sensitive.
 - Profile Videos / Photos and Following's Popular / Recent work from the top bar.
 - Reading options, all off by default: a separate column count for each page, hide or fade posts you have already read, one card when several people repost the same post.
 
 **Tidy-ups**
 - Hide Trending, Who to follow, Topics and Premium boxes; hide any item in X's left menu; add Bookmarks, Likes and Lists to it.
-- **Colour themes:** Catppuccin, Gruvbox, Rosé Pine, Dracula, Tokyo Night, Nord, Everforest, Kanagawa and a Dark Academia of our own, for the columns, the post panel and the settings; X's own colours by default.
+- **Colour themes:** fourteen, for the columns, the post panel and the settings: Catppuccin (Mocha, Macchiato, Frappé, Latte), Gruvbox (dark and light), Rosé Pine (and Dawn), Dracula, Tokyo Night, Nord, Everforest, Kanagawa Wave and a Dark Academia of our own; X's own colours by default.
+- Japanese, Korean and Chinese posts are set in a sans-serif (gothic) face.
 - Use the bird logo and "Tweet" wording, or X's own; custom CSS.
 - Sensitive media: an option (on by default) turns off X's own age-verification flag in your browser, so X shows its older "sensitive content" notice instead of asking for verification. Switch it off in the settings if you would rather keep X's check.
 
@@ -59,7 +61,7 @@ It works with what X's own page already loads, so if X redesigns something a sma
 X and Twitter are trademarks of X Corp. This add-on is not affiliated with, endorsed by, or sponsored by X Corp.
 
 **Release notes (current version):**
-Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its picture, comments (loading as you scroll), like, bookmark, reply (with pictures, a GIF or emoji) and translate; video in the post; a Reels view; keys for everything; one-click media downloads; filters; sensitive-media handling; four starting points on first run; Bookmarks, Likes and Lists in the left menu; a menu for narrow windows; a settings page.
+Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its picture, comments (loading as you scroll), like, bookmark, reply (with pictures, a GIF or emoji) and translate; video in the post; a Reels view; Vim and simple keys; one-click media downloads; filters, including an optional NSFW only view; fourteen colour themes; a welcome page for the first run; followers as a grid; a gallery for Media tabs; Bookmarks, Likes and Lists in the left menu; a menu for narrow windows; a settings page.
 
 **Screenshots** (upload the headline slides in `store/screenshots/slides/`, in this order; `node store/make-screenshots.js` then `node store/make-slides.js` makes them: 1280x800, invented accounts and posts, nothing from X; the plain shots are in `store/screenshots/` if you want any without a headline. A shot of your own saved as `store/screenshots/own/<name>.png` replaces the generated one of that name; slide 1 shows the feed itself and is the one worth replacing with real X; the wording is in `SLIDES` in `store/make-slides.js`):
 1. `01-columns.png` Your feed in columns.
@@ -94,13 +96,14 @@ What it does, and why each piece exists:
 - Translation: the extension presses x.com's own "Translate post" button on the post's page and shows the translated words it finds there; it does not use any other service.
 - Pressing a button in a copy of a profile's header presses x.com's own button; for the "Joined" line, x.com's popup (which x.com draws in its own layer) has its position moved with inline styles so it sits under the button. A post's translation, or its comments, are asked for by taking x.com's hidden page to the post and pressing x.com's own controls, as above; if the post is not in x.com's list the same router request is used. While a video previews, its native controls are switched off (the `controls` property) and switched on again after.
 - The options "Add Bookmarks / Likes / Lists to X's left menu" insert links (cloned from one of x.com's own menu links) to x.com's own pages; pressing one loads that page.
+- Pressing a button on a profile's header card presses x.com's own button in its real header (found by its place, then by its test id or label). "Unfollow" presses x.com's own Following button once and, if x.com asks, its own confirmation; x.com's menus and dialogs that open from such a press are shown by raising x.com's own `#layers` element above the columns (a CSS class), and are not copied or changed.
 - `background.js`: saves media with the `downloads` API (only URLs on https://pbs.twimg.com and https://video.twimg.com are accepted).
 
 Permissions: `storage` (settings, download history and a short event log for Copy diagnostics that can be switched off; local only), `downloads` (the Download button), host access to x.com / twitter.com (the site it enhances) and pbs.twimg.com / video.twimg.com (the media files).
 
 Everything user-visible in the options page is generated from `src/settings.js`.
 
-`popup.html` is the toolbar button's panel (the same generator as the options page, in a narrow layout). It and the files it loads are listed in `web_accessible_resources` for x.com and twitter.com only, because the gear in the columns' bar shows it in a frame over the page; it grants x.com's own scripts nothing but the ability to load those pages (they hold no secrets: the settings live in `storage.local`, which only the extension can read). If the frame does not load, the options page opens in a tab instead. The tip shown on first run has one link, to the Ko-fi page, opened in a new tab only when pressed.
+`popup.html` is the toolbar button's panel (the same generator as the options page, in a narrow layout). It and the files it loads are listed in `web_accessible_resources` for x.com and twitter.com only, because the gear in the columns' bar shows it in a frame over the page; it grants x.com's own scripts nothing but the ability to load those pages (they hold no secrets: the settings live in `storage.local`, which only the extension can read). If the frame does not load, the options page opens in a tab instead. The framed page tells its parent two things ("settings-ready", "settings-close") with `postMessage` to `*`: the messages hold no data, and the receiving side accepts them only from that frame's own window. Every `message` listener in the extension checks `event.source`. The tip shown on first run has one link, to the Ko-fi page, opened in a new tab only when pressed.
 
 **Screenshots:** `store/screenshots/slides/` (made by `node store/make-screenshots.js` then `node store/make-slides.js`; the first needs ImageMagick and the dev dependencies). They use the test stand-in for x.com with invented people and generated pictures, so no real post, name or logo is shown. To add one of your own feed, take it with the window about 1600x1000, public posts only, blur your own name, and size it with `store/frame-screenshots.sh`.
 
