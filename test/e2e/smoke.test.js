@@ -734,6 +734,9 @@ browserTest('the page the install opens starts with the starting points as large
   await checked(h, async () => {
     const { page } = h;
     await page.waitForSelector('#welcome:not([hidden]) .wchoice');
+    await page.waitForTimeout(600); // (the page has finished building itself: this is how it is first seen)
+    assert.equal(await page.locator('#sec-presets').isHidden(), true, 'no second list of the same four choices');
+    assert.equal(await page.locator('#nav a[href="#sec-presets"]').isHidden(), true, 'nor a link to it');
     assert.deepEqual(await page.locator('#welcome .wname').allInnerTexts(), ['Just columns', 'Calm', 'Media wall', 'Reels']);
     assert.equal(await page.evaluate(() => document.getElementById('welcome').getBoundingClientRect().top < 400), true, 'at the top, not down with the settings');
     await page.locator('#welcome-reels').check();

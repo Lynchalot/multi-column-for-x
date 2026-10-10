@@ -625,6 +625,7 @@
     renderHistory();
     watchScroll();
     wireFind();
+    applyFind(); // (the links above are new: the ones for a section that is out of sight, the presets while the welcome is up, go with it)
     const sup = $('#support');
     const bits = [];
     if (XMCMeta.donate) bits.push(h('a', { href: XMCMeta.donate, textContent: 'Support', target: '_blank', rel: 'noopener' }));
