@@ -5792,7 +5792,7 @@ browserTest('Unfollow when X does not ask: the card says it could not, X’s lay
   });
 }, 60000);
 
-browserTest('a profile with Subscribe: the icon-only Following button next to it unfollows (asked on the card, X pressed for it, also when X puts Unfollow in a menu first), and Subscribe is passed to X and is not taken for it', async (e) => {
+browserTest('a profile with Subscribe: the icon next to it unfollows once (X asks nothing there, and the button is then Subscribe, which must not be pressed again), through X’s question or a menu when X has them, and Subscribe itself is passed to X and asks nothing', async (e) => {
   const h = await e.open('/user9/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 3 } });
   await checked(h, async () => {
     const { page } = h;
@@ -5803,26 +5803,32 @@ browserTest('a profile with Subscribe: the icon-only Following button next to it
     await page.locator('.xmc-profile [data-testid="subscribe"]').click();
     await page.waitForFunction(() => window.__subscribed === 1, null, { timeout: 5000 });
     assert.doesNotMatch(await toast(), /Unfollow/);
-    // the icon: a question on the card, then X's button and question; through a menu first the second time
+    // the icon: a question on the card, then X's button, once; X unfollows at once
     await page.locator('.xmc-profile [data-testid="user9-unfollow"]').click();
     await page.waitForFunction(() => /Unfollow @user9\?/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
     await page.locator('#xmc-toast .xmc-undo').click();
     await page.waitForFunction(() => window.__unfollowed === 1, null, { timeout: 8000 });
+    await page.waitForFunction(() => /Unfollowed @user9/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
     await page.waitForFunction(() => !!document.querySelector('.xmc-profile [data-testid="user9-follow"]'), null, { timeout: 5000 });
-    await page.waitForFunction(() => /Unfollowed @user9/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 3000 });
+    await page.waitForTimeout(2500); // (the old second press came 1.5 s after the first)
+    assert.equal(await page.evaluate(() => window.__subscribeOpened || 0), 0, 'the button that Unfollow became (Subscribe to) was not pressed');
     assert.equal(await page.evaluate(() => window.__subscribed), 1, 'Subscribe was not pressed again');
+    assert.equal(await page.evaluate(() => window.__unfollowed), 1);
   });
-  const m = await e.open('/user9/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 3 }, init: () => { window.__menuUnfollow = true; } });
-  await checked(m, async () => {
-    const { page } = m;
-    await e.ready(page);
-    await page.waitForSelector('.xmc-profile.xmc-native [data-testid="user9-unfollow"]', { timeout: 8000 });
-    await page.locator('.xmc-profile [data-testid="user9-unfollow"]').click();
-    await page.locator('#xmc-toast .xmc-undo').click();
-    await page.waitForFunction(() => window.__unfollowed === 1, null, { timeout: 10000 });
-    assert.equal(await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).headerButtons.length > 0), true, 'the diagnostics list the real header’s buttons');
-  });
-}, 90000);
+  for (const [name, init] of [['question', () => { window.__sheetUnfollow = true; }], ['menu then question', () => { window.__sheetUnfollow = true; window.__menuUnfollow = true; }]]) {
+    const m = await e.open('/user9/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 3 }, init });
+    await checked(m, async () => {
+      const { page } = m;
+      await e.ready(page);
+      await page.waitForSelector('.xmc-profile.xmc-native [data-testid="user9-unfollow"]', { timeout: 8000 });
+      await page.locator('.xmc-profile [data-testid="user9-unfollow"]').click();
+      await page.locator('#xmc-toast .xmc-undo').click();
+      await page.waitForFunction(() => window.__unfollowed === 1, null, { timeout: 10000 });
+      await page.waitForFunction(() => /Unfollowed @user9/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 4000 });
+      assert.equal(await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).headerButtons.length > 0), true, name + ': the diagnostics list the real header’s buttons');
+    });
+  }
+}, 120000);
 
 browserTest('a profile’s Reposts tab is a profile page like the others (X’s own tab bar says it is one), and Joined is underlined as it is pointed at with a chevron after it', async (e) => {
   const h = await e.open('/user7/reposts', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });

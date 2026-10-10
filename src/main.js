@@ -3219,19 +3219,22 @@
         const before = buttonsSig(orig);
         const sheet = () => layers && layers.querySelector('[data-testid="confirmationSheetConfirm"]');
         const menu = () => layers && [...layers.querySelectorAll('[role="menuitem"]')].find((n) => /^Unfollow\b/i.test((n.textContent || '').trim())); // (a menu with Unfollow in it, if X has one there)
-        const asked = () => sheet() || menu();
+        // (the header has changed and has no Following button now: X has unfollowed)
+        const changed = () => { const o = nativeHeader(handle); return !!o && buttonsSig(o) !== before && !unfollowBtn(o); };
+        const next = () => (changed() ? 'changed' : sheet() ? 'sheet' : menu() ? 'menu' : '');
+        // One press, never a second: where X asks nothing (the icon next to Subscribe unfollows at once) that button is already a different one (Subscribe to @name),
+        // and pressing it again opens X's Subscribe sheet.
         fire(btn);
-        let yes = await waitFor(asked, 1500);
-        if (!yes && btn.isConnected) { btn.click(); yes = await waitFor(asked, 2500); } // (the full press first, then a plain click)
-        if (yes && !sheet()) { fire(yes); yes = await waitFor(sheet, 2500); } // (the menu's Unfollow, and then the question)
-        if (!yes) { why = 'X did not ask'; trace('unfollow-saw', layersSeen(layers) || 'nothing in X’s layer'); }
-        else {
-          const over = () => { const o = nativeHeader(handle); return !!o && buttonsSig(o) !== before; };
+        let step = await waitFor(next, 3000);
+        if (step === 'menu') { fire(menu()); step = await waitFor(() => (changed() ? 'changed' : sheet() ? 'sheet' : ''), 2500); } // (the menu's Unfollow, and then the question)
+        if (step === 'sheet') {
+          const yes = sheet();
           fire(yes);
-          done = !!(await waitFor(over, 1500));
-          if (!done && yes.isConnected) { yes.click(); done = !!(await waitFor(over, 3000)); }
+          done = !!(await waitFor(changed, 1500));
+          if (!done && yes.isConnected) { yes.click(); done = !!(await waitFor(changed, 3000)); } // (the question's button is still there: a plain click as well)
           if (!done) why = 'X did not say it was done';
-        }
+        } else if (step === 'changed') done = true;
+        else { why = 'X did not ask'; trace('unfollow-saw', layersSeen(layers) || 'nothing in X\u2019s layer'); }
       }
     } finally { setTimeout(() => doc.classList.remove('xmc-acting'), 600); settleProxy(); }
     trace('unfollow', done ? 'done' : why);
@@ -3249,6 +3252,7 @@
       if (!target) { toast('Couldn’t reach that button just now. Try again in a moment.'); return; }
       if (isUnfollow(target)) { toast('Unfollow @' + headerCopy.handle + '?', () => unfollowViaX(headerCopy.handle, position, anchor), 'Unfollow', 9000); return; } // (X asks it in its own layer, which has to be seen and pressed: here it is asked on the card)
       fire(target);
+      if (layers) setTimeout(() => { trace('header-saw', layersSeen(layers) || 'nothing'); if (!layers.querySelector(LAYER_UI) && /^userActions$/.test(target.getAttribute('data-testid') || '')) toast('X did not open its menu just now. Try again.', null, null, 2500); }, 1500);
       if (layers) {
         layerWatch(layers);
         // the Joined / location line and the ... menu are moved to sit under the button pressed here; Unfollow's question is X's own, centred as X has it
