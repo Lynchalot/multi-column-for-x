@@ -17,6 +17,7 @@ Nobody working on this can log in to X, so this is the list of what only your ow
 12. **The master switch** (Enabled, top of the toolbar panel): off should reload the tab to plain X, with "off" on the toolbar button; on should bring the columns back.
 13. **Keys in a post's panel:** open a post. ← → through its pictures and then the posts, Shift+← → the posts only, A like, S bookmark, W repost, E download, Q copy link, C comment (then Esc leaves the box). Do any of them do something else (Vimium, X, Zen)? Which?
 14. **Enter from the feed** (nothing focused) opens the first post in view; then the arrows. **The keyboard button** at the corner of a post's panel (the legend), the toast the first time a panel opens, and Settings, Keyboard: change a key and use it. If the toolbar button ever shows a red "!", the extension has no access to x.com.
-15. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
+15. **Going through posts (0.36.0):** pick the **Reels** preset in Settings, open a post with Enter and hold → . Does the next post come up at once (its picture ready)? Does a video play with sound and the next post follow when it ends? Does it keep going past the end of what was drawn, and are posts you have read skipped? Then Posts, *Videos in a post's panel* and *When a video in the panel ends* (Play it again) on their own. Does closing the panel leave the columns at the post you got to?
+16. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
 
 What to send back: the table (2), the sample file (3), Copy diagnostics from anything that failed (it carries a `features` block), and a recording of anything that looked wrong.

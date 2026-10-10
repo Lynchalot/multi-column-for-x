@@ -26,6 +26,7 @@ var XMCSettings = (function () {
       id: 'reading', title: 'Reading', custom: 'reading', items: [
         { key: 'seen', type: 'select', def: 'off', label: 'Posts I\u2019ve already read', options: [['off', 'Leave them alone'], ['dim', 'Fade them'], ['hide', 'Hide them']],
           help: 'On Home and Lists. A post counts as read after you\u2019ve looked at it for a second. Remembered on this device only.' },
+        { key: 'skipSeen', type: 'bool', def: false, label: 'Skip posts I\u2019ve already read when stepping through posts in a panel', help: 'The arrow keys and the next-post button. Remembered on this device only.' },
         { key: 'collapseReposts', type: 'bool', def: false, label: 'Show a post once when several people repost it', help: 'Folded into one card: \u201cA, B and 2 others reposted\u201d.' },
         { key: 'foldThreads', type: 'bool', def: true, label: 'Fold a person\u2019s thread into one card', help: 'Their replies to themselves sit under the first post, behind one line.' },
       ],
@@ -84,6 +85,9 @@ var XMCSettings = (function () {
         { key: 'nsfw', type: 'select', def: 'blur', label: 'Sensitive media', options: [['blur', 'Blur until I click'], ['show', 'Show'], ['hide', 'Hide those posts']], help: 'Also applies on X\u2019s own pages (a post, a profile), where Hide leaves the picture out.' },
         { key: 'skipAgeCheck', type: 'bool', def: true, label: 'Skip X\u2019s age check on sensitive media', help: 'Turns off the flag that makes X ask for age verification, so its older \u201csensitive content\u201d notice (which the setting above handles) shows instead. Reload X after changing it.' },
         { key: 'autoplayVideo', type: 'select', def: 'off', label: 'Videos', options: [['off', 'Play when I click'], ['muted', 'Autoplay muted while on screen']] },
+        { key: 'panelVideo', type: 'select', def: 'off', label: 'Videos in a post\u2019s panel', options: [['off', 'Play when I click'], ['muted', 'Play at once, muted'], ['sound', 'Play at once, with the sound as I left it']] },
+        { key: 'videoEnd', type: 'select', def: 'stop', label: 'When a video in the panel ends', options: [['stop', 'Stop'], ['loop', 'Play it again'], ['next', 'Go to the next post']] },
+        { key: 'prefetchNext', type: 'bool', def: true, label: 'Get the next post ready while a post is open', help: 'Its pictures, and its comments when the rate of lookups allows.' },
         { key: 'openIn', type: 'select', def: 'view', label: 'Open posts and profiles', options: [['view', 'Posts in a panel over the columns, profiles in a new tab'], ['newtab', 'In a new tab (you keep your place here)'], ['sametab', 'In this tab']] },
         { key: 'blurBehind', type: 'bool', def: true, label: 'Blur the columns behind an open post', help: 'Turns itself off if your computer struggles with it.' },
         { key: 'commentSort', type: 'select', def: 'relevant', label: 'Order comments by', options: [['relevant', 'Relevant (as X ranks them)'], ['recent', 'Most recent'], ['likes', 'Most liked']] },
@@ -226,10 +230,15 @@ var XMCSettings = (function () {
     hideDiscoverMore: true, hidePremiumPromo: true, seen: 'dim', collapseReposts: true, foldThreads: true };
   const MEDIA_WALL = { autoplayVideo: 'muted', minColWidth: 380, maxAutoCols: 8, tallPhotos: 'cap', hideViews: true };
   const MEDIA_OFF = Object.fromEntries(Object.keys(MEDIA_WALL).map((k) => [k, DEFAULTS[k]]));
+  const REELS = { panelVideo: 'sound', videoEnd: 'next', skipSeen: true, keysAdvance: true, prefetchNext: true };
+  const REELS_OFF = Object.fromEntries(Object.keys(REELS).map((k) => [k, DEFAULTS[k]]));
+  // `once` is what picking a preset also does, that is not part of what makes it the one ticked (the Show list is the person's to change afterwards)
   const PRESETS = [
-    { id: 'plain', label: 'Just columns', blurb: 'Default X but laid out in columns.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF) },
-    { id: 'calm', label: 'Calm', blurb: 'All algorithmic content disabled (only people you follow, no trends or suggestions).', set: Object.assign({}, CONTENT_CALM, MEDIA_OFF) },
-    { id: 'media', label: 'Media wall', blurb: 'Narrower layout with more columns. Videos play muted as you scroll.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_WALL) },
+    { id: 'plain', label: 'Just columns', blurb: 'Default X but laid out in columns.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF, REELS_OFF) },
+    { id: 'calm', label: 'Calm', blurb: 'All algorithmic content disabled (only people you follow, no trends or suggestions).', set: Object.assign({}, CONTENT_CALM, MEDIA_OFF, REELS_OFF) },
+    { id: 'media', label: 'Media wall', blurb: 'Narrower layout with more columns. Videos play muted as you scroll.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_WALL, REELS_OFF) },
+    { id: 'reels', label: 'Reels', blurb: 'Posts with pictures and video only. Press Enter, then keep going: videos play with sound and the next post follows when one ends; posts you have read are skipped.',
+      set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF, REELS), once: { filter: 'media' } },
   ];
   // What a fresh install starts with: the Calm preset, stored as a person's own choices (so what is ticked on the settings page is Calm,
   // not "Custom"), and only what differs from the defaults

@@ -455,9 +455,13 @@
     if (storage) storage.set({ seenPosts: ids }).catch(() => {});
     else { try { localStorage.setItem('xmc.seen', JSON.stringify(ids)); } catch { /* private mode */ } }
   }
+  const trackSeen = () => settings.seen !== 'off' || settings.skipSeen; // (the walk through a panel skips what was read, so it needs the list even when nothing is faded or hidden)
   function markRead(el) {
     const t = tweetOf.get(el);
-    if (!t || settings.seen === 'off' || document.hidden || el.dataset.recycled) return;
+    if (!t || !trackSeen() || document.hidden || el.dataset.recycled || postView) return; // (a panel covers the columns: only the post in it is being read)
+    markSeen(t);
+  }
+  function markSeen(t) {
     seenNow.add(t.id);
     seenAll.delete(t.id); seenAll.add(t.id); // newest last
     seenDirty = true;
@@ -514,6 +518,7 @@
     const v = h('video', { poster: m.thumb, preload: auto ? 'metadata' : 'none', playsInline: true, controls: !gif, loop: gif, src: src.url });
     v.volume = settings.volume;
     v.muted = auto || settings.videoMuted; // videos that autoplay always start muted; the rest start the way you last left the volume
+    if (!gif) v.dataset.video = '1';
     if (auto) { v.dataset.gif = '1'; playObserver.observe(v); }
     return h('div', { className: 'xmc-video' }, v, gif ? h('span', { className: 'xmc-gif', textContent: 'GIF' }) : null);
   }
@@ -1387,7 +1392,7 @@
       for (const { t, read } of fresh) {
         t.el.classList.toggle('xmc-read', read);
         if (t.repostedBy) { const ctx = t.el.querySelector(':scope > .xmc-ctx span'); if (ctx) ctx.textContent = ctxText(t); } // a card kept from before may say something else now
-        if (settings.seen !== 'off') readObserver.observe(t.el);
+        if (trackSeen()) readObserver.observe(t.el);
       }
       if (!fresh.length) break;
     }
@@ -1527,6 +1532,19 @@
   // scrolled to, which takes it a moment. So don't pass through each screen: go most of the way in one move (like
   // dragging the scrollbar), then scroll the last couple of screens like a person. If X still doesn't answer,
   // nudge it; if that doesn't work either, switch to walking the whole way for the rest of the session.
+  // Someone stepping through posts in a panel is always the next post's comments away from a visit to X's page, and the feed can only be given
+  // more while no visit is on: near the end of what is loaded the feed goes first (comments wait up to four seconds for it, or until it has answered).
+  const viewFeed = () => state.feeds.get(view.feedKey) || null; // (the one the columns show: activeFeed() is by the address, which is a post's while X's page is away on a visit)
+  function wantMoreIfNear(t) {
+    const f = viewFeed();
+    if (!f || f.exhausted || view.caughtUp) return;
+    const i = view.cards.indexOf(t);
+    if (i < 0 || view.cards.length - 1 - i >= 10) return;
+    wantMore(f);
+  }
+  // (done when more posts are drawn or loaded, or after four seconds)
+  function wantMore(f) { state.moreUntil = Date.now() + 4000; state.moreBase = view.cards.length + f.items.length; }
+  function moreWanted() { const f = viewFeed(); return !!f && Date.now() < (state.moreUntil || 0) && view.cards.length + f.items.length <= state.moreBase && !f.exhausted; }
   function pump() {
     if (Date.now() < state.proxyUntil) return;
     if (settings.disableHome && where() === 'home') return;
@@ -1534,7 +1552,7 @@
     if (!f || f.exhausted || view.caughtUp) return;
     const ahead = Date.now() - lastScrollAt < 4000 ? 120 : 50; // scrolling: keep about six pages waiting; reading: two or three
     if (f.items.length - view.upto > ahead) return; // plenty already waiting to be drawn
-    const need = scroller.scrollTop + scroller.clientHeight > shortestBottom() - innerHeight * 8;
+    const need = moreWanted() || scroller.scrollTop + scroller.clientHeight > shortestBottom() - innerHeight * 8;
     if (!need) return;
     const now = Date.now();
     const doc = document.documentElement;
@@ -1866,6 +1884,8 @@
       repliesWaiting--;
       const again = state.details.get(t.id); // an earlier request for the same post may have fetched it meanwhile
       if (again) { settleXlate(t.id, null); return { data: again }; }
+      if (!wanters.some((w) => w())) { settleXlate(t.id, null); return { why: 'Closed before it loaded.' }; }
+      if (moreWanted()) await waitFor(() => !moreWanted(), 4000); // (the feed's turn: see wantMoreIfNear)
       if (!wanters.some((w) => w())) { settleXlate(t.id, null); return { why: 'Closed before it loaded.' }; }
       if (opts.onStart) opts.onStart();
       await waitFor(() => !state.posting, 15000);
@@ -2868,6 +2888,7 @@
     const parent = opts && opts.parent;
     trace('panel-open', t.id + (parent ? ' (comment)' : '') + (postView ? ' (switch)' : ''));
     const reopen = !!postView;
+    if (!parent && reopen) wantMoreIfNear(t); // (stepping, not a first click: that one is never held back)
     // a video of this post that is playing (or previewing) behind the panel hands over to the panel's own: the one behind stops, the
     // panel's starts where it was; any other video that is playing stops too, so two never play at once
     const live = [...document.querySelectorAll('video')].find((v) => !v.paused && !v.dataset.gif);
@@ -2916,7 +2937,12 @@
     el.addEventListener('wheel', (e) => { if (e.target === el) e.preventDefault(); }, { passive: false }); // not onto the columns or X's page behind
     root.append(el);
     postView = { t, el, panel, side, parent };
-    if (!parent) setTimeout(pointOutKeys, 900); // (once: what the keys are, and where to change them)
+    if (!parent) {
+      setTimeout(pointOutKeys, 900); // (once: what the keys are, and where to change them)
+      if (reopen) followInColumns(t);
+      readyAhead(0);
+      setTimeout(() => { if (postView && postView.t === t && !document.hidden && trackSeen()) markSeen(t); }, 800); // (looked at in the panel: read, though the card behind may be out of view)
+    }
     if (!reopen) {
       // so the Back button closes the panel; never while X's hidden side is on, or on its way to, a post's page (the entry would be that page)
       if (!state.peek && !state.posting && !onPostPage() && !isModalRoute()) { try { window.history.pushState({ xmcView: true }, '', location.href); } catch { /* ignore */ } }
@@ -2933,14 +2959,92 @@
         pv.play().catch(() => { pv.muted = true; pv.play().catch(() => {}); }); // (if the browser wants a press first, it plays without sound)
       }
     }
+    wirePanelVideo(el, t, parent, !!carry);
     if (opts && opts.translate) { const xb = side.querySelector(':scope > .xmc-translate'); if (xb && xb.textContent !== 'Show original') setTimeout(() => xb.click(), 0); } // (already translated, as X had it: nothing to press)
     const first = el.querySelector('.xmc-vclose'); if (first && !focusBox) first.focus({ preventScroll: true });
     if (!settings.hintSeen) dismissHint();
   }
+  // Where the walk goes from the open post: forward past posts already read (when asked), so a refresh does not make you go through the same forty again;
+  // if every one ahead was read it is the next one anyway, and the way back is always the one before.
+  const readCard = (t) => seenBefore.has(t.id) || seenNow.has(t.id);
+  function walkAhead(n) {
+    const i = postView ? view.cards.indexOf(postView.t) : -1;
+    if (i < 0) return [];
+    const out = [];
+    for (let j = i + 1; view.cards[j] && out.length < n; j++) if (!settings.skipSeen || !readCard(view.cards[j])) out.push(view.cards[j]);
+    return out.length ? out : (view.cards[i + 1] ? [view.cards[i + 1]] : []);
+  }
+  const walkTarget = (d) => (!postView ? null : d > 0 ? walkAhead(1)[0] || null : view.cards[view.cards.indexOf(postView.t) - 1] || null);
   function stepPostView(d) {
-    if (!postView) return;
-    const i = view.cards.indexOf(postView.t), next = i >= 0 ? view.cards[i + d] : null;
-    if (next) openPostView(next, true);
+    const next = walkTarget(d);
+    if (next) { openPostView(next, true); return; }
+    const f = viewFeed();
+    if (d > 0 && postView && f && !f.exhausted && !view.caughtUp) waitStep(postView.t, Date.now() + 8000); // (the end of what is loaded: the step is made when more arrives)
+  }
+  let pendingStep = 0;
+  function waitStep(from, until) {
+    clearTimeout(pendingStep);
+    const f = viewFeed();
+    if (f) wantMore(f); // (the feed's turn)
+    pendingStep = setTimeout(() => {
+      if (!postView || postView.t !== from) return;
+      const next = walkTarget(1);
+      if (next) openPostView(next, true); else if (Date.now() < until) waitStep(from, until);
+    }, 350);
+  }
+  // The columns behind a panel follow it (only as far as keeps the post in view), so closing it leaves you where you got to, and the feed goes on
+  // drawing and loading ahead of you as it does when you scroll.
+  function followInColumns(t) {
+    const el = t.el;
+    if (!el || !el.isConnected || root.hidden) return;
+    const box = scroller.getBoundingClientRect(), r = el.getBoundingClientRect();
+    if (!r.height || (r.top >= box.top && r.bottom <= box.bottom)) return;
+    const tall = r.height > box.height - 24;
+    scroller.scrollTop += r.top < box.top || tall ? r.top - box.top - 12 : r.bottom - box.bottom + 12;
+  }
+  // Getting the post after this one ready: its pictures at once, its comments after a second on this post (not while other comments are on their way,
+  // and within the small budget that the other lookups done in case you want them share).
+  const warmedPics = new Set();
+  let aheadTimer = 0;
+  function readyAhead(tries) {
+    clearTimeout(aheadTimer);
+    const pv = postView;
+    if (!pv || pv.parent || !settings.prefetchNext) return;
+    const ahead = walkAhead(2);
+    for (const a of ahead) for (const m of a.media.slice(0, 1)) {
+      const url = m.type === 'photo' ? photoUrl(m.thumb, 'large') : m.thumb;
+      if (url && !warmedPics.has(url)) { warmedPics.add(url); new Image().src = url; if (warmedPics.size > 300) warmedPics.clear(); }
+    }
+    aheadTimer = setTimeout(() => {
+      if (postView !== pv || document.hidden || lightbox) return;
+      const next = ahead[0];
+      if (!next || !next.counts.reply || state.details.has(next.id) || prefetching.has(next.id) || moreWanted()) return;
+      if (state.peek || repliesWaiting || state.posting) { if ((tries || 0) < 6) readyAhead((tries || 0) + 1); return; } // (the open post's own comments are on their way)
+      if (!bgAllowed()) return;
+      bgUsed(); prefetching.add(next.id);
+      loadReplies(next, { background: true, wanted: () => !!postView }).finally(() => prefetching.delete(next.id));
+    }, 1000);
+  }
+  // A video in the panel: plays at once if asked to (a key that opened the panel counts as a press, so sound is allowed; if the browser still
+  // refuses, it plays without), and at its end stops, plays again or goes on to the next post.
+  function wirePanelVideo(el, t, parent, carried) {
+    const vids = [...el.querySelectorAll('.xmc-vmediapane video[data-video]')];
+    if (!vids.length) return;
+    for (const v of vids) {
+      if (settings.videoEnd === 'loop') v.loop = true;
+      v.addEventListener('ended', () => afterVideo(v));
+    }
+    const first = el.querySelector('.xmc-vmediapane .xmc-vm:not([hidden]) video[data-video]');
+    if (!first || carried || settings.panelVideo === 'off' || parent) return;
+    if (first.closest('.xmc-vm.sensitive') && !document.documentElement.classList.contains('xmc-nsfw-show')) return; // (blurred until it is asked for)
+    if (settings.panelVideo === 'muted') first.muted = true;
+    first.play().catch(() => { first.muted = true; first.play().catch(() => {}); });
+  }
+  function afterVideo(v) {
+    if (settings.videoEnd !== 'next' || !postView || postView.parent || !postView.el.contains(v) || v.loop || lightbox || menuEl || document.hidden) return;
+    const box = postView.side.querySelector('textarea.xmc-cbox');
+    if (box && (box.value.trim() || document.activeElement === box)) return; // writing a comment: stay
+    stepPostView(1);
   }
   // the panel grows out of the picture (or card) you clicked
   function growFrom(t, panel) {
@@ -4402,7 +4506,7 @@
     if (tickN % 5 === 1) { state.xNewPill = where() === 'home' && !!findNewPostsPill(); guard('park', () => parkAtTop(f)); }
   }
 
-  window.__xmc = { state, settings, view, diagnostics, recycle: recycleCards, downloads: () => savedDownloads }; // for debugging from the console
+  window.__xmc = { state, settings, view, get postView() { return postView; }, diagnostics, recycle: recycleCards, downloads: () => savedDownloads }; // for debugging from the console
 
   loadAll().then(() => {
     if (settings.enabled === false) { // switched off while no X tab was open (the note was out of date): the page is let go before anything has been drawn

@@ -228,6 +228,138 @@ browserTest('an open panel kept in X\'s own page (not under #layers) is on top t
   });
 });
 
+// ---- going through posts without stopping (0.36.0) ----
+// (the stand-in's home feed: post 90000 - k, of kind k % 8: text, photo, three photos, video, GIF, repost, quote, long note; this browser can't decode the test videos, so play() is stood in for)
+const openPostText = (page) => page.evaluate(() => { const v = document.querySelector('.xmc-view'); return v ? v.innerText : ''; });
+const openPostId = async (page) => { const m = /(?:tweet|number) (\d+)\b/.exec(await openPostText(page)); return m ? m[1] : ''; };
+const standInPlay = (page) => page.evaluate(() => { window.__plays = []; HTMLMediaElement.prototype.play = function () { if (this.dataset.video) window.__plays.push({ muted: this.muted, loop: this.loop, video: this.dataset.video }); return Promise.resolve(); }; });
+const openCard = async (page, id) => { await page.locator('.xmc-card', { hasText: 'tweet ' + id + ' kind' }).first().locator('.xmc-text').click(); await page.waitForSelector('.xmc-view', { timeout: 8000 }); };
+
+browserTest('stepping through posts skips the ones already read when asked, and not otherwise', async (e) => {
+  for (const skip of [true, false]) {
+    const h = await e.open('/home/', { settings: { skipSeen: skip }, seen: ['89999', '89998'] });
+    await checked(h, async () => {
+      const { page } = h;
+      await e.ready(page);
+      await openCard(page, '90000');
+      await page.keyboard.press('Shift+ArrowRight');
+      await page.waitForFunction((want) => { const v = document.querySelector('.xmc-view'); return v && v.innerText.includes('tweet ' + want + ' kind'); }, skip ? '89997' : '89999', { timeout: 4000 });
+      await page.keyboard.press('Shift+ArrowLeft');
+      await page.waitForFunction((want) => document.querySelector('.xmc-view').innerText.includes('tweet ' + want + ' kind'), skip ? '89998' : '90000', { timeout: 4000 }); // (the way back is the one before, read or not)
+    });
+    await h.close();
+  }
+});
+
+browserTest('a read post is counted when it has been in the panel, though its card is out of view', async (e) => {
+  const h = await e.open('/home/', { settings: { skipSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await openCard(page, '90000');
+    await page.waitForTimeout(1200);
+    await page.keyboard.press('Shift+ArrowRight');
+    await page.waitForTimeout(1200);
+    await page.keyboard.press('Shift+ArrowLeft');
+    await page.waitForFunction(() => document.querySelector('.xmc-view').innerText.includes('tweet 90000 kind'), null, { timeout: 4000 });
+    await page.keyboard.press('Shift+ArrowLeft'); // (nothing before the first)
+    // forward again from 90000: 89999 was read in the panel a moment ago, so the walk passes it
+    await page.keyboard.press('Shift+ArrowRight');
+    await page.waitForFunction(() => document.querySelector('.xmc-view').innerText.includes('tweet 89998 kind'), null, { timeout: 4000 });
+  });
+});
+
+browserTest('the post after the open one is made ready: its comments are fetched (when it has any) after a moment, its pictures at once', async (e) => {
+  const h = await e.open('/home/', { settings: { skipSeen: true }, seen: ['89999'] }); // (89999 has no replies; the one after it, 89998, has six)
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { window.__imgs = []; const D = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src'); Object.defineProperty(HTMLImageElement.prototype, 'src', { configurable: true, get: D.get, set(v) { if (!this.isConnected) window.__imgs.push(String(v)); D.set.call(this, v); } }); });
+    await openCard(page, '90000');
+    await page.waitForFunction(() => window.__xmc.state.details.has('89998'), null, { timeout: 25000 });
+    assert.equal(await page.evaluate(() => window.__xmc.state.details.has('89999')), false, 'not the one it will skip, nor one with nothing to fetch');
+    assert.ok(await page.evaluate(() => window.__imgs.some((u) => /name=large/.test(u))), 'a picture of what comes next was asked for');
+  });
+});
+
+browserTest('with the setting off, nothing is fetched ahead', async (e) => {
+  const h = await e.open('/home/', { settings: { prefetchNext: false } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await openCard(page, '90000');
+    await page.waitForFunction(() => window.__xmc.state.details.has('90000'), null, { timeout: 25000 }); // (its own comments)
+    await page.waitForTimeout(3500);
+    assert.equal(await page.evaluate(() => window.__xmc.state.details.size), 1);
+  });
+});
+
+browserTest('a video in the panel plays at once when asked (muted, or with the sound as it was left), loops, and goes on to the next post when it ends', async (e) => {
+  const run = async (settings, then) => {
+    const h = await e.open('/home/', { settings, seen: ['89996'] });
+    await checked(h, async () => {
+      const { page } = h;
+      await e.ready(page);
+      await standInPlay(page);
+      await openCard(page, '89997');
+      await then(page);
+    });
+    await h.close();
+  };
+  await run({ panelVideo: 'off' }, async (page) => {
+    await page.waitForTimeout(600);
+    assert.deepEqual(await page.evaluate(() => window.__plays), [], 'by default it waits to be pressed');
+    assert.equal(await page.evaluate(() => document.querySelector('.xmc-view video[data-video]').loop), false);
+  });
+  await run({ panelVideo: 'muted', videoEnd: 'loop' }, async (page) => {
+    await page.waitForFunction(() => window.__plays.length === 1, null, { timeout: 4000 });
+    assert.deepEqual(await page.evaluate(() => window.__plays[0]), { muted: true, loop: true, video: '1' });
+  });
+  await run({ panelVideo: 'sound', videoEnd: 'next', skipSeen: true }, async (page) => {
+    await page.waitForFunction(() => window.__plays.length === 1, null, { timeout: 4000 });
+    assert.equal(await page.evaluate(() => window.__plays[0].muted), false, 'with the sound as it was left (not muted)');
+    assert.equal(await openPostId(page), '89997');
+    await page.evaluate(() => document.querySelector('.xmc-view video[data-video]').dispatchEvent(new Event('ended')));
+    await page.waitForFunction(() => /tweet 89994 kind/.test(document.querySelector('.xmc-view').innerText), null, { timeout: 4000 }); // (89996 was read; reposts are not shown on Home by default, so the quote after it is next)
+  });
+  await run({ panelVideo: 'sound', videoEnd: 'stop' }, async (page) => {
+    await page.waitForFunction(() => window.__plays.length === 1, null, { timeout: 4000 });
+    await page.evaluate(() => document.querySelector('.xmc-view video[data-video]').dispatchEvent(new Event('ended')));
+    await page.waitForTimeout(800);
+    assert.equal(await openPostId(page), '89997', 'it stops at the end');
+  });
+  await run({ panelVideo: 'off', videoEnd: 'next' }, async (page) => {
+    await page.waitForSelector('textarea.xmc-cbox', { timeout: 8000 });
+    await page.locator('textarea.xmc-cbox').fill('half a thought');
+    await page.evaluate(() => document.querySelector('.xmc-view video[data-video]').dispatchEvent(new Event('ended')));
+    await page.waitForTimeout(800);
+    assert.equal(await openPostId(page), '89997', 'what is being typed is not walked away from');
+  });
+});
+
+browserTest('the columns follow the panel, so the feed goes on drawing and loading ahead of someone stepping through post after post', async (e) => {
+  const h = await e.open('/home/');
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await openCard(page, '90000');
+    const first = await page.evaluate(() => window.__xmc.view.cards.length);
+    for (let k = 0; k < 50; k++) { // (a press at the end of what is loaded waits for more and then steps, without another press)
+      const was = await openPostId(page);
+      await page.keyboard.press('Shift+ArrowRight');
+      await page.waitForFunction((id) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] !== id; }, was, { timeout: 12000 }).catch(() => { throw new Error('held up at step ' + k + ' (' + first + ' were drawn to begin with)'); });
+    }
+    const r = await page.evaluate(() => {
+      const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText), id = m && m[1];
+      const i = window.__xmc.view.cards.findIndex((c) => c.id === id);
+      const sc = document.querySelector('.xmc-scroller'), el = window.__xmc.view.cards[i].el, b = sc.getBoundingClientRect(), r = el.getBoundingClientRect();
+      return { i, n: window.__xmc.view.cards.length, top: sc.scrollTop, inView: r.bottom > b.top && r.top < b.bottom };
+    });
+    assert.ok(r.i >= 45 && r.n > first, 'it got through ' + r.i + ' posts of ' + r.n + ' drawn (' + first + ' to begin with)');
+    assert.ok(r.top > 0 && r.inView, 'the post you are on is in view behind the panel: ' + JSON.stringify(r));
+  });
+}, 150000);
+
 browserTest('a post\'s own page: Download and Copy link buttons, and fewer buttons under replies', async (e) => {
   const h = await e.open('/user/status/90001/');
   await checked(h, async () => {
@@ -875,7 +1007,7 @@ browserTest('the settings page offers starting points as radio buttons (one pick
   await checked(h, async () => {
     const { page } = h;
     await page.waitForSelector('#sec-presets #preset-calm');
-    assert.equal(await page.locator('#sec-presets input[type=radio]').count(), 4, 'three presets and Custom');
+    assert.equal(await page.locator('#sec-presets input[type=radio]').count(), 5, 'four presets and Custom');
     await page.locator('#preset-calm').check();
     await page.waitForFunction(() => document.getElementById('preset-calm').checked && !document.getElementById('preset-custom').checked);
     assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), true);
@@ -888,6 +1020,14 @@ browserTest('the settings page offers starting points as radio buttons (one pick
     await page.waitForFunction(() => document.getElementById('preset-media').checked && !document.getElementById('preset-plain').checked && !document.getElementById('preset-calm').checked);
     assert.equal(await page.locator('#opt-maxAutoCols').inputValue(), '8');
     assert.equal(await page.locator('#opt-autoplayVideo').inputValue(), 'muted');
+    await page.locator('#preset-reels').check(); // Reels: the panel plays videos with sound and goes on by itself; and the Show list is set to Media, which is not part of what ticks it
+    await page.waitForFunction(() => document.getElementById('preset-reels').checked && !document.getElementById('preset-media').checked);
+    assert.equal(await page.locator('#opt-panelVideo').inputValue(), 'sound');
+    assert.equal(await page.locator('#opt-videoEnd').inputValue(), 'next');
+    assert.equal(await page.locator('#opt-skipSeen').isChecked(), true);
+    assert.equal(await page.locator('#opt-keysAdvance').isChecked(), true);
+    assert.equal(await page.locator('#opt-autoplayVideo').inputValue(), 'off', 'nothing plays behind the panel');
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('xmc.settings')).filter), 'media');
     await page.locator('#preset-calm').check(); // and Calm takes the wall away again
     await page.waitForFunction(() => document.getElementById('preset-calm').checked && !document.getElementById('preset-media').checked);
     assert.equal(await page.locator('#opt-maxAutoCols').inputValue(), '5');

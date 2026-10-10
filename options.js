@@ -211,7 +211,7 @@
       return h('div', { className: 'item bool' }, box,
         h('div', {}, h('label', { className: 'name', htmlFor: 'preset-' + id, textContent: label }), blurb ? h('div', { className: 'help', textContent: blurb }) : null));
     };
-    for (const p of S.PRESETS) wrap.append(row(p.id, p.label, p.blurb, current === p, () => { persist(p.set); build(); }));
+    for (const p of S.PRESETS) wrap.append(row(p.id, p.label, p.blurb, current === p, () => { persist(Object.assign({}, p.once, p.set)); build(); }));
     wrap.append(row('custom', 'Custom', '', !current, null));
     return wrap;
   }
