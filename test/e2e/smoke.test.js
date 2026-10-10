@@ -1131,8 +1131,8 @@ browserTest('per-page layouts: a page keeps what you picked there, and the other
 });
 
 browserTest('repost folding: several people reposting the same post make one card', async (e) => {
-  const on = await e.open('/dupes/', { settings: { v: 8, collapseReposts: true } });
-  const off = await e.open('/dupes/');
+  const on = await e.open('/dupes/', { settings: { v: 11 } }); // (folding is the default)
+  const off = await e.open('/dupes/', { settings: { v: 11, collapseReposts: false } });
   await checked(off, async () => {
     await e.ready(off.page, 12);
     const dupes = await off.page.evaluate(() => { const ids = window.__xmc.view.cards.map((t) => t.id); return ids.length - new Set(ids).size; });
