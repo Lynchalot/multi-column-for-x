@@ -1039,6 +1039,28 @@ browserTest('the settings page has no leftovers', async (e) => {
   });
 });
 
+browserTest('scrolling on and on without a pause: far-off posts still give their nodes back, and the way back up is filled', async (e) => {
+  const h = await e.open('/home/', { width: 2600, height: 1000 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const r = await page.evaluate(async () => {
+      const sleep = (ms) => new Promise((x) => setTimeout(x, ms));
+      const sc = document.querySelector('.xmc-scroller');
+      const t0 = performance.now();
+      while (performance.now() - t0 < 50000 && window.__xmc.view.cards.length < 480) { sc.scrollTop += 70; await sleep(16); } // (no pause longer than a frame)
+      const live = () => window.__xmc.view.cards.filter((t) => t.el && t.el.dataset.recycled !== '1').length;
+      const cards = window.__xmc.view.cards.length, liveDown = live(), nodes = document.getElementsByTagName('*').length;
+      sc.scrollTop = 0; await sleep(1500);
+      const topCards = [...document.querySelectorAll('.xmc-card')].slice(0, 6);
+      return { cards, liveDown, nodes, topFilled: topCards.every((el) => el.dataset.recycled !== '1' && !!el.querySelector('.xmc-text, .xmc-media, .xmc-qmedia')) };
+    });
+    assert.ok(r.cards >= 400, `only ${r.cards} posts loaded`);
+    assert.ok(r.liveDown < 360, `${r.liveDown} of ${r.cards} posts still held all their nodes (${r.nodes} nodes in all)`);
+    assert.equal(r.topFilled, true, 'the first posts came back filled');
+  });
+}, 150000);
+
 browserTest('after a long session a change of view (the Show menu) does not leave posts blank: the shells that had given their contents back are drawn afresh', async (e) => {
   const h = await e.open('/home/', { height: 800 });
   await checked(h, async () => {

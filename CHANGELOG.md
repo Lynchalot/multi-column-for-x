@@ -2,7 +2,8 @@
 
 ## 0.48.8
 - **A little less work while you scroll.** Looking for X's floating Grok and Chat buttons (thirty hit tests) waits until the columns have stopped moving, and the look for X's sidebars (to give them the wheel) searches X's own page and not the columns' thousands of posts. Measured on the stand-in over 30 seconds of constant scrolling: the extension's script time went from 2.07 s to 1.5 s; the rest of the time is the browser drawing.
-- Tests: the Firefox rig waits for the first-run tip before pressing (it moved the layout under the press); a hostile-storage test for the settings (every value inside its limits, loading twice changes nothing); NSFW only with few flagged posts keeps loading.
+- **Scrolling on and on no longer piles up posts.** Far-off posts used to give their contents back only when the columns had stopped for half a second, so a long unbroken scroll kept every post in full (on the stand-in, 54,000 page elements after two minutes). Once more than 300 posts are drawn in full they are emptied while you scroll (the same far-off ones, nothing near you); the page stays at about 20,000 elements.
+- Tests: unbroken scrolling keeps the page small and the way back filled (43 s: the slowest test); the Firefox rig waits for the first-run tip before pressing (it moved the layout under the press); a hostile-storage test for the settings (every value inside its limits, loading twice changes nothing); NSFW only with few flagged posts keeps loading.
 - Store texts (listing, release notes, privacy, README) brought up to date.
 
 ## 0.48.7
