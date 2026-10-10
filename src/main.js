@@ -127,7 +127,7 @@
     const seg = p.split('/').filter(Boolean);
     if (seg.length === 1) return !RESERVED.has(seg[0].toLowerCase());
     if (seg.length === 2 && !RESERVED.has(seg[0].toLowerCase())) {
-      return ['with_replies', 'media', 'likes', 'highlights', 'articles', 'followers', 'following', 'verified_followers', 'followers_you_follow'].includes(seg[1]);
+      return ['with_replies', 'media', 'likes', 'highlights', 'articles', 'reposts', 'followers', 'following', 'verified_followers', 'followers_you_follow'].includes(seg[1]) || xHasTab(seg[0], seg[1]);
     }
     return false;
   }
@@ -691,10 +691,20 @@
     if (t.bio) card.append(h('div', { className: 'xmc-text xmc-pbio' }, renderSegs(t.segs)));
     return card;
   }
+  // What language a post is in, for the browser to choose its faces by (without it some systems draw Japanese in a serif, mincho, face): X says, and failing
+  // that kana or hangul tell. The stylesheet gives each language its sans (gothic) faces.
+  const CJK_SANS = '"Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans JP", "IPAexGothic", "IPAPGothic", "VL PGothic", "TakaoPGothic"';
+  function langOf(t) {
+    const l = String(t.lang || '').toLowerCase();
+    if (/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/.test(l) && !/^(und|qme|qht|qam|qst|zxx|art)$/.test(l)) return l;
+    const words = (t.segs || []).filter((x) => x.t === 'text').map((x) => x.v).join('');
+    return /[\u3040-\u30ff]/.test(words) ? 'ja' : /[\uac00-\ud7af]/.test(words) ? 'ko' : '';
+  }
   function renderCard(t) {
     if (t.person) return renderPerson(t);
     const card = h('article', { className: 'xmc-card' });
     tweetOf.set(card, t);
+    const lang = langOf(t); if (lang) card.lang = lang;
     if (t.repostedBy) card.append(h('div', { className: 'xmc-ctx' }, icon('repost'), h('span', { textContent: ctxText(t) })));
     const chain = t.replyToId || t.parent ? contextChain(t).filter(usable) : [];
     for (const p of chain) card.append(renderParentContext(p, onlyWords(t)));
@@ -857,13 +867,41 @@
       btn('Keep loading older posts', '', () => { view.keepGoing = true; view.caughtUp = false; const f = activeFeed(); if (f) pump(); guard('render', renderFeed); })));
   const profileEl = h('section', { className: 'xmc-profile', hidden: true });
   const scroller = h('div', { className: 'xmc-scroller', tabIndex: -1 }, colsEl, galEl, loaderEl, caughtEl, endEl, statusEl);
+  // The columns' scrollbar, drawn here: it shows while they scroll and a moment after, or with the pointer at the right edge, and takes no room. The browser's is
+  // a strip that stays on the page where there are no overlay scrollbars (Firefox on Linux, some Zen set-ups). The look is the panel's (sideScrollbar).
+  const barThumb = h('div', { className: 'xmc-csthumb' });
+  const colsBar = h('div', { className: 'xmc-cscroll', 'aria-hidden': 'true', hidden: true }, barThumb);
+  let barQueued = 0, barHide = 0, barDrag = false;
+  function barSync() {
+    const ch = scroller.clientHeight, sh = scroller.scrollHeight, on = sh > ch + 2;
+    colsBar.hidden = !on;
+    if (!on) return;
+    colsBar.style.top = scroller.offsetTop + 'px'; colsBar.style.height = ch + 'px';
+    const len = Math.max(28, Math.round(ch * ch / sh));
+    barThumb.style.height = len + 'px';
+    barThumb.style.transform = 'translateY(' + Math.round((ch - len) * scroller.scrollTop / (sh - ch)) + 'px)';
+  }
+  const barSoon = () => { if (!barQueued) barQueued = requestAnimationFrame(() => { barQueued = 0; barSync(); }); };
+  const barSeen = () => { colsBar.classList.add('xmc-on'); clearTimeout(barHide); barHide = setTimeout(() => { if (!barDrag) colsBar.classList.remove('xmc-on'); }, 900); };
+  barThumb.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    barDrag = true; barSeen();
+    barThumb.setPointerCapture(e.pointerId);
+    const y0 = e.clientY, top0 = scroller.scrollTop, k = (scroller.scrollHeight - scroller.clientHeight) / Math.max(1, colsBar.clientHeight - barThumb.offsetHeight);
+    const move = (m) => { scroller.scrollTop = top0 + (m.clientY - y0) * k; };
+    const up = () => { barDrag = false; barSeen(); barThumb.removeEventListener('pointermove', move); barThumb.removeEventListener('pointerup', up); barThumb.removeEventListener('pointercancel', up); };
+    barThumb.addEventListener('pointermove', move); barThumb.addEventListener('pointerup', up); barThumb.addEventListener('pointercancel', up);
+  });
+  colsBar.addEventListener('pointerdown', (e) => { if (e.target !== colsBar) return; e.stopPropagation(); scroller.scrollBy({ top: (e.clientY < barThumb.getBoundingClientRect().top ? -1 : 1) * scroller.clientHeight * 0.9 }); }); // (on the track: a page up or down)
+  colsBar.addEventListener('wheel', (e) => { e.preventDefault(); scroller.scrollBy({ top: e.deltaMode === 2 ? e.deltaY * scroller.clientHeight : wheelPx(e, e.deltaY) }); }, { passive: false }); // (the wheel over it scrolls the columns, not X's page behind)
+  if (typeof ResizeObserver !== 'undefined') { const ro = new ResizeObserver(barSoon); ro.observe(scroller); ro.observe(colsEl); ro.observe(galEl); }
   const hintEl = h('div', { className: 'xmc-hint', hidden: true },
     h('ul', {},
       ...['Click a post to open it, or press Enter to open the first one.', 'Esc closes posts and the arrow keys move between posts.', 'Point at a picture to like, repost or save it.',
         'Move between opened pictures with your mouse scroll wheel.', 'Settings are under the gear in the upper right.'].map((t) => h('li', { textContent: t })),
       h('li', {}, 'Support us ', h('a', { href: (typeof XMCMeta !== 'undefined' && XMCMeta.donate) || 'https://ko-fi.com/falsehamartia', target: '_blank', rel: 'noopener noreferrer', textContent: 'here' }), '.')),
     h('button', { type: 'button', textContent: 'Got it', onclick: () => dismissHint() }));
-  const root = h('div', { id: 'xmc-root', hidden: true }, bar, hintEl, scroller);
+  const root = h('div', { id: 'xmc-root', hidden: true }, bar, hintEl, scroller, colsBar);
   const toastEl = h('div', { id: 'xmc-toast', hidden: true });
   document.body.append(root, toastEl);
 
@@ -884,17 +922,23 @@
   // A wheel event's distance in pixels: Firefox sends a notch of a mouse wheel as lines (deltaMode 1, a deltaY of 3), Chrome as pixels (100), and a page may be a screen at a time.
   const wheelPx = (e, d) => (e.deltaMode === 1 ? d * 40 : e.deltaMode === 2 ? d * innerHeight : d);
   // Scrolling with the pointer over X's own sidebars: scroll the columns, as X does (the page scrolls wherever the pointer is).
-  // Left alone if the sidebar itself has more to show in that direction.
-  document.addEventListener('wheel', (e) => {
-    if (retired || root.hidden || e.ctrlKey || e.defaultPrevented) return;
-    const bar = e.target.closest && e.target.closest('[data-testid="sidebarColumn"], header[role="banner"]');
-    if (!bar || bar.id === 'xmc-sidefreeze' || bar.id === 'xmc-navfreeze') return;
+  // Left alone if the sidebar itself has more to show in that direction. The listener sits on the sidebars, not on the document: a wheel listener that
+  // may cancel, anywhere above the columns, makes Firefox wait for this script before it scrolls them, on every notch of the wheel. A sidebar gets it
+  // the first time the pointer is over it, and the sidebars are looked at again every few ticks (X builds them again).
+  const SIDEBARS = '[data-testid="sidebarColumn"], header[role="banner"]';
+  const sidebarWheel = (e) => {
+    const bar = e.currentTarget;
+    if (retired || root.hidden || e.ctrlKey || e.defaultPrevented || bar.id === 'xmc-sidefreeze' || bar.id === 'xmc-navfreeze') return;
     const down = e.deltaY > 0;
     const room = bar.scrollHeight > bar.clientHeight + 2 && (down ? bar.scrollTop + bar.clientHeight < bar.scrollHeight - 1 : bar.scrollTop > 0);
     if (room && getComputedStyle(bar).overflowY !== 'visible') return;
     e.preventDefault();
     scroller.scrollBy({ top: e.deltaMode === 2 ? e.deltaY * scroller.clientHeight : wheelPx(e, e.deltaY) });
-  }, { passive: false, capture: true });
+  };
+  const wheelWired = new WeakSet();
+  const wireSidebar = (bar) => { if (bar && !wheelWired.has(bar)) { wheelWired.add(bar); bar.addEventListener('wheel', sidebarWheel, { passive: false, capture: true }); } };
+  document.addEventListener('pointerover', (e) => { if (e.target.closest) wireSidebar(e.target.closest(SIDEBARS)); }, { passive: true, capture: true });
+  const wireSidebars = () => { for (const bar of document.querySelectorAll(SIDEBARS)) wireSidebar(bar); };
 
   // Vimium and friends scroll "the element you last clicked in", so make that our columns
   const focusScroller = () => { if (!root.hidden && !postView && !/^(input|textarea|select)$/i.test((document.activeElement || {}).tagName || '')) scroller.focus({ preventScroll: true }); };
@@ -905,6 +949,8 @@
     if (root.hidden) return;
     lastScrollAt = Date.now();
     view.memoTop = scroller.scrollTop;
+    barSoon(); barSeen();
+    hoverSoon();
     if (!drawSoon) drawSoon = setTimeout(() => { drawSoon = 0; if (!root.hidden) { guard('restore', () => recycleCards(true)); guard('render', renderFeed); } }, 40); // fill blank space as it appears, not on the next tick
   }, { passive: true });
 
@@ -1284,7 +1330,7 @@
     if (!vimBinds || vimBindsFor !== settings.vimKeys) { vimBindsFor = settings.vimKeys; vimBinds = XMCKeys.matcher(XMCKeys.bindings(settings.vimKeys)); }
     return vimBinds(toks);
   };
-  const vk = { toks: [], timer: 0, hudTimer: 0 };
+  const vk = { toks: [], timer: 0, hudTimer: 0, at: 0 }; // (at: when a key last did something on the columns)
   const keyHud = h('div', { id: 'xmc-keyhud', hidden: true, 'aria-hidden': 'true' });
   function vimHud(text, ms) { // bottom left: the key (or the first of two) just pressed
     if (!keyHud.isConnected) document.body.append(keyHud);
@@ -1308,14 +1354,34 @@
   };
   const markedSeen = () => { const t = marked(); return t && cardOn(t) ? t : null; }; // (scrolled mostly away, it is let go: the next key starts where you are looking)
   // Where the ring starts when there is none: the card under the pointer (it is always on screen), else the one nearest the middle of the screen
-  const pointerAt = { x: 0, y: 0, in: false };
-  scroller.addEventListener('pointermove', (e) => { pointerAt.x = e.clientX; pointerAt.y = e.clientY; pointerAt.in = true; }, { passive: true });
+  // The ring also follows the pointer: it goes to the card the mouse moves onto (and, with the mouse still, to the card the page has scrolled under it), so a key
+  // for a post is for the post pointed at, with no need to aim at its button. The keys win for a moment after one is pressed, and a few pixels of drift are not a move.
+  const pointerAt = { x: 0, y: 0, in: false }, hoverAt = { x: -99, y: -99, timer: 0 };
+  const HOVER_QUIET = 1200;
+  function hoverCard() { // the card under the pointer (always on screen)
+    if (!pointerAt.in) return null;
+    const el = document.elementFromPoint(pointerAt.x, pointerAt.y), card = el && el.closest && el.closest('.xmc-card, .xmc-tile'), t = card && tweetOf.get(card);
+    return t && view.cards.includes(t) ? t : null;
+  }
+  const hoverFree = () => vimOn() && !postView && !lightbox && !root.hidden && Date.now() - vk.at > HOVER_QUIET;
+  scroller.addEventListener('pointermove', (e) => {
+    pointerAt.x = e.clientX; pointerAt.y = e.clientY; pointerAt.in = true;
+    if (e.pointerType === 'touch' || !vimOn()) return;
+    const dx = e.clientX - hoverAt.x, dy = e.clientY - hoverAt.y;
+    if (dx * dx + dy * dy < 36) return; // (the browser repeats a move when the page scrolls under the pointer: that is not one)
+    hoverAt.x = e.clientX; hoverAt.y = e.clientY;
+    if (!hoverFree()) return;
+    const card = e.target.closest && e.target.closest('.xmc-card, .xmc-tile'), t = card && tweetOf.get(card);
+    if (t && t !== state.kcard && view.cards.includes(t)) mark(t, false);
+  }, { passive: true });
   scroller.addEventListener('pointerleave', () => { pointerAt.in = false; }, { passive: true });
+  function hoverSoon() { // the page has scrolled: once it stops, the ring goes to what is now under the pointer
+    if (!pointerAt.in || !vimOn()) return;
+    clearTimeout(hoverAt.timer);
+    hoverAt.timer = setTimeout(() => { if (!hoverFree() || !pointerAt.in) return; const t = hoverCard(); if (t && t !== state.kcard) mark(t, false); }, 140);
+  }
   function startCard() {
-    if (pointerAt.in) {
-      const el = document.elementFromPoint(pointerAt.x, pointerAt.y), card = el && el.closest && el.closest('.xmc-card, .xmc-tile'), t = card && tweetOf.get(card);
-      if (t && view.cards.includes(t)) return t;
-    }
+    { const t = hoverCard(); if (t) return t; }
     const box = scroller.getBoundingClientRect(), cx = box.left + box.width / 2, cy = box.top + box.height / 2;
     let best = null, bestD = Infinity;
     for (const t of view.cards) {
@@ -1328,7 +1394,7 @@
     return best || firstCardInView();
   }
   function mark(t, reveal) {
-    for (const el of scroller.querySelectorAll('.xmc-kcard')) if (!t || el !== t.el) el.classList.remove('xmc-kcard');
+    for (const el of Array.from(scroller.getElementsByClassName('xmc-kcard'))) if (!t || el !== t.el) el.classList.remove('xmc-kcard');
     state.kcard = t || null;
     if (!t || !t.el) return;
     t.el.classList.add('xmc-kcard');
@@ -1415,7 +1481,8 @@
         return true;
       case 'like': case 'bookmark': case 'repost': case 'reply': case 'share': case 'download': case 'parent': {
         let t = viewer ? lightbox.t : postView ? postView.t : markedSeen();
-        if (!t) { const first = startCard(); if (first) mark(first, false); return true; } // (no ring yet: it comes up where you are looking, and the next press is for that one)
+        if (!t && cols) { t = hoverCard(); if (t) mark(t, false); } // (the card under the pointer: the key is for it, with no ring first)
+        if (!t) { const first = startCard(); if (first) mark(first, false); return true; } // (nothing pointed at, no ring yet: it comes up where you are looking, and the next press is for that one)
         postKeyAction(act, t);
         return true;
       }
@@ -1425,7 +1492,7 @@
         else if (cols) { const t = markedSeen() || startCard(); if (t) enterReels(t); }
         return true;
       case 'mute': case 'fullscreen': {
-        const t = cols ? markedSeen() : null;
+        const t = cols ? markedSeen() || hoverCard() : null;
         const v = activeVideo() || (t && t.el.querySelector('video'));
         if (!v) return true;
         if (act === 'mute') toggleMute(v);
@@ -1475,7 +1542,13 @@
     }
     if (/^(Enter|Space|S-Space|S-Enter)$/.test(tok) && interactive(e.target)) return false; // (a button, a link or a video has these for itself)
     if (/^(Left|Right|Up|Down|Enter|S-Left|S-Right|S-Up|S-Down)$/.test(tok) && !vk.toks.length) { // (the arrows and Enter are the usual ones unless a key is bound to them)
-      if (vimMatch([tok]).kind !== 'match') { if (tok === 'Enter' && where === 'columns' && !e.repeat) { const t = markedSeen() || startCard(); if (t) { e.preventDefault(); e.stopPropagation(); openPostView(t, false); return true; } } return false; }
+      if (vimMatch([tok]).kind !== 'match') {
+        if (tok === 'Enter' && where === 'columns' && !e.repeat) { const t = markedSeen() || startCard(); if (t) { e.preventDefault(); e.stopPropagation(); openPostView(t, false); return true; } }
+        if (where === 'columns' && /^(Left|Right|Up|Down)$/.test(tok) && !(e.target && e.target.closest && e.target.closest('video'))) { // (the arrows go over the cards, as w a s d do; a video has them for seeking)
+          e.preventDefault(); e.stopPropagation(); vk.at = Date.now(); markSync(); moveCard(tok.toLowerCase()); return true;
+        }
+        return false;
+      }
     }
     let toks = vk.toks.concat(tok), r = vimMatch(toks);
     if (r.kind === 'none' && vk.toks.length) { vimClear(); toks = [tok]; r = vimMatch(toks); } // (g, then x: the g is dropped and x tried on its own)
@@ -1496,6 +1569,7 @@
     if (settings.keyEcho) vimHud(XMCKeys.label(toks), 700);
     if (e.repeat && !(VIM_REPEAT.has(r.act) && (where === 'columns' || where === 'panel'))) return true;
     markSync();
+    if (where === 'columns') vk.at = Date.now();
     vimDo(r.act, where);
     return true;
   }
@@ -1512,7 +1586,7 @@
     const groups = XMCKeys.GROUPS.map((g) => h('div', { className: 'kl-group' }, h('div', { className: 'kl-head', textContent: g }),
       ...XMCKeys.ACTIONS.filter(([, , grp]) => grp === g).filter(([a]) => bind[a]).map(([a, label]) => h('div', { className: 'kl-row' }, h('kbd', { textContent: XMCKeys.label(bind[a]) }), h('span', { textContent: here[a] || short(label) })))));
     const card = h('div', { className: 'xmc-keylegend xmc-vimlegend', role: 'dialog', 'aria-label': 'Keyboard shortcuts' }, h('div', { className: 'kl-cols' }, ...groups),
-      h('div', { className: 'kl-foot' }, 'Arrows, Enter on a picture and Esc work as they always do. ', h('button', { type: 'button', textContent: 'Change keys', onclick: (e) => { e.stopPropagation(); card.remove(); openOptions('keys'); } })));
+      h('div', { className: 'kl-foot' }, 'On the columns the arrows go over the cards; in a post they are the pictures and the posts. Enter on a picture and Esc work as they always do. ', h('button', { type: 'button', textContent: 'Change keys', onclick: (e) => { e.stopPropagation(); card.remove(); openOptions('keys'); } })));
     card.addEventListener('click', (e) => e.stopPropagation());
     host.append(card);
     const away = (e) => { if (!card.contains(e.target)) { card.remove(); document.removeEventListener('pointerdown', away, true); } };
@@ -2233,6 +2307,11 @@
 
   // ---------- driving X's real (hidden) page for actions ----------
   const mainCol = () => document.querySelector('[data-testid="primaryColumn"]');
+  // a tab of a profile that X's own tab bar has (X adds one now and then: Reposts came after the list above was written), by its link
+  function xHasTab(handle, seg) {
+    const col = mainCol(), want = ('/' + handle + '/' + seg).toLowerCase();
+    return !!col && [...col.querySelectorAll('[role="tablist"] a[href]')].some((a) => (a.getAttribute('href') || '').split(/[?#]/)[0].replace(/\/+$/, '').toLowerCase() === want);
+  }
   const idOfHref = (href) => { const m = /\/status\/(\d+)/.exec(href || ''); return m ? m[1] : null; };
   const articles = () => [...(mainCol() || document).querySelectorAll('article[data-testid="tweet"]')];
   const articleId = (a) => { const t = a.querySelector('a[href*="/status/"] time'); return t ? idOfHref(t.closest('a').getAttribute('href')) : null; };
@@ -3011,11 +3090,11 @@
   // A profile page: who it is. X's own header (banner, picture, name, bio with its links, counts, "followed by", buttons) is under our
   // columns, so a copy of it is shown above the posts: the same look, because it is X's own markup. Links in it open as links do
   // elsewhere here; its buttons press the real ones. If X's header can't be found, a plainer one is drawn from what X sent.
-  const PROFILE_TABS = ['with_replies', 'media', 'likes', 'highlights', 'articles'];
+  const PROFILE_TABS = ['with_replies', 'media', 'likes', 'highlights', 'articles', 'reposts'];
   function profileHandle() {
     const seg = location.pathname.split('/').filter(Boolean);
     if (!seg.length || RESERVED.has(seg[0].toLowerCase())) return '';
-    return seg.length === 1 || (seg.length === 2 && PROFILE_TABS.includes(seg[1])) ? seg[0] : '';
+    return seg.length === 1 || (seg.length === 2 && (PROFILE_TABS.includes(seg[1]) || xHasTab(seg[0], seg[1]))) ? seg[0] : '';
   }
   const plural = (n, one) => fmt(n) + ' ' + one;
   // X's own header block: the smallest element that holds the banner, the picture and the name, and stops short of the tab bar
@@ -3030,7 +3109,10 @@
     }
     return box.querySelector('[role="tablist"]') ? null : box;
   }
-  let headerCopy = null; // { handle, html, index: Map(copy element -> its position) }
+  // The shape of X's header: each element's tag, test id and role, in order (not its ids or classes, which X makes new each time it builds the header
+  // again, as it does when the hidden page has been walked away from it and back: the copy's places are still good then)
+  const headerShape = (box) => [box, ...box.querySelectorAll('*')].map((n) => n.tagName + (n.getAttribute('data-testid') || '') + (n.getAttribute('role') || '')).join('|');
+  let headerCopy = null; // { handle, html, index: Map(copy element -> its position), shape }
   function copyHeader(handle) {
     const orig = nativeHeader(handle);
     if (!orig) return !!(headerCopy && headerCopy.handle === handle.toLowerCase());
@@ -3045,7 +3127,7 @@
       const href = el.getAttribute('href') || '';
       el.setAttribute('aria-label', /header_photo$/.test(href) ? 'Header picture' : /\/photo$/.test(href) ? 'Profile picture' : 'Open');
     }
-    headerCopy = { handle: handle.toLowerCase(), html, index };
+    headerCopy = { handle: handle.toLowerCase(), html, index, shape: headerShape(orig) };
     profileEl.className = 'xmc-profile xmc-native';
     profileEl.replaceChildren(clone);
     return true;
@@ -3069,16 +3151,53 @@
     if (b.right > innerWidth - 8) box.style.left = Math.max(8, Math.round(innerWidth - b.width - 8)) + 'px';
     if (b.bottom > innerHeight - 8) box.style.top = Math.max(8, Math.round(a.top - b.height - 6)) + 'px';
   }
+  // The button of X's real header that a press on the copy is for, when the places no longer agree (X has changed the header's shape): by its test id, then its
+  // label, then its words
+  function headerTargetBySense(orig, hit) {
+    const own = hit.closest('[data-testid]'), tid = own && own.getAttribute('data-testid');
+    if (tid) { const n = [...orig.querySelectorAll('[data-testid]')].find((x) => x.getAttribute('data-testid') === tid); if (n) return n; }
+    const label = hit.getAttribute('aria-label');
+    if (label) { const n = [...orig.querySelectorAll('[aria-label]')].find((x) => x.getAttribute('aria-label') === label); if (n) return n; }
+    const words = (hit.textContent || '').trim();
+    return words ? [...orig.querySelectorAll('a[href], button, [role="button"]')].find((x) => (x.textContent || '').trim() === words) || null : null;
+  }
+  // What X puts up when a header button is pressed (the ... menu, Unfollow's question) is drawn in #layers, which is under the columns: while one is open
+  // #layers goes over them (as it does for Grok and Chat), and is let go when it has closed.
+  const LAYER_UI = '[role="menu"], [role="dialog"], [role="alertdialog"], [aria-modal="true"], [data-testid="Dropdown"], [data-testid="sheetDialog"], [data-testid="confirmationSheetDialog"]';
+  let layerPoll = 0;
+  function layerWatch(layers) {
+    clearInterval(layerPoll);
+    const start = Date.now();
+    let seen = false;
+    const lift = (on) => {
+      document.documentElement.classList.toggle('xmc-layers-up', on);
+      if (on && !layers.dataset.xmcMenuUp && getComputedStyle(layers).position === 'static') { layers.dataset.xmcMenuUp = '1'; layers.style.setProperty('position', 'relative', 'important'); }
+      else if (!on && layers.dataset.xmcMenuUp) { layers.style.removeProperty('position'); delete layers.dataset.xmcMenuUp; }
+    };
+    layerPoll = setInterval(() => {
+      const open = !!layers.querySelector(LAYER_UI);
+      if (open && !seen) { seen = true; lift(true); trace('header-layer', 'up'); }
+      if (!open && (seen || Date.now() - start > 3000) || Date.now() - start > 180000 || retired) { clearInterval(layerPoll); lift(false); }
+    }, 100);
+  }
   async function pressHeaderButton(position, anchor) {
     state.proxyUntil = Date.now() + 8000;
     const layers = document.getElementById('layers'), before = new Set(layers ? [...layers.children] : []);
     try {
       let orig = nativeHeader(headerCopy.handle);
       if (!orig) { window.scrollTo(0, 0); orig = await waitFor(() => nativeHeader(headerCopy.handle), 2500); }
-      if (!orig || orig.innerHTML !== headerCopy.html) { toast('Couldn’t reach that button just now. Try again in a moment.'); return; }
-      const target = [orig, ...orig.querySelectorAll('*')][position];
-      // only the Joined / location line brings up a popup worth moving: not Follow's confirmation or the ... menu, which are X's own and stay put
-      if (target) { fire(target); if (anchor && layers && anchor.closest('[data-testid="UserProfileHeader_Items"], [data-testid="UserJoinDate"]')) adoptPopup(layers, before, anchor); }
+      if (!orig) { trace('header-press', 'no header'); toast('Couldn\u2019t reach that button just now. Try again in a moment.'); return; }
+      let target = null, how = 'place';
+      if (headerShape(orig) === headerCopy.shape) target = [orig, ...orig.querySelectorAll('*')][position];
+      if (!target) { how = 'sense'; target = headerTargetBySense(orig, anchor); }
+      trace('header-press', how + ' ' + (target ? (target.getAttribute('data-testid') || target.tagName) : 'none'));
+      if (!target) { toast('Couldn\u2019t reach that button just now. Try again in a moment.'); return; }
+      fire(target);
+      if (layers) {
+        layerWatch(layers);
+        // the Joined / location line and the ... menu are moved to sit under the button pressed here; Unfollow's question is X's own, centred as X has it
+        if (anchor && anchor.closest('[data-testid="UserProfileHeader_Items"], [data-testid="UserJoinDate"], [data-testid="userActions"]')) adoptPopup(layers, before, anchor);
+      }
     } finally { settleProxy(); }
   }
   profileEl.addEventListener('click', (e) => {
@@ -3102,8 +3221,9 @@
   profileEl.addEventListener('pointerover', (e) => {
     if (!profileEl.classList.contains('xmc-native')) return;
     const el = e.target.closest && e.target.closest('a[href], [role="button"]');
-    const ok = el && profileEl.contains(el) && !el.querySelector('img, svg') && /[\p{L}\p{N}]{3}/u.test(el.textContent || '')
-      && (el.matches('a[href]') || el.closest('[data-testid="UserProfileHeader_Items"], [data-testid="UserJoinDate"]'));
+    const inItems = !!(el && el.closest('[data-testid="UserProfileHeader_Items"], [data-testid="UserJoinDate"]')); // (X puts a chevron after Joined now: an svg there is fine)
+    const ok = el && profileEl.contains(el) && !el.querySelector('img') && (inItems || !el.querySelector('svg')) && /[\p{L}\p{N}]{3}/u.test(el.textContent || '')
+      && (el.matches('a[href]') || inItems);
     const next = ok ? el : null;
     if (next === hovered) return;
     if (hovered) hovered.removeAttribute('data-xmc-hover');
@@ -3574,6 +3694,7 @@
   }
   function viewSide(t, focusBox, parent) {
     const side = h('div', { className: 'xmc-vside' });
+    { const lang = langOf(t); if (lang) side.lang = lang; }
     const ctxHost = h('div', { className: 'xmc-vctx' }, ...(parent ? [] : contextChain(t).filter(usable).map((p) => renderParentContext(p, onlyWords(t)))));
     // a reply whose parent we do not have yet keeps the room for it (a grey placeholder), so the post's own words do not jump when it arrives
     if (!parent && t.replyToId && !ctxHost.children.length) {
@@ -5178,6 +5299,7 @@
   // An open Grok or Chat panel goes on top of the columns, the open post and the pinned menu and sidebar (the hole above only shows what is
   // under the columns; where X keeps the panel decides whether it can be raised). Under #layers: the whole of #layers is raised (it needs a
   // position to have a z-index, and has none of its own on some pages); elsewhere: the panel itself.
+  const liftedEls = new Set(); // (what has data-xmc-up: kept here so the page is not searched for it at every pass)
   function liftDrawers(open) {
     const layers = document.getElementById('layers');
     const inLayers = !!layers && open.some((el) => layers.contains(el));
@@ -5186,8 +5308,8 @@
       if (inLayers && !layers.dataset.xmcUp && getComputedStyle(layers).position === 'static') { layers.dataset.xmcUp = '1'; layers.style.setProperty('position', 'relative', 'important'); }
       else if (!inLayers && layers.dataset.xmcUp) { layers.style.removeProperty('position'); delete layers.dataset.xmcUp; }
     }
-    for (const el of document.querySelectorAll('[data-xmc-up]')) if (inLayers || !open.includes(el)) el.removeAttribute('data-xmc-up');
-    if (!inLayers) for (const el of open) el.setAttribute('data-xmc-up', '1');
+    for (const el of Array.from(liftedEls)) if (inLayers || !open.includes(el)) { el.removeAttribute('data-xmc-up'); liftedEls.delete(el); }
+    if (!inLayers) for (const el of open) { el.setAttribute('data-xmc-up', '1'); liftedEls.add(el); }
   }
   // Grok's button sits above Chat's; put it beside it (to the left) so the pair is one row in the corner. While the chat panel is
   // open Grok steps out of the way.
@@ -5291,8 +5413,10 @@
     // use the sidebar's own label font ("Home"); the sans fallbacks keep it from ever dropping to serif
     const nav = pin.nav.el();
     const label = nav && ([...nav.querySelectorAll('span')].find((s) => s.textContent.trim() === 'Home') || nav.querySelector('span'));
-    root.style.fontFamily = settings.systemFont ? 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
-      : `${getComputedStyle(label || document.body).fontFamily}, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+    const stack = settings.systemFont ? 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial'
+      : `${getComputedStyle(label || document.body).fontFamily}, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial`;
+    root.style.fontFamily = stack + ', ' + CJK_SANS + ', sans-serif'; // (the gothic faces for Japanese, in case a post has no language: see langOf)
+    root.style.setProperty('--xmc-stack', stack);
     const clear = (c) => !c || c === 'transparent' || /^rgba\([^)]*,\s*0(\.0+)?\)$/.test(c) || /\/\s*0(\.0+)?\)$/.test(c); // (not plain black, rgb(0, 0, 0): that ends in ", 0)" too)
     let bg = [document.body, document.documentElement].map((el) => getComputedStyle(el).backgroundColor).find((c) => !clear(c));
     if (!bg) { // nothing opaque found: pick black or white from the text colour
@@ -5342,6 +5466,7 @@
     if (postView && postView.syncNav) guard('panel arrows', postView.syncNav);
     if (tickN % 5 === 2) guard('reels', reelsTick);
     if (tickN % 5 === 4) guard('menu watch', menuWatch);
+    if (tickN % 5 === 3) wireSidebars();
     if (tickN % 50 === 25) guard('probe', probeX);
     if (tickN % 20 === 10) guard('publish', publishFeatures);
     if (tickN % 10 === 6) guard('keys room', keepHiddenPageRoom);

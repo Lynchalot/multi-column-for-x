@@ -392,7 +392,7 @@ test('reposts: the line says who, and several people fold into one card', () => 
 
 test('new reading and layout settings exist, off by default, and pageLayouts is not a visible setting', () => {
   const d = S.normalize();
-  assert.equal(d.seen, 'off'); assert.equal(d.collapseReposts, false); assert.equal(d.density, 'normal'); assert.equal(d.perPageLayout, false);
+  assert.equal(d.seen, 'off'); assert.equal(d.collapseReposts, true); assert.equal(d.density, 'normal'); assert.equal(d.perPageLayout, false);
   const keys = S.SCHEMA.flatMap((sec) => sec.items.map((i) => i.key));
   for (const k of ['seen', 'collapseReposts', 'density', 'perPageLayout', 'commentSort']) assert.ok(keys.includes(k), k);
   assert.ok(!keys.includes('pageLayouts'));
@@ -456,6 +456,11 @@ test('a fresh install starts on Calm, stored as choices, so Calm is what shows a
   assert.ok(S.presetApplies(S.PRESETS.find((p) => p.id === 'calm'), n));
   assert.ok(!('hideForYou' in stored), 'what already matches the defaults is not stored');
   assert.ok(!S.PRESETS.some((p) => p.id !== 'calm' && S.presetApplies(p, n)), 'and nothing else is ticked');
+  assert.equal(n.keyScheme, 'vim', 'a fresh install has the Vim keys, so the welcome page opens on them');
+  assert.equal(S.normalize({}).keyScheme, 'classic', 'for everyone else the default is what it was (the Simple keys)');
+  assert.deepEqual([n.leftPanel, n.rightPanel], ['rail', 'hidden'], 'the menu on icons and the right panel slid away');
+  assert.deepEqual([S.DEFAULTS.leftPanel, S.DEFAULTS.rightPanel], ['full', 'shown'], 'for everyone else both are shown');
+  assert.equal(n.collapseReposts && n.foldThreads, true);
 });
 
 test('features: a run of failures switches one feature off for a while, a success puts it back, and the wait starts again after a failure that follows it', () => {

@@ -53,7 +53,7 @@ function auditInPage(scope) {
     // the exception: a 24 px circle on its centre touches no other target
     const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
     const crowded = rects.some((o, j) => j !== i && !(targets[j].contains(targets[i]) || targets[i].contains(targets[j])) && o.right > cx - 12 && o.left < cx + 12 && o.bottom > cy - 12 && o.top < cy + 12);
-    if (crowded || b.width < 14 || b.height < 14) small.push(desc(el) + ' ' + Math.round(b.width) + 'x' + Math.round(b.height) + (crowded ? ' (crowded)' : ''));
+    if (crowded || b.width < 14 || b.height < 14) small.push(desc(el) + ' ' + b.width.toFixed(1) + 'x' + b.height.toFixed(1) + (crowded ? ' (crowded)' : ''));
   });
   return { checked: targets.length, small, unnamed };
 }

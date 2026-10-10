@@ -1635,14 +1635,15 @@ browserTest('the toolbar button\'s panel has the settings in sections that fold 
   });
 });
 
-browserTest('a list page: the list\'s name is in the tab title and at the left of the top bar; the scrollbar is the normal width', async (e) => {
+browserTest('a list page: the list\'s name is in the tab title and at the left of the top bar; the columns\u2019 scrollbar is a normal width', async (e) => {
   const h = await e.open('/i/lists/123/');
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
     await page.waitForFunction(() => document.title === 'Psyop / X', null, { timeout: 8000 });
     assert.equal((await page.locator('.xmc-pagetitle').innerText()).trim(), 'Psyop');
-    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-scroller')).scrollbarWidth), 'auto');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-scroller')).scrollbarWidth), 'none', 'the browser\u2019s bar is off: the columns draw their own');
+    assert.ok((await page.evaluate(() => document.querySelector('.xmc-cscroll').getBoundingClientRect().width || parseFloat(getComputedStyle(document.querySelector('.xmc-cscroll')).width))) >= 10, 'and it is not a thin one');
   });
 });
 
@@ -1758,7 +1759,7 @@ browserTest('a profile\'s header is a copy of X\'s own: its links open, and its 
     await page.waitForFunction(() => { const p = document.querySelector('[data-testid="aboutpop"]'), j = [...document.querySelectorAll('.xmc-profile [role="button"]')].find((x) => /Joined/.test(x.textContent)); if (!p || !j) return false; const a = p.getBoundingClientRect(), b = j.getBoundingClientRect(); return Math.abs(a.left - b.left) < 20 && a.top >= b.bottom - 2 && a.top < b.bottom + 40; }, null, { timeout: 4000 });
     await page.mouse.click(5, 5); await page.evaluate(() => document.querySelectorAll('#layers > *').forEach((x) => x.remove()));
     // a button presses X's real one
-    await page.locator('.xmc-profile button').click();
+    await page.locator('.xmc-profile [data-testid="user7-follow"]').click();
     await page.waitForFunction(() => window.__follow === 1, null, { timeout: 8000 });
   });
 });
@@ -2858,6 +2859,9 @@ browserTest('everything that can be pressed is at least 24 px each way and has a
     await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || (a.effect && a.effect.getComputedTiming().iterations === Infinity)), null, { timeout: 10000 });
     await page.waitForTimeout(600);
     const audit = async (state, scope = OURS) => {
+      // (each state is new cards and panels, which fade and grow in: measured mid-way a link is 23.99 px)
+      await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || (a.effect && a.effect.getComputedTiming().iterations === Infinity)), null, { timeout: 10000 });
+      await page.waitForTimeout(150);
       const r = await page.evaluate(auditInPage, scope);
       assert.ok(r.checked > 10, state + ': ' + r.checked + ' things looked at');
       assert.deepEqual({ small: r.small, unnamed: r.unnamed }, { small: [], unnamed: [] }, state);
@@ -4365,7 +4369,7 @@ browserTest('a colour theme in the settings page: a card for each theme, picking
     const { page } = h;
     await page.waitForSelector('#opt-theme .theme', { timeout: 8000 });
     const v = () => page.evaluate(() => ({ bg: document.documentElement.style.getPropertyValue('--bg'), accent: document.documentElement.style.getPropertyValue('--accent'), body: getComputedStyle(document.body).backgroundColor, scheme: document.documentElement.style.colorScheme }));
-    assert.deepEqual(await page.locator('#opt-theme .theme .tn').allInnerTexts(), ['X (as it is)', 'Catppuccin Mocha', 'Catppuccin Macchiato', 'Catppuccin Frapp\u00e9', 'Catppuccin Latte', 'Gruvbox Dark', 'Gruvbox Light']);
+    assert.deepEqual(await page.locator('#opt-theme .theme .tn').allInnerTexts(), ['X (as it is)', 'Catppuccin Mocha', 'Catppuccin Macchiato', 'Catppuccin Frapp\u00e9', 'Catppuccin Latte', 'Gruvbox Dark', 'Gruvbox Light', 'Ros\u00e9 Pine', 'Ros\u00e9 Pine Dawn', 'Dracula', 'Tokyo Night', 'Nord', 'Everforest', 'Kanagawa Wave', 'Dark Academia']);
     const checked_ = () => page.evaluate(() => [...document.querySelectorAll('#opt-theme .theme[aria-checked="true"]')].map((b) => b.dataset.themeId));
     assert.deepEqual(await checked_(), ['gruvbox-dark'], 'the one in use is ticked');
     assert.deepEqual(await v(), { bg: '#282828', accent: '#83a598', body: 'rgb(40, 40, 40)', scheme: 'dark' });
@@ -4901,11 +4905,8 @@ browserTest('Vim keys for a post: f likes, b bookmarks, y copies the link, t rep
     const acts = () => page.evaluate(() => Array.from(window.__actions || []));
     const n0 = (await acts()).length;
     const first = await page.locator('.xmc-card').first().boundingBox();
-    await page.mouse.move(first.x + 40, first.y + 40); // (the ring comes up under the pointer: the first card, which is an ordinary one)
-    await page.keyboard.press('f');
-    assert.equal(await ringCount(page), 1, 'no ring: it comes up, and nothing is liked');
-    await page.waitForTimeout(600);
-    assert.equal((await acts()).length, n0, 'nothing was pressed');
+    await page.mouse.move(first.x + 40, first.y + 40); // (the ring is on the card the pointer is on: the first one, an ordinary card, and the key is for it)
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-card.xmc-kcard').length === 1, null, { timeout: 3000 });
     await page.keyboard.press('f');
     await page.waitForFunction((n) => Array.from(window.__actions || []).slice(n).some((x) => /^liked:/.test(x)), n0, { timeout: 15000 });
     assert.equal(await page.evaluate(() => document.querySelector('.xmc-card.xmc-kcard [data-act="like"]').classList.contains('on')), true, 'the heart on the ringed card');
@@ -5339,7 +5340,7 @@ browserTest('the welcome page: the first step is the permission (the button asks
   });
 }, 90000);
 
-browserTest('the welcome page: Media wall also shows only media; Keybindings (Classic, Vim, None) change the setting and show their keys; a theme is applied at once and the Settings cards follow', async (e) => {
+browserTest('the welcome page: Media wall also shows only media; Keybindings (Vim, Simple, None) change the setting and show their keys; a theme is applied at once and the Settings cards follow', async (e) => {
   const h = await e.open('/ext/options.html?welcome=1');
   await checked(h, async () => {
     const { page } = h;
@@ -5348,8 +5349,8 @@ browserTest('the welcome page: Media wall also shows only media; Keybindings (Cl
     await page.locator('#welcome-media').check();
     await page.waitForFunction(() => document.getElementById('preset-media').checked, null, { timeout: 5000 });
     assert.equal((await saved()).filter, 'media', 'it shows only media');
-    // keys: Classic to start with
-    assert.equal(await page.locator('#welcome .wseg button.on').innerText(), 'Classic');
+    // keys: Simple to start with (a fresh install is given Vim by the background page: test/background.test.js)
+    assert.equal(await page.locator('#welcome .wseg button.on').innerText(), 'Simple');
     assert.match(await page.locator('#welcome .wkeys').innerText(), /Like/);
     assert.match(await page.locator('#welcome .wkeys').innerText(), /Pictures, then posts/);
     await page.locator('#welcome .wseg button', { hasText: 'Vim' }).click();
@@ -5362,7 +5363,7 @@ browserTest('the welcome page: Media wall also shows only media; Keybindings (Cl
     await page.locator('#welcome .wseg button', { hasText: 'None' }).click();
     await page.waitForFunction(() => /letter keys are off/.test(document.getElementById('welcome').innerText), null, { timeout: 5000 });
     assert.equal(await page.locator('#opt-panelKeys').isChecked(), false);
-    await page.locator('#welcome .wseg button', { hasText: 'Classic' }).click();
+    await page.locator('#welcome .wseg button', { hasText: 'Simple' }).click();
     await page.waitForFunction(() => document.getElementById('opt-panelKeys').checked && document.getElementById('opt-keyScheme').value === 'classic', null, { timeout: 5000 });
     // colours
     assert.equal(await page.locator('#welcome .wtheme').count(), 4);
@@ -5541,16 +5542,255 @@ browserTest('the ring is let go when it is scrolled mostly out of view, and the 
     const now = await onScreen();
     assert.ok(now.visible >= Math.min(now.height, 900) * 0.4, 'the new ring is properly on screen');
     assert.notEqual(await ringId(page), id, 'and it is not the old card');
-    // with the pointer over a card, the ring starts on it
+    // with the pointer over a card, the ring is on it, and the keys go on from there
     await page.keyboard.press('Escape');
     assert.equal(await ringCount(page), 0);
+    await page.waitForTimeout(1400); // (for a moment after a key the keys keep the ring: see the hover test)
     const target = await page.evaluate(() => { const cards = [...document.querySelectorAll('.xmc-card')].filter((c) => { const r = c.getBoundingClientRect(); return r.top > 120 && r.bottom < innerHeight - 40 && r.height > 100; }); const c = cards[cards.length - 1]; const r = c.getBoundingClientRect(); return { id: (/(?:tweet|number) (\d+)\b/.exec(c.innerText) || [])[1], x: r.left + 40, y: r.top + 40 }; });
     await page.mouse.move(target.x, target.y);
-    await page.keyboard.press('s');
+    await page.waitForFunction((id) => { const c = document.querySelector('.xmc-card.xmc-kcard'); return c && new RegExp('(?:tweet|number) ' + id + '(?!\\d)').test(c.innerText); }, target.id, { timeout: 3000 });
     assert.equal(await ringId(page), target.id, 'the card under the pointer');
     // still properly on screen: the keys go on from it
     await page.keyboard.press('s');
     assert.notEqual(await ringId(page), target.id, 'and moves on from there');
+  });
+}, 90000);
+
+// ---- 0.48.0: pointing at a post, the columns' own scrollbar, the sidebars' wheel ----
+browserTest('Vim keys: the ring follows the mouse, and f and b are for the post pointed at with no ring first; for a moment after a key the keys keep the ring; with the Simple keys the mouse does nothing', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const acts = () => page.evaluate(() => Array.from(window.__actions || []));
+    const cards = await page.evaluate(() => [...document.querySelectorAll('.xmc-card')].map((c) => { const r = c.getBoundingClientRect(); return { id: (/(?:tweet|number) (\d+)\b/.exec(c.innerText) || [])[1], x: r.left + r.width / 2, y: r.top + 60, left: r.left, h: r.height, bottom: r.bottom }; }).filter((c) => c.bottom < 800 && c.h > 120));
+    // two cards in different columns
+    const A = cards[0], B = cards.find((c) => Math.abs(c.left - A.left) > 200);
+    assert.ok(A && B, 'two cards in view');
+    await page.mouse.move(A.x, A.y);
+    await page.waitForFunction((id) => { const c = document.querySelector('.xmc-card.xmc-kcard'); return c && new RegExp('(?:tweet|number) ' + id + '(?!\\d)').test(c.innerText); }, A.id, { timeout: 3000 });
+    const n0 = (await acts()).length;
+    await page.keyboard.press('f');
+    await page.waitForFunction((n) => Array.from(window.__actions || []).slice(n).some((x) => /^liked:/.test(x)), n0, { timeout: 15000 });
+    // the mouse goes at once to the other card: the key was just pressed, so the keys keep the ring
+    await page.mouse.move(B.x, B.y);
+    await page.waitForTimeout(250);
+    assert.equal(await ringId(page), A.id, 'the ring stays where the key put it');
+    // a moment later the mouse has it again, and a key is for what is pointed at
+    await page.waitForTimeout(1300);
+    await page.mouse.move(B.x + 20, B.y + 10);
+    await page.waitForFunction((id) => { const c = document.querySelector('.xmc-card.xmc-kcard'); return c && new RegExp('(?:tweet|number) ' + id + '(?!\\d)').test(c.innerText); }, B.id, { timeout: 3000 });
+    await page.keyboard.press('b');
+    await page.waitForFunction((id) => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => new RegExp('(?:tweet|number) ' + id + '(?!\\d)').test(x.innerText)); return c && c.querySelector('[data-act="bookmark"]').classList.contains('on'); }, B.id, { timeout: 8000 });
+    // with no ring (Esc), a key is still for the post under the pointer: nothing shows first
+    await page.keyboard.press('Escape');
+    assert.equal(await ringCount(page), 0);
+    const n1 = (await acts()).length;
+    await page.keyboard.press('f');
+    await page.waitForFunction((n) => Array.from(window.__actions || []).slice(n).some((x) => /^(un)?liked:/.test(x)), n1, { timeout: 15000 });
+    assert.equal(await ringId(page), B.id, 'and the ring is on it');
+    // the page scrolls under a pointer that does not move: once it stops, the ring is on what is under it
+    await page.waitForTimeout(1400);
+    await page.mouse.wheel(0, 500);
+    await page.waitForTimeout(700);
+    const under = await page.evaluate(([x, y]) => { const c = document.elementFromPoint(x, y).closest('.xmc-card'); return c ? (/(?:tweet|number) (\d+)\b/.exec(c.innerText) || [])[1] : ''; }, [B.x + 20, B.y + 10]);
+    assert.ok(under && under !== B.id, 'another card is under the pointer now');
+    assert.equal(await ringId(page), under, 'the ring went with it');
+  });
+  // the Simple keys: the mouse puts no ring on anything
+  const simple = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(simple, async () => {
+    const { page } = simple;
+    await e.ready(page);
+    const c = await page.locator('.xmc-card').first().boundingBox();
+    await page.mouse.move(c.x + 40, c.y + 40); await page.mouse.move(c.x + 90, c.y + 60);
+    await page.waitForTimeout(300);
+    assert.equal(await ringCount(page), 0);
+  });
+}, 120000);
+
+browserTest('the columns have a scrollbar of their own: none of the browser’s, a thin one that shows while they scroll and fades a moment after, that can be dragged, and that is not there while a post is open', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const info = () => page.evaluate(() => { const sc = document.querySelector('.xmc-scroller'), b = document.querySelector('.xmc-cscroll'), t = b.firstElementChild, r = t.getBoundingClientRect(), br = b.getBoundingClientRect(), s = sc.getBoundingClientRect(); return { gutter: sc.offsetWidth - sc.clientWidth, native: getComputedStyle(sc).scrollbarWidth, op: Number(getComputedStyle(b).opacity), on: b.classList.contains('xmc-on'), hidden: b.hidden, display: getComputedStyle(b).display, top: sc.scrollTop, thumbTop: r.top, thumbH: r.height, barTop: br.top, barH: br.height, scTop: s.top, scH: s.height, right: br.right }; });
+    await page.waitForFunction(() => { const b = document.querySelector('.xmc-cscroll'); return b && !b.hidden && !b.classList.contains('xmc-on'); }, null, { timeout: 8000 }); // (drawn, and at rest)
+    let i = await info();
+    assert.equal(i.native, 'none', 'the browser’s own bar is off');
+    assert.equal(i.gutter, 0, 'and takes no room');
+    assert.equal(i.op, 0, 'ours is not showing while nothing scrolls');
+    assert.ok(Math.abs(i.barTop - i.scTop) < 2 && Math.abs(i.barH - i.scH) < 2, 'it runs the height of the columns');
+    await page.mouse.move(850, 500);
+    await page.mouse.wheel(0, 500);
+    await page.waitForFunction(() => document.querySelector('.xmc-cscroll').classList.contains('xmc-on'), null, { timeout: 3000 });
+    const moved = await info();
+    assert.ok(moved.thumbTop > i.thumbTop + 1, 'the thumb went down with the page');
+    await page.waitForFunction(() => !document.querySelector('.xmc-cscroll').classList.contains('xmc-on'), null, { timeout: 4000 });
+    await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('.xmc-cscroll')).opacity) === 0, null, { timeout: 2000 });
+    // dragging the thumb scrolls
+    i = await info();
+    const x = i.right - 6;
+    await page.mouse.move(x, i.thumbTop + i.thumbH / 2);
+    await page.mouse.down(); await page.mouse.move(x, i.thumbTop + i.thumbH / 2 + 120, { steps: 6 }); await page.mouse.up();
+    const dragged = await info();
+    assert.ok(dragged.top > i.top + 300, 'a drag of 120px moves the page by far more');
+    // a press on the track below the thumb is a page down
+    await page.mouse.move(x, dragged.barTop + dragged.barH - 10);
+    await page.mouse.down(); await page.mouse.up();
+    await page.waitForTimeout(400);
+    assert.ok((await info()).top > dragged.top + 400, 'a page');
+    // the wheel over the bar scrolls the columns too, not X’s page behind
+    const before = (await info()).top;
+    await page.mouse.move(x, dragged.barTop + 200);
+    await page.mouse.wheel(0, -300);
+    await page.waitForTimeout(300);
+    assert.ok((await info()).top < before, 'up');
+    // a post open: no bar
+    await page.evaluate(() => { document.querySelector('.xmc-scroller').scrollTop = 0; });
+    await openCard(page, 90000);
+    assert.equal((await info()).display, 'none');
+  });
+}, 90000);
+
+browserTest('the wheel with the pointer over X’s own menu or right panel scrolls the columns, and the document holds no wheel listener that can cancel (Firefox would wait for it on every notch)', async (e) => {
+  const h = await e.open('/home/', {
+    width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 },
+    init: () => { const add = EventTarget.prototype.addEventListener; window.__wheelOn = []; EventTarget.prototype.addEventListener = function (type, fn, opts) { if (type === 'wheel' && (this === document || this === window || this === document.documentElement || this === document.body)) window.__wheelOn.push({ passive: !!(opts && typeof opts === 'object' && opts.passive), capture: !!(opts && (opts === true || opts.capture)) }); return add.call(this, type, fn, opts); }; },
+  });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const top = () => page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop);
+    const bad = await page.evaluate(() => (window.__wheelOn || []).filter((l) => !l.passive));
+    assert.deepEqual(bad, [], 'no wheel listener on the document that may cancel');
+    for (const sel of ['header[role="banner"]', '[data-testid="sidebarColumn"]']) {
+      const r = await page.evaluate((q) => { const b = document.querySelector(q).getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + 30 }; }, sel);
+      const t0 = await top();
+      await page.mouse.move(r.x, r.y);
+      await page.mouse.wheel(0, 400);
+      await page.waitForFunction((t) => document.querySelector('.xmc-scroller').scrollTop > t + 100, t0, { timeout: 4000 });
+    }
+  });
+}, 60000);
+
+browserTest('Vim keys: the arrow keys go over the cards on the columns (down along a column, right to the next one; the first press only shows the ring), j still scrolls, and an arrow in a text box is left alone', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const at = () => page.evaluate(() => { const c = document.querySelector('.xmc-card.xmc-kcard'); if (!c) return null; const r = c.getBoundingClientRect(); return { id: (/(?:tweet|number) (\d+)\b/.exec(c.innerText) || [])[1], left: Math.round(r.left), top: Math.round(r.top) }; });
+    await page.mouse.move(5, 5); // (no pointer over the columns)
+    await page.keyboard.press('ArrowDown');
+    const first = await at();
+    assert.ok(first, 'the ring comes up');
+    await page.keyboard.press('ArrowDown');
+    const down = await at();
+    assert.equal(down.left, first.left, 'down stays in the column');
+    assert.notEqual(down.id, first.id);
+    await page.keyboard.press('ArrowRight');
+    const right = await at();
+    assert.ok(right.left > down.left + 100, 'right goes to the next column (' + JSON.stringify([down, right]) + ')');
+    await page.keyboard.press('ArrowLeft');
+    assert.equal((await at()).left, down.left, 'and left comes back');
+    const top0 = await page.evaluate(() => document.querySelector('.xmc-scroller').scrollTop);
+    await page.keyboard.press('j');
+    await page.waitForFunction((t) => document.querySelector('.xmc-scroller').scrollTop > t, top0, { timeout: 3000 });
+    // a text box keeps its arrows
+    await page.evaluate(() => { const i = document.createElement('input'); i.id = 'probe'; i.value = 'abc'; document.getElementById('xmc-root').append(i); i.focus(); i.setSelectionRange(3, 3); });
+    const idBefore = (await at()).id;
+    await page.keyboard.press('ArrowLeft');
+    assert.equal(await page.evaluate(() => document.getElementById('probe').selectionStart), 2, 'the caret moved');
+    assert.equal((await at()).id, idBefore, 'and the ring did not');
+  });
+}, 60000);
+
+browserTest('a post carries its language, and Japanese (and Korean and Chinese) text gets gothic faces after the page’s own, not whatever the browser would take (a serif on some systems)', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 3 } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page, 12);
+    const r = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll('.xmc-card')], ja = cards.find((c) => c.lang === 'ja'), en = cards.find((c) => c.lang === 'en');
+      const fam = (el) => getComputedStyle(el).fontFamily;
+      return { ja: !!ja, en: !!en, jaFam: ja ? fam(ja.querySelector('.xmc-text') || ja) : '', enFam: en ? fam(en.querySelector('.xmc-text') || en) : '', stack: getComputedStyle(document.getElementById('xmc-root')).getPropertyValue('--xmc-stack') };
+    });
+    assert.ok(r.ja && r.en, 'cards in both languages: ' + JSON.stringify(r));
+    assert.match(r.jaFam, /Noto Sans CJK JP.*sans-serif$/, 'a gothic face for Japanese: ' + r.jaFam);
+    assert.ok(r.jaFam.startsWith(r.stack.trim().split(',')[0].trim()), 'after the page’s own face for the Latin letters: ' + r.jaFam);
+    // Korean and Chinese posts have their own
+    const ko = await page.evaluate(() => { const c = document.querySelector('.xmc-card'), was = c.lang; c.lang = 'ko'; const a = getComputedStyle(c).fontFamily; c.lang = 'zh-TW'; const b = getComputedStyle(c).fontFamily; c.lang = was; return [a, b]; });
+    assert.match(ko[0], /Malgun Gothic/); assert.match(ko[1], /Microsoft JhengHei/);
+  });
+}, 60000);
+
+browserTest('under a colour theme the strip behind X’s search box takes the page’s colour instead of being a black box', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 3, theme: 'gruvbox-dark' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { const side = document.querySelector('[data-testid="sidebarColumn"]'), strip = document.createElement('div'); strip.id = 'strip'; strip.style.cssText = 'background:rgb(0,0,0);position:sticky;top:0'; strip.innerHTML = '<div><form role="search"><input placeholder="Search"></form></div>'; side.prepend(strip); });
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('strip')).backgroundColor === 'rgb(40, 40, 40)', null, { timeout: 3000 });
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#strip form')).backgroundColor), 'rgba(0, 0, 0, 0)', 'the pill itself is as X has it');
+  });
+}, 60000);
+
+// ---- 0.48.0: the profile card's buttons, and the Reposts tab ----
+browserTest('the profile card: ... brings X’s menu up over the columns, under the button; Following brings X’s question up over them and the card follows the answer; and both work after X has built its header again', async (e) => {
+  const h = await e.open('/user7/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForSelector('.xmc-profile.xmc-native [data-testid="userActions"]', { timeout: 8000 });
+    // the layer is where a visible thing can be pressed: what is at the centre of the thing is the thing
+    const visible = (sel) => page.evaluate((q) => { const m = document.querySelector(q); if (!m) return null; const r = m.getBoundingClientRect(), el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { on: !!(el && m.contains(el)), left: Math.round(r.left), top: Math.round(r.top) }; }, sel);
+    const btn = await page.locator('.xmc-profile [data-testid="userActions"]').boundingBox();
+    await page.locator('.xmc-profile [data-testid="userActions"]').click();
+    await page.waitForSelector('#layers [role="menu"]', { timeout: 4000 });
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-layers-up'), null, { timeout: 2000 });
+    let m = await visible('#layers [role="menu"]');
+    assert.equal(m.on, true, 'the menu is over the columns');
+    assert.ok(Math.abs(m.left - Math.round(btn.x)) < 6 && m.top > btn.y && m.top < btn.y + btn.height + 30, 'and under the button pressed here (' + JSON.stringify(m) + ' for ' + JSON.stringify(btn) + ')');
+    await page.evaluate(() => { document.getElementById('layers').innerHTML = ''; }); // (X closes it)
+    await page.waitForFunction(() => !document.documentElement.classList.contains('xmc-layers-up') && !document.getElementById('layers').dataset.xmcMenuUp, null, { timeout: 3000 });
+    // Following: X asks, over the columns; the answer is pressed there; the card says Follow
+    await page.locator('.xmc-profile [data-testid="user7-follow"]').click();
+    await page.waitForSelector('#layers [data-testid="confirmationSheetConfirm"]', { timeout: 4000 });
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-layers-up'), null, { timeout: 2000 });
+    const sheet = await visible('#layers [data-testid="confirmationSheetConfirm"]');
+    assert.equal(sheet.on, true, 'the question is over the columns');
+    await page.locator('#layers [data-testid="confirmationSheetConfirm"]').click();
+    await page.waitForFunction(() => window.__unfollowed === 1, null, { timeout: 3000 });
+    await page.waitForFunction(() => /^Follow$/.test((document.querySelector('.xmc-profile [data-testid="user7-follow"]') || {}).textContent || ''), null, { timeout: 5000 });
+    // X builds its header again (the page was walked away from it): ids that are all new; the buttons still go to the right place
+    await page.evaluate(() => window.__dropHeader());
+    await page.waitForFunction(() => !document.querySelector('#react-root [data-testid="UserName"]'), null, { timeout: 2000 });
+    const before = await page.evaluate(() => window.__userMenu || 0);
+    await page.locator('.xmc-profile [data-testid="userActions"]').click();
+    await page.waitForFunction((n) => (window.__userMenu || 0) > n, before, { timeout: 8000 });
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-layers-up'), null, { timeout: 2000 });
+    m = await visible('#layers [role="menu"]');
+    assert.equal(m && m.on, true, 'the menu comes up after X built its header again');
+    assert.equal(await page.evaluate(() => /Couldn.t reach that button/.test(document.getElementById('xmc-toast').textContent)), false, 'with no complaint');
+  });
+}, 90000);
+
+browserTest('a profile’s Reposts tab is a profile page like the others (X’s own tab bar says it is one), and Joined is underlined as it is pointed at with a chevron after it', async (e) => {
+  const h = await e.open('/user7/reposts', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-on') && !document.getElementById('xmc-root').hidden), true, 'the columns are up on it');
+  });
+  const p = await e.open('/user7/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(p, async () => {
+    const { page } = p;
+    await e.ready(page);
+    await page.waitForSelector('.xmc-profile.xmc-native [data-testid="UserJoinDate"]', { timeout: 8000 });
+    assert.equal(await page.evaluate(() => !!document.querySelector('.xmc-profile [data-testid="UserJoinDate"] svg')), true, 'there is a chevron');
+    await page.locator('.xmc-profile [data-testid="UserJoinDate"]').hover();
+    await page.waitForFunction(() => !!document.querySelector('.xmc-profile [data-xmc-hover]'), null, { timeout: 3000 });
+    assert.match(await page.evaluate(() => getComputedStyle(document.querySelector('.xmc-profile [data-xmc-hover]')).textDecorationLine), /underline/);
   });
 }, 90000);
 

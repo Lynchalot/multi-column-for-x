@@ -350,7 +350,7 @@
     const scheme = !settings.panelKeys ? 'none' : settings.keyScheme === 'vim' ? 'vim' : 'classic';
     const pickScheme = (id) => { persist(id === 'none' ? { panelKeys: false } : { panelKeys: true, keyScheme: id }); build(); };
     steps.push(step(false, 'Keybindings',
-      h('div', { className: 'wseg', role: 'radiogroup', 'aria-label': 'Keybindings' }, ...[['classic', 'Classic'], ['vim', 'Vim'], ['none', 'None']].map(([id, label]) =>
+      h('div', { className: 'wseg', role: 'radiogroup', 'aria-label': 'Keybindings' }, ...[['vim', 'Vim'], ['classic', 'Simple'], ['none', 'None']].map(([id, label]) =>
         tagged(h('button', { type: 'button', role: 'radio', className: scheme === id ? 'on' : '', 'aria-checked': String(scheme === id), textContent: label, onclick: () => pickScheme(id) }), 'keys-' + id))),
       welcomeKeys()));
     steps.push(step(false, 'Colours', h('div', { className: 'wthemes', role: 'radiogroup', 'aria-label': 'Colour theme' }, ...WELCOME_THEMES.map((id) => {

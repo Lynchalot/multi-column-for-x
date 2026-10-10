@@ -46,7 +46,7 @@ By default your feed shows in columns that fit your window (up to eight), on the
 
 **Tidy-ups**
 - Hide Trending, Who to follow, Topics and Premium boxes; hide any item in X's left menu; add Bookmarks, Likes and Lists to it.
-- **Colour themes:** Catppuccin (Mocha, Macchiato, Frappé, Latte) or Gruvbox (dark, light) for the columns, the post panel and the settings; X's own colours by default.
+- **Colour themes:** Catppuccin, Gruvbox, Rosé Pine, Dracula, Tokyo Night, Nord, Everforest, Kanagawa and a Dark Academia of our own, for the columns, the post panel and the settings; X's own colours by default.
 - Use the bird logo and "Tweet" wording, or X's own; custom CSS.
 - Sensitive media: an option (on by default) turns off X's own age-verification flag in your browser, so X shows its older "sensitive content" notice instead of asking for verification. Switch it off in the settings if you would rather keep X's check.
 

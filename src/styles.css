@@ -34,7 +34,8 @@ html.xmc-acting #layers { opacity: 0 !important; pointer-events: none !important
 
 
 /* ---- columns ---- */
-.xmc-scroller { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+.xmc-scroller { flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.xmc-scroller::-webkit-scrollbar { display: none; }
 .xmc-cols { display: flex; gap: 12px; align-items: flex-start; padding: 12px; }
 .xmc-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .xmc-status { padding: 40px 12px; text-align: center; color: var(--xmc-muted); }
@@ -151,7 +152,13 @@ html.xmc-hideVerifiedTabs :is(a[href="/notifications/verified"], a[href$="/verif
 
 
 /* ---- branding / fonts ---- */
-html.xmc-systemFont #xmc-root, html.xmc-systemFont .xmc-card { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important; }
+html.xmc-systemFont #xmc-root, html.xmc-systemFont .xmc-card { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans JP", "IPAexGothic", "IPAPGothic", "VL PGothic", "TakaoPGothic", sans-serif !important; }
+/* East Asian text: with no say in it, some systems draw Japanese in a mincho (serif) face. A post says what language it is in (lang, set from X's) and gets the gothic (sans) faces of that
+   language after the page's own for the Latin letters (--xmc-stack). Not on the emoji picker, whose faces are named on purpose. */
+#xmc-root :lang(ja):not(.xmc-etab):not(.xmc-emo) { font-family: var(--xmc-stack, system-ui), "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans JP", "IPAexGothic", "IPAPGothic", "VL PGothic", "TakaoPGothic", sans-serif !important; }
+#xmc-root :lang(ko):not(.xmc-etab):not(.xmc-emo) { font-family: var(--xmc-stack, system-ui), "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", "Noto Sans KR", "Nanum Gothic", sans-serif !important; }
+#xmc-root :lang(zh):not(.xmc-etab):not(.xmc-emo) { font-family: var(--xmc-stack, system-ui), "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "WenQuanYi Micro Hei", sans-serif !important; }
+#xmc-root :lang(zh-tw):not(.xmc-etab):not(.xmc-emo), #xmc-root :lang(zh-hk):not(.xmc-etab):not(.xmc-emo), #xmc-root :lang(zh-hant):not(.xmc-etab):not(.xmc-emo) { font-family: var(--xmc-stack, system-ui), "PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC", "Noto Sans TC", "Source Han Sans TC", sans-serif !important; }
 
 /* ---- paid-verified checkmark: show / hide / the bird ---- */
 .xmc-badge .bird { display: none; fill: currentColor; stroke: none; }
@@ -207,7 +214,7 @@ html.xmc-on.xmc-hideSidebar [data-testid="sidebarColumn"] { display: none !impor
 html.xmc-hideTweetButton [data-testid="SideNav_NewTweet_Button"] { display: none !important; }
 
 /* an open Grok or Chat panel is on top of everything of ours that is not a message (the viewer, the toast and the settings are above it) */
-html.xmc-drawer-up #layers { z-index: 40 !important; }
+html.xmc-drawer-up #layers, html.xmc-layers-up #layers { z-index: 40 !important; }
 [data-xmc-up] { z-index: 40 !important; }
 
 /* X's floating Grok / Messages buttons (the sidebar already has both) */
@@ -780,6 +787,12 @@ a[data-xmc-nav]:hover > div, a[data-xmc-nav]:focus-visible > div { background-co
 .xmc-vscroll.xmc-on, .xmc-vscroll:hover { opacity: 1; }
 .xmc-vsthumb { position: absolute; left: 1px; right: 1px; top: 0; border-radius: 4px; background: color-mix(in srgb, var(--xmc-fg, #fff) 42%, transparent); }
 .xmc-vsthumb:hover { background: color-mix(in srgb, var(--xmc-fg, #fff) 64%, transparent); }
+/* the columns' own bar: over the right edge of the scroller (placed by barSync), gone while a post is open */
+.xmc-csthumb { position: absolute; left: 1px; right: 1px; top: 0; border-radius: 4px; background: color-mix(in srgb, var(--xmc-fg, #fff) 42%, transparent); }
+.xmc-csthumb:hover { background: color-mix(in srgb, var(--xmc-fg, #fff) 64%, transparent); }
+.xmc-cscroll { position: absolute; right: 2px; width: 10px; z-index: 3; border-radius: 5px; background: color-mix(in srgb, var(--xmc-fg, #fff) 8%, transparent); touch-action: none; opacity: 0; transition: opacity .15s ease; }
+.xmc-cscroll.xmc-on, .xmc-cscroll:hover { opacity: 1; }
+#xmc-root:has(> .xmc-view) .xmc-cscroll { display: none; }
 
 /* ---- folding the side panels (left menu to icons, right panel away) ---- */
 :root { --xmc-ease: cubic-bezier(.2, .8, .2, 1); }
@@ -838,6 +851,8 @@ html.xmc-theme-light { color-scheme: light; }
 html.xmc-on.xmc-themed, html.xmc-on.xmc-themed body { background-color: var(--xmc-bg) !important; }
 html.xmc-on.xmc-themed :is(header[role="banner"], #xmc-navfreeze) nav a:not([data-testid="SideNav_NewTweet_Button"], [data-xmc-tid="SideNav_NewTweet_Button"]) { color: var(--xmc-fg) !important; }
 html.xmc-on.xmc-themed :is(header[role="banner"], #xmc-navfreeze) nav a:not([data-testid="SideNav_NewTweet_Button"], [data-xmc-tid="SideNav_NewTweet_Button"]) :is(span, div, svg):not([aria-live]) { color: inherit !important; }
+/* X's search box sits in a strip with X's black behind it (it hides what scrolls under it): on a themed page that is a black box round the pill, so the strip and what holds it take the page's colour */
+html.xmc-on.xmc-themed [data-testid="sidebarColumn"] :has(form[role="search"], [data-testid="SearchBox_Search_Input"]) { background-color: var(--xmc-bg) !important; }
 html.xmc-themed #xmc-sidetab { background: var(--xmc-fg); color: var(--xmc-solid); }
 html.xmc-themed #xmc-sidetab:hover { background: color-mix(in srgb, var(--xmc-fg) 88%, var(--xmc-solid)); }
 html.xmc-themed :is(.xmc-emoji, .xmc-keylegend) { background: var(--xmc-solid); color: var(--xmc-fg); border-color: var(--xmc-border); }
@@ -889,7 +904,7 @@ html.xmc-themed #xmc-sidetab:focus-visible, html.xmc-themed header[role="banner"
 @media (prefers-reduced-motion: reduce) {
   :is(.xmc-act, .xmc-bar button, .xmc-vclose, .xmc-vnav, .xmc-vkeys, .xmc-cnav, .xmc-vfeedtab, .xmc-ctool, .xmc-csend, .xmc-rbtn, .xmc-ract, .xmc-etab, .xmc-emo, .xmc-more-tile, #xmc-pill):active:not(:disabled),
   .xmc-view.xmc-still.xmc-sd .xmc-vpanel, .xmc-view.xmc-still.xmc-su .xmc-vpanel, .xmc-car > .xmc-vm, #xmc-settings, .xmc-sback, .xmc-emoji, .xmc-keylegend, .xmc-reelswait { animation: none !important; }
-  .xmc-view.xmc-out .xmc-vpanel, .xmc-vscroll, .xmc-vfeedtab { transition: none; }
+  .xmc-view.xmc-out .xmc-vpanel, .xmc-vscroll, .xmc-cscroll, .xmc-vfeedtab { transition: none; }
 }
 
 /* Reels: the whole picture or video fits the room, whatever shape the window is (a wide window made a tall picture fill the width and run off the page, so the top and bottom were cut);

@@ -7,9 +7,12 @@ var XMCSettings = (function () {
   const SHOW_HIDE = [['show', 'Show'], ['hide', 'Hide']];
   const nav = (key, label) => ({ key, type: 'bool', def: false, label, native: true });
 
-  // Colour themes for the columns, the post panel, the viewer and the settings. Catppuccin (catppuccin.com, MIT) and Gruvbox (Pavel Pertsev's
-  // palette) as their authors publish them: bg and fg are the page and its text, muted the quiet text, line a border, card a surface a step off
-  // the page; accent is the colour of links and the active chip, onAccent the text that sits on it, like and repost the heart and the repost arrow.
+  // Colour themes for the columns, the post panel, the viewer and the settings. Each is its author's own palette (Catppuccin, catppuccin.com; Gruvbox,
+  // Pavel Pertsev's; Rosé Pine, rosepinetheme.com; Dracula, draculatheme.com; Tokyo Night, enkia's, as folke/tokyonight.nvim carries it; Nord, nordtheme.com;
+  // Everforest, sainnhe; Kanagawa, rebelot), all MIT bar folke's port, which is Apache 2.0; Dark Academia is made here, there being no palette of that name to borrow.
+  // bg and fg are the page and its text, muted the quiet text, line a border, card a surface a step off the page; accent is the colour of links and the active
+  // chip, onAccent the text that sits on it, like and repost the heart and the repost arrow. Where a palette has no grey readable enough for the quiet text
+  // (Dracula's own comment grey is 3:1) or no card step, the value is halfway between two of its colours; Dawn's pink is a shade darker than its own, to carry text.
   const THEMES = [
     { id: 'catppuccin-mocha', name: 'Catppuccin Mocha', dark: true, bg: '#1e1e2e', fg: '#cdd6f4', muted: '#a6adc8', line: '#45475a', card: '#313244', accent: '#89b4fa', onAccent: '#1e1e2e', like: '#f38ba8', repost: '#a6e3a1' },
     { id: 'catppuccin-macchiato', name: 'Catppuccin Macchiato', dark: true, bg: '#24273a', fg: '#cad3f5', muted: '#a5adcb', line: '#494d64', card: '#363a4f', accent: '#8aadf4', onAccent: '#24273a', like: '#ed8796', repost: '#a6da95' },
@@ -17,6 +20,14 @@ var XMCSettings = (function () {
     { id: 'catppuccin-latte', name: 'Catppuccin Latte', dark: false, bg: '#eff1f5', fg: '#4c4f69', muted: '#5c5f77', line: '#bcc0cc', card: '#e6e9ef', accent: '#1e66f5', onAccent: '#ffffff', like: '#d20f39', repost: '#40a02b' },
     { id: 'gruvbox-dark', name: 'Gruvbox Dark', dark: true, bg: '#282828', fg: '#ebdbb2', muted: '#a89984', line: '#504945', card: '#3c3836', accent: '#83a598', onAccent: '#282828', like: '#fb4934', repost: '#b8bb26' },
     { id: 'gruvbox-light', name: 'Gruvbox Light', dark: false, bg: '#fbf1c7', fg: '#3c3836', muted: '#665c54', line: '#d5c4a1', card: '#ebdbb2', accent: '#076678', onAccent: '#fbf1c7', like: '#9d0006', repost: '#79740e' },
+    { id: 'rose-pine', name: 'Rosé Pine', dark: true, bg: '#191724', fg: '#e0def4', muted: '#908caa', line: '#403d52', card: '#26233a', accent: '#ebbcba', onAccent: '#191724', like: '#eb6f92', repost: '#9ccfd8' },
+    { id: 'rose-pine-dawn', name: 'Rosé Pine Dawn', dark: false, bg: '#faf4ed', fg: '#464261', muted: '#6e6a86', line: '#dfdad9', card: '#f2e9e1', accent: '#a35571', onAccent: '#faf4ed', like: '#b4637a', repost: '#286983' },
+    { id: 'dracula', name: 'Dracula', dark: true, bg: '#282a36', fg: '#f8f8f2', muted: '#adb5cb', line: '#44475a', card: '#363948', accent: '#ff79c6', onAccent: '#282a36', like: '#ff5555', repost: '#50fa7b' },
+    { id: 'tokyo-night', name: 'Tokyo Night', dark: true, bg: '#1a1b26', fg: '#c0caf5', muted: '#a9b1d6', line: '#3b4261', card: '#292e42', accent: '#7aa2f7', onAccent: '#1a1b26', like: '#f7768e', repost: '#9ece6a' },
+    { id: 'nord', name: 'Nord', dark: true, bg: '#2e3440', fg: '#eceff4', muted: '#d8dee9', line: '#4c566a', card: '#3b4252', accent: '#88c0d0', onAccent: '#2e3440', like: '#bf616a', repost: '#a3be8c' },
+    { id: 'everforest', name: 'Everforest', dark: true, bg: '#2d353b', fg: '#d3c6aa', muted: '#9da9a0', line: '#475258', card: '#343f44', accent: '#a7c080', onAccent: '#2d353b', like: '#e67e80', repost: '#83c092' },
+    { id: 'kanagawa', name: 'Kanagawa Wave', dark: true, bg: '#1f1f28', fg: '#dcd7ba', muted: '#c8c093', line: '#363646', card: '#2a2a37', accent: '#d27e99', onAccent: '#1f1f28', like: '#e46876', repost: '#98bb6c' },
+    { id: 'dark-academia', name: 'Dark Academia', dark: true, bg: '#1e1712', fg: '#e8dcc4', muted: '#b8a68a', line: '#4a3a2d', card: '#2a201a', accent: '#c9a15a', onAccent: '#1e1712', like: '#c9505f', repost: '#93a883' },
   ];
   const themeOf = (id) => THEMES.find((t) => t.id === id) || null; // null: X's own colours
   // the custom properties the columns' stylesheet reads (set on <html>, the columns and the toast); null for X's own colours
@@ -45,7 +56,7 @@ var XMCSettings = (function () {
         { key: 'seen', type: 'select', def: 'off', label: 'Posts I\u2019ve already read', options: [['off', 'Leave them alone'], ['dim', 'Fade them'], ['hide', 'Hide them']],
           help: 'On Home and Lists. A post counts as read after you\u2019ve looked at it for a second. Remembered on this device only.' },
         { key: 'skipSeen', type: 'bool', def: false, label: 'Skip posts I\u2019ve already read when stepping through posts in a panel', help: 'The arrow keys and the next-post button. Remembered on this device only.' },
-        { key: 'collapseReposts', type: 'bool', def: false, label: 'Show a post once when several people repost it', help: 'Folded into one card: \u201cA, B and 2 others reposted\u201d.' },
+        { key: 'collapseReposts', type: 'bool', def: true, label: 'Show a post once when several people repost it', help: 'Folded into one card: \u201cA, B and 2 others reposted\u201d.' },
         { key: 'foldThreads', type: 'bool', def: true, label: 'Fold a person\u2019s thread into one card', help: 'Their replies to themselves sit under the first post, behind one line.' },
       ],
     },
@@ -146,8 +157,8 @@ var XMCSettings = (function () {
     },
     {
       id: 'keys', title: 'Keyboard', custom: 'keys', items: [
-        { key: 'panelKeys', type: 'bool', def: true, label: 'Letter keys', help: 'Classic: only while a panel or the viewer is open. Vim: on the columns as well. Never while something is being typed into. The arrow keys are always on.' },
-        { key: 'keyScheme', type: 'select', def: 'classic', label: 'Keys', help: 'Classic is the few letters for a post in its panel. Vim is j k h l, gg, G, Ctrl+D and the rest, on the columns too, and X\u2019s own letter shortcuts stay quiet there.', options: [['classic', 'Classic (A S W E Q C in a panel)'], ['vim', 'Vim (j k h l, gg, G, f like, r Reels\u2026)']] },
+        { key: 'panelKeys', type: 'bool', def: true, label: 'Letter keys', help: 'Simple: only while a panel or the viewer is open. Vim: on the columns as well. Never while something is being typed into. The arrow keys are always on.' },
+        { key: 'keyScheme', type: 'select', def: 'classic', label: 'Keys', help: 'Simple is the few letters for a post in its panel. Vim is j k h l, gg, G, Ctrl+D and the rest, on the columns too, and X\u2019s own letter shortcuts stay quiet there.', options: [['classic', 'Simple (A S W E Q C in a panel)'], ['vim', 'Vim (j k h l, gg, G, f like, r Reels\u2026)']] },
         { key: 'keyEcho', type: 'bool', def: false, label: 'Show each key pressed (Vim keys), bottom left', help: 'A key pressed halfway through two (the first g of gg) always shows.' },
         { key: 'keysAdvance', type: 'bool', def: false, label: 'Move to the next post after the Like, Bookmark or Repost key' },
         { key: 'keyMap', type: 'text', def: '', label: 'Keys that are not the defaults', hidden: true }, // a JSON object, action to key, written by the Keyboard section
@@ -210,8 +221,8 @@ var XMCSettings = (function () {
 
   // Bump when a default changes: values saved by older versions for those keys were never a choice
   // (older versions saved everything), so they're dropped rather than allowed to pin the old default.
-  const VERSION = 10;
-  const DEFAULT_CHANGED_IN = { 2: ['hideDmDrawer'], 6: ['hideDmDrawer', 'hideGrokDrawer'], 7: ['hideDmDrawer', 'hideGrokDrawer'], 8: ['hideDmDrawer', 'hideGrokDrawer'], 9: ['openIn'], 10: ['branding'] };
+  const VERSION = 11;
+  const DEFAULT_CHANGED_IN = { 2: ['hideDmDrawer'], 6: ['hideDmDrawer', 'hideGrokDrawer'], 7: ['hideDmDrawer', 'hideGrokDrawer'], 8: ['hideDmDrawer', 'hideGrokDrawer'], 9: ['openIn'], 10: ['branding'], 11: ['collapseReposts'] };
   // the old default of a setting, as older versions saved it: dropped (it was never a choice) so the new default applies
   const OLD_DEFAULTS = { 3: { dlPattern: 'X/{account}/{tweetId}-{serial}' }, 4: { dlFolder: '' }, 5: { minColWidth: 440 } };
 
@@ -254,7 +265,7 @@ var XMCSettings = (function () {
   // of them can match at a time (a preset that named only a few keys went on matching after another was picked, and the box ticked was
   // always the first of them: Media wall and Custom could not be chosen).
   const CONTENT_PLAIN = { hideForYou: false, homeDefault: 'remember', keepFollowing: false, onlyFollowed: false, hideTrending: false, hideWhoToFollow: false, hideTopics: false,
-    hideDiscoverMore: false, hidePremiumPromo: false, seen: 'off', collapseReposts: false, foldThreads: false };
+    hideDiscoverMore: false, hidePremiumPromo: false, seen: 'off', collapseReposts: true, foldThreads: true };
   const CONTENT_CALM = { hideForYou: true, homeDefault: 'following', keepFollowing: true, onlyFollowed: true, hideTrending: true, hideWhoToFollow: true, hideTopics: true,
     hideDiscoverMore: true, hidePremiumPromo: true, seen: 'dim', collapseReposts: true, foldThreads: true };
   const MEDIA_WALL = { autoplayVideo: 'muted', minColWidth: 380, maxAutoCols: 8, tallPhotos: 'cap', hideViews: true };
@@ -270,8 +281,9 @@ var XMCSettings = (function () {
       set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF, REELS), once: { filter: 'media' } },
   ];
   // What a fresh install starts with: the Calm preset, stored as a person's own choices (so what is ticked on the settings page is Calm,
-  // not "Custom"), and only what differs from the defaults
-  const freshInstall = () => diff(Object.assign({}, DEFAULTS, PRESETS.find((p) => p.id === 'calm').set)).set;
+  // not "Custom"), the Vim keys, the menu on icons and the right panel slid away (the defaults for everyone else are the Simple keys and both panels shown), and only
+  // what differs from the defaults
+  const freshInstall = () => diff(Object.assign({}, DEFAULTS, PRESETS.find((p) => p.id === 'calm').set, { keyScheme: 'vim', leftPanel: 'rail', rightPanel: 'hidden' })).set;
   const presetApplies = (preset, settings) => Object.keys(preset.set).every((k) => JSON.stringify(settings[k]) === JSON.stringify(preset.set[k]));
 
   const words = (s) => String(s || '').split(/[,\n]/).map((w) => w.trim().toLowerCase()).filter(Boolean);

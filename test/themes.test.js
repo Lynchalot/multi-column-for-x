@@ -8,8 +8,8 @@ const lum = (hex) => {
 };
 const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 
-test('the colour themes are Catppuccin and Gruvbox, each with every colour the stylesheet reads', () => {
-  assert.deepEqual(S.THEMES.map((t) => t.id), ['catppuccin-mocha', 'catppuccin-macchiato', 'catppuccin-frappe', 'catppuccin-latte', 'gruvbox-dark', 'gruvbox-light']);
+test('the colour themes: the ones from published palettes and Dark Academia, each with every colour the stylesheet reads', () => {
+  assert.deepEqual(S.THEMES.map((t) => t.id), ['catppuccin-mocha', 'catppuccin-macchiato', 'catppuccin-frappe', 'catppuccin-latte', 'gruvbox-dark', 'gruvbox-light', 'rose-pine', 'rose-pine-dawn', 'dracula', 'tokyo-night', 'nord', 'everforest', 'kanagawa', 'dark-academia']);
   for (const t of S.THEMES) {
     for (const k of ['bg', 'fg', 'muted', 'line', 'card', 'accent', 'onAccent', 'like', 'repost']) assert.match(t[k], /^#[0-9a-f]{6}$/, t.id + ' ' + k);
     assert.equal(typeof t.dark, 'boolean');
