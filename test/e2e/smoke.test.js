@@ -651,11 +651,11 @@ const installFakeExt = (c) => {
 const openWithFake = (e, cfg, path = '/ext/options.html?welcome=1') => e.open(path, { init: `(${installFakeExt.toString()})(${JSON.stringify(cfg)})` });
 
 browserTest('without access to x.com a banner says so at the top of the settings page and its button asks; allowed, it reloads the x.com tabs and says what is next', async (e) => {
-  const t = await openWithFake(e, fakeExt(false, true, [11, 12]));
+  const t = await openWithFake(e, fakeExt(false, true, [11, 12]), '/ext/options.html');
   await checked(t, async () => {
     const { page } = t;
     await page.waitForSelector('#access:not([hidden])', { timeout: 8000 });
-    assert.match(await page.locator('#access').innerText(), /One more step/);
+    assert.match(await page.locator('#access').innerText(), /Not running yet/);
     assert.match(await page.locator('#access').innerText(), /permission to run on x\.com\.$/m);
     assert.doesNotMatch(await page.locator('#access').innerText(), /separately|Until you allow/, 'one plain sentence');
     assert.equal(await page.locator('#here').isHidden(), true, 'the same words are not said twice');
@@ -666,7 +666,7 @@ browserTest('without access to x.com a banner says so at the top of the settings
     assert.match(await page.locator('#access').innerText(), /tabs were reloaded/);
     assert.equal(await page.locator('#access').evaluate((el) => el.classList.contains('ok')), true);
   });
-  const none = await openWithFake(e, fakeExt(false, true, []));
+  const none = await openWithFake(e, fakeExt(false, true, []), '/ext/options.html');
   await checked(none, async () => {
     const { page } = none;
     await page.waitForSelector('#access button');
@@ -675,7 +675,7 @@ browserTest('without access to x.com a banner says so at the top of the settings
     await page.locator('#access button', { hasText: 'Open x.com' }).click();
     assert.deepEqual(await page.evaluate(() => window.__perm.created), ['https://x.com/home'], 'with no tab open it offers to open one');
   });
-  const no = await openWithFake(e, fakeExt(false, false, [11]));
+  const no = await openWithFake(e, fakeExt(false, false, [11]), '/ext/options.html');
   await checked(no, async () => {
     const { page } = no;
     await page.waitForSelector('#access button');
@@ -684,7 +684,7 @@ browserTest('without access to x.com a banner says so at the top of the settings
     assert.equal(await page.locator('#access button').count(), 1, 'it can be asked again');
     assert.deepEqual(await page.evaluate(() => window.__perm.reloaded), [], 'nothing reloaded');
   });
-  const yes = await openWithFake(e, fakeExt(true, true, []));
+  const yes = await openWithFake(e, fakeExt(true, true, []), '/ext/options.html');
   await checked(yes, async () => {
     const { page } = yes;
     await page.waitForSelector('#opt-enabled');
@@ -4829,6 +4829,12 @@ browserTest('Vim keys on the columns: j and k scroll, G and gg go to the end and
     await page.waitForFunction(() => document.querySelector('.xmc-scroller').scrollTop > 300); // (it goes to the end of what is loaded; the feed then loads more, so the end moves)
     await page.keyboard.press('g'); await page.keyboard.press('g');
     assert.equal(await top(), 0, 'gg: the top');
+    // the card of keys on the columns: h and l are cards there
+    await page.keyboard.press('?');
+    await page.waitForSelector('.xmc-vimlegend', { timeout: 3000 });
+    assert.match(await page.locator('.xmc-vimlegend').innerText(), /h\s+Card to the left/);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-vimlegend'));
     // a held key goes on scrolling; the keys that are bound or are plain letters never reach X's page
     await page.keyboard.press('x'); await page.keyboard.press('n'); await page.keyboard.press('j');
     assert.deepEqual((await page.evaluate(() => window.__seen)).filter((k) => !/^(Control|Shift)$/.test(k)), [], 'X’s page saw none of them');
@@ -4942,7 +4948,8 @@ browserTest('Vim keys in a panel: l and h go through the pictures and then the p
     await page.keyboard.press('?');
     await page.waitForSelector('.xmc-vimlegend', { timeout: 3000 });
     const legend = await page.locator('.xmc-vimlegend').innerText();
-    assert.match(legend, /gg\s+To the top/); assert.match(legend, /f\s+Like/); assert.match(legend, /Ctrl\+D\s+Half a page down/);
+    assert.match(legend, /gg\s+Top of the comments/); assert.match(legend, /f\s+Like/); assert.match(legend, /Ctrl\+D\s+Half a page down/);
+    assert.match(legend, /h\s+Previous picture, then post/); assert.match(legend, /l\s+Next picture, then post/); assert.match(legend, /s\s+Next post/, 'in a panel the card keys are the posts');
     await page.keyboard.press('Escape'); // it goes first (the panel stays open behind)
     await page.waitForFunction(() => !document.querySelector('.xmc-vimlegend'));
     assert.equal(await page.locator('.xmc-view:not(.xmc-out)').count(), 1, 'the panel is still open');
@@ -4977,7 +4984,7 @@ browserTest('Vim keys in a panel: l and h go through the pictures and then the p
   });
 }, 120000);
 
-browserTest('Vim keys: r turns a panel into Reels and back out, and in Reels j and k go from post to post, G and gg to the last and first, and r from the columns starts at the ringed card', async (e) => {
+browserTest('Vim keys: r turns a panel into Reels and back out; in Reels w and s go from post to post, j k and gg G scroll the comments, h and l the pictures and then the posts; and r from the columns starts at the ringed card', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
   await checked(h, async () => {
     const { page } = h;
@@ -4989,17 +4996,31 @@ browserTest('Vim keys: r turns a panel into Reels and back out, and in Reels j a
     await page.keyboard.press('r');
     await page.waitForSelector('#xmc-root.xmc-reels .xmc-view', { timeout: 6000 });
     assert.equal(await openPostId(page), id0, 'the same post');
+    // j, k, gg and G are the comments': the post stays, the words' side scrolls (a tall spacer makes sure there is room)
+    await page.evaluate(() => { const side = document.querySelector('.xmc-view .xmc-vside'); const sp = document.createElement('div'); sp.style.height = '3000px'; sp.className = 'spacer'; side.append(sp); });
+    const at = () => page.evaluate(() => document.querySelector('.xmc-view .xmc-vside').scrollTop);
     await page.keyboard.press('j');
-    await idIs(id0, true);
-    assert.notEqual(await openPostId(page), id0, 'j: the next post');
+    assert.equal(await at(), 100, 'j: the comments a little down');
+    assert.equal(await openPostId(page), id0, 'and the post is the same');
     await page.keyboard.press('k');
-    await idIs(id0);
+    assert.equal(await at(), 0, 'k: back up');
     await page.keyboard.press('G');
-    const lastId = await page.evaluate(() => { const c = window.__xmc.view.cards; return String(c[c.length - 1].id); });
-    await idIs(lastId);
+    assert.ok((await at()) > 1000, 'G: the bottom of the comments');
     await page.keyboard.press('g'); await page.keyboard.press('g');
-    const firstId = await page.evaluate(() => String(window.__xmc.view.cards[0].id));
-    await idIs(firstId);
+    assert.equal(await at(), 0, 'gg: the top');
+    await page.keyboard.press('Control+d');
+    assert.ok((await at()) > 100, 'Ctrl+D: half a page');
+    // the posts: s and w, a and d
+    await page.keyboard.press('s');
+    await idIs(id0, true);
+    const id1 = await openPostId(page);
+    await page.keyboard.press('w');
+    await idIs(id0);
+    await page.keyboard.press('d');
+    await idIs(id0, true);
+    await page.keyboard.press('a');
+    await idIs(id0);
+    assert.notEqual(id1, id0);
     await page.keyboard.press('r');
     await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)') && !document.getElementById('xmc-root').classList.contains('xmc-reels'), null, { timeout: 5000 });
     // from the columns, r starts Reels at the ringed card (the menu unfolds as Reels goes, and the columns settle: a moment before the keys)
@@ -5268,3 +5289,139 @@ browserTest('Likes with the Vim keys: / puts the cursor in the search box (X has
     assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('.xmc-find')), false);
   });
 }, 90000);
+
+// ---- the welcome page in steps (0.45.0): allow, how it starts, keybindings, colours ----
+browserTest('the welcome page: the first step is the permission (the button asks, a tick takes its place, the banner is not said twice), and the starting points read as short lines', async (e) => {
+  const t = await openWithFake(e, fakeExt(false, true, [11]));
+  await checked(t, async () => {
+    const { page } = t;
+    await page.waitForSelector('#welcome:not([hidden]) .wstep');
+    assert.deepEqual(await page.locator('#welcome .wstep h2').allInnerTexts(), ['Let it run on x.com', 'How should it start?', 'Keybindings', 'Colours']);
+    assert.equal(await page.locator('#access').isHidden(), true, 'the banner is the first step');
+    assert.deepEqual(await page.locator('#welcome .wnum').allInnerTexts(), ['1', '2', '3', '4']);
+    assert.deepEqual(await page.locator('#welcome .wblurb').allInnerTexts(), ['Your X feed in columns', 'See posts from only people you follow', 'See only media', 'Scroll through posts, one at a time']);
+    assert.equal(await page.locator('#welcome .wstep').first().innerText().then((x) => /Firefox asks/.test(x)), false, 'the button says what it does');
+    await page.locator('#welcome button', { hasText: 'Allow access to x.com' }).click();
+    await page.waitForFunction(() => document.querySelector('#welcome .wstep.done'), null, { timeout: 5000 });
+    assert.deepEqual(await page.evaluate(() => ({ asked: window.__perm.requested, reloaded: window.__perm.reloaded })), { asked: 1, reloaded: [11] });
+    assert.match(await page.locator('#welcome .wstep.done').innerText(), /reloaded/);
+    assert.deepEqual(await page.locator('#welcome .wnum').allInnerTexts(), ['✓', '2', '3', '4'], 'a tick for the first, the others keep their numbers');
+    assert.equal(await page.locator('#access').isHidden(), true);
+    // Open x.com: a tab, and the page is put away
+    await page.locator('#welcome button', { hasText: 'Open x.com' }).click();
+    assert.deepEqual(await page.evaluate(() => window.__perm.created), ['https://x.com/home']);
+    assert.equal(await page.locator('#welcome').isHidden(), true);
+  });
+  const no = await openWithFake(e, fakeExt(false, false, []));
+  await checked(no, async () => {
+    const { page } = no;
+    await page.locator('#welcome button', { hasText: 'Allow access to x.com' }).click();
+    await page.waitForFunction(() => /Not allowed yet/.test(document.getElementById('welcome').innerText), null, { timeout: 5000 });
+    assert.equal(await page.locator('#welcome .wstep.done').count(), 0);
+    assert.equal(await page.locator('#welcome button', { hasText: 'Allow access to x.com' }).count(), 1, 'it can be asked again');
+    // put away without it: the banner comes back, with the button
+    await page.locator('#welcome button', { hasText: 'All the settings' }).click();
+    await page.waitForSelector('#access:not([hidden]) button', { timeout: 5000 });
+  });
+  const yes = await openWithFake(e, fakeExt(true, true, []));
+  await checked(yes, async () => {
+    await yes.page.waitForSelector('#welcome .wstep.done');
+    assert.match(await yes.page.locator('#welcome .wstep.done').innerText(), /Allowed/);
+    assert.deepEqual(await yes.page.locator('#welcome .wnum').allInnerTexts(), ['✓', '2', '3', '4']);
+  });
+  const none = await e.open('/ext/options.html?welcome=1'); // no way to ask here: three steps
+  await checked(none, async () => {
+    await none.page.waitForSelector('#welcome .wstep');
+    assert.deepEqual(await none.page.locator('#welcome .wstep h2').allInnerTexts(), ['How should it start?', 'Keybindings', 'Colours']);
+    assert.deepEqual(await none.page.locator('#welcome .wnum').allInnerTexts(), ['1', '2', '3']);
+  });
+}, 90000);
+
+browserTest('the welcome page: Media wall also shows only media; Keybindings (Classic, Vim, None) change the setting and show their keys; a theme is applied at once and the Settings cards follow', async (e) => {
+  const h = await e.open('/ext/options.html?welcome=1');
+  await checked(h, async () => {
+    const { page } = h;
+    const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('xmc.settings') || '{}'));
+    await page.waitForSelector('#welcome .wstep');
+    await page.locator('#welcome-media').check();
+    await page.waitForFunction(() => document.getElementById('preset-media').checked, null, { timeout: 5000 });
+    assert.equal((await saved()).filter, 'media', 'it shows only media');
+    // keys: Classic to start with
+    assert.equal(await page.locator('#welcome .wseg button.on').innerText(), 'Classic');
+    assert.match(await page.locator('#welcome .wkeys').innerText(), /Like/);
+    assert.match(await page.locator('#welcome .wkeys').innerText(), /Pictures, then posts/);
+    await page.locator('#welcome .wseg button', { hasText: 'Vim' }).click();
+    await page.waitForFunction(() => /Scroll/.test(document.querySelector('#welcome .wkeys').innerText) && document.getElementById('opt-keyScheme').value === 'vim', null, { timeout: 5000 });
+    assert.match(await page.locator('#welcome .wkeys').innerText(), /j k\s+Scroll/);
+    assert.match(await page.locator('#welcome .wkeys').innerText(), /w a s d\s+Cards/);
+    assert.match(await page.locator('#welcome .wkeys').innerText(), /\?\s+All the keys/);
+    assert.equal((await saved()).keyScheme, 'vim');
+    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.textContent), 'Vim', 'the focus stays where it was');
+    await page.locator('#welcome .wseg button', { hasText: 'None' }).click();
+    await page.waitForFunction(() => /letter keys are off/.test(document.getElementById('welcome').innerText), null, { timeout: 5000 });
+    assert.equal(await page.locator('#opt-panelKeys').isChecked(), false);
+    await page.locator('#welcome .wseg button', { hasText: 'Classic' }).click();
+    await page.waitForFunction(() => document.getElementById('opt-panelKeys').checked && document.getElementById('opt-keyScheme').value === 'classic', null, { timeout: 5000 });
+    // colours
+    assert.equal(await page.locator('#welcome .wtheme').count(), 4);
+    await page.locator('#welcome .wtheme', { hasText: 'Catppuccin Mocha' }).click();
+    await page.waitForFunction(() => document.documentElement.style.getPropertyValue('--bg') === '#1e1e2e', null, { timeout: 5000 });
+    assert.equal((await saved()).theme, 'catppuccin-mocha');
+    await page.waitForFunction(() => (document.querySelector('#welcome .wtheme.on') || {}).innerText === 'Catppuccin Mocha', null, { timeout: 5000 }); // (the step is drawn again a moment after the colours change)
+    assert.equal(await page.locator('.theme[data-theme-id="catppuccin-mocha"]').getAttribute('aria-checked'), 'true', 'the cards in Settings follow');
+    await page.locator('#welcome .wtheme', { hasText: 'X' }).first().click();
+    await page.waitForFunction(() => !document.documentElement.style.getPropertyValue('--bg'), null, { timeout: 5000 });
+  });
+}, 90000);
+
+// ---- the post a post quotes or answers: u opens it, Esc comes back (0.45.0) ----
+browserTest('u opens the post this one quotes, from the open post or the ringed card, and Esc comes back to this one (a press on the quote does the same); on a post with none it says so; Classic has it too', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const openMine = async (id) => { await page.locator('.xmc-card', { hasText: 'tweet ' + id + ' kind' }).first().locator('.xmc-text').first().click(); await page.waitForSelector('.xmc-view', { timeout: 8000 }); }; // (a quote has a text of its own)
+    const pair = await page.evaluate(() => { const t = window.__xmc.view.cards.find((x) => x.quoted && !x.quoted.unavailable); return t ? { id: String(t.id), q: String(t.quoted.id) } : null; });
+    assert.ok(pair, 'the stand-in has a quote');
+    const plain = await page.evaluate(() => String(window.__xmc.view.cards.find((x) => !x.quoted && !x.replyToId && !x.parent).id));
+    await openMine(pair.id);
+    assert.equal(await openPostId(page), pair.id);
+    await page.keyboard.press('u');
+    await page.waitForFunction((q) => { const v = document.querySelector('.xmc-view'), m = v && /(?:tweet|number) (\d+)\b/.exec(v.innerText); return m && m[1] === q; }, pair.q, { timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction((i) => { const v = document.querySelector('.xmc-view'), m = v && /(?:tweet|number) (\d+)\b/.exec(v.innerText); return m && m[1] === i; }, pair.id, { timeout: 5000 });
+    assert.equal(await page.locator('.xmc-view:not(.xmc-out)').count(), 1, 'Esc went back, it did not close');
+    // a press on the quote: the same, and the same way back
+    await page.locator('.xmc-view .xmc-quote').click();
+    await page.waitForFunction((q) => { const v = document.querySelector('.xmc-view'), m = v && /(?:tweet|number) (\d+)\b/.exec(v.innerText); return m && m[1] === q; }, pair.q, { timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction((i) => { const v = document.querySelector('.xmc-view'), m = v && /(?:tweet|number) (\d+)\b/.exec(v.innerText); return m && m[1] === i; }, pair.id, { timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'), null, { timeout: 5000 });
+    // a post with none
+    await openCard(page, plain);
+    await page.evaluate(() => { document.getElementById('xmc-toast').hidden = true; });
+    await page.keyboard.press('u');
+    await page.waitForFunction(() => /Not a quote or a reply/.test(document.getElementById('xmc-toast').textContent), null, { timeout: 3000 });
+    assert.equal(await openPostId(page), plain, 'the post stays');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
+    // from the columns: the ringed card
+    await page.evaluate((id) => { const el = [...document.querySelectorAll('.xmc-card')].find((c) => new RegExp('tweet ' + id + ' kind').test(c.innerText)); el.scrollIntoView({ block: 'center' }); el.querySelector('.xmc-text').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); }, pair.id);
+    await page.waitForFunction(() => document.querySelector('.xmc-card.xmc-kcard'), null, { timeout: 3000 });
+    await page.keyboard.press('u');
+    await page.waitForFunction((q) => { const v = document.querySelector('.xmc-view'), m = v && /(?:tweet|number) (\d+)\b/.exec(v.innerText); return m && m[1] === q; }, pair.q, { timeout: 5000 });
+  });
+  const classic = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } });
+  await checked(classic, async () => {
+    const { page } = classic;
+    await e.ready(page);
+    const pair = await page.evaluate(() => { const t = window.__xmc.view.cards.find((x) => x.quoted && !x.quoted.unavailable); return { id: String(t.id), q: String(t.quoted.id) }; });
+    await page.locator('.xmc-card', { hasText: 'tweet ' + pair.id + ' kind' }).first().locator('.xmc-text').first().click();
+    await page.waitForSelector('.xmc-view', { timeout: 8000 });
+    await page.keyboard.press('u');
+    await page.waitForFunction((q) => { const v = document.querySelector('.xmc-view'), m = v && /(?:tweet|number) (\d+)\b/.exec(v.innerText); return m && m[1] === q; }, pair.q, { timeout: 5000 });
+    await page.locator('.xmc-vkeys').click();
+    assert.match(await page.locator('.xmc-keylegend').innerText(), /U\s+Open the post it quotes or answers/);
+  });
+}, 120000);

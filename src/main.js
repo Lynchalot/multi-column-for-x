@@ -1105,6 +1105,7 @@
   // like, bookmark, repost, reply, share, download for a post: from the panel or viewer, and (Vim keys) from the marked card
   function postKeyAction(kind, t) {
     const comment = !!(postView && postView.parent && postView.t === t); // a comment in the panel: its own buttons, X's page has none for it
+    if (kind === 'parent') { openRelated(t); return; }
     if (kind === 'reply') {
       if (!postView && !lightbox) { act(t, 'reply', keyedButton(t, 'reply') || document.createElement('button')); return; } // (on a card: as its own button does)
       // comment: the panel's box (from the viewer: the viewer goes, and the panel opens if it was not)
@@ -1126,6 +1127,15 @@
     else if (b) b.click(); // (a comment's buttons are wired to its own handlers)
     else act(t, kind, document.createElement('button')); // (the card's contents were given back: the press still goes to X)
     advance();
+  }
+  // The post this one quotes, or answers (a quote first): opened in the panel as a press on it is, and Esc comes back to this one
+  const cameFrom = () => (postView ? { t: postView.t, back: postView.back || null } : null);
+  function openRelated(t) {
+    if (lightbox) closeLightbox();
+    const host = postView && postView.t === t ? postView.side : t.el;
+    const near = host && (host.querySelector('.xmc-quote[data-href]') || host.querySelector('.xmc-pctx[data-href]'));
+    if (!near) { toast('Not a quote or a reply', null, null, 1400); return; }
+    openHref(near.dataset.href, cameFrom());
   }
   // What the keys are, as a small card over the panel (the keyboard button at its corner opens it): the current keys, not the defaults
   function keyLegend(host) {
@@ -1330,7 +1340,7 @@
     switch (act) {
       case 'down': case 'up': {
         const d = act === 'down' ? 1 : -1;
-        if (viewer) stepLightbox(d); else if (reels) stepPostView(d); else by(0, d, 100);
+        if (viewer) stepLightbox(d); else by(0, d, 100); // (the comments' in a panel or Reels; the posts in Reels are w s, a d, h l and the arrows)
         return true;
       }
       case 'left': case 'right': {
@@ -1341,7 +1351,6 @@
       case 'top': case 'bottom': {
         const end = act === 'bottom';
         if (viewer) stepLightbox(end ? 1e3 : -1e3);
-        else if (reels) { const t = view.cards[end ? view.cards.length - 1 : 0]; if (t && t !== postView.t) openPostView(t, true, false, { dir: end ? 1 : -1 }); }
         else { const el = scrollBox(end ? 1 : -1); if (el) el.scrollTo({ top: end ? el.scrollHeight : 0, behavior: 'instant' }); }
         return true;
       }
@@ -1358,7 +1367,7 @@
         if (cols) { const t = markedSeen() || firstCardInView(); if (t) openPostView(t, false); }
         else if (postView && !lightbox) { const pic = postView.panel.querySelector('.xmc-vm:not([hidden]) img[data-lb], img[data-lb]'); if (pic && !pic.closest('.sensitive')) openLightbox(postView.t, Number(pic.dataset.lb)); }
         return true;
-      case 'like': case 'bookmark': case 'repost': case 'reply': case 'share': case 'download': {
+      case 'like': case 'bookmark': case 'repost': case 'reply': case 'share': case 'download': case 'parent': {
         let t = viewer ? lightbox.t : postView ? postView.t : markedSeen();
         if (!t) { const first = firstCardInView(); if (first) mark(first, true); return true; } // (no ring yet: it comes up on the first post in view, and the next press is for that one)
         postKeyAction(act, t);
@@ -1450,8 +1459,12 @@
     const old = host.querySelector(':scope > .xmc-keylegend.xmc-vimlegend');
     if (old) { old.remove(); return; }
     const bind = XMCKeys.bindings(settings.vimKeys), short = (l) => l.split(/[;(]/)[0].trim();
+    // what a key does depends on where it is pressed: in a panel h and l are the pictures and then the posts, not cards
+    const posts = { cardUp: 'Previous post', cardLeft: 'Previous post', cardDown: 'Next post', cardRight: 'Next post' };
+    const open = Object.assign({ left: 'Previous picture, then post', right: 'Next picture, then post', up: 'Scroll the comments up', down: 'Scroll the comments down', top: 'Top of the comments', bottom: 'Bottom of the comments' }, posts);
+    const here = { panel: open, reels: open, viewer: { left: 'Previous picture', right: 'Next picture', up: 'Previous picture', down: 'Next picture' } }[vimWhere()] || {};
     const groups = XMCKeys.GROUPS.map((g) => h('div', { className: 'kl-group' }, h('div', { className: 'kl-head', textContent: g }),
-      ...XMCKeys.ACTIONS.filter(([, , grp]) => grp === g).filter(([a]) => bind[a]).map(([a, label]) => h('div', { className: 'kl-row' }, h('kbd', { textContent: XMCKeys.label(bind[a]) }), h('span', { textContent: short(label) })))));
+      ...XMCKeys.ACTIONS.filter(([, , grp]) => grp === g).filter(([a]) => bind[a]).map(([a, label]) => h('div', { className: 'kl-row' }, h('kbd', { textContent: XMCKeys.label(bind[a]) }), h('span', { textContent: here[a] || short(label) })))));
     const card = h('div', { className: 'xmc-keylegend xmc-vimlegend', role: 'dialog', 'aria-label': 'Keyboard shortcuts' }, h('div', { className: 'kl-cols' }, ...groups),
       h('div', { className: 'kl-foot' }, 'Arrows, Enter on a picture and Esc work as they always do. ', h('button', { type: 'button', textContent: 'Change keys', onclick: (e) => { e.stopPropagation(); card.remove(); openOptions('keys'); } })));
     card.addEventListener('click', (e) => e.stopPropagation());
@@ -1468,7 +1481,7 @@
     if (e.target && e.target.closest && e.target.closest('.xmc-emoji') && (e.key === 'Escape' || /^Arrow/.test(e.key))) return; // (the emoji picker's own: it moves over the emoji and closes itself)
     if (settings.keyScheme === 'vim' ? vimKey(e) : (panelKey(e) || feedKey(e))) return;
     if (e.key === 'Escape' && !lightbox && !menuEl && e.target && e.target.matches && e.target.matches('textarea.xmc-cbox')) { e.preventDefault(); e.stopPropagation(); e.target.blur(); return; } // (Esc leaves the comment box first: what is typed stays, the panel stays)
-    if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else closePostView(); } }
+    if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else if (postView.back) openPostView(postView.back.t, true, false, postView.back.back ? { back: postView.back.back } : undefined); else closePostView(); } }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
     if (lightbox && e.key === 'ArrowLeft') stepLightbox(-1);
     if (postView && postView.reels && !lightbox && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && !/^(input|textarea|select)$/i.test((e.target || {}).tagName || '')) { // Reels: down for the next post, up for the one before
@@ -2147,10 +2160,10 @@
   // a link to a post we already have opens in the panel; anything else (a profile, a post we haven't seen) in a new tab
   const quoteById = new Map(); // posts seen only as a quote inside another post: they open in the panel too
   const noteQuote = (q) => { if (q && q.id && q.author) { quoteById.delete(q.id); quoteById.set(q.id, q); while (quoteById.size > 400) quoteById.delete(quoteById.keys().next().value); } };
-  function openHref(href) {
+  function openHref(href, back) { // back: the post to come back to with Esc (from a panel), and the one before it
     const m = /^\/[^/]+\/status\/(\d+)\/?$/.exec(new URL(href, location.origin).pathname);
     const tw = m && (state.byId.get(m[1]) || quoteById.get(m[1]));
-    if (tw && tw.author) { openPostView(tw); return true; }
+    if (tw && tw.author) { if (back && postView) openPostView(tw, true, false, { back }); else openPostView(tw); return true; }
     window.open(new URL(href, location.origin).href, '_blank', 'noopener');
     return false;
   }
@@ -3572,7 +3585,7 @@
       const near = e.target.closest('.xmc-tpost, .xmc-pctx');
       if (near && !e.target.closest('a[href], video, .xmc-reveal')) { e.preventDefault(); navigate(near.dataset.href, null); return; }
       const quote = e.target.closest('.xmc-quote[data-href]');
-      if (quote && !e.target.closest('a[href]')) { openHref(quote.dataset.href); return; }
+      if (quote && !e.target.closest('a[href]')) { openHref(quote.dataset.href, cameFrom()); return; }
       const nl = e.target.closest('a.xmc-nav');
       if (nl) { e.preventDefault(); navigate(nl.getAttribute('href'), t); }
     });
@@ -3610,7 +3623,7 @@
       prevBtn.hidden = !walkTarget(-1);
       nextBtn.hidden = !(walkTarget(1) || more);
     };
-    postView = { t, el, panel, side, parent, syncNav, reels };
+    postView = { t, el, panel, side, parent, syncNav, reels, back: (opts && opts.back) || null };
     root.classList.toggle('xmc-reels', reels);
     if (settings.reelsFocus) { applyPanels(); positionTab(); } // (the menu folds and the right panel slides away as Reels comes up)
     if (reels && !parent) { // one rail on the post: up, the post's own buttons (the row that is under its words in the ordinary panel), down

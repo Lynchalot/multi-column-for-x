@@ -501,7 +501,7 @@ test('the master switch is a setting that is on unless it was turned off, and is
 
 test('the keys of a post\'s panel: the defaults, and a person\'s own choices with whatever cannot work ignored', () => {
   const S = require('../src/settings.js');
-  assert.deepEqual(S.panelKeyMap(''), { open: 'enter', like: 'a', bookmark: 's', repost: 'w', download: 'e', share: 'q', reply: 'c', mute: 'm' });
+  assert.deepEqual(S.panelKeyMap(''), { open: 'enter', like: 'a', bookmark: 's', repost: 'w', download: 'e', share: 'q', reply: 'c', mute: 'm', parent: 'u' });
   assert.equal(S.panelKeyMap('{"open":"O"}').open, 'o'); assert.equal(S.panelKeyMap('{"like":"Enter"}').like, 'a', 'Enter is only for opening a post'); assert.equal(S.keyLabel('enter'), 'Enter');
   assert.equal(S.panelKeyMap('{"like":"F"}').like, 'f', 'a capital is the same key');
   assert.equal(S.panelKeyMap('{"like":"ab"}').like, 'a', 'two characters: the default stays');
@@ -517,6 +517,8 @@ test('settings: Reels sets the panel to play with sound and go on, and the Show 
   const reels = S.PRESETS.find((p) => p.id === 'reels');
   assert.deepEqual([reels.set.panelVideo, reels.set.videoEnd, reels.set.skipSeen, reels.set.keysAdvance, reels.set.autoplayVideo], ['sound', 'loop', true, true, S.DEFAULTS.autoplayVideo]);
   assert.equal(reels.once.filter, 'media');
+  assert.equal(S.PRESETS.find((p) => p.id === 'media').once.filter, 'media', 'Media wall shows only media, as its line says');
+  assert.deepEqual(S.PRESETS.map((p) => p.blurb), ['Your X feed in columns', 'See posts from only people you follow', 'See only media', 'Scroll through posts, one at a time']);
   assert.ok(!('filter' in reels.set), 'changing the Show list afterwards does not untick it');
   for (const p of S.PRESETS.filter((q) => q.id !== 'reels')) assert.equal(p.set.panelVideo, S.DEFAULTS.panelVideo, p.id + ' puts the panel back');
   const n = S.normalize({ panelVideo: 'loud', videoEnd: 'next', skipSeen: 'yes', prefetchNext: false });

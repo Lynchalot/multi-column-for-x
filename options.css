@@ -153,17 +153,38 @@ body.popup .master { margin-top: 6px; margin-bottom: 2px; }
 body.popup .access { padding: 10px 14px; font-size: 13px; }
 
 /* the opening banner: the starting points as large choices */
-.welcome { margin: 4px 0 18px; padding: 16px 18px 12px; border: 1px solid var(--accent); border-radius: 16px; background: color-mix(in srgb, var(--accent) 7%, var(--bg)); }
+.welcome { container: welcome / inline-size; margin: 4px 0 18px; padding: 16px 18px 12px; border: 1px solid var(--accent); border-radius: 16px; background: color-mix(in srgb, var(--accent) 7%, var(--bg)); }
 .welcome[hidden] { display: none; }
-.welcome h2 { margin: 0 0 2px; padding: 0; font-size: 20px; }
-.wchoices { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 10px 0 6px; }
-.wchoice { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 12px 14px 12px 40px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); cursor: pointer; }
+.welcome h2 { margin: 0; padding: 0; font-size: 17px; }
+.wstep { display: flex; gap: 14px; align-items: flex-start; padding: 14px 0; border-top: 1px solid var(--line); }
+.wstep:first-child { border-top: 0; padding-top: 4px; }
+.wnum { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--line); color: var(--fg); font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.wstep.done .wnum { background: #00ba7c; color: #04210f; }
+.wbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.wbody h2 { padding-top: 3px; }
+.wrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.wnote { margin: 0; color: var(--muted); font-size: 14px; }
+.wseg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; align-self: flex-start; }
+.wseg button { appearance: none; border: 0; border-radius: 999px; padding: 6px 16px; background: none; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.wseg button.on { background: color-mix(in srgb, var(--fg) 16%, transparent); color: var(--fg); }
+.wkeys { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 22px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 13.5px; }
+.wkey { display: flex; align-items: center; gap: 8px; }
+.wkey kbd { flex: none; min-width: 34px; text-align: center; padding: 1px 7px; border-radius: 5px; background: var(--card); border: 1px solid var(--line); font: 600 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.wkey span { color: var(--muted); }
+.wthemes { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.wtheme { appearance: none; display: flex; flex-direction: column; gap: 5px; align-items: center; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: none; color: var(--fg); font: inherit; cursor: pointer; }
+.wtheme.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.wtn { font-size: 12.5px; color: var(--muted); }
+.wmore { appearance: none; border: 1px dashed var(--muted); border-radius: 10px; background: none; color: var(--muted); font: inherit; font-size: 13px; padding: 12px 14px; cursor: pointer; }
+.wchoices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; } /* two by two, or four across when there is the room: never a short last row */
+@container welcome (min-width: 760px) { .wchoices { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.wchoice { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 12px 14px 12px 42px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); cursor: pointer; }
 .wchoice:hover { border-color: var(--accent); }
 .wchoice.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.wchoice input { position: absolute; left: 13px; top: 14px; margin: 0; }
+.wchoice input { position: absolute; left: 15px; top: 14px; margin: 0; }
 .wname { font-weight: 700; }
 .wblurb { color: var(--muted); font-size: 13px; line-height: 1.35; }
-.welcome .row button.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.welcome button.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
 
 /* Look > Colour theme: a card for each */
 .themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
@@ -171,12 +192,13 @@ body.popup .access { padding: 10px 14px; font-size: 13px; }
 .theme:hover { border-color: var(--muted); }
 .theme[aria-checked="true"] { border-color: var(--accent); }
 .theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.theme .sw { position: relative; display: block; height: 56px; border-radius: 8px; border: 1px solid var(--line); overflow: hidden; }
-.theme .swcard { position: absolute; left: 8px; top: 8px; width: 62%; height: 38px; border-radius: 6px; padding: 7px 7px; box-sizing: border-box; display: grid; gap: 4px; align-content: start; }
-.theme .swcard i { display: block; height: 3px; border-radius: 2px; width: 70%; }
-.theme .swcard i + i { width: 90%; }
-.theme .swcard b { display: block; height: 7px; width: 26px; border-radius: 4px; margin-top: 2px; }
-.theme .sw em { position: absolute; right: 10px; top: 10px; width: 10px; height: 10px; border-radius: 50%; }
+:is(.theme, .wtheme) .sw { position: relative; display: block; height: 56px; border-radius: 8px; border: 1px solid var(--line); overflow: hidden; }
+:is(.theme, .wtheme) .swcard { position: absolute; left: 8px; top: 8px; width: 62%; height: 38px; border-radius: 6px; padding: 7px 7px; box-sizing: border-box; display: grid; gap: 4px; align-content: start; }
+:is(.theme, .wtheme) .swcard i { display: block; height: 3px; border-radius: 2px; width: 70%; }
+:is(.theme, .wtheme) .swcard i + i { width: 90%; }
+:is(.theme, .wtheme) .swcard b { display: block; height: 7px; width: 26px; border-radius: 4px; margin-top: 2px; }
+:is(.theme, .wtheme) .sw em { position: absolute; right: 10px; top: 10px; width: 10px; height: 10px; border-radius: 50%; }
+.wtheme .sw { width: 86px; height: 48px; pointer-events: none; }
 .theme .tn { font-size: 13px; font-weight: 600; line-height: 1.25; }
 .item:has(> .themes) { grid-template-columns: minmax(0, 1fr); }
 

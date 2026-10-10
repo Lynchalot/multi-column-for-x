@@ -262,10 +262,10 @@ var XMCSettings = (function () {
   const REELS_OFF = Object.fromEntries(Object.keys(REELS).map((k) => [k, DEFAULTS[k]]));
   // `once` is what picking a preset also does, that is not part of what makes it the one ticked (the Show list is the person's to change afterwards)
   const PRESETS = [
-    { id: 'plain', label: 'Just columns', blurb: 'Default X but laid out in columns.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF, REELS_OFF) },
-    { id: 'calm', label: 'Calm', blurb: 'All algorithmic content disabled (only people you follow, no trends or suggestions).', set: Object.assign({}, CONTENT_CALM, MEDIA_OFF, REELS_OFF) },
-    { id: 'media', label: 'Media wall', blurb: 'Narrower layout with more columns. Videos play muted as you scroll.', set: Object.assign({}, CONTENT_PLAIN, MEDIA_WALL, REELS_OFF) },
-    { id: 'reels', label: 'Reels', blurb: 'Like TikTok: one post at a time, full page, scrolled up and down. Videos play with sound and loop.',
+    { id: 'plain', label: 'Just columns', blurb: 'Your X feed in columns', set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF, REELS_OFF) },
+    { id: 'calm', label: 'Calm', blurb: 'See posts from only people you follow', set: Object.assign({}, CONTENT_CALM, MEDIA_OFF, REELS_OFF) },
+    { id: 'media', label: 'Media wall', blurb: 'See only media', set: Object.assign({}, CONTENT_PLAIN, MEDIA_WALL, REELS_OFF), once: { filter: 'media' } },
+    { id: 'reels', label: 'Reels', blurb: 'Scroll through posts, one at a time',
       set: Object.assign({}, CONTENT_PLAIN, MEDIA_OFF, REELS), once: { filter: 'media' } },
   ];
   // What a fresh install starts with: the Calm preset, stored as a person's own choices (so what is ticked on the settings page is Calm,
@@ -277,8 +277,8 @@ var XMCSettings = (function () {
   const handles = (s) => words(s).map((w) => w.replace(/^@/, ''));
 
   // The panel's keys: what each does and its key out of the box (letters Vimium leaves alone), and the map a person's own choices make of them.
-  const PANEL_KEY_ACTIONS = [['open', 'Open the first post in view'], ['like', 'Like'], ['bookmark', 'Bookmark'], ['repost', 'Repost'], ['download', 'Download'], ['share', 'Copy link'], ['reply', 'Comment'], ['mute', 'Mute or unmute the video']];
-  const PANEL_KEY_DEFAULTS = { open: 'enter', like: 'a', bookmark: 's', repost: 'w', download: 'e', share: 'q', reply: 'c', mute: 'm' };
+  const PANEL_KEY_ACTIONS = [['open', 'Open the first post in view'], ['like', 'Like'], ['bookmark', 'Bookmark'], ['repost', 'Repost'], ['download', 'Download'], ['share', 'Copy link'], ['reply', 'Comment'], ['mute', 'Mute or unmute the video'], ['parent', 'Open the post it quotes or answers']];
+  const PANEL_KEY_DEFAULTS = { open: 'enter', like: 'a', bookmark: 's', repost: 'w', download: 'e', share: 'q', reply: 'c', mute: 'm', parent: 'u' };
   const okKey = (k) => k === 'enter' || (typeof k === 'string' && k.length === 1 && k.trim() === k && /[\p{L}\p{N}.,;'\[\]\-=\/\\`]/u.test(k));
   const keyLabel = (k) => (k === 'enter' ? 'Enter' : String(k || '').toUpperCase());
   // text (the JSON in `keyMap`) -> { like: 'a', ... } for every action: an unknown action, a key that is not one printable character, or a key already

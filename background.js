@@ -18,7 +18,8 @@ function paintBadge() {
     api.action.setBadgeText({ text: badge.noAccess ? '!' : badge.off ? 'off' : '' });
     api.action.setBadgeBackgroundColor({ color: badge.noAccess ? '#d93025' : '#6b7280' });
     if (api.action.setBadgeTextColor) api.action.setBadgeTextColor({ color: '#ffffff' });
-    api.action.setTitle({ title: badge.noAccess ? 'Multi-Column for X: not allowed on x.com. Click to fix.' : badge.off ? 'Multi-Column for X: switched off' : 'Multi-Column for X: settings' });
+    api.action.setTitle({ title: badge.noAccess ? 'Multi-Column for X: allow access to x.com' : badge.off ? 'Multi-Column for X: switched off' : 'Multi-Column for X: settings' });
+    api.action.setPopup({ popup: badge.noAccess ? '' : 'popup.html' }); // (no popup while access is missing: the press is the request, see onClicked below)
   } catch { /* no action API here */ }
 }
 async function checkAccess() {
@@ -28,6 +29,20 @@ async function checkAccess() {
 api.storage.local.get('enabled').then((v) => { badge.off = !!v && v.enabled === false; paintBadge(); }).catch(() => {});
 api.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.enabled) { badge.off = ch.enabled.newValue === false; paintBadge(); } });
 checkAccess();
+// With no popup (above) a press on the toolbar button arrives here, and it is the request for x.com: Firefox's prompt is then the only thing on the screen (from the popup it
+// opened underneath it). Firefox only takes a request made straight from the press, so it is the first thing done. Allowed: the x.com tabs open are reloaded so the extension
+// is on them, or x.com is opened if there are none.
+if (api.action && api.action.onClicked) {
+  api.action.onClicked.addListener(async () => {
+    let ok = false;
+    try { ok = await api.permissions.request({ origins: X_ORIGINS }); } catch { /* refused, or not from a press */ }
+    await checkAccess();
+    if (!ok) return;
+    let n = 0;
+    try { const tabs = await api.tabs.query({ url: X_ORIGINS }); n = tabs.length; for (const t of tabs) Promise.resolve(api.tabs.reload(t.id)).catch(() => {}); } catch { /* none to reload */ }
+    if (!n) api.tabs.create({ url: 'https://x.com/home' });
+  });
+}
 if (api.permissions && api.permissions.onAdded) { api.permissions.onAdded.addListener(checkAccess); api.permissions.onRemoved.addListener(checkAccess); }
 
 // (the answer goes by sendResponse, with `return true` to keep the channel open: Chrome does not take a promise returned from the listener, Firefox takes either)

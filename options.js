@@ -48,28 +48,39 @@
   // later in about:addons). Without it the extension never runs on x.com and nothing says why, so while it is missing a banner stays at the top of
   // the settings page and the toolbar panel with the one button that fixes it. (It is asked for from a press: Firefox allows no other way.)
   const X_ORIGINS = ['https://x.com/*', 'https://twitter.com/*'];
+  let accessState = null, accessNote = ''; // 'yes' | 'no' | null (no way to ask here); what the welcome page's first step says
+  async function readAccess() {
+    if (!ext || !ext.permissions || !ext.tabs) { accessState = null; return; }
+    try { accessState = (await ext.permissions.contains({ origins: X_ORIGINS })) ? 'yes' : 'no'; } catch { accessState = null; } // (the check itself failed: not a reason to nag)
+  }
+  // Asked for from a press. Allowed: the x.com tabs that are open are reloaded, so the extension is on them. { ok, n: how many were reloaded }
+  async function askAccess() {
+    let ok = false; try { ok = await ext.permissions.request({ origins: X_ORIGINS }); } catch { /* refused, or not from a press */ }
+    let n = 0;
+    if (ok) { try { const tabs = await ext.tabs.query({ url: X_ORIGINS }); n = tabs.length; for (const t of tabs) ext.tabs.reload(t.id).catch(() => {}); } catch { /* none open */ } }
+    return { ok, n };
+  }
   async function accessBanner() {
     const box = $('#access');
     if (!box || FRAMED || !ext || !ext.permissions || !ext.tabs) return;
-    const welcome = new URLSearchParams(location.search).has('welcome');
     const show = (cls, ...kids) => { box.className = 'access ' + cls; box.replaceChildren(...kids); box.hidden = false; };
     let granted = true;
     try { granted = await ext.permissions.contains({ origins: X_ORIGINS }); } catch { /* the check itself failed: not a reason to nag */ }
     if (granted) { if (box.dataset.thanks) return; box.hidden = true; return; } // (the "Allowed" line stays until the page is closed)
+    if (welcomeUp()) { box.hidden = true; return; } // (the welcome page's first step is this)
     delete box.dataset.thanks;
     const allow = h('button', { type: 'button', className: 'primary', textContent: 'Allow access to x.com', onclick: async () => {
-      let ok = false; try { ok = await ext.permissions.request({ origins: X_ORIGINS }); } catch { /* refused, or not from a press */ }
+      const { ok, n } = await askAccess();
       if (!ok) { show('warn', h('strong', { textContent: 'Not allowed yet. ' }), h('span', { textContent: 'Press the button again and choose Allow.' }), allow); return; }
-      let n = 0;
-      try { const tabs = await ext.tabs.query({ url: X_ORIGINS }); n = tabs.length; for (const t of tabs) ext.tabs.reload(t.id).catch(() => {}); } catch { /* none open */ }
       box.dataset.thanks = '1';
       show('ok', h('strong', { textContent: 'Allowed. ' }), h('span', { textContent: n ? 'Your x.com ' + (n > 1 ? 'tabs were' : 'tab was') + ' reloaded.' : '' }),
         n ? null : h('button', { type: 'button', className: 'primary', textContent: 'Open x.com', onclick: () => ext.tabs.create({ url: 'https://x.com/home' }) }));
       if (typeof hereCheck === 'function') hereCheck();
     } });
-    show('warn', h('strong', { textContent: welcome ? 'One more step. ' : 'Not running yet. ' }), h('span', { textContent: 'Multi-Column needs your permission to run on x.com.' }), allow);
+    show('warn', h('strong', { textContent: 'Not running yet. ' }), h('span', { textContent: 'Multi-Column needs your permission to run on x.com.' }), allow);
   }
-  if (ext && ext.permissions && ext.permissions.onAdded) { ext.permissions.onAdded.addListener(() => accessBanner()); ext.permissions.onRemoved.addListener(() => accessBanner()); } // (switched on or off in the add-ons page while this is open)
+  const accessChanged = async () => { await readAccess(); accessBanner(); welcomeBlock(true); };
+  if (ext && ext.permissions && ext.permissions.onAdded) { ext.permissions.onAdded.addListener(accessChanged); ext.permissions.onRemoved.addListener(accessChanged); } // (switched on or off in the add-ons page while this is open)
 
   // Is the extension running on the tab you are looking at, and if not, why: it has no access to x.com (a permission that can be switched off),
   // the tab was open before the extension was loaded, or it is switched off. (`?forTab=` names another tab: for the tests.)
@@ -108,18 +119,22 @@
     } catch (e) { say2('Could not check this tab (' + ((e && e.message) || e) + ').'); }
   }
 
+  const X_LOOK = { id: 'x', name: 'X (as it is)', bg: '#000000', card: '#16181c', fg: '#e7e9ea', muted: '#8b98a5', line: '#2f3336', accent: '#1d9bf0', like: '#f91880' }; // (X's own, drawn as its black theme)
+  const themeSwatch = (t) => { // a theme's page, a post's card on it, its text, its accent and its heart
+    const paint = (node, css) => { Object.assign(node.style, css); return node; };
+    const swatch = paint(h('span', { className: 'sw' }), { background: t.bg, borderColor: t.line });
+    swatch.append(
+      paint(h('span', { className: 'swcard' }, paint(h('i'), { background: t.fg }), paint(h('i'), { background: t.muted }), paint(h('b'), { background: t.accent })), { background: t.card }),
+      paint(h('em'), { background: t.like }));
+    return swatch;
+  };
   // Look > Colour theme: a card for each theme showing its page, a post's card, its text, its accent and its heart (X's own is drawn as its black theme)
   function themeCards(it, id) {
-    const all = [{ id: 'x', name: 'X (as it is)', bg: '#000000', card: '#16181c', fg: '#e7e9ea', muted: '#8b98a5', line: '#2f3336', accent: '#1d9bf0', like: '#f91880' }].concat(S.THEMES);
+    const all = [X_LOOK].concat(S.THEMES);
     const box = h('div', { id, className: 'themes', role: 'radiogroup' });
     box.setAttribute('aria-label', it.label);
     for (const t of all) {
-      const paint = (node, css) => { Object.assign(node.style, css); return node; };
-      const swatch = paint(h('span', { className: 'sw' }), { background: t.bg, borderColor: t.line });
-      swatch.append(
-        paint(h('span', { className: 'swcard' }, paint(h('i'), { background: t.fg }), paint(h('i'), { background: t.muted }), paint(h('b'), { background: t.accent })), { background: t.card }),
-        paint(h('em'), { background: t.like }));
-      const b = h('button', { type: 'button', className: 'theme', role: 'radio' }, swatch, h('span', { className: 'tn', textContent: t.name }));
+      const b = h('button', { type: 'button', className: 'theme', role: 'radio' }, themeSwatch(t), h('span', { className: 'tn', textContent: t.name }));
       b.dataset.themeId = t.id;
       b.addEventListener('click', () => persist({ theme: t.id }));
       box.append(b);
@@ -289,29 +304,66 @@
     if (old) old.replaceWith(presetsBlock());
     welcomeBlock(true);
   }
-  // The opening banner: the page the install opens (?welcome=1) starts with the starting points as large choices, so nobody has to find them
-  // further down; picking one applies it at once (as in Settings, below), and what is ticked there and here is the same.
+  // The opening page: what the install opens (?welcome=1). Four steps on one page, each a real setting changed as it is chosen, so there is nothing to confirm at the
+  // end: x.com's access (the first, until Firefox has given it), how it starts (the starting points), the keys (with a card of them) and the colours. What is ticked
+  // here and in Settings below is the same.
   let welcomeShut = false;
+  const welcomeUp = () => !welcomeShut && new URLSearchParams(location.search).has('welcome');
+  const tagged = (el, key) => { el.dataset.wf = key; return el; }; // (what had the focus, so it can have it again when the step is drawn again)
+  const WELCOME_THEMES = ['x', 'catppuccin-mocha', 'catppuccin-latte', 'gruvbox-dark'];
+  function welcomeKeys() { // the card of keys for the scheme chosen: the keys as they are now (a person's own too)
+    if (!settings.panelKeys) return h('p', { className: 'wnote', textContent: 'The letter keys are off. The arrow keys and Esc still work.' });
+    const row = (k, what) => h('div', { className: 'wkey' }, h('kbd', { textContent: k }), h('span', { textContent: what }));
+    if (settings.keyScheme === 'vim') {
+      const K = XMCKeys, b = K.bindings(settings.vimKeys), L = (...acts) => acts.map((a) => K.label(b[a])).join(' ');
+      return h('div', { className: 'wkeys' }, row(L('down', 'up'), 'Scroll'), row(L('cardUp', 'cardLeft', 'cardDown', 'cardRight'), 'Cards'), row(L('open'), 'Open'), row(L('like'), 'Like'),
+        row(L('bookmark'), 'Bookmark'), row(L('reels'), 'Reels'), row(L('mute'), 'Mute'), row(L('top', 'bottom'), 'Top, bottom'), row(L('help'), 'All the keys'));
+    }
+    const km = S.panelKeyMap(settings.keyMap), key = (a) => S.keyLabel(km[a]);
+    return h('div', { className: 'wkeys' }, row('← →', 'Pictures, then posts'), ...[['like', 'Like'], ['bookmark', 'Bookmark'], ['repost', 'Repost'], ['share', 'Copy link'], ['reply', 'Comment'], ['download', 'Download'], ['mute', 'Mute']].filter(([a]) => km[a]).map(([a, what]) => row(key(a), what)), row('Esc', 'Close'));
+  }
   function welcomeBlock(again) {
     const host = $('#welcome');
     if (!host || welcomeShut || (again && host.hidden)) return;
-    if (!new URLSearchParams(location.search).has('welcome')) return;
-    const hadFocus = host.contains(document.activeElement);
+    if (!welcomeUp()) return;
+    const focusAt = host.contains(document.activeElement) ? (document.activeElement.dataset.wf || document.activeElement.id) : '';
     const current = customPicked ? undefined : S.PRESETS.find((p) => S.presetApplies(p, settings));
+    let n = 0;
+    const step = (done, title, ...body) => h('section', { className: 'wstep' + (done ? ' done' : '') }, h('span', { className: 'wnum', 'aria-hidden': 'true', textContent: done ? '✓' : String(++n) }), h('div', { className: 'wbody' }, h('h2', { textContent: title }), ...body));
+    const steps = [];
+    if (accessState) { // 1: the access (Chrome has it from the install, and a page with no extension has no way to ask)
+      const yes = accessState === 'yes';
+      steps.push(step(yes, 'Let it run on x.com', yes ? h('p', { className: 'wnote', textContent: accessNote || 'Allowed.' })
+        : h('div', { className: 'wrow' }, tagged(h('button', { type: 'button', className: 'primary', textContent: 'Allow access to x.com', onclick: async () => {
+          const r = await askAccess();
+          if (r.ok) { accessState = 'yes'; accessNote = r.n ? 'Your x.com ' + (r.n > 1 ? 'tabs were' : 'tab was') + ' reloaded.' : 'Allowed.'; } else accessNote = 'Not allowed yet. Press the button again and choose Allow.';
+          welcomeBlock(true); accessBanner();
+        } }), 'allow'), accessNote ? h('span', { className: 'wnote', textContent: accessNote }) : null)));
+      if (yes) n++; // (a tick takes the place of its number)
+    }
     const choice = (p) => {
       const id = 'welcome-' + p.id, box = h('input', { type: 'radio', name: 'welcome', id, checked: current === p });
       box.addEventListener('change', () => { customPicked = false; persist(Object.assign({}, p.once, p.set)); build(); });
       return h('label', { className: 'wchoice' + (current === p ? ' on' : ''), htmlFor: id }, box, h('span', { className: 'wname', textContent: p.label }), h('span', { className: 'wblurb', textContent: p.blurb }));
     };
-    const close = () => { welcomeShut = true; host.hidden = true; try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } };
-    host.replaceChildren(
-      h('h2', { textContent: 'How do you want it to start?' }),
-      h('div', { className: 'wchoices', role: 'radiogroup', 'aria-label': 'Starting point' }, ...S.PRESETS.map(choice)),
+    steps.push(step(false, 'How should it start?', h('div', { className: 'wchoices', role: 'radiogroup', 'aria-label': 'Starting point' }, ...S.PRESETS.map(choice))));
+    const scheme = !settings.panelKeys ? 'none' : settings.keyScheme === 'vim' ? 'vim' : 'classic';
+    const pickScheme = (id) => { persist(id === 'none' ? { panelKeys: false } : { panelKeys: true, keyScheme: id }); build(); };
+    steps.push(step(false, 'Keybindings',
+      h('div', { className: 'wseg', role: 'radiogroup', 'aria-label': 'Keybindings' }, ...[['classic', 'Classic'], ['vim', 'Vim'], ['none', 'None']].map(([id, label]) =>
+        tagged(h('button', { type: 'button', role: 'radio', className: scheme === id ? 'on' : '', 'aria-checked': String(scheme === id), textContent: label, onclick: () => pickScheme(id) }), 'keys-' + id))),
+      welcomeKeys()));
+    steps.push(step(false, 'Colours', h('div', { className: 'wthemes', role: 'radiogroup', 'aria-label': 'Colour theme' }, ...WELCOME_THEMES.map((id) => {
+      const t = id === 'x' ? X_LOOK : S.themeOf(id), on = (settings.theme || 'x') === id;
+      return tagged(h('button', { type: 'button', role: 'radio', className: 'wtheme' + (on ? ' on' : ''), 'aria-checked': String(on), onclick: () => persist({ theme: id }) }, themeSwatch(t), h('span', { className: 'wtn', textContent: t.name.replace(' (as it is)', '') })), 'theme-' + id);
+    }), h('button', { type: 'button', className: 'wmore', textContent: 'More in Settings', onclick: () => { const look = document.getElementById('sec-look'); if (look) look.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }))));
+    const close = () => { welcomeShut = true; host.hidden = true; try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } accessBanner(); };
+    host.replaceChildren(...steps,
       h('div', { className: 'row' },
         ext && ext.tabs ? h('button', { type: 'button', className: 'primary', textContent: 'Open x.com', onclick: () => { ext.tabs.create({ url: 'https://x.com/home' }); close(); } }) : null,
-        h('button', { type: 'button', textContent: ext && ext.tabs ? 'Look at the settings first' : 'Done', onclick: close })));
+        h('button', { type: 'button', textContent: ext && ext.tabs ? 'All the settings' : 'Done', onclick: close })));
     host.hidden = false;
-    if (hadFocus) { const on = host.querySelector('input:checked'); if (on) on.focus(); }
+    if (focusAt) { const el = host.querySelector('[data-wf="' + focusAt + '"]') || document.getElementById(focusAt); if (el && host.contains(el)) el.focus(); }
   }
 
   // ---- what has been changed, and the search ----
@@ -565,6 +617,7 @@
   async function init() {
     await load();
     applyTheme();
+    await readAccess();
     build();
     welcomeBlock();
     document.querySelectorAll('section[data-nav]').forEach((s, i) => { if (!s.id) s.id = 'sec-extra-' + i; });

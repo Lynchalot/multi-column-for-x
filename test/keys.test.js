@@ -47,6 +47,7 @@ test('every action has a default, and the defaults do not clash', () => {
   assert.deepEqual(b.top, ['g', 'g']);
   assert.deepEqual(b.goHome, ['g', 'h']);
   assert.deepEqual(b.halfDown, ['C-d']);
+  assert.deepEqual(b.parent, ['u']);
 });
 
 test('every action is in a group, and every group has actions', () => {
