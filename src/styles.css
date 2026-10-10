@@ -547,7 +547,7 @@ html.xmc-boot header[role="banner"], html.xmc-boot [data-testid="sidebarColumn"]
 .xmc-vm .xmc-video, .xmc-vm video { width: 100%; max-height: min(880px, calc(100vh - 50px)); display: block; }
 .xmc-vm.sensitive img, .xmc-vm.sensitive video { filter: blur(32px); transform: scale(1.05); }
 html.xmc-nsfw-show .xmc-vm.sensitive img, html.xmc-nsfw-show .xmc-vm.sensitive video { filter: none !important; transform: none !important; }
-.xmc-vside { flex: 0 0 min(440px, 100%); min-width: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px 18px 20px; font-size: calc(15px * var(--xmc-ts, 1)); line-height: 1.4; }
+.xmc-vside { scrollbar-width: none; flex: 0 0 min(440px, 100%); min-width: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px 18px 20px; font-size: calc(15px * var(--xmc-ts, 1)); line-height: 1.4; }
 .xmc-vpanel.single .xmc-vside { flex: 1 1 auto; }
 .xmc-vside a { color: inherit; text-decoration: none; }
 .xmc-vside .xmc-text a { color: var(--xmc-accent); }
@@ -734,6 +734,16 @@ a[data-xmc-nav]:hover > div, a[data-xmc-nav]:focus-visible > div { background-co
 #xmc-lightbox button:focus-visible { outline-color: #fff; }
 /* the close cross is the same size as the arrows beside the panel */
 .xmc-vclose { width: 40px; height: 40px; }
+/* the close cross is in the panel's top right corner, over its words; the scrollbar of the words runs down the panel's right edge (drawn by sideScrollbar) */
+.xmc-vpanel { position: relative; }
+.xmc-vpanel > .xmc-vclose { top: 12px; right: 12px; width: 36px; height: 36px; z-index: 4; color: var(--xmc-fg, #fff); background: color-mix(in srgb, var(--xmc-solid, #000) 78%, transparent); box-shadow: 0 0 0 1px var(--xmc-border, rgba(255, 255, 255, .2)); }
+.xmc-vpanel > .xmc-vclose:hover { background: color-mix(in srgb, var(--xmc-fg, #fff) 14%, var(--xmc-solid, #000)); }
+.xmc-vpanel > .xmc-vclose svg { width: 18px; height: 18px; }
+.xmc-vside > .xmc-head, .xmc-vside > .xmc-vctx .xmc-head { padding-right: 44px; }
+.xmc-vside::-webkit-scrollbar { display: none; }
+.xmc-vscroll { position: absolute; top: 56px; bottom: 14px; right: 3px; width: 10px; z-index: 3; border-radius: 5px; background: color-mix(in srgb, var(--xmc-fg, #fff) 8%, transparent); touch-action: none; }
+.xmc-vsthumb { position: absolute; left: 1px; right: 1px; top: 0; border-radius: 4px; background: color-mix(in srgb, var(--xmc-fg, #fff) 42%, transparent); }
+.xmc-vsthumb:hover { background: color-mix(in srgb, var(--xmc-fg, #fff) 64%, transparent); }
 
 /* ---- folding the side panels (left menu to icons, right panel away) ---- */
 :root { --xmc-ease: cubic-bezier(.2, .8, .2, 1); }

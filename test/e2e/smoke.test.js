@@ -759,8 +759,8 @@ browserTest('Reels: the first post opens at once and fills the page with no colu
     await page.waitForFunction((id) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] !== id; }, first, { timeout: 4000 });
     const second = await openPostId(page);
     await page.mouse.move(x.panel.l + 200, x.panel.t + 300);
-    await page.mouse.wheel(0, 240); // the wheel over the post
-    await page.waitForFunction((id) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] !== id; }, second, { timeout: 4000 });
+    for (let k = 0; k < 6 && (await openPostId(page)) === second; k++) { await page.mouse.wheel(0, 240); await page.waitForTimeout(700); } // the wheel over the post (through its pictures first, if it has several: the test below)
+    assert.notEqual(await openPostId(page), second, 'the wheel reached the next post');
     await page.waitForTimeout(800);
     const third = await openPostId(page);
     await page.mouse.wheel(0, -240);
@@ -4372,5 +4372,92 @@ browserTest('a colour theme in the settings page: every theme is listed, picking
     assert.deepEqual(await v(), { bg: '#eff1f5', accent: '#1e66f5', body: 'rgb(239, 241, 245)', scheme: 'light' });
     await page.locator('#opt-theme').selectOption('x');
     assert.deepEqual(await v(), { bg: '', accent: '', body: (await v()).body, scheme: '' });
+  });
+});
+
+// ---- Reels: the wheel goes through a post's pictures before the next post (0.40.1) ----
+browserTest('Reels: the wheel over a post goes through its pictures first, then on to the next post; Shift and the wheel skip the pictures', async (e) => {
+  const h = await e.open('/home/', { settings: { reels: true, filter: 'media' }, width: 1900, height: 1000 });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForSelector('#xmc-root.xmc-reels .xmc-view .xmc-vmediapane', { timeout: 20000 });
+    for (let k = 0; k < 14 && !(await page.locator('.xmc-vmwrap .xmc-car').count()); k++) { await page.keyboard.press('ArrowDown'); await page.waitForTimeout(700); }
+    assert.equal(await page.locator('.xmc-vmwrap .xmc-car').count(), 1, 'a post with several pictures');
+    await page.waitForTimeout(600);
+    const pos = () => page.evaluate(() => document.querySelector('.xmc-vmwrap .xmc-car')._pos());
+    const [at0, total] = await pos();
+    assert.equal(at0, 0); assert.ok(total >= 2);
+    const id = await openPostId(page);
+    const box = await page.locator('.xmc-vmwrap').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    for (let i = 1; i < total; i++) { // down: each picture in turn, still the same post
+      await page.mouse.wheel(0, 240);
+      await page.waitForFunction((n) => document.querySelector('.xmc-vmwrap .xmc-car')._pos()[0] === n, i, { timeout: 3000 });
+      assert.equal(await openPostId(page), id, 'still the same post at picture ' + (i + 1));
+      await page.waitForTimeout(600);
+    }
+    await page.mouse.wheel(0, 240); // past the last picture: the next post
+    await page.waitForFunction((was) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] !== was; }, id, { timeout: 4000 });
+    await page.waitForTimeout(900);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, -240); // and up from the next post: back to this one (as the ← key does)
+    await page.waitForFunction((was) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] === was; }, id, { timeout: 4000 });
+    await page.waitForFunction(() => document.querySelector('.xmc-vmwrap .xmc-car'), null, { timeout: 3000 });
+    await page.waitForTimeout(900);
+    // Shift and the wheel: the pictures are skipped, the next post comes up at once
+    assert.equal((await pos())[0], 0);
+    await page.evaluate(() => document.querySelector('.xmc-vmediapane').dispatchEvent(new WheelEvent('wheel', { deltaY: 240, shiftKey: true, bubbles: true, cancelable: true })));
+    await page.waitForFunction((was) => { const m = /(?:tweet|number) (\d+)\b/.exec(document.querySelector('.xmc-view').innerText); return m && m[1] !== was; }, id, { timeout: 4000 });
+  });
+});
+
+// ---- the panel's own close cross and scrollbar (0.40.2) ----
+browserTest('a panel has its close cross in its top right corner, in Reels too, and it closes the panel', async (e) => {
+  for (const [name, settings] of [['panel', { cols: 3 }], ['reels', { reels: true, filter: 'media' }]]) {
+    const h = await e.open('/home/', { settings, width: 1700, height: 900 });
+    await checked(h, async () => {
+      const { page } = h;
+      await e.ready(page);
+      if (name === 'panel') await openCard(page, 90000);
+      await page.waitForSelector('.xmc-view .xmc-vpanel > .xmc-vclose', { timeout: 20000 });
+      await page.waitForTimeout(500);
+      const g = await page.evaluate(() => { const p = document.querySelector('.xmc-vpanel').getBoundingClientRect(), c = document.querySelector('.xmc-vclose').getBoundingClientRect(), side = document.querySelector('.xmc-vside').getBoundingClientRect(); return { top: c.top - p.top, right: p.right - c.right, w: c.width, inSide: c.left >= side.left && c.right <= side.right + 1 }; });
+      assert.ok(g.top >= 0 && g.top <= 20, name + ': at the top ' + JSON.stringify(g)); assert.ok(g.right >= 0 && g.right <= 20, name + ': at the right ' + JSON.stringify(g));
+      assert.ok(g.w >= 24, 'a target you can hit'); assert.equal(g.inSide, true, name + ': over the words, not the picture');
+      const head = await page.evaluate(() => { const c = document.querySelector('.xmc-vclose').getBoundingClientRect(), hd = document.querySelector('.xmc-vside .xmc-head'); if (!hd) return null; const w = hd.querySelector('.xmc-who'); const r = (w || hd).getBoundingClientRect(); return { clear: r.right <= c.left + 1 || r.bottom <= c.top || r.top >= c.bottom }; });
+      if (head) assert.equal(head.clear, true, name + ': the author’s name is not under it');
+      await page.locator('.xmc-vclose').click();
+      await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'), null, { timeout: 4000 });
+    });
+  }
+});
+
+browserTest('the panel’s scrollbar is drawn by the extension: there while the words overflow, it follows the scrolling, and it can be dragged and pressed on', async (e) => {
+  const h = await e.open('/home/', { settings: { cols: 3 }, width: 1700, height: 600 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await openCard(page, 90000);
+    await page.waitForSelector('.xmc-vscroll:not([hidden])', { timeout: 15000 });
+    await page.waitForTimeout(800);
+    const m = () => page.evaluate(() => { const s = document.querySelector('.xmc-vside'), b = document.querySelector('.xmc-vscroll').getBoundingClientRect(), t = document.querySelector('.xmc-vsthumb').getBoundingClientRect(), p = document.querySelector('.xmc-vpanel').getBoundingClientRect(); return { top: s.scrollTop, max: s.scrollHeight - s.clientHeight, native: getComputedStyle(s).scrollbarWidth, thumbTop: t.top - b.top, thumbH: t.height, trackH: b.height, inPanel: b.right <= p.right && b.left >= p.left && b.top >= p.top && b.bottom <= p.bottom, w: b.width }; });
+    let x = await m();
+    assert.equal(x.native, 'none', 'the system’s own bar is not drawn as well'); assert.equal(x.inPanel, true); assert.ok(x.w >= 6, 'wide enough to see');
+    assert.ok(x.thumbH < x.trackH, 'the thumb is a part of the track'); assert.ok(x.thumbTop < 2, 'at the top');
+    await page.locator('.xmc-vside').hover();
+    await page.mouse.wheel(0, 300);
+    await page.waitForFunction(() => document.querySelector('.xmc-vside').scrollTop > 100, null, { timeout: 3000 });
+    await page.waitForTimeout(200);
+    const y = await m();
+    assert.ok(y.thumbTop > x.thumbTop + 5, 'the thumb moved with it: ' + JSON.stringify([x.thumbTop, y.thumbTop]));
+    const t = await page.locator('.xmc-vsthumb').boundingBox();
+    await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2); await page.mouse.down(); await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2 + 60, { steps: 4 }); await page.mouse.up();
+    await page.waitForTimeout(150);
+    const z = await m();
+    assert.ok(z.top > y.top, 'dragging the thumb scrolls the words: ' + JSON.stringify([y.top, z.top]));
+    const tr = await page.locator('.xmc-vscroll').boundingBox(); // a press on the track above the thumb: a page back
+    await page.mouse.click(tr.x + tr.width / 2, tr.y + 3);
+    await page.waitForTimeout(400);
+    assert.ok((await m()).top < z.top, 'a press on the track above the thumb goes back a page');
   });
 });

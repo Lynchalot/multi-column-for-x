@@ -1090,7 +1090,7 @@
     if (old) { old.remove(); return; }
     const km = keyMap(), row = (k, what) => h('div', { className: 'kl-row' }, h('kbd', { textContent: k }), h('span', { textContent: what }));
     const card = h('div', { className: 'xmc-keylegend', role: 'dialog', 'aria-label': 'Keyboard shortcuts' },
-      ...(postView && postView.reels ? [row('\u2191 \u2193', 'Previous, next post')] : []), row('\u2190 \u2192', 'Pictures, then posts'), row('Shift \u2190 \u2192', 'Posts only'), row('Shift + wheel', 'Previous, next post'), row('Esc', 'Close'),
+      ...(postView && postView.reels ? [row('\u2191 \u2193', 'Previous, next post')] : []), row('\u2190 \u2192', 'Pictures, then posts'), row('Shift \u2190 \u2192', 'Posts only'), ...(postView && postView.reels ? [row('Wheel', 'Pictures, then posts')] : []), row('Shift + wheel', 'Previous, next post'), row('Esc', 'Close'),
       ...(settings.panelKeys ? [row('Enter', 'Picture full size')].concat(XMCSettings.PANEL_KEY_ACTIONS.filter(([a]) => km[a] && a !== 'open').map(([a, label]) => row(XMCSettings.keyLabel(km[a]), label))).concat(km.open ? [row(XMCSettings.keyLabel(km.open), 'From the feed: open the first post')] : []) : [h('div', { className: 'kl-off', textContent: 'The letter keys are off.' })]),
       h('div', { className: 'kl-foot' }, h('button', { type: 'button', textContent: 'Change keys', onclick: (e) => { e.stopPropagation(); card.remove(); openOptions('keys'); } })));
     card.addEventListener('click', (e) => e.stopPropagation());
@@ -2923,6 +2923,39 @@
     });
   }
   // A post with several pictures shows one at a time in the panel, with arrows and a dot for each, so the person can see how many there are
+  // The words' side scrolls, and a system scrollbar that hides itself until the mouse moves (an overlay one, as on most Linux) gave no sign that there was more:
+  // so the bar is drawn here, always there while the side has more than fits, and can be dragged or pressed on.
+  function sideScrollbar(panel, side) {
+    const thumb = h('div', { className: 'xmc-vsthumb' });
+    const bar = h('div', { className: 'xmc-vscroll', 'aria-hidden': 'true' }, thumb);
+    const sync = () => {
+      const ch = side.clientHeight, sh = side.scrollHeight, on = sh > ch + 2;
+      bar.hidden = !on;
+      if (!on) return;
+      const track = bar.clientHeight, len = Math.max(28, Math.round(track * ch / sh));
+      thumb.style.height = len + 'px';
+      thumb.style.transform = 'translateY(' + Math.round((track - len) * side.scrollTop / (sh - ch)) + 'px)';
+    };
+    let queued = 0;
+    const soon = () => { if (!queued) queued = requestAnimationFrame(() => { queued = 0; sync(); }); };
+    side.addEventListener('scroll', soon, { passive: true });
+    thumb.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      thumb.setPointerCapture(e.pointerId);
+      const y0 = e.clientY, top0 = side.scrollTop, k = (side.scrollHeight - side.clientHeight) / Math.max(1, bar.clientHeight - thumb.offsetHeight);
+      const move = (m) => { side.scrollTop = top0 + (m.clientY - y0) * k; };
+      const up = () => { thumb.removeEventListener('pointermove', move); thumb.removeEventListener('pointerup', up); thumb.removeEventListener('pointercancel', up); };
+      thumb.addEventListener('pointermove', move); thumb.addEventListener('pointerup', up); thumb.addEventListener('pointercancel', up);
+    });
+    bar.addEventListener('pointerdown', (e) => { if (e.target !== bar) return; e.stopPropagation(); side.scrollBy({ top: (e.clientY < thumb.getBoundingClientRect().top ? -1 : 1) * side.clientHeight * 0.9 }); }); // (on the track: a page up or down)
+    panel.append(bar);
+    if (typeof ResizeObserver !== 'undefined' && typeof MutationObserver !== 'undefined') {
+      const ro = new ResizeObserver(soon), mo = new MutationObserver(soon);
+      ro.observe(side); ro.observe(panel); mo.observe(side, { childList: true, subtree: true });
+      panel._so = [ro, mo]; // (let go when the panel closes)
+    }
+    soon();
+  }
   function carousel(pane) {
     const slides = [...pane.querySelectorAll(':scope > .xmc-vm')];
     if (slides.length < 2) return;
@@ -3101,11 +3134,12 @@
     if (media) carousel(media);
     const side = viewSide(t, focusBox, parent);
     const mediaHost = reels && !parent && media ? h('div', { className: 'xmc-vmwrap' }, media) : media; // (in Reels the rail sits on the post, not scrolling with it)
-    const panel = h('div', { className: 'xmc-vpanel' + (media ? '' : ' single') }, mediaHost, side);
+    const closeBtn = h('button', { className: 'xmc-vclose', type: 'button', title: 'Close (Esc)', 'aria-label': 'Close' }, icon('close')); // (in the panel's top right corner: its own, not the page's)
+    const panel = h('div', { className: 'xmc-vpanel' + (media ? '' : ' single') }, mediaHost, side, closeBtn);
+    sideScrollbar(panel, side);
     const idx = view.cards.indexOf(t);
     const nav = (d, ic, label) => h('button', { className: 'xmc-vnav ' + (d < 0 ? 'prev' : 'next'), type: 'button', title: label, hidden: idx < 0 || !view.cards[idx + d], onclick: (e) => { e.stopPropagation(); stepPostView(d); } }, icon(ic));
     const el = h('div', { className: 'xmc-view' + (still ? ' xmc-still' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Post by ' + t.author.name }, panel, nav(-1, 'prev', 'Previous post (\u2190)'), nav(1, 'next', 'Next post (\u2192)'),
-      h('button', { className: 'xmc-vclose', type: 'button', title: 'Close (Esc)' }, icon('close')),
       h('button', { className: 'xmc-vkeys', type: 'button', title: 'Keyboard shortcuts', 'aria-label': 'Keyboard shortcuts', onclick: (e) => { e.stopPropagation(); keyLegend(el); } }, icon('keyboard')));
     if (reels && opts && opts.dir) el.classList.add(opts.dir > 0 ? 'xmc-sd' : 'xmc-su'); // (slides in from below going forward, from above going back)
     el.addEventListener('click', (e) => {
@@ -3181,7 +3215,7 @@
     if (reels) {
       prevBtn.title = 'Previous post (\u2191)'; prevBtn.setAttribute('aria-label', 'Previous post'); nextBtn.title = 'Next post (\u2193)'; nextBtn.setAttribute('aria-label', 'Next post');
       if (media) { // the wheel over the post goes to the next or previous post
-        media.addEventListener('wheel', (e) => { e.preventDefault(); e.stopImmediatePropagation(); wheelStep(e, wheelPx(e, e.deltaY)); }, { passive: false, capture: true });
+        media.addEventListener('wheel', (e) => { e.preventDefault(); e.stopImmediatePropagation(); wheelStep(e, wheelPx(e, e.deltaY), true); }, { passive: false, capture: true });
       }
       if (!postView.rail) placeNav();
     }
@@ -3217,12 +3251,12 @@
   // One step for each flick of a wheel or trackpad (a trackpad goes on sending events for a second or more after the finger has left; a step is not taken
   // from the tail of the one before, and the panel that comes up after a step has no memory of it, so the gate is here)
   let wheelStepAt = -1e9, wheelSeenAt = -1e9;
-  function wheelStep(e, d) {
+  function wheelStep(e, d, pictures) { // pictures: through the post's own pictures first, as the arrow keys do (the wheel over a post in Reels); not: straight to the next post (Shift and the wheel)
     const quiet = e.timeStamp - wheelSeenAt > 160;
     wheelSeenAt = e.timeStamp;
     if (Math.abs(d) < 4 || e.timeStamp - wheelStepAt < 450 || (!quiet && e.timeStamp - wheelStepAt < 1500)) return;
     wheelStepAt = e.timeStamp;
-    stepPostView(d > 0 ? 1 : -1);
+    if (pictures) walkPanel(d > 0 ? 1 : -1, false); else stepPostView(d > 0 ? 1 : -1);
   }
   const readCard = (t) => seenBefore.has(t.id) || seenNow.has(t.id);
   const openIndex = () => { if (!postView) return -1; const i = view.cards.indexOf(postView.t); return i >= 0 ? i : view.cards.findIndex((c) => c.id === postView.t.id); }; // (the card list is made again when the feed changes: the post is then found by its number)
@@ -3328,6 +3362,7 @@
     pagers.clear(); // no panel, no more comments to fetch for it (a visit under way for them stops at its next step)
     const el = postView.el;
     if (el._ro) el._ro.disconnect();
+    if (postView.panel && postView.panel._so) postView.panel._so.forEach((o) => o.disconnect());
     if (!instant) { if (postView.reels) state.reelsOff = feedRoute(); root.classList.remove('xmc-reels'); } // (left Reels: the columns, until the page is left or the Reels button is pressed)
     postView = null;
     if (!instant && panelOpener && panelOpener.isConnected && el.contains(document.activeElement)) panelOpener.focus({ preventScroll: true }); // keyboard user: back to the button they pressed
