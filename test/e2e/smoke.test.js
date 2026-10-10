@@ -5937,6 +5937,48 @@ browserTest('a profile’s Reposts tab is a profile page like the others (X’s 
 }, 90000);
 
 // ---- lists of people (0.47.0): Followers, Following, a List's members as cards ----
+browserTest('NSFW only: the Show menu has it when the setting adds it, and choosing it shows only the sensitive posts; without the setting there is no such choice', async (e) => {
+  const on = await e.open('/home/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 3, nsfwView: true, seen: 'off' } });
+  await checked(on, async () => {
+    const { page } = on;
+    await e.ready(page, 12);
+    await page.locator('.xmc-showbtn').click();
+    await page.locator('.xmc-menu button', { hasText: 'NSFW only' }).first().click();
+    await page.waitForFunction(() => window.__xmc.settings.filter === 'nsfw', null, { timeout: 4000 });
+    await page.waitForTimeout(600);
+    const r = await page.evaluate(() => { const cs = window.__xmc.view.cards; return { n: cs.length, all: cs.every((t) => t.sensitive || (t.quoted && t.quoted.sensitive)), label: document.querySelector('.xmc-showbtn').textContent }; });
+    assert.ok(r.n >= 1, 'some sensitive posts');
+    assert.equal(r.all, true, 'only sensitive posts');
+    assert.match(r.label, /NSFW only/);
+  });
+  const off = await e.open('/home/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 3, seen: 'off' } });
+  await checked(off, async () => {
+    const { page } = off;
+    await e.ready(page, 12);
+    await page.locator('.xmc-showbtn').click();
+    await page.waitForSelector('.xmc-menu button');
+    assert.equal(await page.locator('.xmc-menu button', { hasText: 'NSFW only' }).count(), 0);
+  });
+}, 90000);
+
+browserTest('Followers you know: they are people you follow already, so there is no "You don’t follow back" choice and no Following mark on each', async (e) => {
+  const h = await e.open('/user1/followers_you_follow/', { width: 2000, height: 1000, settings: { v: 11, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page, 6);
+    await page.waitForSelector('.xmc-person', { timeout: 8000 });
+    await page.waitForFunction(() => !document.querySelector('.xmc-bar3').hidden, null, { timeout: 8000 }); // (the search row is up)
+    assert.equal(await page.evaluate(() => [...document.querySelectorAll('.xmc-bar3 .xmc-fchip')].some((c) => !c.hidden && /follow back/i.test(c.textContent))), false, 'no follow-back choice');
+    assert.equal(await page.evaluate(() => [...document.querySelectorAll('.xmc-person .xmc-pmark')].some((m) => m.textContent === 'Following')), false, 'no Following mark: all of them are');
+  });
+  const f = await e.open('/user1/followers/', { width: 2000, height: 1000, settings: { v: 11, hintSeen: true } });
+  await checked(f, async () => {
+    const { page } = f;
+    await e.ready(page, 6);
+    await page.waitForFunction(() => [...document.querySelectorAll('.xmc-bar3 .xmc-fchip')].some((c) => !c.hidden && /follow back/i.test(c.textContent)), null, { timeout: 8000 });
+  });
+}, 90000);
+
 browserTest('Followers: the people are cards in columns (name, handle, what the page says about the follow, the bio), there is no Show menu, a search narrows by name and bio, "You don’t follow back" keeps those you do not follow, a press opens the profile, and the post keys leave a person alone', async (e) => {
   const h = await e.open('/user1/followers/', { width: 2000, height: 1000, settings: { v: 10, hintSeen: true } });
   await checked(h, async () => {

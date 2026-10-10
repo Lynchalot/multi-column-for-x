@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.48.6
+- **Followers you know has no "You don't follow back" choice.** Those are the followers of that profile that you follow already, so the choice could never keep anyone, and each card said Following. The choice is gone there and so is the mark (Follows you still shows where it is true). Followers, Verified followers and Following keep theirs.
+- **NSFW only in the Show menu** (*Offer NSFW only in the Show menu*, Settings, Look, next to the Sensitive media setting; off to begin with). Adds a choice that shows only the posts X marks as sensitive (a post, or the one it quotes), once the feed has some; the media in them is blurred or shown as the Sensitive media setting says. Not offered while that setting is Hide those posts. Switching the setting off puts the view back on Everything.
+- Tests: Followers you know (no choice, no mark; Followers still has it), the NSFW view (the setting adds the choice, only sensitive posts, none without the setting; the unit rules).
+
 ## 0.48.5
 - **Posts, quotes and media no longer come up blank after a long session.** On a long For you feed far-off posts give their contents back (an empty box of the same height, to save memory), and are filled again when you scroll back. Changing the view (the Show menu, a tab) drew those empty boxes again in the new view, and the count that tells the page to fill them again had been reset to zero, so nothing ever did: boxes the right size and nothing in them, until the page was reloaded. A post that had given its contents back is now drawn afresh when the view changes, and a box that is found empty with nothing counting it is filled where it is placed. (Following was fine because it rarely has enough posts for any to be given back.) The test fails on 0.48.4.
 - **Copy link is on q** with the Vim keys (it was y; q is where the Simple keys have had it). A key you have set yourself is not touched.

@@ -688,7 +688,7 @@
       h('a', { className: 'xmc-avatar xmc-nav', href: t.url, tabIndex: -1, 'aria-hidden': 'true' }, h('img', { src: u.avatar, alt: '', loading: 'lazy' })),
       h('div', { className: 'xmc-who' }, h('a', { className: 'xmc-name xmc-nav', href: t.url }, u.name, badge(u)), h('div', { className: 'xmc-sub', textContent: '@' + u.handle }))));
     const kind = peopleKind(); // (what the page already says is not said again: on Followers all of them follow you, on Following you follow all of them)
-    const marks = [u.following && kind !== 'following' ? 'Following' : '', t.followedBy && kind !== 'followers' ? 'Follows you' : ''].filter(Boolean);
+    const marks = [u.following && kind !== 'following' && kind !== 'known' ? 'Following' : '', t.followedBy && kind !== 'followers' ? 'Follows you' : ''].filter(Boolean);
     if (marks.length) card.append(h('div', { className: 'xmc-pmarks' }, ...marks.map((m) => h('span', { className: 'xmc-pmark' + (m === 'Following' ? ' on' : ''), textContent: m }))));
     if (t.bio) card.append(h('div', { className: 'xmc-text xmc-pbio' }, renderSegs(t.segs)));
     return card;
@@ -785,7 +785,7 @@
   const tabsEl = h('div', { className: 'xmc-tabs' });
   tabsEl.style.display = 'contents';
   const btn = (text, title, onclick, cls) => h('button', { textContent: text, title, onclick, type: 'button', className: cls || '' });
-  const VIEW_LABELS = { all: () => 'Everything', posts: () => 'Posts only', reposts: () => T('reposts'), quotes: () => T('quotes'), replies: () => 'Replies', media: () => 'Media', photos: () => 'Photos', videos: () => 'Videos' };
+  const VIEW_LABELS = { all: () => 'Everything', posts: () => 'Posts only', reposts: () => T('reposts'), quotes: () => T('quotes'), replies: () => 'Replies', media: () => 'Media', nsfw: () => 'NSFW only', photos: () => 'Photos', videos: () => 'Videos' };
   const viewEls = {};
   for (const key of Object.keys(VIEW_LABELS)) viewEls[key] = btn('', '', () => setFilter(key), 'xmc-chip');
   // X's profile Media tab is now split into Videos and Photos (a dropdown on the tab); these two press X's real choice
@@ -1997,7 +1997,7 @@
   const FIND_DEEP = 1000;
   const findPage = () => !!settings.findBar && (XMCLogic.isLikesPage(feedRoute().split('?')[0]) || feedKind() === 'bookmarks' || feedKind() === 'people');
   // which list of people this is: Followers (the ones who follow you back can be told from the rest), Following, or a List's members (no \"back\")
-  const peopleKind = () => { const p = feedRoute().split('?')[0]; return feedKind() !== 'people' ? '' : /\/following\/?$/.test(p) ? 'following' : /\/(followers|verified_followers|followers_you_follow)\/?$/.test(p) && !/^\/i\/lists\//.test(p) ? 'followers' : 'list'; };
+  const peopleKind = () => { const p = feedRoute().split('?')[0]; return feedKind() !== 'people' ? '' : /\/following\/?$/.test(p) ? 'following' : /\/followers_you_follow\/?$/.test(p) ? 'known' : /\/(followers|verified_followers)\/?$/.test(p) && !/^\/i\/lists\//.test(p) ? 'followers' : 'list'; }; // (known: the followers you know are all people you follow already)
   function findState() {
     const route = feedRoute().split('?')[0];
     if (!state.find || state.find.route !== route) state.find = { route, q: '', accounts: [], kinds: [], deep: 0, chipSig: '', statusSig: '', people: '' };
@@ -2033,7 +2033,7 @@
     const fnd = findState(), likes = XMCLogic.isLikesPage(feedRoute().split('?')[0]), people = feedKind() === 'people', noun = people ? 'people' : likes ? 'likes' : 'bookmarks';
     findInput.hidden = !(likes || people);
     findInput.setAttribute('aria-label', people ? 'Search these people' : 'Search your likes');
-    for (const [k, el] of Object.entries(findKindEls)) el.hidden = k === 'noback' ? !(people && fnd.people !== 'list') : people; // (people: only the one choice, and not on a List)
+    for (const [k, el] of Object.entries(findKindEls)) el.hidden = k === 'noback' ? !(people && fnd.people !== 'list' && fnd.people !== 'known') : people; // (people: only the one choice, and not on a List or on Followers you know, who are all people you follow)
     findKindEls.noback.textContent = fnd.people === 'following' ? 'Doesn\u2019t follow you back' : 'You don\u2019t follow back';
     if (document.activeElement !== findInput && findInput.value !== fnd.q) findInput.value = fnd.q;
     if (fnd.deep && (f.exhausted || f.items.length >= fnd.deep)) fnd.deep = 0; // (read what was asked, or all there is)

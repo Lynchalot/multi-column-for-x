@@ -126,6 +126,7 @@ function pageFor(path) {
   if (p === '/user/media') return timelinePage({ title: 'user / Media / X', tabs: [{ label: 'Posts' }, { label: 'Replies' }, { label: 'Reposts' }, { label: 'Videos', feed: 'UserMedia' }], selected: 3, dropdown: { tab: 3, items: ['Videos', 'Photos'], kind: 'media' } });
   if (p === '/user1/likes') return timelinePage({ title: 'user1 / Likes / X', tabs: [{ label: 'Posts' }, { label: 'Replies' }, { label: 'Media' }, { label: 'Likes', feed: 'Likes' }], selected: 3 });
   if (p === '/i/bookmarks') return timelinePage({ title: 'Bookmarks / X', tabs: [{ label: 'Bookmarks', feed: 'Bookmarks' }], selected: 0 });
+  if (p === '/user1/followers_you_follow') return timelinePage({ title: 'user1 / Followers you know / X', tabs: [{ label: 'Followers you know', feed: 'FollowersYouKnow' }, { label: 'Followers' }, { label: 'Verified Followers' }], selected: 0 });
   if (p === '/user1/followers') return timelinePage({ title: 'user1 / Followers / X', tabs: [{ label: 'Followers you know' }, { label: 'Followers', feed: 'Followers' }, { label: 'Verified Followers' }], selected: 1 });
   if (p === '/user1/following') return timelinePage({ title: 'user1 / Following / X', tabs: [{ label: 'Following', feed: 'Following' }], selected: 0 });
   if (p === '/i/lists/123/members') return timelinePage({ title: 'List members / X', tabs: [{ label: 'Members', feed: 'ListMembers' }], selected: 0 });

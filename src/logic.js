@@ -4,6 +4,7 @@ var XMCLogic = (function () {
   'use strict';
 
   const kindOf = (t) => (t.repostedBy ? 'repost' : t.quoted ? 'quote' : t.replyTo ? 'reply' : 'post');
+  const isSensitive = (t) => !!(t.sensitive || (t.quoted && t.quoted.sensitive)); // (the post, or the one it quotes: as the Hide setting counts it)
 
   // Followers, Following, the verified ones and the ones you know, of a profile; a List's members and followers
   const isPeoplePage = (pathname) => /^\/(?!i\/)[^/]+\/(followers|following|verified_followers|followers_you_follow)\/?$/.test(pathname || '') || /^\/i\/lists\/\d+\/(members|followers)\/?$/.test(pathname || '');
@@ -34,6 +35,7 @@ var XMCLogic = (function () {
     if (modeFor('quote', where, s) !== 'hide') out.push('quotes');
     if (modeFor('reply', where, s) === 'tab') out.push('replies'); // shelved otherwise: a timeline holds a handful of replies and finding them is slow
     out.push('media');
+    if (s.nsfwView && s.nsfw !== 'hide') out.push('nsfw'); // (a choice for the sensitive ones only: the setting adds it, and a person who hides them has no use for it)
     return out;
   }
 
@@ -48,6 +50,7 @@ var XMCLogic = (function () {
     const have = new Set();
     for (const t of items) {
       have.add(kindOf(t));
+      if (isSensitive(t)) have.add('sensitive');
       if (t.media && t.media.length) have.add('media');
       for (const m of t.media || []) have.add(isVideo(m) ? 'video' : 'photo');
     }
@@ -55,7 +58,7 @@ var XMCLogic = (function () {
       const kinds = { photos: 'photo', videos: 'video' };
       return ['all', 'photos', 'videos'].filter((v) => v === 'all' || v === current || have.has(kinds[v]));
     }
-    const kindOfView = { posts: 'post', reposts: 'repost', quotes: 'quote', replies: 'reply', media: 'media' };
+    const kindOfView = { posts: 'post', reposts: 'repost', quotes: 'quote', replies: 'reply', media: 'media', nsfw: 'sensitive' };
     return viewsFor(where, s).filter((v) => v === 'all' || v === current || have.has(kindOfView[v]));
   }
 
@@ -130,6 +133,7 @@ var XMCLogic = (function () {
       case 'quotes': return kind === 'quote';
       case 'replies': return kind === 'reply';
       case 'media': return t.media.length > 0;
+      case 'nsfw': return isSensitive(t);
       case 'photos': return t.media.some((m) => !isVideo(m));
       case 'videos': return t.media.some(isVideo);
       default: return mode !== 'tab'; // "all" leaves out anything that lives on its own tab

@@ -126,7 +126,7 @@ function makeApi(origin, pages, media) {
         avatar: { image_url: `${imgHost}/img/a5_normal.svg` }, location: { location: 'Valley Forge' },
         legacy: { description: 'Bio of user five', followers_count: 1234, friends_count: 97, profile_banner_url: `${imgHost}/img/b5`, entities: { description: { urls: [] } } } } } } };
     }
-    if (/^(Followers|Following|ListMembers)$/.test(op)) return peoplePage(op, vars.cursor);
+    if (/^(Followers|Following|FollowersYouKnow|ListMembers)$/.test(op)) return peoplePage(op, vars.cursor);
     if (op === 'ListByRestId') return { data: { list: { __typename: 'List', id_str: '123', name: 'Psyop' } } };
     return page(op, vars.cursor, vars.newer || 0);
   }
