@@ -522,3 +522,16 @@ test('settings: Reels sets the panel to play with sound and go on, and the Show 
   const n = S.normalize({ panelVideo: 'loud', videoEnd: 'next', skipSeen: 'yes', prefetchNext: false });
   assert.deepEqual([n.panelVideo, n.videoEnd, n.skipSeen, n.prefetchNext], [S.DEFAULTS.panelVideo, 'next', S.DEFAULTS.skipSeen, false], 'a value that is not one of the choices is put back');
 });
+
+test('attachments: up to four pictures, or one GIF or video, never both; other files are refused with a reason', () => {
+  const ph = { type: 'image/png' }, jp = { type: 'image/jpeg' }, gif = { type: 'image/gif' }, mp4 = { type: 'video/mp4' }, pdf = { type: 'application/pdf' };
+  assert.deepEqual(L.attachPlan([], [ph, jp, ph, jp, ph]), { taken: [0, 1, 2, 3], notes: ['Four pictures at most.'] });
+  assert.deepEqual(L.attachPlan([ph, ph, ph], [jp, jp]), { taken: [0], notes: ['Four pictures at most.'] });
+  assert.deepEqual(L.attachPlan([], [gif]), { taken: [0], notes: [] });
+  assert.deepEqual(L.attachPlan([], [mp4, gif]), { taken: [0], notes: ['One GIF or video at most.'] });
+  assert.deepEqual(L.attachPlan([ph], [mp4]), { taken: [], notes: ['A GIF or a video goes alone, without pictures.'] });
+  assert.deepEqual(L.attachPlan([mp4], [ph]), { taken: [], notes: ['A GIF or a video goes alone.'] });
+  assert.deepEqual(L.attachPlan([], [pdf, ph]).taken, [1]);
+  assert.match(L.attachPlan([], [pdf]).notes[0], /can.t be attached/);
+  assert.deepEqual(L.attachPlan([], []), { taken: [], notes: [] });
+});

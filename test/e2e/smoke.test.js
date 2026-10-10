@@ -360,6 +360,139 @@ browserTest('the columns follow the panel, so the feed goes on drawing and loadi
   });
 }, 150000);
 
+// ---- the comment box's tools (0.37.0): pictures, emoji, and a GIF through X's own box ----
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+const pic = (name, type = 'image/png', buffer = PNG) => ({ name, mimeType: type, buffer });
+async function openBox(e, settings) {
+  const h = await e.open('/home/', { settings });
+  const { page } = h;
+  await e.ready(page);
+  await openCard(page, '90000');
+  await page.waitForSelector('textarea.xmc-cbox', { timeout: 20000 });
+  return h;
+}
+async function chooseFiles(page, files) {
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('.xmc-view .xmc-cimg').click();
+  await (await chooser).setFiles(files);
+}
+
+browserTest('the comment box has Picture, GIF and Emoji buttons, and nothing under them is made until one is pressed', async (e) => {
+  const h = await openBox(e);
+  await checked(h, async () => {
+    const { page } = h;
+    assert.deepEqual(await page.locator('.xmc-view .xmc-ctool').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label'))), ['Add pictures, a GIF or a video', 'GIF: opens X’s own reply box with your words', 'Emoji']);
+    assert.equal(await page.locator('.xmc-view .xmc-emoji, .xmc-view .xmc-cfile, .xmc-view .xmc-cstrip:not([hidden])').count(), 0, 'no picker, no file input, no strip yet');
+    assert.equal(await page.locator('.xmc-view .xmc-csend').isDisabled(), true, 'nothing to send');
+  });
+});
+
+browserTest('emoji: the picker puts one where the cursor is, stays open for more, takes the keys itself and closes on Esc without closing the post', async (e) => {
+  const h = await openBox(e);
+  await checked(h, async () => {
+    const { page } = h;
+    const box = page.locator('.xmc-view textarea.xmc-cbox');
+    await box.fill('hello world');
+    await box.evaluate((b) => { b.focus(); b.setSelectionRange(5, 5); });
+    await page.locator('.xmc-view .xmc-cemo').click();
+    await page.waitForSelector('.xmc-view .xmc-emoji .xmc-emo');
+    await page.locator('.xmc-view .xmc-emo').first().click();
+    const first = await page.locator('.xmc-view .xmc-emo').first().innerText();
+    assert.equal(await box.inputValue(), 'hello' + first + ' world', 'at the cursor');
+    assert.equal(await page.locator('.xmc-view .xmc-emoji').count(), 1, 'still open');
+    assert.equal(await page.locator('.xmc-view .xmc-csend').isDisabled(), false);
+    const at = await openPostId(page);
+    await page.keyboard.press('ArrowRight'); // moves over the emoji, not on to the next post
+    await page.keyboard.press('a'); // and a letter is not "like"
+    assert.equal(await openPostId(page), at);
+    assert.equal(await page.evaluate(() => (window.__actions || []).filter((x) => /^liked/.test(x)).length), 0);
+    await page.locator('.xmc-view .xmc-etab').nth(1).click(); // another set
+    assert.notEqual(await page.locator('.xmc-view .xmc-emo').first().innerText(), first);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.xmc-view .xmc-emoji').count(), 0, 'closed');
+    assert.equal(await page.locator('.xmc-view').count(), 1, 'the post is still open');
+    assert.equal(await page.evaluate(() => document.activeElement.className), 'xmc-ctool xmc-cemo', 'back on the button');
+    await page.locator('.xmc-view .xmc-cemo').click(); // and the one just used comes first next time
+    assert.equal(await page.locator('.xmc-view .xmc-etab').first().getAttribute('aria-label'), 'Recent');
+  });
+});
+
+browserTest('pictures: chosen, shown, removable, kept to four (or one GIF or video), sent through X\'s own file input with the words, and sendable with no words', async (e) => {
+  const h = await openBox(e);
+  await checked(h, async () => {
+    const { page } = h;
+    await chooseFiles(page, [pic('a.png'), pic('b.png'), pic('c.jpg', 'image/jpeg')]);
+    assert.equal(await page.locator('.xmc-view .xmc-cthumb').count(), 3);
+    assert.equal(await page.locator('.xmc-view .xmc-csend').isDisabled(), false, 'pictures alone are enough');
+    await chooseFiles(page, [pic('d.png'), pic('e.png')]);
+    assert.equal(await page.locator('.xmc-view .xmc-cthumb').count(), 4, 'four at most');
+    assert.match(await page.locator('.xmc-view .xmc-cnote').innerText(), /Four pictures at most/);
+    await chooseFiles(page, [pic('g.gif', 'image/gif')]);
+    assert.match(await page.locator('.xmc-view .xmc-cnote').innerText(), /goes alone/);
+    await page.locator('.xmc-view .xmc-cx').nth(3).click();
+    await page.locator('.xmc-view .xmc-cx').nth(2).click();
+    assert.equal(await page.locator('.xmc-view .xmc-cthumb').count(), 2);
+    await page.locator('.xmc-view textarea.xmc-cbox').fill('look at this');
+    await page.locator('.xmc-view .xmc-csend').click();
+    await page.waitForFunction(() => (window.__replies || []).length === 1, null, { timeout: 30000 });
+    const sent = await page.evaluate(() => window.__replies[0]);
+    assert.equal(sent.to, '90000'); assert.equal(sent.text, 'look at this');
+    assert.deepEqual(sent.files.map((f) => f.split(':')[0]), ['a.png', 'b.png'], 'X\'s box got the two that were left, in order');
+    assert.equal(sent.files[0].split(':')[1], String(PNG.length), 'the bytes, not just the name');
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-view .xmc-cthumb').length === 0, null, { timeout: 8000 });
+    // pictures and no words
+    await page.waitForSelector('.xmc-view textarea.xmc-cbox');
+    await chooseFiles(page, [pic('only.png')]);
+    await page.locator('.xmc-view .xmc-csend').click();
+    await page.waitForFunction(() => (window.__replies || []).length === 2, null, { timeout: 30000 });
+    assert.deepEqual(await page.evaluate(() => ({ text: window.__replies[1].text, n: window.__replies[1].files.length })), { text: '', n: 1 });
+  });
+}, 120000);
+
+browserTest('the reply waits for X to have taken the pictures (its Reply button comes on only then)', async (e) => {
+  const h = await openBox(e);
+  await checked(h, async () => {
+    const { page } = h;
+    await page.evaluate(() => { window.__uploadMs = 2500; });
+    await chooseFiles(page, [pic('slow.png')]);
+    await page.locator('.xmc-view .xmc-csend').click();
+    await page.waitForTimeout(1500);
+    assert.equal(await page.evaluate(() => (window.__replies || []).length), 0, 'not sent while "uploading"');
+    await page.waitForFunction(() => (window.__replies || []).length === 1, null, { timeout: 30000 });
+    assert.equal(await page.evaluate(() => window.__replies[0].files.length), 1);
+  });
+}, 90000);
+
+browserTest('a picture pasted into the box is attached; a file of another kind is refused with a reason', async (e) => {
+  const h = await openBox(e);
+  await checked(h, async () => {
+    const { page } = h;
+    await page.locator('.xmc-view textarea.xmc-cbox').evaluate((b, bytes) => {
+      const dt = new DataTransfer(); dt.items.add(new File([new Uint8Array(bytes)], 'pasted.png', { type: 'image/png' }));
+      b.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, [...PNG]);
+    assert.equal(await page.locator('.xmc-view .xmc-cthumb').count(), 1);
+    await chooseFiles(page, [{ name: 'doc.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF') }]);
+    assert.equal(await page.locator('.xmc-view .xmc-cthumb').count(), 1);
+    assert.match(await page.locator('.xmc-view .xmc-cnote').innerText(), /can.t be attached/);
+  });
+});
+
+browserTest('the GIF button opens X\'s own reply box for this post in a new tab, with the words so far', async (e) => {
+  const h = await openBox(e);
+  await checked(h, async () => {
+    const { page } = h;
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
+    await page.locator('.xmc-view textarea.xmc-cbox').fill('this & that');
+    await page.locator('.xmc-view .xmc-cgif').click();
+    const u = new URL(await page.evaluate(() => window.__opened[0]));
+    assert.equal(u.pathname, '/intent/post');
+    assert.equal(u.searchParams.get('in_reply_to'), '90000');
+    assert.equal(u.searchParams.get('text'), 'this & that');
+    assert.equal(await page.locator('.xmc-view textarea.xmc-cbox').inputValue(), 'this & that', 'what was written is still there');
+  });
+});
+
 browserTest('a post\'s own page: Download and Copy link buttons, and fewer buttons under replies', async (e) => {
   const h = await e.open('/user/status/90001/');
   await checked(h, async () => {
@@ -2415,6 +2548,13 @@ browserTest('everything that can be pressed is at least 24 px each way and has a
     await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 25000 });
     await page.waitForTimeout(500);
     await audit('the post panel and its comments');
+    await page.locator('.xmc-view .xmc-cemo').click(); // the comment box's tools: the emoji picker open, and a picture with its remove button
+    await page.waitForSelector('.xmc-view .xmc-emoji .xmc-emo');
+    await audit('the emoji picker');
+    await page.keyboard.press('Escape');
+    await chooseFiles(page, [pic('a.png')]);
+    await page.waitForSelector('.xmc-view .xmc-cthumb');
+    await audit('a picture in the comment box');
     await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
     // the viewer
     await page.evaluate(() => document.querySelector('.xmc-card [data-lb]').focus());

@@ -278,7 +278,28 @@ html.xmc-nsfw-show .xmc-qmedia.sens { filter: none; }
   border: 1px solid var(--xmc-border); border-radius: 12px; padding: 8px 10px; }
 .xmc-cbox:focus { outline: none; border-color: var(--xmc-accent); }
 .xmc-crow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; min-height: 30px; }
-.xmc-cnote { font-size: calc(12px * var(--xmc-ts, 1)); }
+.xmc-cnote { font-size: calc(12px * var(--xmc-ts, 1)); flex: 1; min-width: 0; }
+/* the comment box's tools: pictures, a GIF (X's own box), emoji; everything under them is made when one is pressed */
+.xmc-compose { position: relative; }
+.xmc-ctools { display: flex; align-items: center; gap: 2px; flex: none; }
+.xmc-ctool { appearance: none; border: 0; background: none; color: var(--xmc-accent); cursor: pointer; min-width: 32px; height: 32px; padding: 0 6px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: inherit; font-size: calc(11px * var(--xmc-ts, 1)); font-weight: 800; }
+.xmc-ctool:hover, .xmc-ctool[aria-expanded="true"] { background: color-mix(in srgb, var(--xmc-accent) 14%, transparent); }
+.xmc-ctool svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-cgif span { border: 2px solid currentColor; border-radius: 5px; padding: 0 3px; line-height: 14px; letter-spacing: .02em; }
+.xmc-cfile { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.xmc-cstrip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.xmc-cthumb { position: relative; width: 84px; height: 84px; border-radius: 12px; overflow: hidden; background: var(--xmc-surface); border: 1px solid var(--xmc-border); }
+.xmc-cthumb img, .xmc-cthumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.xmc-cx { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; background: rgba(0, 0, 0, .7); color: #fff; font-size: 16px; line-height: 24px; text-align: center; }
+.xmc-cx:hover { background: rgba(0, 0, 0, .9); }
+.xmc-emoji { position: absolute; left: 0; top: calc(100% + 4px); z-index: 3; width: min(100%, 340px); box-sizing: border-box; padding: 8px; border-radius: 14px; background: #16181c; color: #e7e9ea; border: 1px solid #2f3336; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); }
+.xmc-emoji.up { top: auto; bottom: calc(100% + 4px); }
+.xmc-etabs { display: flex; gap: 2px; padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid #2f3336; }
+.xmc-etab, .xmc-emo { appearance: none; border: 0; background: none; cursor: pointer; font: inherit; font-size: 18px; line-height: 1; width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+.xmc-etab:hover, .xmc-emo:hover { background: rgba(255, 255, 255, .1); }
+.xmc-etab.on { background: rgba(29, 155, 240, .25); }
+.xmc-etab:focus-visible, .xmc-emo:focus-visible { outline: 2px solid #1d9bf0; outline-offset: -2px; }
+.xmc-egrid { display: flex; flex-wrap: wrap; max-height: 216px; overflow-y: auto; scrollbar-width: thin; }
 .xmc-csend { background: var(--xmc-accent) !important; color: #fff !important; border-color: transparent !important; }
 .xmc-csend:disabled { opacity: .45; cursor: default; }
 

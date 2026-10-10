@@ -304,7 +304,26 @@ var XMCLogic = (function () {
   };
   const controlSel = (kind, which) => (which === undefined ? CONTROLS[kind] : [CONTROLS[kind][which]]).map((id) => `[data-testid="${id}"]`).join(',');
 
-  const api = { featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  // What can go with a reply: up to four pictures (JPEG, PNG, WebP), or one GIF or one video (MP4, QuickTime), never a mix (X's own rule).
+  // have and adding are lists of { type }; the answer is which of `adding` are taken (by position) and a line for each that was not.
+  const PHOTO_TYPES = /^image\/(jpeg|png|webp)$/, SINGLE_TYPES = /^(image\/gif|video\/(mp4|quicktime))$/;
+  function attachPlan(have, adding) {
+    const taken = [], notes = [];
+    let photos = have.filter((f) => PHOTO_TYPES.test(f.type)).length, single = have.some((f) => SINGLE_TYPES.test(f.type));
+    adding.forEach((f, i) => {
+      if (PHOTO_TYPES.test(f.type)) {
+        if (single) notes.push('A GIF or a video goes alone.');
+        else if (photos >= 4) notes.push('Four pictures at most.');
+        else { photos++; taken.push(i); }
+      } else if (SINGLE_TYPES.test(f.type)) {
+        if (single || photos) notes.push(single ? 'One GIF or video at most.' : 'A GIF or a video goes alone, without pictures.');
+        else { single = true; taken.push(i); }
+      } else notes.push('That kind of file can\u2019t be attached (pictures, a GIF or an MP4).');
+    });
+    return { taken, notes: [...new Set(notes)] };
+  }
+
+  const api = { attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

@@ -366,6 +366,8 @@
     bookmark: ['M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'],
     download: ['M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4', 'M7 10l5 5 5-5', 'M12 15V3'],
     done: ['M20 6L9 17l-5-5'],
+    image: ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M8.5 9h.01', 'M21 15l-5-5L5 21'],
+    emoji: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M8 14s1.5 2 4 2 4-2 4-2', 'M9 9.5h.01', 'M15 9.5h.01'],
     keyboard: ['M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z', 'M6 10h.01', 'M10 10h.01', 'M14 10h.01', 'M18 10h.01', 'M7 14h10'],
     sound: ['M11 5L6 9H2v6h4l5 4V5z', 'M15.5 8.5a5 5 0 0 1 0 7', 'M19 5a9 9 0 0 1 0 14'],
     mute: ['M11 5L6 9H2v6h4l5 4V5z', 'M23 9l-6 6', 'M17 9l6 6'],
@@ -1039,7 +1041,7 @@
   // viewer is open and nothing is being typed into; X's own page does not see these keys (it has shortcuts of its own, S among them).
   const keyMap = () => XMCSettings.panelKeyMap(settings.keyMap); // action -> key (the defaults, or what the person chose in Settings, Keyboard)
   const keyHint = (act, bare) => { const k = settings.panelKeys && keyMap()[act]; return k ? (bare ? k.toUpperCase() : ' (' + k.toUpperCase() + ')') : ''; };
-  const typingIn = (el) => !!el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName || ''));
+  const typingIn = (el) => !!el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName || '') || !!(el.closest && el.closest('.xmc-emoji'))); // (the emoji picker's keys are its own)
   function keyedButton(t, kind) { // the real button for this post, in the panel if it is open for it, else on its card
     for (const scope of [postView && postView.t === t ? postView.side.querySelector(':scope > .xmc-actions') : null, t.el]) {
       const b = scope && scope.querySelector('[data-act="' + kind + '"]');
@@ -1123,6 +1125,7 @@
     }
     if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) { const open = lightbox ? lightbox.el : postView ? postView.el : null; if (open) trapTab(e, open); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.dataset && e.target.dataset.lb !== undefined && e.target.getAttribute('role') === 'button') { e.preventDefault(); e.target.click(); }
+    if (e.target && e.target.closest && e.target.closest('.xmc-emoji') && (e.key === 'Escape' || /^Arrow/.test(e.key))) return; // (the emoji picker's own: it moves over the emoji and closes itself)
     if (panelKey(e) || feedKey(e)) return;
     if (e.key === 'Escape' && !lightbox && !menuEl && e.target && e.target.matches && e.target.matches('textarea.xmc-cbox')) { e.preventDefault(); e.stopPropagation(); e.target.blur(); return; } // (Esc leaves the comment box first: what is typed stays, the panel stays)
     if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else closePostView(); } }
@@ -2140,7 +2143,20 @@
   // Posting a comment from here: X's own reply box is opened out of sight, the text is typed into it and Send
   // is pressed, exactly as you would. If any step fails, X's reply box is left open for you to finish.
   // the part both kinds of reply share: press Reply on a (real) post, type, press Send
-  async function typeAndSend(art, text) {
+  // Pictures, a GIF or a video are handed to the file input X's own reply box has (as if chosen there); X then uploads them, and its Reply button
+  // comes on only when it has them all (a moment is given for it to go off first), so the button is waited for, and for it to stay on.
+  async function attachTo(files) {
+    const input = await waitFor(() => document.querySelector('input[data-testid="fileInput"]'), 4000);
+    if (!input) return { ok: false, why: 'X’s reply box has no place to attach pictures.' };
+    const dt = new DataTransfer();
+    for (const f of files) dt.items.add(f);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(700);
+    return { ok: true };
+  }
+  async function typeAndSend(art, text, files) {
+    files = files || [];
     const rb = art.querySelector('[data-testid="reply"]');
     if (!rb) return { ok: false, why: 'Couldn’t find this post on X’s side.' };
     fire(rb);
@@ -2148,17 +2164,25 @@
     if (!editor) return { ok: false, why: 'X’s reply box didn’t open.' };
     editor.focus();
     document.execCommand('selectAll', false);
-    document.execCommand('insertText', false, text);
+    if (text) document.execCommand('insertText', false, text);
+    if (files.length) { const got = await attachTo(files); if (!got.ok) return got; }
+    const slow = files.some((f) => /^video\//.test(f.type) || f.type === 'image/gif');
+    let since = 0;
     const sendBtn = await waitFor(() => {
       const b = document.querySelector('[data-testid="tweetButton"]');
-      return b && b.getAttribute('aria-disabled') !== 'true' && !b.disabled ? b : null;
-    }, 4000);
-    if (!sendBtn) return { ok: false, why: 'X wouldn’t accept the text.' };
+      const dlg = b && b.closest('[role="dialog"]');
+      const on = !!b && b.getAttribute('aria-disabled') !== 'true' && !b.disabled && !(dlg && files.length && dlg.querySelector('[role="progressbar"]'));
+      if (!on) { since = 0; return null; }
+      if (!files.length) return b;
+      since = since || Date.now();
+      return Date.now() - since >= 500 ? b : null; // (with pictures: on, and staying on)
+    }, files.length ? (slow ? 120000 : 45000) : 4000);
+    if (!sendBtn) return { ok: false, why: files.length ? 'X didn’t finish taking the pictures.' : 'X wouldn’t accept the text.' };
     fire(sendBtn);
-    const closed = await waitFor(() => !document.querySelector('[data-testid="tweetTextarea_0"]'), 10000);
+    const closed = await waitFor(() => !document.querySelector('[data-testid="tweetTextarea_0"]'), files.length ? 30000 : 10000);
     return closed ? { ok: true } : { ok: false, why: 'X didn’t confirm it was sent.' };
   }
-  async function postReply(t, text) {
+  async function postReply(t, text, files) {
     await replyQueue; // comment loads borrow the same hidden page
     state.posting = true;
     freezeSidebar();
@@ -2168,7 +2192,7 @@
     try {
       const art = await realArticle(t);
       if (!art) { res = { ok: false, why: 'Couldn’t find this post on X’s side.' }; return res; }
-      res = await typeAndSend(art, text);
+      res = await typeAndSend(art, text, files);
       return res;
     } finally {
       state.posting = false;
@@ -2178,32 +2202,132 @@
       else { doc.classList.remove('xmc-acting'); toast(res.why + ' Finish it in X’s reply box.'); }
     }
   }
+  // ---- the comment box's tools: pictures, emoji, and X's own box for a GIF ----
+  // (everything here is made when a button is pressed: the box itself costs three buttons)
+  const ATTACH_TYPES = 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime';
+  const EMOJI = [
+    ['Faces', '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😋 😛 😜 🤪 😎 🤓 🥳 😏 😒 😞 😔 😕 🙁 😣 😖 😫 😩 🥺 😢 😭 😤 😠 😡 🤬 🤯 😳 🥵 🥶 😱 😨 😰 😥 😓 🤗 🤔 🤭 🤫 🙄 😬 😶 😐 😑 😴 🤤 😪 😵 🤐 🥴 🤢 🤮 🤧 😷 🤒 🤕 🤠 🥸 😈 👿 💀 ☠️ 🤡 👻 👽 🤖 💩'],
+    ['Hands and people', '👍 👎 👌 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ ✋ 🤚 🖖 👋 🤝 🙏 👏 🙌 👐 🤲 💪 ✍️ 🤳 👀 🧠 🫶 🫡 🫠 🤷 🤦 🙋 🙇 💁 🙅 🙆'],
+    ['Hearts and symbols', '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💯 ✨ ⭐ 🌟 💫 🔥 💥 ⚡ 🎉 🎊 ✅ ❌ ❗ ❓ ⚠️ 🚫 ➕ ➖ ♻️ 🔞'],
+    ['Animals and nature', '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🙈 🙉 🙊 🐔 🐧 🐦 🦆 🦉 🐺 🐴 🦄 🐝 🦋 🐌 🐢 🐍 🐙 🦑 🐬 🐳 🦈 🌵 🌲 🌴 🌸 🌹 🌻 🍀 🍁 🌈 ☀️ 🌙 ❄️ 🌊'],
+    ['Food and drink', '🍎 🍊 🍋 🍌 🍉 🍇 🍓 🍒 🍑 🥭 🍍 🥝 🍅 🥑 🌽 🥕 🍞 🧀 🍳 🥓 🍔 🍟 🍕 🌭 🌮 🌯 🍣 🍜 🍝 🍰 🎂 🍩 🍪 🍫 🍿 ☕ 🍵 🍺 🍻 🥂 🍷 🥃 🍸 🍹'],
+    ['Things', '⚽ 🏀 🏈 ⚾ 🎾 🏐 🎮 🎯 🎲 🎧 🎤 🎸 🎹 🎬 📷 📱 💻 💡 🔔 🔒 🔑 💰 💸 💎 🎁 📚 ✏️ 📌 📎 🚗 ✈️ 🚀 🛸 🏠 ⏰ 💊 ⚖️ 🗽 🌍 🇦🇺'],
+  ].map(([name, list]) => [name, list.split(' ')]);
+  const recentEmoji = () => { try { return JSON.parse(localStorage.getItem('xmc.emoji') || '[]').filter((x) => typeof x === 'string').slice(0, 16); } catch { return []; } };
+  const rememberEmoji = (e) => { try { localStorage.setItem('xmc.emoji', JSON.stringify([e, ...recentEmoji().filter((x) => x !== e)].slice(0, 16))); } catch { /* private mode */ } };
+  // The picker: a small card under the box (over the comments, or above the box where there is no room below). Arrow keys move over the emoji,
+  // Enter or Space picks, Esc closes it; it stays open for more. Returns the card (the caller puts it in the page) and a function to close it.
+  function emojiPicker(box, onClose) {
+    const recent = recentEmoji();
+    const cats = [...(recent.length ? [['Recent', recent]] : []), ...EMOJI];
+    let cur = 0;
+    const grid = h('div', { className: 'xmc-egrid', role: 'group', 'aria-label': 'Emoji' });
+    const tabs = h('div', { className: 'xmc-etabs' });
+    const el = h('div', { className: 'xmc-emoji', role: 'dialog', 'aria-label': 'Emoji', tabIndex: -1 }, tabs, grid); // (focusable itself, so Esc works after a press on its blank parts)
+    const pick = (e) => { box.setRangeText(e, box.selectionStart, box.selectionEnd, 'end'); box.dispatchEvent(new Event('input')); rememberEmoji(e); };
+    const draw = () => {
+      tabs.replaceChildren(...cats.map(([name, list], i) => h('button', { type: 'button', className: 'xmc-etab' + (i === cur ? ' on' : ''), title: name, 'aria-label': name, 'aria-pressed': String(i === cur), textContent: name === 'Recent' ? '🕑' : list[0], onclick: () => { cur = i; draw(); tabs.children[i].focus({ preventScroll: true }); } }))); // (drawn again: the focus goes to the new button)
+      grid.replaceChildren(...cats[cur][1].map((e) => h('button', { type: 'button', className: 'xmc-emo', textContent: e, onclick: () => pick(e) })));
+    };
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(true); return; }
+      const cells = [...grid.children], at = cells.indexOf(document.activeElement);
+      if (at < 0 || !/^Arrow/.test(e.key)) return;
+      const cols = Math.max(1, Math.round(grid.clientWidth / (cells[0].offsetWidth || 32)));
+      const to = { ArrowRight: at + 1, ArrowLeft: at - 1, ArrowDown: at + cols, ArrowUp: at - cols }[e.key];
+      if (cells[to]) { e.preventDefault(); e.stopPropagation(); cells[to].focus(); }
+    }, true);
+    draw();
+    return el;
+  }
   function renderComposer(panel, t, r, after) {
     const box = h('textarea', { className: 'xmc-cbox', placeholder: r ? 'Reply to @' + r.author.handle + '…' : 'Write a comment…', rows: 2, maxLength: 1000 });
     const send = h('button', { className: 'xmc-rbtn xmc-csend', type: 'button', textContent: 'Reply', disabled: true });
     const note = h('span', { className: 'xmc-dim xmc-cnote' });
-    box.addEventListener('input', () => {
-      send.disabled = !box.value.trim();
-      box.style.height = 'auto';
-      box.style.height = Math.min(box.scrollHeight, 180) + 'px';
-    });
+    const files = []; // pictures, a GIF or a video that go with it
+    const strip = h('div', { className: 'xmc-cstrip', hidden: true });
+    const sync = () => { send.disabled = !(box.value.trim() || files.length); };
+    const fit = () => { box.style.height = 'auto'; box.style.height = Math.min(box.scrollHeight, 180) + 'px'; };
+    box.addEventListener('input', () => { sync(); fit(); });
+    const drawStrip = () => {
+      strip.hidden = !files.length;
+      strip.replaceChildren(...files.map((f, i) => h('div', { className: 'xmc-cthumb' },
+        /^video\//.test(f.type) ? h('video', { src: f._url, muted: true, preload: 'metadata' }) : h('img', { src: f._url, alt: f.name }),
+        h('button', { type: 'button', className: 'xmc-cx', title: 'Remove', 'aria-label': 'Remove ' + f.name, textContent: '×', onclick: () => { URL.revokeObjectURL(f._url); files.splice(i, 1); drawStrip(); sync(); note.textContent = ''; } }))));
+    };
+    const clearFiles = () => { for (const f of files) URL.revokeObjectURL(f._url); files.length = 0; drawStrip(); };
+    const addFiles = (list) => {
+      const incoming = [...list];
+      const plan = XMCLogic.attachPlan(files, incoming);
+      for (const i of plan.taken) { incoming[i]._url = URL.createObjectURL(incoming[i]); files.push(incoming[i]); }
+      drawStrip(); sync();
+      note.textContent = plan.notes.join(' ');
+    };
+    box.addEventListener('paste', (e) => { const got = [...((e.clipboardData && e.clipboardData.files) || [])]; if (got.length) { e.preventDefault(); addFiles(got); } }); // (a picture on the clipboard)
+    box.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+    box.addEventListener('drop', (e) => { const got = [...((e.dataTransfer && e.dataTransfer.files) || [])]; if (got.length) { e.preventDefault(); addFiles(got); } });
+    let fileInput = null;
+    const pickFiles = () => {
+      if (!fileInput) {
+        fileInput = h('input', { type: 'file', accept: ATTACH_TYPES, multiple: true, className: 'xmc-cfile', tabIndex: -1 });
+        fileInput.setAttribute('aria-hidden', 'true');
+        fileInput.addEventListener('change', () => { addFiles(fileInput.files); fileInput.value = ''; });
+        tools.append(fileInput);
+      }
+      fileInput.click();
+    };
+    // X's own reply box has the GIF search (it is X's own service); the web intent opens it with the words so far, in a new tab
+    const gifOnX = () => {
+      const u = new URL('/intent/post', location.origin);
+      u.searchParams.set('in_reply_to', (r || t).id);
+      if (box.value.trim()) u.searchParams.set('text', box.value.trim());
+      window.open(u.href, '_blank', 'noopener');
+      toast('X’s own reply box is open in a new tab, with your words in it.');
+    };
+    let picker = null;
+    const closePicker = (refocus) => {
+      if (!picker) return;
+      picker.remove(); picker = null; emoBtn.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('pointerdown', outside, true);
+      if (refocus) emoBtn.focus();
+    };
+    const outside = (e) => { if (picker && !picker.contains(e.target) && !emoBtn.contains(e.target)) closePicker(false); };
+    const toggleEmoji = () => {
+      if (picker) { closePicker(true); return; }
+      picker = emojiPicker(box, closePicker);
+      wrap.append(picker);
+      emoBtn.setAttribute('aria-expanded', 'true');
+      const scrollBox = wrap.closest('.xmc-vside, .xmc-scroller') || document.documentElement, room = scrollBox.getBoundingClientRect().bottom - wrap.getBoundingClientRect().bottom;
+      picker.classList.toggle('up', room < 250 && wrap.getBoundingClientRect().top - scrollBox.getBoundingClientRect().top > 250); // (no room under the box: above it)
+      document.addEventListener('pointerdown', outside, true);
+      const first = picker.querySelector('.xmc-emo'); if (first) first.focus({ preventScroll: true });
+    };
+    const tool = (cls, label, onclick, ...kids) => h('button', { type: 'button', className: 'xmc-ctool ' + cls, title: label, 'aria-label': label, onclick }, ...kids);
+    const emoBtn = tool('xmc-cemo', 'Emoji', toggleEmoji, icon('emoji'));
+    emoBtn.setAttribute('aria-haspopup', 'dialog'); emoBtn.setAttribute('aria-expanded', 'false');
+    const tools = h('div', { className: 'xmc-ctools' },
+      tool('xmc-cimg', 'Add pictures, a GIF or a video', pickFiles, icon('image')),
+      tool('xmc-cgif', 'GIF: opens X’s own reply box with your words', gifOnX, h('span', { textContent: 'GIF' })),
+      emoBtn);
     const go = async () => {
       const text = box.value.trim();
-      if (!text || send.disabled) return;
-      send.disabled = true; box.disabled = true; note.textContent = 'Sending…';
-      const res = r ? await postCommentReply(t, r, text) : await postReply(t, text);
+      if ((!text && !files.length) || send.disabled) return;
+      closePicker(false);
+      send.disabled = true; box.disabled = true; note.textContent = files.length ? 'Sending… (pictures take a moment)' : 'Sending…';
+      const res = r ? await postCommentReply(t, r, text, files.slice()) : await postReply(t, text, files.slice());
       box.disabled = false;
       if (res.ok) {
-        box.value = ''; box.style.height = 'auto'; note.textContent = 'Sent ✓';
+        box.value = ''; box.style.height = 'auto'; note.textContent = 'Sent ✓'; clearFiles();
         toast('Reply sent');
         if (after) { state.details.delete(t.id); return; } // inside a comment's own view: the post's comments are fetched afresh when you go back to it
         t.counts.reply += 1; updateActions(t);
         reloadComments(panel, t);
-      } else { send.disabled = false; note.textContent = res.why; }
+      } else { sync(); note.textContent = res.why; }
     };
     send.addEventListener('click', go);
     box.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); go(); } });
-    return h('div', { className: 'xmc-compose' + (r ? ' xmc-inline' : '') }, box, h('div', { className: 'xmc-crow' }, note, send));
+    const wrap = h('div', { className: 'xmc-compose' + (r ? ' xmc-inline' : '') }, box, strip, h('div', { className: 'xmc-crow' }, tools, note, send));
+    return wrap;
   }
 
   // ---- acting on one comment: X only has the comment's own buttons while it shows that post's page ----
@@ -2290,9 +2414,9 @@
     if (!res.ok) { state.actionFails.push(Date.now()); flip(!want); toast(res.why || 'Couldn\u2019t reach that comment just now. Try again in a moment'); }
     else toast(want ? 'Saved to bookmarks' : 'Removed from bookmarks');
   }
-  async function postCommentReply(t, r, text) {
+  async function postCommentReply(t, r, text, files) {
     return actOnComment(t, r.id, async (art) => {
-      const sent = await typeAndSend(art, text);
+      const sent = await typeAndSend(art, text, files);
       return sent.ok ? sent : { ok: false, why: sent.why, stay: true };
     }, { posting: true });
   }

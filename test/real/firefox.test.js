@@ -321,3 +321,27 @@ firefox('an open Grok panel (nearly the height of the window, under #layers) is 
   await d.js(() => document.getElementById('fakegrok').remove());
   await d.waitFor(() => !document.documentElement.classList.contains('xmc-drawer-up'), [], 4000, 'the lift to go with the panel');
 });
+
+firefox('a picture is attached to a comment in Firefox: chosen in the box, handed to X\'s own file input by the content script, and read there by the page', async (r, d) => {
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  // (a reply is typed with execCommand, which needs the document to have the focus: the install's options tab, if it opens late, takes it)
+  for (let i = 0; i < 4; i++) { await home(r, d); if (await d.js(() => document.hasFocus())) break; await sleep(2000); }
+  await d.press('.xmc-card .xmc-text');
+  await d.waitFor(() => !!document.querySelector('.xmc-view textarea.xmc-cbox'), [], 25000, 'the comment box');
+  await d.js(() => document.querySelector('.xmc-view .xmc-cimg').click()); // (makes the file input; with no user press behind it the browser opens no chooser)
+  const file = path.join(r.tmp, 'pic.png');
+  fs.writeFileSync(file, PNG);
+  const id = await d.find('.xmc-view input.xmc-cfile');
+  await d.call('POST', `/element/${id}/value`, { text: file });
+  await d.waitFor(() => document.querySelectorAll('.xmc-view .xmc-cthumb').length === 1, [], 6000, 'the picture to show in the box');
+  await d.press('.xmc-view textarea.xmc-cbox');
+  const focus = await d.js(() => (document.activeElement && (document.activeElement.tagName + '.' + document.activeElement.className)) + ' disabled=' + document.querySelector('.xmc-view textarea.xmc-cbox').disabled + ' hasFocus=' + document.hasFocus());
+  await d.keys('h', 'i');
+  assert.equal(await d.js(() => document.querySelector('.xmc-view textarea.xmc-cbox').value), 'hi', 'the words went into the box (focus was on ' + focus + ')');
+  await d.press('.xmc-view .xmc-csend');
+  const got = await d.waitFor(() => { const w = window.wrappedJSObject || window; const x = Array.from(w.__replies || []); return x.length ? JSON.stringify({ text: String(x[0].text), files: Array.from(x[0].files || []).map(String) }) : null; }, [], 40000, 'the reply to reach the page');
+  const sent = JSON.parse(got);
+  assert.equal(sent.text, 'hi', 'the words in X\'s box (document focus: ' + focus + ')');
+  assert.equal(sent.files.length, 1);
+  assert.equal(sent.files[0], 'pic.png:' + PNG.length + ':image/png', 'X\'s page read the file the content script put in its input');
+});

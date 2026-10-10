@@ -21,6 +21,17 @@ ${body}
 <div id="drawer" style="position:fixed;right:16px;bottom:16px;width:60px;display:flex;flex-direction:column;gap:8px"><div><button aria-label="Grok" id="grokb" style="width:50px;height:50px">G</button></div><div><button aria-label="Messages" id="dmb" style="width:50px;height:50px">M</button></div></div>
 </div><div id="layers"></div>
 <script>document.querySelector('#react-root').firstElementChild.__reactProps$mock = { children: { props: { children: { props: { contextProviderProps: { featureSwitches: (window.__fs = { isTrue: (f) => true }) } } } } } };</script>
+<script>
+// X's reply box: a text box, a place for attachments, a file input (as X's has) and a Reply button that stays off while an attachment is still "uploading"
+function mountComposer(l,id){
+  l.innerHTML='<div role="dialog"><div data-testid="tweetTextarea_0" role="textbox" contenteditable="true" style="min-height:40px;border:1px solid #888"></div><div data-testid="attachments"></div><input type="file" data-testid="fileInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime" style="display:none"><button data-testid="tweetButton" aria-disabled="true">Reply</button></div>';
+  const ed=l.querySelector('[data-testid=tweetTextarea_0]'), b=l.querySelector('[data-testid=tweetButton]'), fi=l.querySelector('[data-testid=fileInput]'), at=l.querySelector('[data-testid=attachments]');
+  let pending=0; const sync=()=>b.setAttribute('aria-disabled', (pending>0||!(ed.textContent.trim()||at.children.length))?'true':'false');
+  ed.addEventListener('input',sync);
+  fi.addEventListener('change',()=>{ for(const f of fi.files){ pending++; const d=document.createElement('div'); d.setAttribute('data-testid','attachment'); d.textContent=f.name+':'+f.size+':'+f.type; at.append(d); setTimeout(()=>{ pending--; sync(); }, window.__uploadMs||600); } sync(); });
+  b.addEventListener('click',()=>{ if(b.getAttribute('aria-disabled')==='true') return; const r={to:id,text:ed.textContent}; if(at.children.length) r.files=[...at.children].map(c=>c.textContent); (window.__replies=window.__replies||[]).push(r); l.innerHTML=''; history.back(); });
+}
+</script>
 ${script}
 ${SCRIPTS}
 </body></html>`;
@@ -48,11 +59,7 @@ function mk(id,i){ const c=document.createElement('div'); c.setAttribute('data-t
    +'<button data-testid="'+(state.liked.has(id)?'unlike':'like')+'" onclick="tog(\\'liked\\',\\''+id+'\\',this,\\'like\\',\\'unlike\\')">l</button>'
    +'<button data-testid="'+(state.bm.has(id)?'removeBookmark':'bookmark')+'" onclick="tog(\\'bm\\',\\''+id+'\\',this,\\'bookmark\\',\\'removeBookmark\\')">b</button></div><a href="/user'+(id%9)+'">profile</a></article>'; return c; }
 function tog(set,id,btn,on,off){ const s=state[set]; if(s.has(id)){s.delete(id);btn.dataset.testid=on}else{s.add(id);btn.dataset.testid=off} __actions.push(set+':'+id); }
-function openComposer(id){ __actions.push('reply:'+id); history.pushState({}, '', '/compose/post'); const l=document.getElementById('layers');
-  l.innerHTML='<div role="dialog"><div data-testid="tweetTextarea_0" role="textbox" contenteditable="true" style="min-height:40px;border:1px solid #888"></div><button data-testid="tweetButton" aria-disabled="true">Reply</button></div>';
-  const ed=l.querySelector('[data-testid=tweetTextarea_0]'), b=l.querySelector('[data-testid=tweetButton]');
-  ed.addEventListener('input',()=>{ b.setAttribute('aria-disabled', ed.textContent.trim()?'false':'true'); });
-  b.addEventListener('click',()=>{ if(b.getAttribute('aria-disabled')==='true') return; (window.__replies=window.__replies||[]).push({to:id,text:ed.textContent}); l.innerHTML=''; history.back(); }); }
+function openComposer(id){ __actions.push('reply:'+id); history.pushState({}, '', '/compose/post'); mountComposer(document.getElementById('layers'), id); }
 let lastY=0, okSteps=0;
 function render(){ const d=Math.abs(scrollY-lastY); lastY=scrollY; if(d>innerHeight*2) okSteps=0; else if(d>0) okSteps++;
   list.style.minHeight=(items.length*H)+'px';
@@ -100,11 +107,7 @@ function postPage(id) {
   const script = `<script>
 window.__actions=[]; const liked=new Set();
 function tog(id,btn){ if(liked.has(id)){liked.delete(id);btn.dataset.testid='like'}else{liked.add(id);btn.dataset.testid='unlike'} btn.setAttribute('data-testid',btn.dataset.testid); __actions.push('like:'+id); }
-function openComposer(id){ __actions.push('reply:'+id); const back=location.pathname; history.pushState({}, '', '/compose/post'); const l=document.getElementById('layers');
-  l.innerHTML='<div role="dialog"><div data-testid="tweetTextarea_0" role="textbox" contenteditable="true" style="min-height:40px;border:1px solid #888"></div><button data-testid="tweetButton" aria-disabled="true">Reply</button></div>';
-  const ed=l.querySelector('[data-testid=tweetTextarea_0]'), b=l.querySelector('[data-testid=tweetButton]');
-  ed.addEventListener('input',()=>{ b.setAttribute('aria-disabled', ed.textContent.trim()?'false':'true'); });
-  b.addEventListener('click',()=>{ if(b.getAttribute('aria-disabled')==='true') return; (window.__replies=window.__replies||[]).push({to:id,text:ed.textContent}); l.innerHTML=''; history.back(); }); }
+function openComposer(id){ __actions.push('reply:'+id); history.pushState({}, '', '/compose/post'); mountComposer(document.getElementById('layers'), id); }
 fetch('/i/api/graphql/x/TweetDetail?variables='+encodeURIComponent(JSON.stringify({focalTweetId:'${id}'})));</script>`;
   return shell('Post / X', body, script);
 }
