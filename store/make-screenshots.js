@@ -364,7 +364,7 @@ async function main() {
   await ctx.close();
 
   // 12. the starting points, on the page the install opens
-  ctx = await context(1280, 800, Object.assign({}, S.PRESETS.find((p) => p.id === 'calm').set), 'dark');
+  ctx = await context(1280, 960, Object.assign({}, S.PRESETS.find((p) => p.id === 'calm').set), 'dark'); // (tall enough for all the steps, the age-check box included)
   page = await ctx.newPage();
   await page.goto(server.origin + '/ext/options.html?welcome=1');
   await page.waitForSelector('#welcome .wchoice', { timeout: 8000 });
