@@ -5410,16 +5410,16 @@ browserTest('the welcome page: the first step is the permission (the button asks
   await checked(t, async () => {
     const { page } = t;
     await page.waitForSelector('#welcome:not([hidden]) .wstep');
-    assert.deepEqual(await page.locator('#welcome .wstep h2').allInnerTexts(), ['Let it run on x.com', 'How should it start?', 'Keybindings', 'Colours']);
+    assert.deepEqual(await page.locator('#welcome .wstep h2').allInnerTexts(), ['Let it run on x.com', 'How should it start?', 'Keybindings', 'Colours', 'Sensitive media']);
     assert.equal(await page.locator('#access').isHidden(), true, 'the banner is the first step');
-    assert.deepEqual(await page.locator('#welcome .wnum').allInnerTexts(), ['1', '2', '3', '4']);
+    assert.deepEqual(await page.locator('#welcome .wnum').allInnerTexts(), ['1', '2', '3', '4', '5']);
     assert.deepEqual(await page.locator('#welcome .wblurb').allInnerTexts(), ['Your X feed in columns', 'See posts from only people you follow', 'See only media', 'Scroll through posts, one at a time']);
     assert.equal(await page.locator('#welcome .wstep').first().innerText().then((x) => /Firefox asks/.test(x)), false, 'the button says what it does');
     await page.locator('#welcome button', { hasText: 'Allow access to x.com' }).click();
     await page.waitForFunction(() => document.querySelector('#welcome .wstep.done'), null, { timeout: 5000 });
     assert.deepEqual(await page.evaluate(() => ({ asked: window.__perm.requested, reloaded: window.__perm.reloaded })), { asked: 1, reloaded: [11] });
     assert.match(await page.locator('#welcome .wstep.done').innerText(), /reloaded/);
-    assert.deepEqual(await page.locator('#welcome .wnum').allInnerTexts(), ['✓', '2', '3', '4'], 'a tick for the first, the others keep their numbers');
+    assert.deepEqual(await page.locator('#welcome .wnum').allInnerTexts(), ['✓', '2', '3', '4', '5'], 'a tick for the first, the others keep their numbers');
     assert.equal(await page.locator('#access').isHidden(), true);
     // Open x.com: a tab, and the page is put away
     await page.locator('#welcome button', { hasText: 'Open x.com' }).click();
@@ -5441,13 +5441,13 @@ browserTest('the welcome page: the first step is the permission (the button asks
   await checked(yes, async () => {
     await yes.page.waitForSelector('#welcome .wstep.done');
     assert.match(await yes.page.locator('#welcome .wstep.done').innerText(), /Allowed/);
-    assert.deepEqual(await yes.page.locator('#welcome .wnum').allInnerTexts(), ['✓', '2', '3', '4']);
+    assert.deepEqual(await yes.page.locator('#welcome .wnum').allInnerTexts(), ['✓', '2', '3', '4', '5']);
   });
   const none = await e.open('/ext/options.html?welcome=1'); // no way to ask here: three steps
   await checked(none, async () => {
     await none.page.waitForSelector('#welcome .wstep');
-    assert.deepEqual(await none.page.locator('#welcome .wstep h2').allInnerTexts(), ['How should it start?', 'Keybindings', 'Colours']);
-    assert.deepEqual(await none.page.locator('#welcome .wnum').allInnerTexts(), ['1', '2', '3']);
+    assert.deepEqual(await none.page.locator('#welcome .wstep h2').allInnerTexts(), ['How should it start?', 'Keybindings', 'Colours', 'Sensitive media']);
+    assert.deepEqual(await none.page.locator('#welcome .wnum').allInnerTexts(), ['1', '2', '3', '4']);
   });
 }, 90000);
 
