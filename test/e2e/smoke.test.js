@@ -408,9 +408,10 @@ async function openBox(e, settings) {
   return h;
 }
 async function chooseFiles(page, files) {
-  const chooser = page.waitForEvent('filechooser');
-  await page.locator('.xmc-view .xmc-cimg').click();
-  await (await chooser).setFiles(files);
+  const chooser = page.waitForEvent('filechooser', { timeout: 10000 });
+  chooser.catch(() => {}); // (reported below, with what the page looked like)
+  try { await page.locator('.xmc-view .xmc-cimg').click({ timeout: 8000 }); } catch (err) { throw new Error('the picture button could not be pressed: ' + err.message.split('\n')[0] + ' | ' + JSON.stringify(await page.evaluate(() => ({ view: !!document.querySelector('.xmc-view'), viewOut: !!document.querySelector('.xmc-view.xmc-out'), picker: !!document.querySelector('.xmc-emoji'), active: (document.activeElement && (document.activeElement.className || document.activeElement.tagName)) || null })))); }
+  try { await (await chooser).setFiles(files); } catch (err) { throw new Error('no file chooser after the press: ' + JSON.stringify(await page.evaluate(() => ({ view: !!document.querySelector('.xmc-view'), picker: !!document.querySelector('.xmc-emoji'), input: !!document.querySelector('.xmc-view .xmc-cfile'), active: (document.activeElement && (document.activeElement.className || document.activeElement.tagName)) || null })))); }
 }
 
 browserTest('the comment box has Picture, GIF and Emoji buttons, and nothing under them is made until one is pressed', async (e) => {
@@ -6039,6 +6040,32 @@ browserTest('a timeline request that fails: after a while X\u2019s own Retry but
   } finally { await bare.close(); }
   assert.deepEqual(bare.errors.filter((x) => !/Failed to load resource/.test(x)), []);
 }, 150000);
+
+browserTest('this script\u2019s own presses on X\u2019s hidden page do not close what the person has open: the emoji picker while more comments load, and a menu', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900 });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.evaluate(() => { const c = [...document.querySelectorAll('.xmc-card')].find((x) => x.querySelector('[data-lb]') && x.querySelector(':scope > .xmc-text')); c.querySelector(':scope > .xmc-text').click(); });
+    await page.waitForSelector('.xmc-view:not(.xmc-out) .xmc-vside .xmc-ritem', { timeout: 25000 });
+    await page.waitForTimeout(500);
+    await page.locator('.xmc-view .xmc-cemo').click();
+    await page.waitForSelector('.xmc-view .xmc-emoji .xmc-emo');
+    await page.waitForTimeout(4000); // (the rest of the comments are fetched by pressing X\u2019s own post link on its hidden page: a synthetic press that goes through the document)
+    assert.equal(await page.evaluate(() => !!document.querySelector('.xmc-emoji') && !!document.activeElement.closest('.xmc-emoji')), true, 'the picker is still open, with the focus in it');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => !!document.querySelector('.xmc-emoji')), false, 'Esc closes it');
+    assert.equal(await page.evaluate(() => !!document.querySelector('.xmc-view:not(.xmc-out)')), true, 'and not the post');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
+    await page.locator('.xmc-showbtn').click();
+    await page.waitForSelector('.xmc-menu button');
+    await page.evaluate(() => { document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); });
+    assert.equal(await page.locator('.xmc-menu').count(), 1, 'a press that is not the person\u2019s leaves the menu open');
+    await page.mouse.click(5, 600);
+    await page.waitForFunction(() => !document.querySelector('.xmc-menu'), null, { timeout: 3000 });
+  });
+}, 90000);
 
 browserTest('NSFW only with nothing marked: it says how many posts it looked at, not just that nothing is there', async () => {
   const none = await setup({ pages: 3, sensEvery: 1000000 });

@@ -1217,7 +1217,7 @@
       h('div', { className: 'kl-foot' }, h('button', { type: 'button', textContent: 'Change keys', onclick: (e) => { e.stopPropagation(); card.remove(); openOptions('keys'); } })));
     card.addEventListener('click', (e) => e.stopPropagation());
     host.append(card);
-    const away = (e) => { if (!card.contains(e.target)) { card.remove(); document.removeEventListener('pointerdown', away, true); } };
+    const away = (e) => { if (e.isTrusted && !card.contains(e.target)) { card.remove(); document.removeEventListener('pointerdown', away, true); } };
     setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
   }
   // Pointed out once, the first time a panel opens (what the keys are, and where to change them)
@@ -1591,7 +1591,7 @@
       h('div', { className: 'kl-foot' }, 'On the columns the arrows go over the cards; in a post they are the pictures and the posts. Enter on a picture and Esc work as they always do. ', h('button', { type: 'button', textContent: 'Change keys', onclick: (e) => { e.stopPropagation(); card.remove(); openOptions('keys'); } })));
     card.addEventListener('click', (e) => e.stopPropagation());
     host.append(card);
-    const away = (e) => { if (!card.contains(e.target)) { card.remove(); document.removeEventListener('pointerdown', away, true); } };
+    const away = (e) => { if (e.isTrusted && !card.contains(e.target)) { card.remove(); document.removeEventListener('pointerdown', away, true); } };
     setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
   }
   window.addEventListener('keydown', (e) => {
@@ -2958,7 +2958,7 @@
       document.removeEventListener('pointerdown', outside, true);
       if (refocus) emoBtn.focus();
     };
-    const outside = (e) => { if (picker && !picker.contains(e.target) && !emoBtn.contains(e.target)) closePicker(false); };
+    const outside = (e) => { if (e.isTrusted && picker && !picker.contains(e.target) && !emoBtn.contains(e.target)) closePicker(false); }; // (a press of the person's: this script's own presses on X's hidden page, which go through the document too, are not)
     const toggleEmoji = () => {
       if (picker) { closePicker(true); return; }
       picker = emojiPicker(box, closePicker);
@@ -3467,7 +3467,7 @@
     menuEl.style.left = Math.max(8, Math.min(r.left - rr.left, rr.width - 230)) + 'px';
     menuEl.style.top = (below + mh > rr.height ? Math.max(8, r.top - rr.top - mh - 6) : below) + 'px';
   }
-  document.addEventListener('mousedown', (e) => { if (menuEl && !menuEl.contains(e.target)) closeMenu(); }, true);
+  document.addEventListener('mousedown', (e) => { if (e.isTrusted && menuEl && !menuEl.contains(e.target)) closeMenu(); }, true);
 
   function muteAccount(handle) {
     const list = XMCSettings.handles(settings.mutedAccounts);
