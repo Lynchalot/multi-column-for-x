@@ -164,6 +164,8 @@ body.popup .access { padding: 10px 14px; font-size: 13px; }
 .wbody h2 { padding-top: 3px; }
 .wrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .wnote { margin: 0; color: var(--muted); font-size: 14px; }
+.wcheck { display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; }
+.wcheck input { margin: 0; flex: none; }
 .wseg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; align-self: flex-start; }
 .wseg button { appearance: none; border: 0; border-radius: 999px; padding: 6px 16px; background: none; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
 .wseg button.on { background: color-mix(in srgb, var(--fg) 16%, transparent); color: var(--fg); }

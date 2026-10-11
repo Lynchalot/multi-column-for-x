@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.48.9
+- **X's age check is left alone until you ask.** *Skip X's age check on sensitive media* is now off by default and marked (18+ only), and the welcome page has a step for it: an unticked box, "Skip X's age check (18+ only)", with a line under it (it turns off X's age-verification prompt in this browser; leave it off if you are under 18). Before, it was on for everyone and the only warning was in Settings. If you had it on without choosing it, tick it again (Settings, Posts, or the welcome page, `options.html?welcome=1`). The page hook reads the choice before X starts (`xmcSkipAge` is '1' only when you ticked it).
+- Tests: the welcome box (off to begin with, says 18+, in step with Settings); the age flag is untouched by default.
+
 ## 0.48.8
 - **A little less work while you scroll.** Looking for X's floating Grok and Chat buttons (thirty hit tests) waits until the columns have stopped moving, and the look for X's sidebars (to give them the wheel) searches X's own page and not the columns' thousands of posts. Measured on the stand-in over 30 seconds of constant scrolling: the extension's script time went from 2.07 s to 1.5 s; the rest of the time is the browser drawing.
 - **Scrolling on and on no longer piles up posts.** Far-off posts used to give their contents back only when the columns had stopped for half a second, so a long unbroken scroll kept every post in full (on the stand-in, 54,000 page elements after two minutes). Once more than 300 posts are drawn in full they are emptied while you scroll (the same far-off ones, nothing near you); the page stays at about 20,000 elements.

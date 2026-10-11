@@ -749,6 +749,15 @@ browserTest('the page the install opens starts with the starting points as large
     assert.equal(await page.locator('#opt-onlyFollowed').isChecked(), true);
     assert.equal(await page.locator('#sec-presets').isHidden(), true, 'the presets are not drawn twice while the welcome is up');
     assert.equal(await page.locator('#nav a[href="#sec-presets"]').isHidden(), true);
+    // X's age check is left alone until it is asked for, in words that say who it is for
+    assert.equal(await page.locator('#welcome-age').isChecked(), false, 'off to begin with');
+    assert.match(await page.locator('label[for="welcome-age"]').innerText(), /18\+/, 'the label says 18+');
+    assert.match(await page.locator('#welcome').innerText(), /under 18/, 'and the line under it says who should leave it off');
+    await page.locator('#welcome-age').check();
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('xmc.settings')).skipAgeCheck === true; } catch { return false; } }, null, { timeout: 5000 });
+    await page.waitForFunction(() => document.getElementById('opt-skipAgeCheck').checked, null, { timeout: 5000 }); // (in step with Settings below)
+    await page.locator('#welcome-age').uncheck();
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('xmc.settings')).skipAgeCheck === undefined; } catch { return false; } }, null, { timeout: 5000 });
     await page.locator('#welcome button', { hasText: 'Done' }).click();
     assert.equal(await page.locator('#welcome').isHidden(), true);
     assert.equal(await page.locator('#sec-presets').isVisible(), true, 'and they are in Settings once it is put away');
@@ -2237,7 +2246,13 @@ browserTest('"Skip X\'s age check" turns off only X\'s age-verification flag, an
     await off.page.waitForTimeout(2500);
     assert.deepEqual(await flags(off), { age: true, other: true }, 'untouched when switched off');
   });
-  const on = await e.open('/user/status/90001/');
+  const dflt = await e.open('/user/status/90001/'); // (nothing chosen: X's check is left alone)
+  await checked(dflt, async () => {
+    await dflt.page.waitForTimeout(2500);
+    assert.deepEqual(await flags(dflt), { age: true, other: true }, 'untouched by default');
+    assert.equal(await dflt.page.evaluate(() => localStorage.getItem('xmcSkipAge')), '0');
+  });
+  const on = await e.open('/user/status/90001/', { settings: { v: 9, skipAgeCheck: true } });
   await checked(on, async () => {
     await on.page.waitForFunction(() => window.__fs.isTrue('rweb_age_assurance_flow_enabled') === false, null, { timeout: 8000 });
     assert.deepEqual(await flags(on), { age: false, other: true }, 'only that flag');

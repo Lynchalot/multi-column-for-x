@@ -304,8 +304,8 @@
     if (old) old.replaceWith(presetsBlock());
     welcomeBlock(true);
   }
-  // The opening page: what the install opens (?welcome=1). Four steps on one page, each a real setting changed as it is chosen, so there is nothing to confirm at the
-  // end: x.com's access (the first, until Firefox has given it), how it starts (the starting points), the keys (with a card of them) and the colours. What is ticked
+  // The opening page: what the install opens (?welcome=1). Five steps on one page, each a real setting changed as it is chosen, so there is nothing to confirm at the
+  // end: x.com's access (the first, until Firefox has given it), how it starts (the starting points), the keys (with a card of them), the colours and X's age check (off unless ticked). What is ticked
   // here and in Settings below is the same.
   let welcomeShut = false;
   const welcomeUp = () => !welcomeShut && new URLSearchParams(location.search).has('welcome');
@@ -357,6 +357,11 @@
       const t = id === 'x' ? X_LOOK : S.themeOf(id), on = (settings.theme || 'x') === id;
       return tagged(h('button', { type: 'button', role: 'radio', className: 'wtheme' + (on ? ' on' : ''), 'aria-checked': String(on), onclick: () => persist({ theme: id }) }, themeSwatch(t), h('span', { className: 'wtn', textContent: t.name.replace(' (as it is)', '') })), 'theme-' + id);
     }), h('button', { type: 'button', className: 'wmore', textContent: 'More in Settings', onclick: () => { const look = document.getElementById('sec-look'); if (look) look.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }))));
+    steps.push(step(false, 'Sensitive media',
+      h('label', { className: 'wcheck', htmlFor: 'welcome-age' },
+        tagged(h('input', { type: 'checkbox', id: 'welcome-age', checked: !!settings.skipAgeCheck, onchange: (ev) => { persist({ skipAgeCheck: ev.target.checked }); build(); } }), 'age'),
+        h('span', { textContent: 'Skip X\u2019s age check (18+ only)' })),
+      h('p', { className: 'wnote', textContent: 'Turns off X\u2019s age-verification prompt in this browser, so X shows its older sensitive-content notice instead. Leave it off if you are under 18.' })));
     const close = () => { welcomeShut = true; host.hidden = true; try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } accessBanner(); applyFind(); };
     host.replaceChildren(...steps,
       h('div', { className: 'row' },

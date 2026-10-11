@@ -48,7 +48,7 @@
   // The extension keeps its setting in localStorage ('xmcSkipAge') so this script knows it at once, before X has drawn anything.
   const AGE_FLAG = 'rweb_age_assurance_flow_enabled';
   let skipAge = false, ageTimer = 0, ageTries = 0;
-  try { skipAge = window.localStorage.getItem('xmcSkipAge') !== '0'; } catch { skipAge = true; } // on unless the person turned it off (the extension keeps their choice here)
+  try { skipAge = window.localStorage.getItem('xmcSkipAge') === '1'; } catch { skipAge = false; } // off unless the person turned it on (the extension keeps their choice here)
   const age = { setting: skipAge, startState: false, lookup: false, asked: 0 };
   function sayAge() { try { window.postMessage({ source: 'xmc-age', age }, window.location.origin); } catch { /* ignore */ } }
   function patchStartState() {

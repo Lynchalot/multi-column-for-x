@@ -4,7 +4,7 @@ Short, for the box on the upload page; the full history is CHANGELOG.md.
 
 **First public upload (written at 0.48.7; use the version number you upload):**
 - Your X feed in columns on Home, Search, Lists, Bookmarks and profiles. New posts wait behind a "N new" button; nothing jumps.
-- A welcome page on install: allow x.com, how to start (Just columns, Calm, Media wall, Reels), the keys (Vim, Simple, none), the colours.
+- A welcome page on install: allow x.com, how to start (Just columns, Calm, Media wall, Reels), the keys (Vim, Simple, none), the colours, and X's age check (off unless you tick it; 18+ only).
 - Posts open in a panel with the picture, the comments, like, bookmark, reply (pictures, GIF, emoji) and translate. Esc puts you back where you were.
 - Reels: one post at a time, scrolled up and down. Works on a profile too.
 - Vim keys (j k, gg G, w a s d or the arrows over the posts, f like, q copy link, r Reels, ? for the list) or the Simple set; every key can be changed.

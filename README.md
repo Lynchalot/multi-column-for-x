@@ -5,7 +5,7 @@ Your X (Twitter) timeline in masonry columns — and the useful parts of **Contr
 and, if you ask for it with the **Try columns** pill, Explore (which is left as X's own page, since it is mostly news and trends). To go back to the normal feed, press the **Columns** pill in X's left sidebar, or disable the extension.
 
 ## What you get
-- **A welcome page on install** with four steps on one screen: allow x.com, how to start (Just columns, Calm, Media wall or Reels), the keys (Vim, Simple or none) and the colours. Each choice is a real setting, applied as you pick it.
+- **A welcome page on install** with five steps on one screen: allow x.com, how to start (Just columns, Calm, Media wall or Reels), the keys (Vim, Simple or none), the colours, and X's age check (an unticked box, 18+ only). Each choice is a real setting, applied as you pick it.
 - **Reels** *(option)* — one post at a time fills the page, scrolled up and down with the keys, the wheel or the arrows; videos play with sound and loop, posts you have seen are skipped, double-click likes. It works on a profile too.
 - **Keys** — the Vim set (`j` `k`, `gg` `G`, `Ctrl+D` `Ctrl+U`, `w` `a` `s` `d` or the arrows to move a ring over the posts, `o` open, `f` like, `b` bookmark, `t` repost, `c` comment, `q` copy link, `e` download, `r` Reels, `?` for the whole list; a key acts on the post under the pointer when you have just moved it) or the Simple set (`A S W E Q C` in a post's panel). Every key can be changed.
 - **Fourteen colour themes** for the columns, the post panel and the settings (Catppuccin ×4, Gruvbox ×2, Rosé Pine ×2, Dracula, Tokyo Night, Nord, Everforest, Kanagawa Wave, Dark Academia) or X's own colours. Japanese, Korean and Chinese posts use a sans-serif (gothic) face.
@@ -76,7 +76,7 @@ Settings tagged **X page** restyle X's own pages with CSS, so they depend on X's
 redesigns. Everything that changes *what's in the feed* does not.
 
 ### Sensitive media and X's age check
-On by default, **Skip X's age check on sensitive media** switches off X's own client-side age-verification flag (`rweb_age_assurance_flow_enabled`, the same one Control Panel for Twitter turns off), so X shows its older "sensitive content" notice, which the NSFW button and X's Show work through. It changes nothing on X's servers and does not verify anything; turn it off in settings to keep X's check.
+Off by default, and for adults only (18+): the welcome page offers it as a tick box, and it is in Settings, Posts. **Skip X's age check on sensitive media** switches off X's own client-side age-verification flag (`rweb_age_assurance_flow_enabled`, the same one Control Panel for Twitter turns off), so X shows its older "sensitive content" notice, which the NSFW button and X's Show work through. It changes nothing on X's servers and does not verify anything; leave it off to keep X's check.
 
 ### Not included
 Dim theme (X removed it), redirect x.com → twitter.com (twitter.com now redirects back, so it would loop), account-location
