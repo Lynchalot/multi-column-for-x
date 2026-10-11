@@ -917,6 +917,7 @@
   function retire() {
     retired = true;
     clearInterval(tickTimer);
+    try { XMCSite.stopNativeTheme(); } catch { /* none to stop */ }
     root.remove(); toastEl.remove();
     if (pill.isConnected) pill.remove();
   }
@@ -2264,6 +2265,7 @@
       lastRefusal: state.fail, waitingForPage: state.waitingPage, secondsSinceAsked: Math.round((Date.now() - state.lastJump) / 1000), secondsWaiting: state.waitSince ? Math.round((Date.now() - state.waitSince) / 1000) : 0,
       theme: (() => { const c = document.querySelector('.xmc-card'); const ccs = c && getComputedStyle(c); const rcs = getComputedStyle(root); return { cardStyle: settings.cardStyle, seeThrough: root.classList.contains('xmc-seethru'), fg: rcs.getPropertyValue('--xmc-fg').trim(), bg: rcs.getPropertyValue('--xmc-bg').trim(), cardBg: ccs && ccs.backgroundColor, cardEdge: ccs && ccs.borderTopColor, bodyBg: getComputedStyle(document.body).backgroundColor, htmlBg: getComputedStyle(document.documentElement).backgroundColor }; })(),
       ageFlag: state.ageFlag || null,
+      xTheme: (() => { try { return XMCSite.themeReport(); } catch { return null; } })(),
       features: featureReport(),
       trace: TRACE.slice(-120),
       headerButtons: (() => { try { const o = headerCopy && nativeHeader(headerCopy.handle); return o ? [...o.querySelectorAll('*')].map((n, i) => [i, n]).filter(([, n]) => n.matches('button, [role="button"], a[href]')).slice(0, 14).map(([i, n]) => ({ i, tag: n.tagName.toLowerCase(), testid: n.getAttribute('data-testid') || '', label: (n.getAttribute('aria-label') || '').slice(0, 24), text: (n.textContent || '').trim().slice(0, 20), href: (n.getAttribute('href') || '').slice(0, 30) })) : null; } catch { return null; } })(),

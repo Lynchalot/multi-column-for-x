@@ -375,7 +375,73 @@ var XMCLogic = (function () {
     return m ? { id: m[1], kind: m[2], n: Number(m[3]) } : null;
   }
 
-  const api = { viewerRoute, attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, isPeoplePage, isLikesPage, findWords, findOn, findMatch, findAccounts, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  // ---- X's own colours, repeated in a colour theme's (for X's own pages: a post's page, a profile, notifications) ----
+  // X's stylesheet is atomic rules (one rule, one declaration: `.r-abc { background-color: rgba(0,0,0,1.00) }`), so a colour can be found by its value. The
+  // tables are X's two looks (black, and white), by role, written from X's own pages as they were; a value that is not in the table is left as X has it.
+  // Not seen on real X for a page this version has not met: `unmapped` in the diagnostics lists the colours it left.
+  const X_LOOKS = {
+    dark: { bg: [0, 0, 0], card: [22, 24, 28], card2: [32, 35, 39], line: [47, 51, 54], fg: [231, 233, 234], muted: [113, 118, 123], pill: [239, 243, 244], pillHover: [215, 219, 220], pillText: [15, 20, 25],
+      accent: [29, 155, 240], accentHover: [26, 140, 216], like: [249, 24, 128], repost: [0, 186, 124] },
+    light: { bg: [255, 255, 255], card: [247, 249, 249], line: [239, 243, 244], fg: [15, 20, 25], muted: [83, 100, 113], pillHover: [39, 44, 48],
+      accent: [29, 155, 240], accentHover: [26, 140, 216], like: [249, 24, 128], repost: [0, 186, 124] },
+  };
+  const NAMED = { white: [255, 255, 255], black: [0, 0, 0] };
+  function parseColour(s) {
+    s = String(s || '').trim().toLowerCase();
+    if (!s) return null;
+    if (NAMED[s]) return { r: NAMED[s][0], g: NAMED[s][1], b: NAMED[s][2], a: 1 };
+    let m = /^#([0-9a-f]{3,8})$/.exec(s);
+    if (m) {
+      let h = m[1];
+      if (h.length === 3 || h.length === 4) h = [...h].map((c) => c + c).join('');
+      if (h.length !== 6 && h.length !== 8) return null;
+      return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16), a: h.length === 8 ? Math.round(parseInt(h.slice(6, 8), 16) / 2.55) / 100 : 1 };
+    }
+    m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/.exec(s);
+    if (!m) return null;
+    let a = 1;
+    if (m[4] !== undefined) a = m[4].endsWith('%') ? parseFloat(m[4]) / 100 : parseFloat(m[4]);
+    return { r: Math.round(Number(m[1])), g: Math.round(Number(m[2])), b: Math.round(Number(m[3])), a: Number.isFinite(a) ? a : 1 };
+  }
+  const hex3 = (h) => { const c = parseColour(h); return c ? [c.r, c.g, c.b] : [0, 0, 0]; };
+  const mixRgb = (a, b, t) => a.map((v, i) => Math.round(v * (1 - t) + b[i] * t)); // t of the way from a to b
+  // the theme's colour for an X role (null: left alone)
+  function themeRole(slot, th) {
+    const bg = hex3(th.bg), fg = hex3(th.fg), card = hex3(th.card || th.bg);
+    switch (slot) {
+      case 'bg': case 'pillText': return bg;
+      case 'card': return card;
+      case 'card2': return mixRgb(card, fg, 0.08);
+      case 'line': return hex3(th.line);
+      case 'fg': case 'pill': return fg;
+      case 'pillHover': return mixRgb(fg, bg, 0.14);
+      case 'muted': return hex3(th.muted);
+      case 'accent': return hex3(th.accent);
+      case 'accentHover': return mixRgb(hex3(th.accent), bg, 0.14);
+      case 'like': return hex3(th.like);
+      case 'repost': return hex3(th.repost);
+      default: return null;
+    }
+  }
+  function xSlot(look, c) {
+    const table = X_LOOKS[look];
+    if (!table || !c) return null;
+    for (const [slot, v] of Object.entries(table)) if (Math.abs(v[0] - c.r) <= 3 && Math.abs(v[1] - c.g) <= 3 && Math.abs(v[2] - c.b) <= 3) return slot;
+    return null;
+  }
+  const COLOUR_TOKEN = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g;
+  // a declaration's value with every colour of X's that has a role replaced by the theme's, the alpha kept; `seen` (optional) counts the colours left as they are
+  function recolourValue(value, look, th, seen) {
+    return String(value).replace(COLOUR_TOKEN, (tok) => {
+      const c = parseColour(tok);
+      const slot = xSlot(look, c), to = slot && themeRole(slot, th);
+      if (!to) { if (seen && c && c.a >= 0.5) { const k = c.r + ',' + c.g + ',' + c.b; if (seen[k] || Object.keys(seen).length < 40) seen[k] = (seen[k] || 0) + 1; } return tok; }
+      return c.a < 1 ? 'rgba(' + to.join(', ') + ', ' + c.a + ')' : 'rgb(' + to.join(', ') + ')';
+    });
+  }
+  const xTheme = { LOOKS: X_LOOKS, parseColour, xSlot, themeRole, recolourValue };
+
+  const api = { xTheme, viewerRoute, attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, isPeoplePage, isLikesPage, findWords, findOn, findMatch, findAccounts, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

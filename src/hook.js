@@ -24,6 +24,18 @@
     }
   } catch { /* storage blocked: no veil */ }
 
+  // With a colour theme on X's own pages, the page's own colour from the first moment (the rest of the theme comes when the extension's script has read X's
+  // stylesheet): a note main.js keeps, '#rrggbb dark|light'. Without it the page shows X's black for a second before it changes.
+  try {
+    const m = /^(#[0-9a-f]{6}) (dark|light)$/i.exec(window.localStorage.getItem('xmcThemeBg') || '');
+    if (m) {
+      const st = document.createElement('style');
+      st.id = 'xmc-early-bg';
+      st.textContent = ':root { color-scheme: ' + m[2].toLowerCase() + ' !important; } html, body { background-color: ' + m[1] + ' !important; }';
+      document.documentElement.append(st);
+    }
+  } catch { /* storage blocked: no early colour */ }
+
   const GRAPHQL = /\/i\/api\/graphql\/[^/]+\/[A-Za-z0-9_]+/;
   const KEEP = 6; // the extension script loads a little later; remember recent responses so it can catch up
   const recent = [];

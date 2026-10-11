@@ -76,9 +76,58 @@ var XMCSite = (function () {
     if (sensitiveEl.textContent !== css) sensitiveEl.textContent = css;
   }
 
+  // ---- the colour theme on X's own pages ----
+  // X draws its colours with one-declaration rules in its own stylesheet. Every rule that has one of X's colours (src/logic.js, XMCLogic.xTheme) is repeated in a
+  // style element of ours with the theme's colour in its place and !important, so a post's page, a profile or the notifications match the columns. X adds
+  // rules as it draws new things, so the stylesheets are counted twice a second and the repeats made again when the count changes. Not seen on real X: what
+  // it left alone is in the diagnostics (`xTheme.unmapped`).
+  let xThemeEl = null, xSig = '', xTimer = 0, xStats = null;
+  const xLook = () => {
+    const c = XMCLogic.xTheme.parseColour(document.body && document.body.style.backgroundColor); // (X sets its page colour on <body> itself; the inline value is not touched by a stylesheet)
+    if (c) return (c.r + c.g + c.b) / 3 > 127 ? 'light' : 'dark';
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  };
+  const xSheets = () => { const out = []; for (const sh of document.styleSheets) { const n = sh.ownerNode; if (n && n.tagName === 'STYLE' && !/^xmc-/.test(n.id || '')) out.push(sh); } return out; };
+  const xRuleCount = (sheets) => { let n = 0; for (const sh of sheets) { try { n += sh.cssRules.length; } catch { /* not readable */ } } return n; };
+  function recolourRules(rules, look, th, out, stats) {
+    for (const rule of rules) {
+      if (rule instanceof CSSStyleRule) {
+        const decl = [];
+        for (let i = 0; i < rule.style.length; i++) {
+          const p = rule.style[i], v = rule.style.getPropertyValue(p), nv = XMCLogic.xTheme.recolourValue(v, look, th, stats.unmapped);
+          if (nv !== v) decl.push(p + ': ' + nv + ' !important');
+        }
+        if (decl.length) { out.push(rule.selectorText + ' { ' + decl.join('; ') + ' }'); stats.rules++; }
+      } else if ((rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule) && rule.cssRules) {
+        const inner = [];
+        recolourRules(rule.cssRules, look, th, inner, stats);
+        if (inner.length) out.push((rule instanceof CSSMediaRule ? '@media ' : '@supports ') + rule.conditionText + ' {\n' + inner.join('\n') + '\n}');
+      }
+    }
+  }
+  function syncNativeTheme() {
+    const th = current && current.themeNative ? XMCSettings.themeOf(current.theme) : null;
+    if (!th) { if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } xSig = ''; xStats = null; return; }
+    const look = xLook(), sheets = xSheets(), sig = look + '|' + th.id + '|' + xRuleCount(sheets);
+    if (sig === xSig && xThemeEl && xThemeEl.isConnected) return;
+    xSig = sig;
+    const out = [], stats = { rules: 0, unmapped: {} };
+    for (const sh of sheets) { try { recolourRules(sh.cssRules, look, th, out, stats); } catch { /* a sheet that cannot be read */ } }
+    out.push(':root { color-scheme: ' + (th.dark ? 'dark' : 'light') + ' !important; }', 'html, body { background-color: ' + th.bg + ' !important; }');
+    if (!xThemeEl) { xThemeEl = document.createElement('style'); xThemeEl.id = 'xmc-xtheme-css'; }
+    if (!xThemeEl.isConnected) document.head.append(xThemeEl);
+    const css = out.join('\n');
+    if (xThemeEl.textContent !== css) xThemeEl.textContent = css;
+    const top = Object.entries(stats.unmapped).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    xStats = { look, theme: th.id, sheets: sheets.length, rules: stats.rules, unmapped: top.map(([k, n]) => 'rgb(' + k + ') x' + n) };
+  }
+  function stopNativeTheme() { clearInterval(xTimer); xTimer = 0; if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } xSig = ''; const early = document.getElementById('xmc-early-bg'); if (early) early.remove(); }
+  const themeReport = () => xStats;
+
   // things React may redraw, so they are re-applied now and then
   function refresh() {
     syncSensitive();
+    syncNativeTheme();
     if (!current) return;
     const twitter = current.branding === 'twitter';
     swapLogo(twitter);
@@ -133,6 +182,12 @@ var XMCSite = (function () {
       const t = document.querySelector('title');
       if (t) { titleObserver = new MutationObserver(fixTitle); titleObserver.observe(t, { childList: true, characterData: true, subtree: true }); }
     }
+    { // the theme on X's own pages: the stylesheet is read again as X adds to it; the page's colour is kept in a note so hook.js can paint it from the first moment
+      const th = s.themeNative ? XMCSettings.themeOf(s.theme) : null;
+      if (th) { if (!xTimer) xTimer = setInterval(syncNativeTheme, 250); } else { clearInterval(xTimer); xTimer = 0; }
+      try { if (th) localStorage.setItem('xmcThemeBg', th.bg + ' ' + (th.dark ? 'dark' : 'light')); else localStorage.removeItem('xmcThemeBg'); } catch { /* storage blocked */ }
+      const early = document.getElementById('xmc-early-bg'); if (early && !th) early.remove(); // (turned off on this page: not left to the next load)
+    }
     refresh();
   }
 
@@ -151,5 +206,5 @@ var XMCSite = (function () {
     return out;
   }
 
-  return { apply, refresh, sidebarItems, BIRD };
+  return { apply, refresh, sidebarItems, stopNativeTheme, themeReport, BIRD };
 })();

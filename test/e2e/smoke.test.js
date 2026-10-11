@@ -6085,6 +6085,70 @@ browserTest('this script\u2019s own presses on X\u2019s hidden page do not close
   });
 }, 90000);
 
+browserTest('a colour theme on X\u2019s own pages: the rules of X\u2019s stylesheet that have X\u2019s colours are repeated in the theme\u2019s, new ones as X adds them, and it goes away when it is switched off', async (e) => {
+  const make = async (page, look) => page.evaluate((lk) => {
+    const dark = lk === 'dark';
+    document.body.style.backgroundColor = dark ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)';
+    const sheet = document.getElementById('react-native-stylesheet').sheet;
+    const add = (r) => sheet.insertRule(r, sheet.cssRules.length);
+    add(`.r-t-bg{background-color:${dark ? 'rgba(0,0,0,1.00)' : 'rgba(255,255,255,1.00)'}}`);
+    add(`.r-t-fg{color:${dark ? 'rgba(231,233,234,1.00)' : 'rgba(15,20,25,1.00)'}}`);
+    add(`.r-t-line{border-bottom:1px solid ${dark ? 'rgba(47,51,54,1.00)' : 'rgba(239,243,244,1.00)'}}`);
+    add(`@media (min-width: 1px){.r-t-m{color:${dark ? 'rgba(113,118,123,1.00)' : 'rgba(83,100,113,1.00)'}}}`);
+    add('.r-t-odd{color:rgba(12,200,40,1.00)}');
+    for (const c of ['bg', 'fg', 'line', 'm', 'odd']) { const d = document.createElement('div'); d.className = 'r-t-' + c; d.textContent = c; d.id = 't-' + c; document.body.append(d); }
+  }, look);
+  const colours = (page) => page.evaluate(() => { const g = (id, p) => getComputedStyle(document.getElementById(id))[p]; return { bg: g('t-bg', 'backgroundColor'), fg: g('t-fg', 'color'), line: g('t-line', 'borderBottomColor'), m: g('t-m', 'color'), odd: g('t-odd', 'color'), body: getComputedStyle(document.body).backgroundColor, scheme: getComputedStyle(document.documentElement).colorScheme }; });
+  // X\u2019s black look, in Catppuccin Mocha
+  const dark = await e.open('/user/status/90001/', { settings: { v: 11, hintSeen: true, theme: 'catppuccin-mocha' } });
+  await checked(dark, async () => {
+    const { page } = dark;
+    await page.waitForFunction(() => window.__xmc && document.getElementById('react-native-stylesheet'));
+    await make(page, 'dark');
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('t-bg')).backgroundColor === 'rgb(30, 30, 46)', null, { timeout: 5000 });
+    assert.deepEqual(await colours(page), { bg: 'rgb(30, 30, 46)', fg: 'rgb(205, 214, 244)', line: 'rgb(69, 71, 90)', m: 'rgb(166, 173, 200)', odd: 'rgb(12, 200, 40)', body: 'rgb(30, 30, 46)', scheme: 'dark' }, 'X\u2019s colours are the theme\u2019s, a colour that is not X\u2019s is left, the body follows');
+    // X draws something new and adds its rule: the repeat follows
+    await page.evaluate(() => { const sheet = document.getElementById('react-native-stylesheet').sheet; sheet.insertRule('.r-t-late{color:rgba(231,233,234,1.00)}', 0); const d = document.createElement('div'); d.className = 'r-t-late'; d.id = 't-late'; document.body.append(d); });
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('t-late')).color === 'rgb(205, 214, 244)', null, { timeout: 5000 });
+    const rep = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).xTheme);
+    assert.equal(rep.look, 'dark'); assert.equal(rep.theme, 'catppuccin-mocha'); assert.ok(rep.rules >= 5, 'rules repeated: ' + rep.rules);
+    assert.ok(rep.unmapped.some((u) => /^rgb\(12,200,40\)/.test(u)), 'what it left is listed: ' + JSON.stringify(rep.unmapped));
+    assert.equal(await page.evaluate(() => localStorage.getItem('xmcThemeBg')), '#1e1e2e dark', 'the page colour is kept for the next load (hook.js paints it from the first moment)');
+    // switched off: X\u2019s own colours again
+    await page.evaluate(() => { window.__xmc.settings.themeNative = false; XMCSite.apply(window.__xmc.settings); });
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('t-bg')).backgroundColor === 'rgb(0, 0, 0)', null, { timeout: 3000 });
+    assert.equal(await page.evaluate(() => !!document.getElementById('xmc-xtheme-css')), false);
+  });
+  // X\u2019s white look, in Catppuccin Latte
+  const light = await e.open('/user/status/90001/', { settings: { v: 11, hintSeen: true, theme: 'catppuccin-latte' } });
+  await checked(light, async () => {
+    const { page } = light;
+    await page.waitForFunction(() => window.__xmc && document.getElementById('react-native-stylesheet'));
+    await make(page, 'light');
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('t-bg')).backgroundColor === 'rgb(239, 241, 245)', null, { timeout: 5000 });
+    const c = await colours(page);
+    assert.equal(c.fg, 'rgb(76, 79, 105)', 'X\u2019s dark text is the theme\u2019s text'); assert.equal(c.scheme, 'light');
+  });
+  // a note left by an earlier theme paints the page at once (hook.js), and is taken away when there is no theme now
+  const stale = await e.open('/user/status/90001/', { settings: { v: 11, hintSeen: true }, init: () => { try { localStorage.setItem('xmcThemeBg', '#112233 dark'); } catch { /* none */ } window.__earlyAtStart = false; new MutationObserver((recs) => { for (const r of recs) for (const n of r.addedNodes) if (n.id === 'xmc-early-bg') window.__earlyAtStart = true; }).observe(document, { childList: true, subtree: true }); } });
+  await checked(stale, async () => {
+    const { page } = stale;
+    await page.waitForFunction(() => window.__xmc);
+    assert.equal(await page.evaluate(() => window.__earlyAtStart), true, 'hook.js painted the page colour');
+    await page.waitForFunction(() => !document.getElementById('xmc-early-bg') && localStorage.getItem('xmcThemeBg') === null, null, { timeout: 4000 });
+  });
+  // no theme: nothing is added
+  const none = await e.open('/user/status/90001/', { settings: { v: 11, hintSeen: true } });
+  await checked(none, async () => {
+    const { page } = none;
+    await page.waitForFunction(() => window.__xmc && document.getElementById('react-native-stylesheet'));
+    await make(page, 'dark');
+    await page.waitForTimeout(1500);
+    assert.equal(await page.evaluate(() => !!document.getElementById('xmc-xtheme-css')), false, 'X\u2019s own colours: no sheet of ours');
+    assert.equal((await colours(page)).bg, 'rgb(0, 0, 0)');
+  });
+}, 90000);
+
 browserTest('NSFW only with nothing marked: it says how many posts it looked at, not just that nothing is there', async () => {
   const none = await setup({ pages: 3, sensEvery: 1000000 });
   if (!none) return;
