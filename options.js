@@ -16,6 +16,7 @@
   const $ = (sel) => document.querySelector(sel);
   const h = (tag, props, ...kids) => { const n = Object.assign(document.createElement(tag), props || {}); n.append(...kids.filter(Boolean)); return n; };
   const say = (msg) => { $('#status').textContent = msg; };
+  const warned = (text) => String(text).split(/(\(18\+ only\))/).map((part) => (part === '(18+ only)' ? h('span', { className: 'warn', textContent: part }) : part)); // ("(18+ only)" in red wherever a label has it)
 
   async function load() {
     let v;
@@ -360,8 +361,8 @@
     steps.push(step(false, 'Sensitive media',
       h('label', { className: 'wcheck', htmlFor: 'welcome-age' },
         tagged(h('input', { type: 'checkbox', id: 'welcome-age', checked: !!settings.skipAgeCheck, onchange: (ev) => { persist({ skipAgeCheck: ev.target.checked }); build(); } }), 'age'),
-        h('span', { textContent: 'Skip X\u2019s age check (18+ only)' })),
-      h('p', { className: 'wnote', textContent: 'Turns off X\u2019s age-verification prompt in this browser, so X shows its older sensitive-content notice instead. Leave it off if you are under 18.' })));
+        h('span', {}, ...warned('Skip X\u2019s age check (18+ only)'))),
+      h('p', { className: 'wnote', textContent: 'Turn off X\u2019s age-verification prompt. Leave it off if you are under 18.' })));
     const close = () => { welcomeShut = true; host.hidden = true; try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } accessBanner(); applyFind(); };
     host.replaceChildren(...steps,
       h('div', { className: 'row' },
@@ -465,7 +466,7 @@
       for (const it of sec.items) {
         if (it.hidden) continue; // kept as a setting, not offered
         const c = control(it);
-        const label = h('label', { className: 'name', htmlFor: 'opt-' + it.key, textContent: it.label },
+        const label = h('label', { className: 'name', htmlFor: 'opt-' + it.key }, ...warned(it.label),
           it.native ? h('span', { className: 'native-tag', title: 'Restyles X’s own pages, so it depends on X’s current layout', textContent: 'X page' }) : null);
         const reset = h('button', { type: 'button', className: 'reset', textContent: 'Reset', title: 'Back to the default', 'aria-label': 'Reset \u201c' + it.label + '\u201d to its default' });
         reset.addEventListener('click', () => resetItem(it));

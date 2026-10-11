@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.48.10
+- **"(18+ only)" is in red** on the welcome page and on the Skip X's age check setting, and the words under the box are shorter: "Turn off X's age-verification prompt. Leave it off if you are under 18." (the Settings help says the same, then "Reload X after changing it."). The red follows the page's light or dark scheme (`.warn`, `light-dark()`); any label with "(18+ only)" gets it.
+- Tests: the red text and the wording on both pages.
+
 ## 0.48.9
 - **X's age check is left alone until you ask.** *Skip X's age check on sensitive media* is now off by default and marked (18+ only), and the welcome page has a step for it: an unticked box, "Skip X's age check (18+ only)", with a line under it (it turns off X's age-verification prompt in this browser; leave it off if you are under 18). Before, it was on for everyone and the only warning was in Settings. If you had it on without choosing it, tick it again (Settings, Posts, or the welcome page, `options.html?welcome=1`). The page hook reads the choice before X starts (`xmcSkipAge` is '1' only when you ticked it).
 - Tests: the welcome box (off to begin with, says 18+, in step with Settings); the age flag is untouched by default.

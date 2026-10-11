@@ -54,6 +54,9 @@ Start-up motion (`xmc-boot` on html while X's menu and sidebar fade in as the ve
 ## Added in 0.29.1
 The Columns pill follows `active` (the columns being up), not the address: during a visit the address is a post's and `eligible()` is false, which hid the pill for the length of every visit. Anything else that asks `eligible()` while X's hidden page may be away on a post has the same trap (`peeking`/`active` already hold the columns). X translates posts itself: `harvestTranslations` reads X's own translated words from its hidden page into `translations` (only when X says "Translated from" or shows "Show original"; English wording only, not seen on real X: `autoTranslate` in the diagnostics says whether it took anything), and the panel and comments show those at once.
 
+## Added in 0.48.10
+`warned(text)` in options.js puts `(18+ only)` in a red `.warn` span (colour `light-dark(#c62828, #ff6b6b)`, which follows the page's `color-scheme`, set per theme by `applyTheme`) in every settings label and in the welcome checkbox. The wording of the age-check box and its Settings help is the owner's own.
+
 ## Added in 0.48.9
 `skipAgeCheck` defaults to `false` (the owner's call: "let's be safe", for the AMO listing); the welcome page has the step `Sensitive media` (`#welcome-age`, `persist` + `build()`), and `hook.js` takes the flag from `xmcSkipAge === '1'` (no note: off). A browser that had the note '1' before the update still has it for one load; `main.js` writes '0' once the saved setting says off.
 

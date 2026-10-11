@@ -753,6 +753,9 @@ browserTest('the page the install opens starts with the starting points as large
     assert.equal(await page.locator('#welcome-age').isChecked(), false, 'off to begin with');
     assert.match(await page.locator('label[for="welcome-age"]').innerText(), /18\+/, 'the label says 18+');
     assert.match(await page.locator('#welcome').innerText(), /under 18/, 'and the line under it says who should leave it off');
+    assert.match(await page.locator('#welcome .wcheck + .wnote').innerText(), /^Turn off X\u2019s age-verification prompt\. Leave it off if you are under 18\.$/, 'in the words chosen for it');
+    const red = await page.evaluate(() => [...document.querySelectorAll('#welcome .wcheck .warn, #sec-posts .item[data-key="skipAgeCheck"] .warn')].map((el) => { const m = /\d+/g, c = getComputedStyle(el).color.match(m).map(Number); return { text: el.textContent, red: c[0] > 150 && c[1] < 120 && c[2] < 120, bold: Number(getComputedStyle(el).fontWeight) >= 600 }; }));
+    assert.deepEqual(red, [{ text: '(18+ only)', red: true, bold: true }, { text: '(18+ only)', red: true, bold: true }], '18+ only is in red, on the welcome page and in Settings');
     await page.locator('#welcome-age').check();
     await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('xmc.settings')).skipAgeCheck === true; } catch { return false; } }, null, { timeout: 5000 });
     await page.waitForFunction(() => document.getElementById('opt-skipAgeCheck').checked, null, { timeout: 5000 }); // (in step with Settings below)
