@@ -6149,6 +6149,26 @@ browserTest('a colour theme on X\u2019s own pages: the rules of X\u2019s stylesh
   });
 }, 90000);
 
+browserTest('a view that shows some of what has loaded: the spinner says how many match, stays between one answer and the next request, and the end note says how many', async () => {
+  const few = await setup({ pages: 6, sensEvery: 9 }); // (a post in nine is marked; a few pages, then X has no more)
+  if (!few) return;
+  try {
+    const h = await few.open('/home/', { width: 2000, height: 1000, settings: { v: 11, hintSeen: true, cols: 3, nsfwView: true, filter: 'nsfw', seen: 'off' }, init: () => { window.__delay = 500; } });
+    await checked(h, async () => {
+      const { page } = h;
+      await page.waitForFunction(() => /Loading more\.\.\. \d+ of \d+ match/.test((document.querySelector('.xmc-loader') || {}).textContent || '') && !document.querySelector('.xmc-loader').hidden, null, { timeout: 30000 });
+      // the gap between an answer and the next request: the spinner stays (and goes after a few seconds with nothing asked)
+      await page.evaluate(() => { const st = window.__xmc.state; st.proxyUntil = Date.now() + 120000; st.waitingPage = false; st.loaderAt = Date.now(); });
+      await page.waitForTimeout(400);
+      assert.equal(await page.evaluate(() => document.querySelector('.xmc-loader').hidden), false, 'still there just after the last request');
+      await page.waitForFunction(() => document.querySelector('.xmc-loader').hidden, null, { timeout: 6000 });
+      // X has no more (the stand-in takes four unanswered nudges and half a minute to say so; say it now)
+      await page.evaluate(() => { const x = window.__xmc, f = x.state.feeds.get(x.view.feedKey); x.state.proxyUntil = 0; f.exhausted = true; x.view.upto = f.items.length; });
+      await page.waitForFunction(() => [...document.querySelectorAll('.xmc-end')].some((e) => !e.hidden && /That\u2019s everything X has sent \(\d+ of \d+ match\)\./.test(e.textContent)), null, { timeout: 8000 });
+    });
+  } finally { await few.teardown(); }
+}, 120000);
+
 browserTest('NSFW only with nothing marked: it says how many posts it looked at, not just that nothing is there', async () => {
   const none = await setup({ pages: 3, sensEvery: 1000000 });
   if (!none) return;
@@ -6158,6 +6178,43 @@ browserTest('NSFW only with nothing marked: it says how many posts it looked at,
       await h.page.waitForFunction(() => /marked none of the \d+ posts loaded so far as sensitive\./.test((document.querySelector('.xmc-status') || {}).textContent || ''), null, { timeout: 40000 });
     });
   } finally { await none.teardown(); }
+}, 90000);
+
+browserTest('a sensitive picture is blurred from a small copy of itself (no filter to work out for every frame), a clip under the blur is not played, and showing or revealing undoes both', async () => {
+  const sens = await setup({ pages: 6, sensEvery: 1 });
+  if (!sens) return;
+  try {
+    const h = await sens.open('/home/', { width: 1500, height: 1000, settings: { v: 11, hintSeen: true, cols: 3, nsfw: 'blur', seen: 'off' }, init: () => { HTMLMediaElement.prototype.play = function () { this.__plays = (this.__plays || 0) + 1; return Promise.resolve(); }; } });
+    await checked(h, async () => {
+      const { page } = h;
+      await page.waitForFunction(() => document.querySelectorAll('.xmc-media.sensitive.xmc-pre').length >= 4 && !!document.querySelector('.xmc-media.sensitive video[data-gif]'), null, { timeout: 30000 });
+      const look = () => page.evaluate(() => {
+        const box = document.querySelector('.xmc-media.sensitive.xmc-pre:has(img)'), img = box.querySelector('img'), c = box.querySelector('.xmc-bl');
+        return { canvas: getComputedStyle(c).display, w: c.width, h: c.height, imgOpacity: getComputedStyle(img).opacity, filter: getComputedStyle(img).filter, hidden: c.getAttribute('aria-hidden') };
+      });
+      const blurred = await look();
+      assert.equal(blurred.canvas, 'block', 'the small copy is what shows');
+      assert.ok(blurred.w >= 8 && blurred.w <= 64 && blurred.h >= 8, 'and it is small: ' + blurred.w + 'x' + blurred.h);
+      assert.equal(blurred.imgOpacity, '0', 'the picture itself is not shown');
+      assert.equal(blurred.filter, 'none', 'and has no filter to work out');
+      assert.equal(blurred.hidden, 'true', 'it says nothing to a screen reader');
+      // a GIF under the blur: in view, and not played
+      await page.evaluate(() => document.querySelector('.xmc-media.sensitive video[data-gif]').scrollIntoView({ block: 'center' }));
+      await page.waitForTimeout(1500);
+      assert.equal(await page.evaluate(() => document.querySelector('.xmc-media.sensitive video[data-gif]').__plays || 0), 0, 'a clip under the blur is not played');
+      // one click on its notice: the picture is there, the copy is not, and the clip plays
+      await page.evaluate(() => document.querySelector('.xmc-media.sensitive:has(video[data-gif])').id = 'xmc-test-gifbox');
+      await page.locator('#xmc-test-gifbox .xmc-reveal').click();
+      await page.waitForFunction(() => document.querySelector('#xmc-test-gifbox video').__plays >= 1, null, { timeout: 5000 });
+      assert.equal(await page.evaluate(() => { const b = document.getElementById('xmc-test-gifbox'); return [getComputedStyle(b.querySelector('.xmc-bl')).display, getComputedStyle(b.querySelector('video')).opacity].join(' '); }), 'none 1', 'revealed: the copy is gone, the clip is shown');
+      // the top-bar button to Show: every picture is itself, and clips play
+      await page.locator('.xmc-nsfw').click();
+      await page.waitForFunction(() => document.documentElement.classList.contains('xmc-nsfw-show'), null, { timeout: 3000 });
+      const shown = await look();
+      assert.equal(shown.canvas, 'none', 'shown: no copy');
+      assert.equal(shown.imgOpacity, '1', 'shown: the picture');
+    });
+  } finally { await sens.teardown(); }
 }, 90000);
 
 browserTest('a timeline recorded from real X (test/fixtures/real) is drawn: posts, a quote, a video, a long note, no script errors of ours', async (e) => {

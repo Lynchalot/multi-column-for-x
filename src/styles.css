@@ -185,6 +185,10 @@ html.xmc-reducedInteraction .xmc-n { display: none !important; }
 .xmc-media { position: relative; }
 .xmc-media.sensitive img, .xmc-media.sensitive video { filter: blur(32px); transform: scale(1.1); }
 .xmc-media.sensitive { overflow: hidden; }
+/* the blur from a small copy of the picture (preBlur); until that is drawn the filter above is what blurs */
+.xmc-bl { position: absolute; inset: 0; width: 100%; height: 100%; display: none; pointer-events: none; }
+.xmc-media.sensitive.xmc-pre > .xmc-bl { display: block; }
+.xmc-media.sensitive.xmc-pre img, .xmc-media.sensitive.xmc-pre video { opacity: 0; filter: none; transform: none; transition: none; }
 .xmc-reveal { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; appearance: none; border: 0; cursor: pointer;
   padding: 9px 14px; border-radius: 999px; background: rgba(0, 0, 0, .75); color: #fff; font: 600 13px/1 system-ui, sans-serif; }
 .xmc-reveal:hover { background: rgba(0, 0, 0, .9); }
@@ -223,7 +227,8 @@ html.xmc-hideDmDrawer [data-xmc-dm], html.xmc-hideDmDrawer [data-testid="DMDrawe
 
 /* ---- sensitive media: blurred (default), shown, or hidden (those posts are left out entirely) ---- */
 html.xmc-nsfw-show .xmc-media.sensitive img, html.xmc-nsfw-show .xmc-media.sensitive video { filter: none !important; transform: none !important; }
-html.xmc-nsfw-show .xmc-reveal { display: none !important; }
+html.xmc-nsfw-show .xmc-reveal, html.xmc-nsfw-show .xmc-bl { display: none !important; }
+html.xmc-nsfw-show .xmc-media.sensitive.xmc-pre img, html.xmc-nsfw-show .xmc-media.sensitive.xmc-pre video { opacity: 1; }
 .xmc-qmedia.sens { filter: blur(24px); }
 html.xmc-nsfw-show .xmc-qmedia.sens { filter: none; }
 .xmc-nsfw { display: inline-flex !important; align-items: center; gap: 6px; padding: 8px 12px !important; }

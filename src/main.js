@@ -424,10 +424,14 @@
     for (const en of entries) {
       const v = en.target;
       if (document.fullscreenElement === v || document.pictureInPictureElement === v) continue;
+      if (v.closest('.xmc-media.sensitive') && !document.documentElement.classList.contains('xmc-nsfw-show')) { if (!v.paused) v.pause(); continue; } // (a clip under the blur is not played: the blur is worked out again for every frame of it)
       const act = XMCLogic.videoAction({ gif: !!v.dataset.gif, ratio: en.intersectionRatio, paused: v.paused });
       if (act === 'play') v.play().catch(() => {}); else if (act === 'pause') v.pause();
     }
   }, { threshold: [0, 0.25, 0.5, 0.75] });
+
+  // the clips in `scope` are looked at again (the observer reports only when how much of one is on screen changes, and a clip just unblurred may be on screen already)
+  function rewatchVideos(scope) { for (const v of scope.querySelectorAll('video[data-gif]')) { playObserver.unobserve(v); playObserver.observe(v); } }
 
   // ---------- posts you've read ----------
   // A post counts as read once it has been mostly on screen for a second. What is hidden or faded is what you read on EARLIER
@@ -534,6 +538,7 @@
     const n = list.length;
     const box = h('div', { className: 'xmc-media ' + (n === 1 ? 'single' : 'grid n' + n) + (n === 1 && photoFloor(list[0]) > 0.6 ? ' xmc-cap' : '') });
     let photoIdx = 0;
+    const blurFrom = []; // the pictures a sensitive box is blurred from: a photo itself, or a clip's poster
     for (const m of list) {
       let node;
       if (m.type === 'photo') {
@@ -542,15 +547,52 @@
         node.dataset.lb = String(photoIdx++); node.tabIndex = 0; node.setAttribute('role', 'button'); node.setAttribute('aria-label', 'Open photo');
         const arrived = () => box.classList.remove('xmc-loading');
         node.addEventListener('load', arrived); node.addEventListener('error', arrived); setTimeout(arrived, 8000);
-      } else node = renderVideo(m, t);
+        blurFrom.push(node);
+      } else {
+        node = renderVideo(m, t);
+        if (n === 1 && node.querySelector('video')) blurFrom.push(h('img', { src: m.thumb, decoding: 'async' }));
+      }
       if (n === 1) box.style.aspectRatio = String(clampRatio(m.w, m.h, photoFloor(m)));
       box.append(node);
     }
     if (t.sensitive) { // blurred or not is decided by the NSFW setting (CSS), so the top-bar button works instantly
       box.classList.add('sensitive');
       box.append(h('button', { className: 'xmc-reveal', type: 'button', textContent: 'Sensitive content — click to view' }));
+      if (blurFrom.length === n) preBlur(box, blurFrom);
     }
     return box;
+  }
+  // A sensitive picture is blurred from a small copy of itself, drawn once and stretched over its box. A blur filter on a full-size picture is worked out again for every
+  // frame of scrolling (and of a clip playing under it), and in a view of nothing but sensitive posts that was most of what was on screen. Until the copy is drawn, or if the
+  // browser will not draw it, the CSS filter does the blurring.
+  const BLUR_CELLS = { 1: [[0, 0, 1, 1]], 2: [[0, 0, .5, 1], [.5, 0, .5, 1]], 3: [[0, 0, .5, 1], [.5, 0, .5, .5], [.5, .5, .5, .5]], 4: [[0, 0, .5, .5], [.5, 0, .5, .5], [0, .5, .5, .5], [.5, .5, .5, .5]] }; // (where each picture sits in the box, as fractions of it)
+  function halved(img, w) { // the picture made smaller by halves until it is not more than twice w wide (one big step skips most of its pixels)
+    let cur = img, cw = img.naturalWidth, ch = img.naturalHeight;
+    while (cw > w * 2) {
+      const c = document.createElement('canvas');
+      cw = Math.ceil(cw / 2); ch = Math.ceil(ch / 2); c.width = cw; c.height = ch;
+      c.getContext('2d').drawImage(cur, 0, 0, cw, ch); cur = c;
+    }
+    return cur;
+  }
+  function preBlur(box, imgs) {
+    const cells = BLUR_CELLS[imgs.length];
+    if (!cells) return;
+    const W = 48, ratio = imgs.length === 1 ? Number(box.style.aspectRatio) || 16 / 9 : 16 / 9, H = Math.max(8, Math.min(96, Math.round(W / ratio)));
+    const canvas = h('canvas', { className: 'xmc-bl', width: W, height: H, 'aria-hidden': 'true' });
+    let left = imgs.length;
+    const draw = () => {
+      try {
+        const sigma = Math.max(1.5, Math.min(6, 32 * W / (box.clientWidth || 480))), pad = Math.ceil(sigma * 3); // (as strong as the 32px blur it stands in for, whatever the width of the box)
+        const ctx = canvas.getContext('2d');
+        ctx.filter = 'blur(' + sigma.toFixed(2) + 'px)';
+        imgs.forEach((im, i) => { const [x, y, w, hh] = cells[i]; ctx.drawImage(halved(im, W * 2), x * W - pad, y * H - pad, w * W + pad * 2, hh * H + pad * 2); }); // (a little over, so the blur has no clear edge)
+        box.append(canvas); box.classList.add('xmc-pre');
+      } catch { /* the CSS filter stays */ }
+    };
+    for (const im of imgs) {
+      if (im.complete && im.naturalWidth) { if (!--left) draw(); } else im.addEventListener('load', () => { if (!--left) draw(); }, { once: true });
+    }
   }
   // a picture's own width and height, so its box has its shape (and so its height) before the picture has arrived: nothing below it moves when it does
   const sized = (m) => (m && m.w > 0 && m.h > 0 ? { width: m.w, height: m.h } : {});
@@ -1063,6 +1105,7 @@
     window.postMessage({ source: 'xmc-flags', skipAge: !!settings.skipAgeCheck }, location.origin); // the page hook turns X's age-verification flag off or on
     try { window.localStorage.setItem('xmcSkipAge', settings.skipAgeCheck ? '1' : '0'); } catch { /* storage blocked */ } // so the hook knows it at the next page load, before X draws anything
     XMCSite.apply(settings);
+    rewatchVideos(colsEl);
     root.classList.toggle('xmc-flat', settings.cardStyle === 'flat');
     root.style.setProperty('--xmc-ts', String(textScale()));
     fitSync();
@@ -1899,17 +1942,23 @@
     setStatus(!view.cards.length && drawn && (f.exhausted || !state.waitingPage || held)
       ? (view.hiddenSeen ? 'You\u2019re all caught up: everything here is posts you\u2019ve read.' : findCtx() ? 'None of the ' + f.items.length + ' that have loaded match.' : settings.filter === 'nsfw' ? 'X has marked none of the ' + f.items.length + ' posts loaded so far as sensitive' + (f.exhausted ? '.' : ', and is still being asked...') : f.exhausted ? 'Nothing in this view.' : 'Nothing here matches this view yet...') : '');
     // spinner while we're fetching more; a note when X has no more to give
-    const waiting = state.waitingPage && !f.exhausted && !view.caughtUp && !held;
+    const asking = state.waitingPage && !f.exhausted && !view.caughtUp && !held;
+    if (asking) state.loaderAt = Date.now();
+    // between one answer from X and the next request the spinner stays while the end of what is drawn is on or near the screen: with few posts matching the view (NSFW only) that gap came round with every page and the spinner and the grey cards blinked
+    const waiting = asking || (!f.exhausted && !view.caughtUp && !held && Date.now() - (state.loaderAt || 0) < 3000 && contentBottom() < scroller.scrollTop + scroller.clientHeight + innerHeight);
     loaderEl.hidden = !waiting;
-    syncGhosts(waiting && !galleryOn() && shortestBottom() < scroller.scrollTop + scroller.clientHeight);
+    syncGhosts(waiting && !galleryOn() && shortestBottom() < scroller.scrollTop + scroller.clientHeight + innerHeight);
     loaderEl.classList.toggle('xmc-sticky', waiting && contentBottom() < scroller.scrollTop + scroller.clientHeight); // blank space on screen: keep the spinner in view
     const fl = state.fail && Date.now() - state.fail.at < 90000 ? state.fail : null;
+    const narrowed = !!settings.filter && settings.filter !== 'all' && view.cards.length < f.items.length; // (a view that shows some of what has loaded: say how many)
     const loaderMsg = waiting && fl
       ? (fl.status === 429 ? 'X says slow down (rate limit) - retrying shortly...' : 'X returned an error (' + fl.status + ') - retrying...')
-      : waiting && Date.now() - state.waitSince > 12000 ? 'Still waiting for X...' : 'Loading more...';
+      : waiting && state.waitSince && Date.now() - state.waitSince > 12000 ? 'Still waiting for X...' : 'Loading more...' + (narrowed ? ' ' + view.cards.length + ' of ' + f.items.length + ' match' : '');
     if (loaderText.textContent !== loaderMsg) loaderText.textContent = loaderMsg;
     diagBtn.hidden = !(waiting && Date.now() - state.waitSince > 20000 || waiting && fl);
     endEl.hidden = !(f.exhausted && drawn && view.cards.length);
+    const endNote = 'That\u2019s everything X has sent' + (narrowed ? ' (' + view.cards.length + ' of ' + f.items.length + ' match).' : '.');
+    if (endEl.firstChild.textContent !== endNote) endEl.firstChild.textContent = endNote;
     findSync(f);
     gallerySync();
   }
@@ -4469,7 +4518,7 @@
     const chip = e.target.closest('.xmc-mediachip');
     if (chip) { t.revealed = true; chip.replaceWith(renderMedia(t)); return; }
     const reveal = e.target.closest('.xmc-reveal');
-    if (reveal) { reveal.parentElement.classList.remove('sensitive'); reveal.remove(); return; }
+    if (reveal) { const box = reveal.parentElement; box.classList.remove('sensitive'); reveal.remove(); rewatchVideos(box); return; }
     const more = e.target.closest('.xmc-more');
     if (more) { cardEl.querySelector('.xmc-text').classList.remove('clamp'); more.remove(); return; }
     const photo = e.target.closest('[data-lb]');
@@ -5616,7 +5665,7 @@
     if (modal || peeking) { if (tickN++ % 5 === 0) guard('position', position); return; }
     // new page: reset per-page bookkeeping BEFORE the rules below can start waiting for a feed
     if (route !== state.route) {
-      state.route = route; state.routeSince = Date.now(); state.waitingPage = false; state.waitSince = 0;
+      state.route = route; state.routeSince = Date.now(); state.waitingPage = false; state.waitSince = 0; state.loaderAt = 0;
       state.awaiting = null; state.refreshing = null; lastSig = ''; state.sub = {}; state.showSeen = false; applyBar(); // X resets its dropdowns on a new page
     }
     if (tickN % 5 === 2) guard('hidden videos', stopHiddenVideos);

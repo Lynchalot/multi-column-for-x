@@ -85,7 +85,7 @@ class Driver {
 }
 const KEYS = { Escape: '', ArrowRight: '', ArrowLeft: '', ArrowDown: '', ArrowUp: '', Enter: '', Tab: '' };
 
-async function setup({ pages = 30, csp = '', install = true, zipFile = '' } = {}) {
+async function setup({ pages = 30, csp = '', install = true, zipFile = '', sensEvery } = {}) {
   const exe = process.env.XMC_FIREFOX || (process.env.CI ? which('firefox') : null);
   const gecko = process.env.XMC_GECKODRIVER || which('geckodriver');
   if (process.env.CI && (!exe || !gecko)) throw new Error('no Firefox or geckodriver on this runner (firefox: ' + exe + ', geckodriver: ' + gecko + '): the tests would skip, and a skip is not a pass');
@@ -98,7 +98,7 @@ async function setup({ pages = 30, csp = '', install = true, zipFile = '' } = {}
   const zip = path.join(zipDir, fs.readdirSync(zipDir).find((f) => f.endsWith('.zip')));
   const key = path.join(tmp, 'key.pem'), cert = path.join(tmp, 'cert.pem');
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '2', '-subj', '/CN=x.com', '-addext', 'subjectAltName=' + HOSTS.map((h) => 'DNS:' + h).join(',')], { stdio: 'ignore' });
-  const server = await start({ pages, tls: { key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, bare: true, publicOrigin: 'https://x.com', csp, twimg: true });
+  const server = await start({ pages, tls: { key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, bare: true, publicOrigin: 'https://x.com', csp, twimg: true, sensEvery });
   // Every https request the browser makes to one of our hosts is tunnelled to the stand-in; anything else is refused (no traffic leaves).
   const sockets = new Set();
   const proxy = http.createServer((q, s) => { s.writeHead(502); s.end(); });
