@@ -37,6 +37,16 @@ test('X’s black look: its colours become the theme’s by role, the alpha stay
   assert.equal(r('var(--x)'), 'var(--x)');
 });
 
+test('the words black and white are colours too (X\u2019s base rules say `border: 0 solid black`, which a browser lists as the word), and only when they stand alone', () => {
+  assert.equal(T.recolourValue('black', 'dark', mocha), 'rgb(30, 30, 46)', 'black is X\u2019s background');
+  assert.equal(T.recolourValue('Black', 'dark', mocha), 'rgb(30, 30, 46)');
+  assert.equal(T.recolourValue('white', 'dark', mocha), 'white', 'white is not a role in X\u2019s black look');
+  assert.equal(T.recolourValue('white', 'light', latte), 'rgb(239, 241, 245)', 'and is the background of its white look');
+  assert.equal(T.recolourValue('url(black.png)', 'dark', mocha), 'url(black.png)');
+  assert.equal(T.recolourValue('url(/img/white) black', 'dark', mocha), 'url(/img/white) rgb(30, 30, 46)');
+  assert.equal(T.recolourValue('blackish', 'dark', mocha), 'blackish');
+});
+
 test('X’s white look: white is the background, the dark text is the theme’s text, the same colours in either theme', () => {
   assert.equal(T.recolourValue('rgba(255,255,255,1.00)', 'light', latte), 'rgb(239, 241, 245)');
   assert.equal(T.recolourValue('rgba(255,255,255,1.00)', 'light', mocha), 'rgb(30, 30, 46)', 'a dark theme on X’s white page');

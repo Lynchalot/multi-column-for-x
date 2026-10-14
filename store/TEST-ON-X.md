@@ -39,6 +39,7 @@ Nobody working on this can log in to X, so this is the list of what only your ow
 34. **0.48.10:** is "(18+ only)" in red on the welcome page and in Settings, Posts, on your theme (light and dark ones)? Is it readable?
 35. **0.49.0:** with a colour theme on, open a post's own page (columns off), a profile, notifications and Messages: do they take the theme (page, cards, lines, text, the white pills)? Does the page flash X's black before it changes? Anything left in X's colours, or too bright or too dark: a screenshot, and Copy diagnostics from that page (`xTheme.unmapped` lists the colours it left as X has them). *Settings, Look, Use the theme on X's own pages* turns it off.
 36. **0.49.1:** NSFW only with a lot of sensitive posts on screen: is scrolling smoother than before? Do the blurred pictures still hide what is in them (as much as before)? Does a GIF stay still until you click "Sensitive content, click to view"? Does the spinner stay steady while it loads, and say "N of M match"?
-37. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
+37. **0.49.2:** with a colour theme on, the profile page and the right sidebar on Home: can you read the names, bios, "Followed by", the sidebar's boxes and the white buttons' words (Follow, Get Verified, Subscribe)? A screenshot and Copy diagnostics (`xTheme`) if not.
+38. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
 
 What to send back: the table (2), the sample file (3), Copy diagnostics from anything that failed (it carries a `features` block), and a recording of anything that looked wrong.

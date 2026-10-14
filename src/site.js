@@ -77,11 +77,13 @@ var XMCSite = (function () {
   }
 
   // ---- the colour theme on X's own pages ----
-  // X draws its colours with one-declaration rules in its own stylesheet. Every rule that has one of X's colours (src/logic.js, XMCLogic.xTheme) is repeated in a
-  // style element of ours with the theme's colour in its place and !important, so a post's page, a profile or the notifications match the columns. X adds
-  // rules as it draws new things, so the stylesheets are counted twice a second and the repeats made again when the count changes. Not seen on real X: what
-  // it left alone is in the diagnostics (`xTheme.unmapped`).
-  let xThemeEl = null, xSig = '', xTimer = 0, xStats = null;
+  // X draws its colours with one-declaration rules in its own stylesheet, and several rules often compete for one element (a base `color: black` that a later
+  // `color: white` overrides). Every property that has one of X's colours in it somewhere (src/logic.js, XMCLogic.xTheme) is repeated, in X's order, in a style
+  // element of ours with the theme's colours in place of X's: all the rules that set that property, not only the ones with a colour of X's, or the base would
+  // win over what X puts over it. They have X's own priority and come after X's in the page, so what wins on X wins here, an inline colour still wins, and the
+  // theme's colours are what show. X adds rules as it draws new things, so the stylesheets are counted four times a second and the repeats made again when the
+  // count changes. Not seen on real X: what it left alone is in the diagnostics (`xTheme.unmapped`).
+  let xThemeEl = null, xSig = '', xTimer = 0, xStats = null, xBuiltAt = 0;
   const xLook = () => {
     const c = XMCLogic.xTheme.parseColour(document.body && document.body.style.backgroundColor); // (X sets its page colour on <body> itself; the inline value is not touched by a stylesheet)
     if (c) return (c.r + c.g + c.b) / 3 > 127 ? 'light' : 'dark';
@@ -89,37 +91,65 @@ var XMCSite = (function () {
   };
   const xSheets = () => { const out = []; for (const sh of document.styleSheets) { const n = sh.ownerNode; if (n && n.tagName === 'STYLE' && !/^xmc-/.test(n.id || '')) out.push(sh); } return out; };
   const xRuleCount = (sheets) => { let n = 0; for (const sh of sheets) { try { n += sh.cssRules.length; } catch { /* not readable */ } } return n; };
-  function recolourRules(rules, look, th, out, stats) {
+  const COLOURISH = /color|^background|^border|^outline|shadow|^fill$|^stroke$|decoration|caret|column-rule/; // (properties that can hold a colour; the longhands, as a style lists them)
+  // X's style rules as a list of { sel, at, decls: [[property, recoloured value, priority, changed]] }: the declarations that could hold a colour, in X's order
+  function readRules(rules, look, th, out, stats, at) {
     for (const rule of rules) {
       if (rule instanceof CSSStyleRule) {
-        const decl = [];
+        const decls = [];
         for (let i = 0; i < rule.style.length; i++) {
-          const p = rule.style[i], v = rule.style.getPropertyValue(p), nv = XMCLogic.xTheme.recolourValue(v, look, th, stats.unmapped);
-          if (nv !== v) decl.push(p + ': ' + nv + ' !important');
+          const p = rule.style[i];
+          if (!COLOURISH.test(p)) continue;
+          const v = rule.style.getPropertyValue(p);
+          if (!v) continue; // (a longhand of a shorthand with var() in it has no value to repeat)
+          const nv = XMCLogic.xTheme.recolourValue(v, look, th, stats.unmapped);
+          decls.push([p, nv, rule.style.getPropertyPriority(p), nv !== v]);
         }
-        if (decl.length) { out.push(rule.selectorText + ' { ' + decl.join('; ') + ' }'); stats.rules++; }
+        if (decls.length) out.push({ sel: rule.selectorText, at, decls });
       } else if ((rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule) && rule.cssRules) {
-        const inner = [];
-        recolourRules(rule.cssRules, look, th, inner, stats);
-        if (inner.length) out.push((rule instanceof CSSMediaRule ? '@media ' : '@supports ') + rule.conditionText + ' {\n' + inner.join('\n') + '\n}');
+        readRules(rule.cssRules, look, th, out, stats, at + (rule instanceof CSSMediaRule ? '@media ' : '@supports ') + rule.conditionText + '\u0001');
       }
     }
+  }
+  // the CSS for those: only the properties that changed somewhere, every rule's declaration of each, grouped again under their @media or @supports in the order they came
+  function writeRules(list) {
+    const changed = new Set();
+    for (const r of list) for (const d of r.decls) if (d[3]) changed.add(d[0]);
+    const lines = []; let rules = 0, open = '';
+    const close = (to) => { // the at-rules open now and the ones wanted: close what is not wanted, open what is missing
+      const have = open ? open.split('\u0001').slice(0, -1) : [], want = to ? to.split('\u0001').slice(0, -1) : [];
+      let k = 0; while (k < have.length && k < want.length && have[k] === want[k]) k++;
+      for (let j = have.length; j > k; j--) lines.push('}');
+      for (let j = k; j < want.length; j++) lines.push(want[j] + ' {');
+      open = to;
+    };
+    for (const r of list) {
+      const keep = r.decls.filter((d) => changed.has(d[0]));
+      if (!keep.length) continue;
+      close(r.at);
+      lines.push(r.sel + ' { ' + keep.map((d) => d[0] + ': ' + d[1] + (d[2] ? ' !' + d[2] : '')).join('; ') + ' }');
+      rules++;
+    }
+    close('');
+    return { css: lines, rules, props: changed.size };
   }
   function syncNativeTheme() {
     const th = current && current.themeNative ? XMCSettings.themeOf(current.theme) : null;
     if (!th) { if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } xSig = ''; xStats = null; return; }
     const look = xLook(), sheets = xSheets(), sig = look + '|' + th.id + '|' + xRuleCount(sheets);
     if (sig === xSig && xThemeEl && xThemeEl.isConnected) return;
-    xSig = sig;
-    const out = [], stats = { rules: 0, unmapped: {} };
-    for (const sh of sheets) { try { recolourRules(sh.cssRules, look, th, out, stats); } catch { /* a sheet that cannot be read */ } }
-    out.push(':root { color-scheme: ' + (th.dark ? 'dark' : 'light') + ' !important; }', 'html, body { background-color: ' + th.bg + ' !important; }');
+    if (xThemeEl && xThemeEl.isConnected && Date.now() - xBuiltAt < 800) return; // (X adds rules in bursts: the repeats are made once the burst has slowed)
+    xSig = sig; xBuiltAt = Date.now();
+    const list = [], stats = { unmapped: {} };
+    for (const sh of sheets) { try { readRules(sh.cssRules, look, th, list, stats, ''); } catch { /* a sheet that cannot be read */ } }
+    const w = writeRules(list);
+    w.css.push(':root { color-scheme: ' + (th.dark ? 'dark' : 'light') + ' !important; }', 'html, body { background-color: ' + th.bg + ' !important; }');
     if (!xThemeEl) { xThemeEl = document.createElement('style'); xThemeEl.id = 'xmc-xtheme-css'; }
-    if (!xThemeEl.isConnected) document.head.append(xThemeEl);
-    const css = out.join('\n');
+    if (!xThemeEl.isConnected || xThemeEl.nextElementSibling) document.head.append(xThemeEl); // (last in the page, so it comes after every rule of X's)
+    const css = w.css.join('\n');
     if (xThemeEl.textContent !== css) xThemeEl.textContent = css;
     const top = Object.entries(stats.unmapped).sort((a, b) => b[1] - a[1]).slice(0, 12);
-    xStats = { look, theme: th.id, sheets: sheets.length, rules: stats.rules, unmapped: top.map(([k, n]) => 'rgb(' + k + ') x' + n) };
+    xStats = { look, theme: th.id, sheets: sheets.length, rules: w.rules, props: w.props, unmapped: top.map(([k, n]) => 'rgb(' + k + ') x' + n) };
   }
   function stopNativeTheme() { clearInterval(xTimer); xTimer = 0; if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } xSig = ''; const early = document.getElementById('xmc-early-bg'); if (early) early.remove(); }
   const themeReport = () => xStats;

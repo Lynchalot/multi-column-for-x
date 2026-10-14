@@ -6085,6 +6085,33 @@ browserTest('this script\u2019s own presses on X\u2019s hidden page do not close
   });
 }, 90000);
 
+browserTest('a colour theme on X’s own pages keeps X’s order among rules that compete (a base colour that X overrides stays overridden), and an inline colour still wins', async (e) => {
+  const dark = await e.open('/user/status/90001/', { settings: { v: 11, hintSeen: true, theme: 'catppuccin-mocha' } });
+  await checked(dark, async () => {
+    const { page } = dark;
+    await page.waitForFunction(() => window.__xmc && document.getElementById('react-native-stylesheet'));
+    await page.evaluate(() => {
+      document.body.style.backgroundColor = 'rgb(0, 0, 0)';
+      const sheet = document.getElementById('react-native-stylesheet').sheet;
+      for (const r of ['.r-c-base{color:rgba(0,0,0,1.00)}', '.r-c-white{color:rgba(255,255,255,1.00)}', '.r-c-inh{color:inherit}', '.r-c-muted{color:rgba(113,118,123,1.00)}', '.r-c-imp{color:rgba(231,233,234,1.00) !important}',
+        '.r-c-fill{background-color:rgba(0,0,0,1.00)}', '.r-c-clear{background-color:rgba(0,0,0,0.00)}']) sheet.insertRule(r, sheet.cssRules.length);
+      const mk = (html) => { const d = document.createElement('div'); d.innerHTML = html; document.body.append(d); };
+      mk('<span id="c1" class="r-c-base r-c-white">white on a base of black</span>');
+      mk('<div class="r-c-muted"><span id="c2" class="r-c-base r-c-inh">inherits</span></div>');
+      mk('<span id="c3" class="r-c-imp r-c-base">important</span>');
+      mk('<div id="c4" class="r-c-clear r-c-fill" style="background-color: rgb(1, 2, 3)">inline</div>');
+      mk('<div id="c5" class="r-c-fill r-c-clear">transparent after black</div>');
+    });
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('c3')).color === 'rgb(205, 214, 244)', null, { timeout: 5000 });
+    const g = await page.evaluate(() => { const c = (id, p) => getComputedStyle(document.getElementById(id))[p]; return { c1: c('c1', 'color'), c2: c('c2', 'color'), c3: c('c3', 'color'), c4: c('c4', 'backgroundColor'), c5: c('c5', 'backgroundColor') }; });
+    assert.equal(g.c1, 'rgb(255, 255, 255)', 'X’s white, which came after its black base, is still what shows');
+    assert.equal(g.c2, 'rgb(166, 173, 200)', 'text that inherits takes its parent’s colour, in the theme’s');
+    assert.equal(g.c3, 'rgb(205, 214, 244)', 'X’s !important is kept');
+    assert.equal(g.c4, 'rgb(1, 2, 3)', 'an inline colour beats a rule, as on X');
+    assert.equal(g.c5, 'rgba(30, 30, 46, 0)', 'a later transparent still beats an earlier black');
+  });
+}, 60000);
+
 browserTest('a colour theme on X\u2019s own pages: the rules of X\u2019s stylesheet that have X\u2019s colours are repeated in the theme\u2019s, new ones as X adds them, and it goes away when it is switched off', async (e) => {
   const make = async (page, look) => page.evaluate((lk) => {
     const dark = lk === 'dark';

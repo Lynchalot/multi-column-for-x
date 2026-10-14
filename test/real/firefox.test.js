@@ -360,3 +360,31 @@ firefox('Back (the browser\'s own) closes a full-size picture in Firefox and the
   assert.equal(await d.js(() => location.pathname), '/home/', 'the page behind did not go back');
   assert.equal(await d.js(() => document.querySelectorAll('.xmc-card').length > 0 && !document.querySelector('.xmc-view:not(.xmc-out)')), true, 'the columns are still there');
 });
+
+firefox('a colour theme on X\'s own pages in Firefox: X\'s base colour that a later rule overrides stays overridden, an inline colour still wins, and shorthands are read as their parts', async (r, d) => {
+  await home(r, d);
+  await panel(d, async () => { await d.js(() => browser.storage.local.set({ theme: 'catppuccin-mocha' })); });
+  try {
+    await d.go('https://x.com/user/status/90001/');
+    await d.waitFor(() => !!document.getElementById('xmc-xtheme-css') || !!document.getElementById('react-native-stylesheet'), [], 15000, 'the page');
+    await d.js(() => {
+      document.body.style.backgroundColor = 'rgb(0, 0, 0)';
+      const sheet = document.getElementById('react-native-stylesheet').sheet;
+      for (const rule of ['.r-c-base{color:rgba(0,0,0,1.00)}', '.r-c-white{color:rgba(255,255,255,1.00)}', '.r-c-inh{color:inherit}', '.r-c-muted{color:rgba(113,118,123,1.00)}', '.r-c-box{border:0 solid black}', '.r-c-w{border-bottom-width:1px}', '.r-c-fill{background-color:rgba(0,0,0,1.00)}']) sheet.insertRule(rule, sheet.cssRules.length);
+      const mk = (html) => { const el = document.createElement('div'); el.innerHTML = html; document.body.append(el); };
+      mk('<span id="c1" class="r-c-base r-c-white">white on a base of black</span>');
+      mk('<div class="r-c-muted"><span id="c2" class="r-c-base r-c-inh">inherits</span></div>');
+      mk('<div id="c3" class="r-c-fill" style="background-color: rgb(1, 2, 3)">inline</div>');
+      mk('<div id="c4" class="r-c-box r-c-w">a line below</div>');
+    });
+    await d.waitFor(() => getComputedStyle(document.getElementById('c2')).color === 'rgb(166, 173, 200)', [], 8000, 'the theme to reach a rule X added');
+    const g = await d.js(() => { const c = (id, p) => getComputedStyle(document.getElementById(id))[p]; return { c1: c('c1', 'color'), c3: c('c3', 'backgroundColor'), width: c('c4', 'borderBottomWidth'), colour: c('c4', 'borderBottomColor') }; });
+    assert.equal(g.c1, 'rgb(255, 255, 255)', 'X\'s white, which came after its black base, is still what shows');
+    assert.equal(g.c3, 'rgb(1, 2, 3)', 'an inline colour beats a rule, as on X');
+    assert.equal(g.width, '1px', 'a width that a later rule gave is not undone by the shorthand\'s copy');
+    assert.equal(g.colour, 'rgb(30, 30, 46)', 'and the shorthand\'s black is the theme\'s');
+  } finally {
+    await home(r, d);
+    await panel(d, async () => { await d.js(() => browser.storage.local.remove('theme')); });
+  }
+});

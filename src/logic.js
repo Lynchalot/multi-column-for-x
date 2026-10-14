@@ -429,7 +429,7 @@ var XMCLogic = (function () {
     for (const [slot, v] of Object.entries(table)) if (Math.abs(v[0] - c.r) <= 3 && Math.abs(v[1] - c.g) <= 3 && Math.abs(v[2] - c.b) <= 3) return slot;
     return null;
   }
-  const COLOUR_TOKEN = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g;
+  const COLOUR_TOKEN = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)|(?<![\w/.\-])(?:black|white)(?![\w/.\-(])/gi; // (X's base rules say `border: 0 solid black`: a browser lists that as the word)
   // a declaration's value with every colour of X's that has a role replaced by the theme's, the alpha kept; `seen` (optional) counts the colours left as they are
   function recolourValue(value, look, th, seen) {
     return String(value).replace(COLOUR_TOKEN, (tok) => {
