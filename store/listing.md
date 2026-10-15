@@ -3,66 +3,42 @@
 **Name:** Multi-Column for X
 (Option: "Multi-Column for X (Twitter)". Many people still search for "Twitter", and the add-on this listing is modelled on keeps the word in its name. Your call on the name.)
 
+
 **Summary (max 250 characters):**
-TweetDeck-style columns for X (Twitter): read your feed across the whole screen, open posts in a panel with their comments, download media in one click, and keep “For you” out of the way.
+Your X (Twitter) feed in columns that fill the whole screen. Open posts beside their comments, scroll Reels-style, save photos and videos in one click, and keep the algorithm out of the way.
 
 **Description:** (the first 250 characters matter most; Markdown: bold, lists and links work)
-Multi-Column for X has three aims: let you see far more of X at once, let you open a post without losing your place, and keep the algorithm out of the way.
+Multi-Column for X makes X (Twitter) feel the way it always should have. Your feed spreads across the whole screen in columns, posts open beside their comments so you never lose your place, and the algorithm stays out of the way.
 
-On install a welcome page asks five things on one screen: whether it may run on x.com (Firefox asks), how you want to start (Just columns, Calm with no algorithmic content, Media wall or Reels), which keys (Vim, Simple or none), which colours and whether to skip X's age check (an unticked box, marked 18+ only). Each is only a set of ordinary settings, picked as you choose it, and every one can be changed afterwards.
+**Why you'll like it**
+- **Columns that fit your screen.** See far more at once, from one column to eight. New posts wait behind a button instead of shoving your feed down while you read.
+- **Open a post without losing your place.** The picture sits big next to the comments. Like, bookmark, reply and translate right there, then close it and you're back where you were.
+- **Reply with pictures, GIFs and emoji**, to the post or to any comment.
+- **Reels, if you want them.** One post at a time, full screen, like TikTok. Videos play with sound and loop, and posts you've already seen are skipped.
+- **Photo galleries.** A profile's Media tab as a wall of pictures, edge to edge.
+- **Save in one click.** Full-size photos and the best-quality video, into the folder you choose.
+- **Browse with your keyboard.** Scroll, like, bookmark and open posts without the mouse. Pick a ready-made set of keys, or change any of them.
+- **Fourteen colour themes.** Catppuccin, Gruvbox, Rosé Pine, Dracula, Tokyo Night, Nord and more, dark or light. Or keep X's own colours.
+- **Your feed, your rules.** Start on Following with "For you" tucked away. Mute words and accounts, hide reposts or replies, blur sensitive pictures, and hide Trending, Who to follow and Premium.
+- **And more.** Search your Likes (X has no search there), followers and following as a grid, a bigger text size if you want one.
 
-By default your feed shows in columns that fit your window (up to eight), on the "Following" timeline, with "For you" hidden. Most settings apply the moment you change them, so open the settings page (the gear in the top bar) and make it yours.
+**Ready in a minute**
+A welcome page asks how you'd like to start (just columns, calm, a media wall or Reels), which keys and which colours. Change anything later from the gear in the top bar.
 
-**Columns and layout**
-- Columns fit your window and keep a comfortable width, down to one when the window is narrow. Pick your own number, or a different one for each page.
-- **Nothing jumps around.** New posts wait behind a "N new" button instead of shoving your feed down.
-- **More room:** pressing X's logo folds its left menu to icons, and a tab on the edge slides the right panel away; the columns grow into the space (Alt+[ and Alt+]).
-- **Settings in a panel:** from the toolbar button, or from the gear in the columns' bar over the page; every section folds out of a list, and there is a search.
-- **Smooth.** Posts load ahead of you as you scroll, and photos are ready by the time you get there.
-- **It tells you when X has changed something.** If X changes a button the extension presses, that one feature switches off with a message saying what was not found, instead of silently doing nothing; if the columns cannot work at all, X's own page is shown with a Report button. The settings page has a table of what is working, and "Save sample" keeps what is needed to fix a change.
-- **Easy to read and to press.** A text-size setting for posts and the panel, targets at least 24 px with names for screen readers, nothing moves when you ask for reduced motion, and the settings page has a search box and a Reset for anything you have changed.
-
-**Reading a post**
-- A panel opens over the columns with the picture large on one side and the words, actions and comments on the other. Esc closes it and you are exactly where you were.
-- Several pictures show one at a time with arrows and dots (the wheel and the sides of a picture flick between them). A quoted post opens in the panel too.
-- Comments load as you scroll and can be sorted by relevance, newest or most liked. Like, bookmark and reply to posts and to comments, and translate them with X's own translation.
-- **Reply with pictures, a GIF or emoji** from the comment box, to the post or to any comment, without leaving the panel.
-- **Keys:** the Vim set is the one the welcome page offers first: j k scroll, gg G, Ctrl+D and Ctrl+U, w a s d move a ring over the posts (the arrow keys do too, and so does the mouse: a key acts on the post under the pointer), o opens, f likes, b bookmarks, q copies the link, r starts Reels, ? lists every key. The Simple set (A S W E Q C in a post's panel) and no keys at all are the other two. ← → go through a post's pictures and then the posts, Shift and the wheel step through the posts from anywhere on the panel, M mutes the video. You can change any key in Settings, Keyboard.
-- **Reels view (optional):** like TikTok. One post at a time fills the page, scrolled up and down; videos play with sound and loop; posts you have already seen are skipped; a switch at the top changes between For you and Following; the menu and side panel fold away while it is up; double-click a picture or video to like it. It works on a profile too (a Reels button in its bar): that account's pictures and video, one at a time. It is one of the starting points below.
-- **Search on Likes:** X has none there. A search box, a chip for each account and Pictures, Video and Links narrow the likes that have loaded, with a button to read older ones when you ask. Bookmarks gets the chips (X searches those itself) and, like Search, a Reels button.
-- **Gallery (optional):** a profile's Media tab as rows of pictures, edge to edge, instead of columns of posts; a switch in the bar.
-- **Followers and Following as a grid:** the people as cards with their bios in narrow columns, a search, and a choice of the ones who do not follow back.
-- **A profile's header as a card** at the top of the columns, with its Follow, notification and More buttons pressing X's own.
-
-**Video and media**
-- Video and GIFs play in the post. Pointing at a video plays it muted; pressing it turns the sound on and carries on; a speaker button turns sound on or off.
-- Photos open in a viewer with Download and Copy link.
-- **Download** original-size photos and the best-quality video in one click, with your own folder and file-name pattern.
-
-**Filters (defaults marked)**
-- Following timeline, "For you" hidden (default).
-- Only accounts you follow, mute words and accounts, show or hide reposts, quotes and replies, sensitive media blurred (default), shown or hidden. An optional **NSFW only** choice in the Show menu keeps just the posts X marks as sensitive.
-- Profile Videos / Photos and Following's Popular / Recent work from the top bar.
-- Reading options, all off by default: a separate column count for each page, hide or fade posts you have already read, one card when several people repost the same post.
-
-**Tidy-ups**
-- Hide Trending, Who to follow, Topics and Premium boxes; hide any item in X's left menu; add Bookmarks, Likes and Lists to it.
-- **Colour themes:** fourteen, for the columns, the post panel and the settings: Catppuccin (Mocha, Macchiato, Frappé, Latte), Gruvbox (dark and light), Rosé Pine (and Dawn), Dracula, Tokyo Night, Nord, Everforest, Kanagawa Wave and a Dark Academia of our own; X's own colours by default.
-- The theme goes on X's own pages too (a post's page, profiles, notifications), so nothing drops you back into X's black; one setting turns that off. Pictures and video are left alone.
-- Japanese, Korean and Chinese posts are set in a sans-serif (gothic) face.
-- Use the bird logo and "Tweet" wording, or X's own; custom CSS.
-- Sensitive media: an option, off until you tick it (the welcome page offers it, marked 18+ only), turns off X's own age-verification flag in your browser, so X shows its older "sensitive content" notice instead of asking for verification. It is for adults; leave it off to keep X's check.
-
-**Private by design**
-No data collected. No analytics, no accounts, no remote code. Everything stays in your browser (a short log for Copy diagnostics is kept there too, and can be switched off). Open source (MIT): https://github.com/Lynchalot/multi-column-for-x
+**Private**
+No tracking, no accounts, no data collected. Everything stays in your browser. Open source (MIT): https://github.com/Lynchalot/multi-column-for-x
 
 **Good to know**
-It works with what X's own page already loads, so if X redesigns something a small piece may need an update: report it on GitHub (Copy diagnostics, in a post's ... menu, says what happened) and it gets fixed. Press the Columns button in X's left menu to switch back to X's normal feed at any time. It needs a window wide enough for at least two columns to be worth using; it does not run on phones.
+- Firefox asks once whether it may run on x.com. Say yes and you're set.
+- One press of the Columns button in X's left menu takes you back to normal X.
+- It needs a window wide enough for two columns, and it doesn't run on phones.
+- If X changes its site, something may stop working until an update. Tell us on GitHub and it gets fixed.
+- For adults only: an optional setting, off by default, skips X's age-check prompt.
 
 X and Twitter are trademarks of X Corp. This add-on is not affiliated with, endorsed by, or sponsored by X Corp.
 
 **Release notes (current version):**
-Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its picture, comments (loading as you scroll), like, bookmark, reply (with pictures, a GIF or emoji) and translate; video in the post; a Reels view; Vim and simple keys; one-click media downloads; filters, including an optional NSFW only view; fourteen colour themes; a welcome page for the first run; followers as a grid; a gallery for Media tabs; Bookmarks, Likes and Lists in the left menu; a menu for narrow windows; a settings page.
+Your X feed in columns, posts that open beside their comments, replies with pictures, GIFs and emoji, Reels, a gallery for photos, one-click downloads, keyboard keys, fourteen colour themes and a welcome page to set it all up.
 
 **Screenshots** (upload the headline slides in `store/screenshots/slides/`, in this order; `node store/make-screenshots.js` then `node store/make-slides.js` makes them: 1280x800. All eight are real shots of X (public posts; the owner's own profile at the foot of X's menu is blurred out: `store/own-shots.json` names the sources, the blurred places and the cut, `node store/prepare-own.js <folder>` makes `store/screenshots/own/*.png`, and `make-slides.js` uses those in place of the generated shot of the same name; a slide with no entry there falls back to a generated shot with invented accounts and posts). The plain shots are in `store/screenshots/` if you want any without a headline; the wording is in `SLIDES` in `store/make-slides.js`):
 1. `01-columns.png` Your feed in columns.

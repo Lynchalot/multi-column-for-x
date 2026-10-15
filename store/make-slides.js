@@ -12,16 +12,16 @@ const { chromium } = require('playwright-core');
 const DIR = path.join(__dirname, 'screenshots');
 const OUT = path.join(DIR, 'slides');
 // feed: true marks a shot of the feed itself. The stand-in feed is invented posts on generated art; a real one from X is better there,
-// so these are the ones to replace (own/<same name>.png). The wording is from the "Store slide wording" page.
+// so these are the ones to replace (own/<same name>.png). The wording is plain on purpose: the people reading it want a good extension, not an explanation.
 const SLIDES = [
-  { file: '01-columns', feed: true, title: 'Your feed in columns', bullets: ['See far more at once using the whole screen', 'Columns resize automatically to your screen resolution', 'Hide Trending, Who to follow and Premium boxes'] },
-  { file: '08-reels', title: 'Doomscroll with style', bullets: ['One post at a time, scrolled up and down', 'Videos play with sound and loop', 'Shift + wheel or the arrow keys move to the next post'] },
-  { file: '02-post-panel', title: 'Open a post without losing your place', bullets: ['View media with comments alongside', 'Like, bookmark and reply to posts and to comments', 'Close post to return to exactly where you were'] },
-  { file: '09-reply-tools', title: 'Reply with pictures and emoji', bullets: ['Pictures, GIFs and emoji from the comment box', 'Reply to the post or to any comment in-panel'] },
-  { file: '11-media-wall', title: 'Media tabs as a gallery', bullets: ['Every picture and video in rows, edge to edge', 'Switch between Columns and Gallery in the top bar', 'Open a post, or start Reels from any picture'] },
-  { file: '10-keys', title: 'Browse with your keyboard', bullets: ['Vim keys (j k, w a s d, f to like, o to open) or a simple set', 'Arrow keys step through pictures, then posts', 'Remap any key in settings'] },
-  { file: '13-themes', title: 'Fourteen colour themes', bullets: ['Catppuccin, Gruvbox, Ros\u00e9 Pine, Dracula, Tokyo Night, Nord and more', 'The columns, the post panel and the settings follow', 'Or keep X\u2019s own colours'] },
-  { file: '03-photo-viewer', title: 'Photos and video, done properly', bullets: ['Open photos in a viewer, with Download and Copy link', 'Original-size photos and the best video quality, one click', 'Point at a video for a muted preview'] },
+  { file: '01-columns', feed: true, title: 'Your feed in columns', bullets: ['See far more at once', 'Fits your screen, big or small', 'Hide Trending, Who to follow and Premium'] },
+  { file: '08-reels', title: 'Doomscroll with style', bullets: ['One post at a time, full screen', 'Videos play with sound and loop', 'Next post with the wheel or arrow keys'] },
+  { file: '02-post-panel', title: 'Open a post without losing your place', bullets: ['Pictures and comments side by side', 'Like, bookmark and reply right there', 'Close it and you\u2019re back where you were'] },
+  { file: '09-reply-tools', title: 'Reply with pictures and emoji', bullets: ['Add pictures, GIFs and emoji', 'Reply to the post or to any comment'] },
+  { file: '11-media-wall', title: 'Every picture, in a gallery', bullets: ['Photos and videos in rows, edge to edge', 'Switch between Columns and Gallery any time', 'Open a post, or start Reels from any picture'] },
+  { file: '10-keys', title: 'Browse with your keyboard', bullets: ['Scroll, like and open posts without the mouse', 'Pick a ready-made set of keys', 'Change any key you like'] },
+  { file: '13-themes', title: 'Fourteen colour themes', bullets: ['Catppuccin, Gruvbox, Ros\u00e9 Pine, Dracula, Nord and more', 'Dark or light, to suit you', 'Or keep X\u2019s own colours'] },
+  { file: '03-photo-viewer', title: 'Photos and video, done properly', bullets: ['Open photos big, with Download and Copy link', 'Save full-size photos and the best video in one click', 'Hover over a video for a quiet preview'] },
 ];
 
 // the slide colours ("Ink" on the wording page): near-black blue running up to a mid navy, white headline, a paler tint for the lines under it
