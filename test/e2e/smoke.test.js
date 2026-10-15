@@ -909,6 +909,18 @@ browserTest('Explore is X\'s own page until you ask for columns', async (e) => {
   });
 });
 
+browserTest('the pages about lists (suggested lists) are X\'s own: the columns are for a List\'s posts and its people', async (e) => {
+  const h = await e.open('/i/lists/suggested');
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForFunction(() => window.__xmc, null, { timeout: 8000 });
+    await page.waitForTimeout(3500);
+    assert.deepEqual(await page.evaluate(() => ({ on: document.documentElement.classList.contains('xmc-on'), cards: document.querySelectorAll('.xmc-card').length, pill: !!document.getElementById('xmc-pill') && !document.getElementById('xmc-pill').hidden })), { on: false, cards: 0, pill: false }, 'no columns, no pill');
+  });
+  const list = await e.open('/i/lists/123/');
+  await checked(list, async () => { await e.ready(list.page); }); // (and a List itself still has them)
+});
+
 browserTest('a page with no timeline data falls back to X\'s own page instead of waiting for ever', async (e) => {
   const h = await e.open('/nofeed/');
   await checked(h, async () => {

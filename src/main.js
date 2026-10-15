@@ -122,7 +122,7 @@
   const canTry = () => isExploreSub(location.pathname.replace(/\/+$/, '') || '/');
   function eligible() {
     const p = location.pathname.replace(/\/+$/, '') || '/';
-    if (p === '/home' || p === '/search' || p === '/i/bookmarks' || p.startsWith('/i/lists/')) return true;
+    if (p === '/home' || p === '/search' || p === '/i/bookmarks' || XMCLogic.isListPage(p) || XMCLogic.isPeoplePage(p)) return true; // (a List's posts or its people; not /i/lists/suggested, which is cards of lists)
     if (isExploreSub(p)) return state.trial === routeKey(); // Explore: X's own page unless you press the Columns pill
     const seg = p.split('/').filter(Boolean);
     if (seg.length === 1) return !RESERVED.has(seg[0].toLowerCase());

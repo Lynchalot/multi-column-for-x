@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.49.6
+- **The pages about lists are X's own, not columns.** Every address under `/i/lists/` took the columns, so Suggested lists (`/i/lists/suggested`, cards of lists, not posts) came up as an empty page of columns. Only a List's own page (`/i/lists/ID`) and its members and followers are columns now; Suggested lists, creating a list and the rest stay X's. `XMCLogic.isListPage` is the rule.
+- Tests: the route rule; the stand-in has `/i/lists/suggested` with a feed, so columns taking it over would show (none, and no Columns pill), and a List still has them.
+
 ## 0.49.5
 - **Settings no longer explain what a setting's name already says.** The help line under a setting is kept only where it says something the name cannot: a format (`0 = automatic.`, `Separate with comma.`, the file-name tokens), a limit or scope (where downloads can be saved, that Sensitive media also applies on X's own pages, that arrow keys are always on), or what is stored (the log). Gone: the one under Skip X's age check (the welcome page keeps its two lines), and those under the per-page columns, reposts, threads, Home off, only people I follow, profile header, post look-up, translations, the three Reels options, the search row, next-post preparation, the theme and its X's-pages switch, the Media gallery, Custom CSS, the key scheme, key echo, ask-where-to-save and download memory; also the note under the Sidebar items list, the paragraph under the status table, and the long notes under the key tables (now one short line each).
 - Tests: none changed; the setting search still finds a setting by its name.

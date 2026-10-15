@@ -8,6 +8,8 @@ var XMCLogic = (function () {
 
   // Followers, Following, the verified ones and the ones you know, of a profile; a List's members and followers
   const isPeoplePage = (pathname) => /^\/(?!i\/)[^/]+\/(followers|following|verified_followers|followers_you_follow)\/?$/.test(pathname || '') || /^\/i\/lists\/\d+\/(members|followers)\/?$/.test(pathname || '');
+  // A List's own page (its posts), not the pages about lists (suggested ones, creating one): those are cards of lists, not a timeline
+  const isListPage = (pathname) => /^\/i\/lists\/\d+\/?$/.test(pathname || '');
   function routeKind(pathname) {
     const p = (pathname || '').replace(/\/+$/, '') || '/';
     if (p === '/home') return 'home';
@@ -445,7 +447,7 @@ var XMCLogic = (function () {
   function contrast(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
   const xTheme = { LOOKS: X_LOOKS, parseColour, xSlot, themeRole, recolourValue, contrast };
 
-  const api = { xTheme, viewerRoute, attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, isPeoplePage, isLikesPage, findWords, findOn, findMatch, findAccounts, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  const api = { xTheme, viewerRoute, attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, isPeoplePage, isListPage, isLikesPage, findWords, findOn, findMatch, findAccounts, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();
