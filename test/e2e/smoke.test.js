@@ -6112,6 +6112,21 @@ browserTest('a colour theme on X’s own pages keeps X’s order among rules tha
   });
 }, 60000);
 
+browserTest('the sidebar items the settings list are named without the unread count X draws inside the link ("1Chat" is "Chat")', async (e) => {
+  const h = await e.open('/home/', { settings: { v: 11, hintSeen: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page, 2);
+    const items = await page.evaluate(() => {
+      const nav = document.querySelector('header[role="banner"] nav');
+      const mk = (href, ...parts) => { const a = document.createElement('a'); a.href = href; for (const p of parts) { const sp = document.createElement('span'); sp.textContent = p; a.append(sp); } nav.append(a); };
+      mk('/i/chat', '1', 'Chat'); mk('/notifications', '99+', 'Notifications'); mk('/i/premium', 'Premium'); mk('/i/lists', 'Lists', '3');
+      return XMCSite.sidebarItems().filter((i) => ['/i/chat', '/notifications', '/i/premium', '/i/lists'].includes(i.key)).map((i) => i.key + '=' + i.label);
+    });
+    assert.deepEqual(items.sort(), ['/i/chat=Chat', '/i/lists=Lists', '/i/premium=Premium', '/notifications=Notifications']);
+  });
+}, 60000);
+
 browserTest('a colour theme on X\u2019s own pages: the rules of X\u2019s stylesheet that have X\u2019s colours are repeated in the theme\u2019s, new ones as X adds them, and it goes away when it is switched off', async (e) => {
   const make = async (page, look) => page.evaluate((lk) => {
     const dark = lk === 'dark';

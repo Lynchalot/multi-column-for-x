@@ -229,7 +229,7 @@ var XMCSite = (function () {
     for (const a of nav.querySelectorAll('nav a[href]:not([data-xmc-nav])')) {
       const key = a.getAttribute('href');
       if (!key || key[0] !== '/' || a.matches('[data-testid="SideNav_NewTweet_Button"]')) continue;
-      const label = (a.textContent || a.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+      const label = (a.textContent || a.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').replace(/^\d{1,3}\+?(?=\D)|(?<=\D)\d{1,3}\+?$/, '').trim().slice(0, 60); // (X draws an unread count inside the link, so its text reads "1Chat": the count is not part of the name)
       if (!label || out.some((i) => i.key === key)) continue;
       out.push({ key, label });
     }
