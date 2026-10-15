@@ -8,9 +8,10 @@
 Your X (Twitter) feed in columns that fill the whole screen. Open posts beside their comments, scroll Reels-style, save photos and videos in one click, and keep the algorithm out of the way.
 
 **Description:** (the first 250 characters matter most; Markdown: bold, lists and links work)
-Multi-Column for X makes X (Twitter) feel the way it always should have. Your feed spreads across the whole screen in columns, posts open beside their comments so you never lose your place, and the algorithm stays out of the way.
+Your X feed, spread across your whole screen. Multi-Column for X turns X (Twitter) into a wall of columns you can actually scan, opens posts beside their comments so you never lose your place, and keeps the algorithm out of the way.
 
-**Why you'll like it**
+**Features:**
+
 - **Columns that fit your screen.** See far more at once, from one column to eight. New posts wait behind a button instead of shoving your feed down while you read.
 - **Open a post without losing your place.** The picture sits big next to the comments. Like, bookmark, reply and translate right there, then close it and you're back where you were.
 - **Reels, if you want them.** One post at a time, full screen, like TikTok. Videos play with sound and loop, and posts you've already seen are skipped.
@@ -22,17 +23,20 @@ Multi-Column for X makes X (Twitter) feel the way it always should have. Your fe
 - **And more.** Search your Likes (X has no search there), followers and following as a grid, a bigger text size if you want one.
 
 **Ready in a minute**
+
 A welcome page asks how you'd like to start (just columns, calm, a media wall or Reels), which keys and which colours. Change anything later from the gear in the top bar.
 
-**Private**
-No tracking, no accounts, no data collected. Everything stays in your browser. Open source (MIT): https://github.com/Lynchalot/multi-column-for-x
-
 **Good to know**
+
 - Firefox asks once whether it may run on x.com. Say yes and you're set.
 - One press of the Columns button in X's left menu takes you back to normal X.
 - It needs a window wide enough for two columns, and it doesn't run on phones.
 - If X changes its site, something may stop working until an update. Tell us on GitHub and it gets fixed.
 - For adults only: an optional setting, off by default, skips X's age-check prompt.
+
+**Private by design**
+
+No data collected. No tracking, no accounts, no remote code. Everything stays in your browser. Open source (MIT): https://github.com/Lynchalot/multi-column-for-x
 
 X and Twitter are trademarks of X Corp. This add-on is not affiliated with, endorsed by, or sponsored by X Corp.
 
