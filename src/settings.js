@@ -48,16 +48,15 @@ var XMCSettings = (function () {
         { key: 'maxAutoCols', type: 'number', min: 1, max: 8, def: 5, label: 'Most columns when automatic' },
         { key: 'minColWidth', type: 'number', min: 280, max: 900, def: 500, label: 'Column width when automatic (px)' },
         { key: 'density', type: 'select', def: 'normal', label: 'Post size', hidden: true, options: [['normal', 'Normal'], ['compact', 'Compact (tighter, smaller pictures)'], ['text', 'Text only (pictures and video behind a click)']] },
-        { key: 'perPageLayout', type: 'bool', def: false, label: 'Remember columns separately for each page', help: 'Home, Search, Lists, Bookmarks and profiles each keep the column count you last picked in the top bar.' },
+        { key: 'perPageLayout', type: 'bool', def: false, label: 'Remember columns separately for each page' },
       ],
     },
     {
       id: 'reading', title: 'Reading', custom: 'reading', items: [
-        { key: 'seen', type: 'select', def: 'off', label: 'Posts I\u2019ve already read', options: [['off', 'Leave them alone'], ['dim', 'Fade them'], ['hide', 'Hide them']],
-          help: 'On Home and Lists. A post counts as read after you\u2019ve looked at it for a second. Remembered on this device only.' },
-        { key: 'skipSeen', type: 'bool', def: false, label: 'Skip posts I\u2019ve already read when stepping through posts in a panel', help: 'The arrow keys and the next-post button. Remembered on this device only.' },
-        { key: 'collapseReposts', type: 'bool', def: true, label: 'Show a post once when several people repost it', help: 'Folded into one card: \u201cA, B and 2 others reposted\u201d.' },
-        { key: 'foldThreads', type: 'bool', def: true, label: 'Fold a person\u2019s thread into one card', help: 'Their replies to themselves sit under the first post, behind one line.' },
+        { key: 'seen', type: 'select', def: 'off', label: 'Posts I\u2019ve already read', options: [['off', 'Leave them alone'], ['dim', 'Fade them'], ['hide', 'Hide them']], help: 'A post counts as read after a second on screen. Stays on this device.' },
+        { key: 'skipSeen', type: 'bool', def: false, label: 'Skip posts I\u2019ve already read when stepping through posts in a panel' },
+        { key: 'collapseReposts', type: 'bool', def: true, label: 'Show a post once when several people repost it' },
+        { key: 'foldThreads', type: 'bool', def: true, label: 'Fold a person\u2019s thread into one card' },
       ],
     },
     {
@@ -70,13 +69,13 @@ var XMCSettings = (function () {
         { key: 'repostsProfile', type: 'select', def: 'show', label: 'Reposts on profiles', options: SHOW_HIDE },
         { key: 'repostsLists', type: 'select', def: 'show', label: 'Reposts in Lists', options: SHOW_HIDE },
         { key: 'searchLatest', type: 'bool', def: false, label: 'Open Search on “Latest”' },
-        { key: 'disableHome', type: 'bool', def: false, label: 'Disable the Home timeline entirely', help: 'Shows a calm placeholder instead.' },
+        { key: 'disableHome', type: 'bool', def: false, label: 'Disable the Home timeline entirely' },
       ],
     },
     {
       id: 'algorithm', title: 'Algorithmic content', items: [
         { key: 'hideForYou', type: 'bool', def: true, label: 'Hide the \u201cFor you\u201d tab' },
-        { key: 'onlyFollowed', type: 'bool', def: false, label: 'Only show posts from accounts I follow', help: 'Hides suggested posts.' },
+        { key: 'onlyFollowed', type: 'bool', def: false, label: 'Only show posts from accounts I follow' },
         nav('hideTrending', 'Hide \u201cWhat\u2019s happening\u201d / Trending in the sidebar'),
         nav('hideWhoToFollow', 'Hide \u201cWho to follow\u201d suggestions'),
         nav('hideTopics', 'Hide \u201cTopics to follow\u201d suggestions'),
@@ -87,7 +86,7 @@ var XMCSettings = (function () {
     {
       id: 'muting', title: 'Muting & filtering', items: [
         { key: 'mutedWords', type: 'text', def: '', label: 'Muted words and phrases', help: 'Separate with comma.' },
-        { key: 'mutedAccounts', type: 'text', def: '', label: 'Muted accounts', help: 'Comma separated @handles. Hides their posts, their reposts and quotes of them.' },
+        { key: 'mutedAccounts', type: 'text', def: '', label: 'Muted accounts', help: 'Comma separated @handles.' },
         { key: 'hideMutedQuotes', type: 'bool', def: true, label: 'Hide quotes of accounts I’ve blocked or muted on X' },
         { key: 'hideBlueReplies', type: 'bool', def: false, label: 'Hide replies from paid-verified accounts' },
         { key: 'blueBadge', type: 'select', def: 'show', label: 'Paid-verified checkmark', options: [['show', 'Show'], ['logo', 'Replace with the bird logo'], ['hide', 'Hide']] },
@@ -95,8 +94,8 @@ var XMCSettings = (function () {
     },
     {
       id: 'posts', title: 'Posts', items: [
-        { key: 'profileHeader', type: 'bool', def: true, label: 'Show a profile\u2019s header above its posts', help: 'Name, bio and follower counts.' },
-        { key: 'fetchContext', type: 'bool', def: true, label: 'Look up the post a reply answers when X did not send it', help: 'Done out of sight, one at a time, for replies you have been looking at.' },
+        { key: 'profileHeader', type: 'bool', def: true, label: 'Show a profile\u2019s header above its posts' },
+        { key: 'fetchContext', type: 'bool', def: true, label: 'Look up the post a reply answers when X did not send it' },
         { key: 'commentsIn', type: 'select', def: 'panel', label: 'Open comments', options: [['panel', 'In the post panel'], ['card', 'Inside the card']] },
         { key: 'bigText', type: 'bool', def: true, label: 'Set short posts that are only words in larger type' },
         { key: 'hoverVideo', type: 'bool', def: true, label: 'Play a muted preview when I point at a video' },
@@ -106,24 +105,24 @@ var XMCSettings = (function () {
         { key: 'hideViews', type: 'bool', def: false, label: 'Hide view counts' },
         { key: 'hideBookmarkBtn', type: 'bool', def: false, label: 'Hide the bookmark button' },
         { key: 'hideShareBtn', type: 'bool', def: false, label: 'Hide the copy-link button' },
-        { key: 'tidyReplies', type: 'bool', def: true, label: 'Fewer buttons on replies', help: 'On a post\u2019s own page, hides the Bookmark and Grok buttons under every reply.', native: true },
+        { key: 'tidyReplies', type: 'bool', def: true, label: 'Fewer buttons on replies', help: 'On a post\u2019s own page: hides Bookmark and Grok under each reply.', native: true },
         { key: 'nativeTools', type: 'bool', def: true, label: 'Download and Copy-link buttons on X\u2019s own pages', native: true },
         { key: 'reducedInteraction', type: 'bool', def: false, label: 'Reduced interaction mode', help: 'Hides the reply, repost and like buttons and all counts.' },
         { key: 'showSource', type: 'bool', def: false, label: 'Show which app a post was sent from' },
-        { key: 'autoTranslate', type: 'bool', def: true, label: 'Show X\u2019s own translations of posts in other languages', help: 'When X has already translated a post on its page it is shown translated here, with \u201cShow original\u201d.' },
-        { key: 'nsfw', type: 'select', def: 'blur', label: 'Sensitive media', options: [['blur', 'Blur until I click'], ['show', 'Show'], ['hide', 'Hide those posts']], help: 'Also applies on X\u2019s own pages (a post, a profile), where Hide leaves the picture out.' },
-        { key: 'nsfwView', type: 'bool', def: false, label: 'Offer NSFW only in the Show menu', help: 'Adds a choice that shows only the posts X marks as sensitive (not offered while sensitive media is set to Hide those posts).' },
-        { key: 'skipAgeCheck', type: 'bool', def: false, label: 'Skip X\u2019s age check on sensitive media (18+ only)', help: 'Turn off X\u2019s age-verification prompt. Leave it off if you are under 18. Reload X after changing it.' },
+        { key: 'autoTranslate', type: 'bool', def: true, label: 'Show X\u2019s own translations of posts in other languages' },
+        { key: 'nsfw', type: 'select', def: 'blur', label: 'Sensitive media', options: [['blur', 'Blur until I click'], ['show', 'Show'], ['hide', 'Hide those posts']], help: 'Also applies on X\u2019s own pages, where Hide leaves the picture out.' },
+        { key: 'nsfwView', type: 'bool', def: false, label: 'Offer NSFW only in the Show menu', help: 'Not offered while sensitive media is set to Hide.' },
+        { key: 'skipAgeCheck', type: 'bool', def: false, label: 'Skip X\u2019s age check on sensitive media (18+ only)' },
         { key: 'autoplayVideo', type: 'select', def: 'off', label: 'Videos', options: [['off', 'Play when I click'], ['muted', 'Autoplay muted while on screen']] },
         { key: 'panelVideo', type: 'select', def: 'off', label: 'Videos in a post\u2019s panel', options: [['off', 'Play when I click'], ['muted', 'Play at once, muted'], ['sound', 'Play at once, with the sound as I left it']] },
         { key: 'videoEnd', type: 'select', def: 'stop', label: 'When a video in the panel ends', options: [['stop', 'Stop'], ['loop', 'Play it again'], ['next', 'Go to the next post']] },
-        { key: 'reels', type: 'bool', def: false, label: 'Reels view: one post at a time, up and down', help: 'On Home and Lists the post fills the page, with no columns behind it. \u2191 \u2193 or the wheel go to the next post. Esc leaves it; the Reels button in the top bar brings it back.' },
-        { key: 'reelsFocus', type: 'bool', def: true, label: 'Reels: fold the menu and slide the side panel away while it is open', help: 'Both come back when you leave Reels (the tab on the edge and the logo still bring them back while you are in it).' },
-        { key: 'reelsQuiet', type: 'bool', def: true, label: 'Reels: hide the buttons over the post when the mouse and keys are still', help: 'The feed switch, the close cross and the keyboard button fade after two seconds and come back when you move the mouse or press a key.' },
+        { key: 'reels', type: 'bool', def: false, label: 'Reels view: one post at a time, up and down', help: 'Esc leaves it; the Reels button in the top bar brings it back.' },
+        { key: 'reelsFocus', type: 'bool', def: true, label: 'Reels: fold the menu and slide the side panel away while it is open' },
+        { key: 'reelsQuiet', type: 'bool', def: true, label: 'Reels: hide the buttons over the post when the mouse and keys are still' },
         { key: 'doubleLike', type: 'bool', def: true, label: 'Reels: double-click a picture or video to like it' },
-        { key: 'reelsProfiles', type: 'bool', def: true, label: 'Reels on profile, Bookmarks and Search pages (a Reels button in the top bar), and \u201cOpen in Reels from here\u201d in a post\u2019s menu everywhere', help: 'On a profile it starts at the first post in view, or at the post you chose, and shows that account\u2019s pictures and video (or all its posts) one at a time; on Bookmarks, Likes and Search it goes through what is on the page. Esc brings you back to the grid where you were.' },
-        { key: 'findBar', type: 'bool', def: true, label: 'Search and narrowing on Likes, Bookmarks and lists of people (a row under the top bar)', help: 'Likes has a search box (X has none there); Likes and Bookmarks have a chip for each account and Pictures, Video and Links; Followers and Following have a search of names and bios and a choice of the ones who do not follow back. It works on what has loaded, and a button reads more when you ask.' },
-        { key: 'prefetchNext', type: 'bool', def: true, label: 'Get the next post ready while a post is open', help: 'Its pictures, and its comments when the rate of lookups allows.' },
+        { key: 'reelsProfiles', type: 'bool', def: true, label: 'Reels on profile, Bookmarks and Search pages (a Reels button in the top bar), and \u201cOpen in Reels from here\u201d in a post\u2019s menu everywhere' },
+        { key: 'findBar', type: 'bool', def: true, label: 'Search and narrowing on Likes, Bookmarks and lists of people (a row under the top bar)' },
+        { key: 'prefetchNext', type: 'bool', def: true, label: 'Get the next post ready while a post is open' },
         { key: 'openIn', type: 'select', def: 'view', label: 'Open posts and profiles', options: [['view', 'Posts in a panel over the columns, profiles in a new tab'], ['newtab', 'In a new tab (you keep your place here)'], ['sametab', 'In this tab']] },
         { key: 'blurBehind', type: 'bool', def: true, label: 'Blur the columns behind an open post', help: 'Turns itself off if your computer struggles with it.' },
         { key: 'commentSort', type: 'select', def: 'relevant', label: 'Order comments by', options: [['relevant', 'Relevant (as X ranks them)'], ['recent', 'Most recent'], ['likes', 'Most liked']] },
@@ -131,7 +130,7 @@ var XMCSettings = (function () {
       ],
     },
     {
-      id: 'sidebar', title: 'Navigation & sidebar', blurb: 'These restyle X\u2019s own pages, so they depend on X\u2019s current layout.', custom: 'nav', items: [
+      id: 'sidebar', title: 'Navigation & sidebar', custom: 'nav', items: [
         { key: 'leftPanel', type: 'select', def: 'full', label: 'Left menu, while the columns are showing', options: [['full', 'With names'], ['rail', 'Icons only (the logo at its top folds it)']] },
         { key: 'rightPanel', type: 'select', def: 'shown', label: 'Right panel (search, trends, who to follow)', options: [['shown', 'Shown'], ['hidden', 'Slid away (a tab on the edge brings it back)']] },
         { key: 'hideSidebar', type: 'bool', def: false, label: 'Hide X\u2019s right-hand sidebar (search, trends, who to follow)', native: true },
@@ -150,18 +149,18 @@ var XMCSettings = (function () {
       id: 'look', title: 'Look', items: [
         { key: 'branding', type: 'select', def: 'x', label: 'Name and logo', native: true, options: [['x', 'X (as X ships it)'], ['twitter', 'Twitter (bird logo, “Tweet”, “Retweet”)']] },
         { key: 'textSize', type: 'select', def: 'normal', label: 'Text size in posts and the post panel', options: [['small', 'Smaller'], ['normal', 'Normal'], ['large', 'Larger'], ['xlarge', 'Largest'], ['fit', 'Fit to screen (the post panel and Reels grow with the window; posts in columns stay Normal)']] },
-        { key: 'theme', type: 'select', def: 'x', label: 'Colour theme', help: 'For the columns, the post panel, the picture viewer and these settings, and X\u2019s own pages too (below).', native: true, options: [['x', 'X (as it is)']].concat(THEMES.map((t) => [t.id, t.name])) },
-        { key: 'themeNative', type: 'bool', def: true, label: 'Use the theme on X\u2019s own pages', help: 'A post\u2019s page, profiles, notifications and the rest. Turn it off if one looks wrong.', native: true },
-        { key: 'mediaGallery', type: 'bool', def: false, label: 'A profile\u2019s Media tab as a gallery', help: 'Rows of pictures instead of columns of posts; a switch in the top bar changes it on that tab. A press opens the post, and pointing at a picture offers Reels from there.' },
+        { key: 'theme', type: 'select', def: 'x', label: 'Colour theme', native: true, options: [['x', 'X (as it is)']].concat(THEMES.map((t) => [t.id, t.name])) },
+        { key: 'themeNative', type: 'bool', def: true, label: 'Use the theme on X\u2019s own pages', native: true },
+        { key: 'mediaGallery', type: 'bool', def: false, label: 'A profile\u2019s Media tab as a gallery' },
         { key: 'cardStyle', type: 'select', def: 'raised', label: 'Card background', options: [['raised', 'Slightly lighter (or darker) than the page'], ['flat', 'None']] },
-        { key: 'customCss', type: 'textarea', def: '', label: 'Custom CSS', help: 'Added to every x.com page.', native: true },
+        { key: 'customCss', type: 'textarea', def: '', label: 'Custom CSS', native: true },
       ],
     },
     {
       id: 'keys', title: 'Keyboard', custom: 'keys', items: [
-        { key: 'panelKeys', type: 'bool', def: true, label: 'Letter keys', help: 'Simple: only while a panel or the viewer is open. Vim: on the columns as well. Never while something is being typed into. The arrow keys are always on.' },
-        { key: 'keyScheme', type: 'select', def: 'classic', label: 'Keys', help: 'Simple is the few letters for a post in its panel. Vim is j k h l, gg, G, Ctrl+D and the rest, on the columns too, and X\u2019s own letter shortcuts stay quiet there.', options: [['classic', 'Simple (A S W E Q C in a panel)'], ['vim', 'Vim (j k h l, gg, G, f like, r Reels\u2026)']] },
-        { key: 'keyEcho', type: 'bool', def: false, label: 'Show each key pressed (Vim keys), bottom left', help: 'A key pressed halfway through two (the first g of gg) always shows.' },
+        { key: 'panelKeys', type: 'bool', def: true, label: 'Letter keys', help: 'Simple: only in a panel or the viewer. Vim: on the columns too. Arrow keys are always on.' },
+        { key: 'keyScheme', type: 'select', def: 'classic', label: 'Keys', options: [['classic', 'Simple (A S W E Q C in a panel)'], ['vim', 'Vim (j k h l, gg, G, f like, r Reels\u2026)']] },
+        { key: 'keyEcho', type: 'bool', def: false, label: 'Show each key pressed (Vim keys), bottom left' },
         { key: 'keysAdvance', type: 'bool', def: false, label: 'Move to the next post after the Like, Bookmark or Repost key' },
         { key: 'keyMap', type: 'text', def: '', label: 'Keys that are not the defaults', hidden: true }, // a JSON object, action to key, written by the Keyboard section
         { key: 'vimKeys', type: 'text', def: '', label: 'Vim keys that are not the defaults', hidden: true }, // a JSON object, action to key or two keys ("g g"), written by the Keyboard section
@@ -170,18 +169,18 @@ var XMCSettings = (function () {
     },
     {
       id: 'downloads', title: 'Downloads', items: [
-        { key: 'dlFolder', type: 'text', def: 'X', label: 'Folder to save into', help: 'A folder inside your browser\u2019s download folder, e.g. X or Pictures/X. Browsers can only save inside it; to use another place tick \u201cAsk me where to save\u201d below, or change the download folder in Firefox\u2019s own settings.' },
-        { key: 'dlAsk', type: 'bool', def: false, label: 'Ask me where to save each file', help: 'Opens your computer\u2019s save dialog every time, so you can choose Pictures, Videos, Documents\u2026 anywhere.' },
+        { key: 'dlFolder', type: 'text', def: 'X', label: 'Folder to save into', help: 'Inside your browser\u2019s download folder, e.g. X or Pictures/X. For anywhere else, tick \u201cAsk me where to save\u201d below.' },
+        { key: 'dlAsk', type: 'bool', def: false, label: 'Ask me where to save each file' },
         { key: 'dlByAccount', type: 'bool', def: false, label: 'Also put each account’s media in its own folder' },
         { key: 'dlPattern', type: 'text', def: '{account}-{tweetId}-{serial}', label: 'File name pattern',
           help: 'Tokens: {account} {name} {tweetId} {serial} {hash} {date} {time} {datetime}.' },
         { key: 'dlSuffix', type: 'text', def: 'twitter', label: 'Add this to the end of every file name', hidden: true }, // kept ("-twitter" at the end of file names), not shown
-        { key: 'dlHistory', type: 'bool', def: true, label: 'Remember what I’ve downloaded', help: 'Marks the button on posts you have already saved.' },
+        { key: 'dlHistory', type: 'bool', def: true, label: 'Remember what I’ve downloaded' },
       ],
     },
     {
       id: 'trouble', title: 'Troubleshooting', custom: 'status', items: [
-        { key: 'keepLog', type: 'bool', def: true, label: 'Keep a short log for Copy diagnostics', help: 'The last 300 or so events (kinds and post numbers, no post text) stay in your browser, so a problem is still there after a reload. Nothing is sent anywhere. Turning this off deletes the log.' },
+        { key: 'keepLog', type: 'bool', def: true, label: 'Keep a short log for Copy diagnostics', help: 'Kinds of event and post numbers, no post text. Stays in your browser. Turning this off deletes it.' },
       ],
     },
   ];

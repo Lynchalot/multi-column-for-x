@@ -18,7 +18,7 @@ Debug in the console with `window.__xmc`.
 - Don't name a variable `history` or `location` in main.js. Don't use requestAnimationFrame for anything that must complete. Don't call X's private API directly for actions.
 - Scroll X's hidden page by walking, not leaping. `renderFeed` must never run while X's hidden side is on a post page.
 - The columns background must stay X's own (it can be transparent): never force a solid colour.
-- Keep settings text short and plain. The owner dislikes explanatory AI-style sentences and quick-settings popovers.
+- Keep settings text short and plain. The owner dislikes explanatory AI-style sentences and quick-settings popovers. A setting's `help` is only for what its label cannot say (a format, a scope, a limit, what is stored); never restate the label (0.49.5 took out two dozen that did).
 - Card heights: recycled cards keep their exact measured height (don't round). `t.elSig` records how a card was built; stamp it only when creating the card.
 - `t.id` of a repost is the ORIGINAL post's id.
 - In `tick()` every step that reads `view`, `state` or the DOM goes inside `guard(...)`, conditions included: an `if` that throws outside a guard ends the tick before it can toggle `xmc-on`, so the columns can no longer fail open (the e2e test "keeps stopping with an error in the steps that draw the columns" is the one that notices).

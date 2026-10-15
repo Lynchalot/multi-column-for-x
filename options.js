@@ -183,9 +183,7 @@
   function navBlock() {
     const wrap = h('div', { className: 'navlist' }, h('h3', { textContent: 'Sidebar items' }));
     const items = settings.navItems || [];
-    wrap.append(h('p', { className: 'muted', textContent: items.length
-      ? 'Tick the ones you want hidden. This is what your sidebar offers right now.'
-      : 'Open x.com once and the items in your sidebar will be listed here.' }));
+    if (!items.length) wrap.append(h('p', { className: 'muted', textContent: 'Open x.com once and the items in your sidebar will be listed here.' }));
     for (const it of items) {
       const cb = h('input', { type: 'checkbox', checked: (settings.hiddenNav || []).includes(it.key) });
       cb.addEventListener('change', () => {
@@ -209,7 +207,7 @@
   function statusBlock() {
     const wrap = h('div', { className: 'statusblock' }, h('h3', { textContent: 'What is working on x.com' }));
     const body = h('div', {});
-    wrap.append(body, h('p', { className: 'muted', textContent: 'This is what the extension saw the last time it ran on x.com. A button that fails three times in a row is switched off for a few minutes and says why when pressed; “Save sample” in a post’s ... menu on x.com keeps what is needed to fix it.' }));
+    wrap.append(body);
     const when = (ms) => (ms ? new Date(ms).toLocaleString() : 'never');
     const draw = (rep) => {
       if (!rep) { body.replaceChildren(h('p', { className: 'muted', textContent: 'Nothing yet: open x.com with the columns on and come back.' })); return; }
@@ -545,7 +543,7 @@
       }));
     }
     draw();
-    wrap.append(h('p', { className: 'muted', textContent: 'The key for each, in a post\u2019s panel and in the picture viewer. Press a key to choose another; Backspace puts the default back.' }), rows, msg,
+    wrap.append(h('p', { className: 'muted', textContent: 'Press a key to change it. Backspace restores the default.' }), rows, msg,
       h('p', { className: 'keyfixed', textContent: 'Always: \u2190 \u2192 through the pictures and then the posts, Shift with them for posts only, Enter to open the picture in a panel, Esc to close. The letters A, C, E, Q, S and W are ones Vimium leaves alone.' }));
     return wrap;
   }
@@ -591,7 +589,7 @@
     }
     draw();
     wrap.append(
-      h('p', { className: 'muted', textContent: 'Press a button, then the key you want, or two in a row for a sequence such as g g. Backspace puts the default back. Keys are by letter, so a different keyboard layout moves them, as it does in Vim.' }),
+      h('p', { className: 'muted', textContent: 'Press a button, then the key (or two in a row, such as g g). Backspace restores the default.' }),
       host, msg,
       h('button', { type: 'button', className: 'reset', textContent: 'Put all of them back', onclick: () => { persist({ vimKeys: '' }); msg.textContent = ''; draw(); } }),
       h('p', { className: 'keyfixed', textContent: 'Always: the arrow keys, Shift with them for posts only, Enter to open a post from the columns or a picture in a panel, Esc to close or to put the ring away. Letters with nothing here are kept from X’s own shortcuts.' }),
