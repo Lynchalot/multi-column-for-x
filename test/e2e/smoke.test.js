@@ -5863,14 +5863,29 @@ browserTest('a post carries its language, and Japanese (and Korean and Chinese) 
   });
 }, 60000);
 
-browserTest('under a colour theme the strip behind X’s search box takes the page’s colour instead of being a black box', async (e) => {
+browserTest('under a colour theme the strip behind X’s search box takes the page’s colour instead of being a black box, and the pill and what is inside it are left as X has them (a solid box inside the pill covers its rounded edge)', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 11, hintSeen: true, cols: 3, theme: 'gruvbox-dark' } });
   await checked(h, async () => {
     const { page } = h;
     await e.ready(page);
-    await page.evaluate(() => { const side = document.querySelector('[data-testid="sidebarColumn"]'), strip = document.createElement('div'); strip.id = 'strip'; strip.style.cssText = 'background:rgb(0,0,0);position:sticky;top:0'; strip.innerHTML = '<div><form role="search"><input placeholder="Search"></form></div>'; side.prepend(strip); });
+    // two shapes of X's search: the pill inside the form, and the form as the pill
+    await page.evaluate(() => {
+      const side = document.querySelector('[data-testid="sidebarColumn"]'), strip = document.createElement('div');
+      strip.id = 'strip'; strip.style.cssText = 'background:rgb(0,0,0);position:sticky;top:0';
+      const pill = 'border:1px solid rgb(83,100,113);border-radius:9999px;background:rgb(32,35,39);padding:4px 14px';
+      strip.innerHTML = '<div id="wrap"><form role="search" id="fa"><div id="pa" style="' + pill + '"><div id="pain"><input data-testid="SearchBox_Search_Input" placeholder="Search"></div></div></form></div>'
+        + '<div id="wrap2"><form role="search" id="fb" style="' + pill + '"><div id="fbin"><input data-testid="SearchBox_Search_Input" placeholder="Search"></div></form></div>';
+      side.prepend(strip);
+    });
     await page.waitForFunction(() => getComputedStyle(document.getElementById('strip')).backgroundColor === 'rgb(40, 40, 40)', null, { timeout: 3000 });
-    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#strip form')).backgroundColor), 'rgba(0, 0, 0, 0)', 'the pill itself is as X has it');
+    const bg = (id) => page.evaluate((i) => getComputedStyle(document.getElementById(i)).backgroundColor, id);
+    assert.equal(await bg('wrap'), 'rgb(40, 40, 40)', 'what holds the form takes the page’s colour');
+    assert.equal(await bg('wrap2'), 'rgb(40, 40, 40)');
+    assert.equal(await bg('fa'), 'rgba(0, 0, 0, 0)', 'the form is as X has it');
+    assert.equal(await bg('pa'), 'rgb(32, 35, 39)', 'the pill is as X has it');
+    assert.equal(await bg('pain'), 'rgba(0, 0, 0, 0)', 'nothing inside the pill is filled (it would cover the pill’s rounded edge)');
+    assert.equal(await bg('fb'), 'rgb(32, 35, 39)', 'a form that is the pill keeps its fill');
+    assert.equal(await bg('fbin'), 'rgba(0, 0, 0, 0)');
   });
 }, 60000);
 

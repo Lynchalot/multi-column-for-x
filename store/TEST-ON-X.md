@@ -43,6 +43,7 @@ Nobody working on this can log in to X, so this is the list of what only your ow
 38. **0.49.4:** if the theme ever makes text on X's own pages unreadable it switches itself off there and a notice says so: then Copy diagnostics (`xTheme.tripped`, `xTheme.read`) and a screenshot.
 39. **0.49.7:** Explore, Today's News, press a headline: is there a Turn Columns On pill, and does it give columns of the story's posts? If not, Copy diagnostics from that page (it has the address and the feeds it did not read).
 40. **0.49.8:** a light colour theme with X's black look: on a profile and Home, is the search box's text readable, does the dropdown under it (Recent) take the theme, and do the right sidebar's boxes? If the theme still switches itself off, or something stays dark or light, a screenshot and Copy diagnostics (`xTheme.fixed`, `xTheme.tripped`).
-41. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
+41. **0.49.9:** the search box in X's right panel with a theme on (dark and light): is the pill a whole rounded shape, with its fill and its border all round, or still two lines with a tick at each end? Click into it too (the border when it has the focus).
+42. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
 
 What to send back: the table (2), the sample file (3), Copy diagnostics from anything that failed (it carries a `features` block), and a recording of anything that looked wrong.

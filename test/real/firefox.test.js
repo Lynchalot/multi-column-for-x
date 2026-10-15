@@ -361,6 +361,27 @@ firefox('Back (the browser\'s own) closes a full-size picture in Firefox and the
   assert.equal(await d.js(() => document.querySelectorAll('.xmc-card').length > 0 && !document.querySelector('.xmc-view:not(.xmc-out)')), true, 'the columns are still there');
 });
 
+firefox('a colour theme: the strip behind X\'s search box takes the page\'s colour, and nothing inside the pill is filled (a solid box there covers its rounded edge)', async (r, d) => {
+  await home(r, d);
+  await panel(d, async () => { await d.js(() => browser.storage.local.set({ theme: 'gruvbox-dark' })); });
+  try {
+    await d.waitFor(() => document.documentElement.classList.contains('xmc-themed') && !!document.querySelector('[data-testid="sidebarColumn"]'), [], 15000, 'the theme on the columns page');
+    await d.js(() => {
+      const side = document.querySelector('[data-testid="sidebarColumn"]'), strip = document.createElement('div');
+      strip.id = 'strip'; strip.style.cssText = 'background:rgb(0,0,0);position:sticky;top:0';
+      strip.innerHTML = '<div id="wrap"><form role="search"><div id="pa" style="border:1px solid rgb(83,100,113);border-radius:9999px;background:rgb(32,35,39);padding:4px 14px"><div id="pain"><input data-testid="SearchBox_Search_Input" placeholder="Search"></div></div></form></div>';
+      side.prepend(strip);
+    });
+    await d.waitFor(() => getComputedStyle(document.getElementById('strip')).backgroundColor === 'rgb(40, 40, 40)', [], 8000, 'the strip to take the page\'s colour');
+    const g = await d.js(() => { const c = (id) => getComputedStyle(document.getElementById(id)).backgroundColor; return { wrap: c('wrap'), pill: c('pa'), inner: c('pain') }; });
+    assert.equal(g.wrap, 'rgb(40, 40, 40)', 'what holds the form');
+    assert.equal(g.pill, 'rgb(32, 35, 39)', 'the pill is as X has it');
+    assert.equal(g.inner, 'rgba(0, 0, 0, 0)', 'nothing inside the pill is filled');
+  } finally {
+    await panel(d, async () => { await d.js(() => browser.storage.local.remove('theme')); });
+  }
+});
+
 firefox('a colour theme on X\'s own pages in Firefox: X\'s base colour that a later rule overrides stays overridden, an inline colour still wins, and shorthands are read as their parts', async (r, d) => {
   await home(r, d);
   await panel(d, async () => { await d.js(() => browser.storage.local.set({ theme: 'catppuccin-mocha' })); });

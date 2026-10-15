@@ -856,8 +856,8 @@ html.xmc-theme-light { color-scheme: light; }
 html.xmc-on.xmc-themed, html.xmc-on.xmc-themed body { background-color: var(--xmc-bg) !important; }
 html.xmc-on.xmc-themed :is(header[role="banner"], #xmc-navfreeze) nav a:not([data-testid="SideNav_NewTweet_Button"], [data-xmc-tid="SideNav_NewTweet_Button"]) { color: var(--xmc-fg) !important; }
 html.xmc-on.xmc-themed :is(header[role="banner"], #xmc-navfreeze) nav a:not([data-testid="SideNav_NewTweet_Button"], [data-xmc-tid="SideNav_NewTweet_Button"]) :is(span, div, svg):not([aria-live]) { color: inherit !important; }
-/* X's search box sits in a strip with X's black behind it (it hides what scrolls under it): on a themed page that is a black box round the pill, so the strip and what holds it take the page's colour */
-html.xmc-on.xmc-themed [data-testid="sidebarColumn"] :has(form[role="search"], [data-testid="SearchBox_Search_Input"]) { background-color: var(--xmc-bg) !important; }
+/* X's search box sits in a strip with X's black behind it (it hides what scrolls under it): on a themed page that is a black box round the pill, so the strip and what holds it take the page's colour. Only what holds the form: the pill is the form or sits inside it, and a fill on anything inside the pill is a square box over its rounded edge */
+html.xmc-on.xmc-themed [data-testid="sidebarColumn"] :has(form[role="search"]):not(form[role="search"] *) { background-color: var(--xmc-bg) !important; }
 html.xmc-themed #xmc-sidetab { background: var(--xmc-fg); color: var(--xmc-solid); }
 html.xmc-themed #xmc-sidetab:hover { background: color-mix(in srgb, var(--xmc-fg) 88%, var(--xmc-solid)); }
 html.xmc-themed :is(.xmc-emoji, .xmc-keylegend) { background: var(--xmc-solid); color: var(--xmc-fg); border-color: var(--xmc-border); }
