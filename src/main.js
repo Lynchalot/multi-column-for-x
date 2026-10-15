@@ -118,7 +118,7 @@
   // Explore (and its Trending, News, Sports, Entertainment tabs) is mostly Today's News, trends and "Who to follow", with
   // posts only at the bottom: columns of posts would hide most of what's there. X's page is left alone, with a pill to
   // try columns anyway.
-  const isExploreSub = (p) => p === '/explore' || p.startsWith('/explore/');
+  const isExploreSub = (p) => p === '/explore' || p.startsWith('/explore/') || XMCLogic.isStoryPage(p);
   const canTry = () => isExploreSub(location.pathname.replace(/\/+$/, '') || '/');
   function eligible() {
     const p = location.pathname.replace(/\/+$/, '') || '/';
@@ -227,7 +227,7 @@
       }
       return;
     }
-    const r = XMCParse.parseResponse(body, url, reqBody);
+    const r = XMCParse.parseResponse(body, url, reqBody, { any: XMCLogic.isStoryPage(location.pathname.replace(/\/+$/, '') || '/') });
     if (!r) return;
     if (r.items.length) featOk('timeline');
     else if (r.seen.tweetItems > 0) featFail('timeline', 'X sent ' + r.seen.tweetItems + ' posts and none could be read (' + droppedSummary() + ')');

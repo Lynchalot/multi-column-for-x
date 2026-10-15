@@ -909,6 +909,19 @@ browserTest('Explore is X\'s own page until you ask for columns', async (e) => {
   });
 });
 
+browserTest('a story from Explore\'s Today\'s News is X\'s own page until you ask for columns, and then its posts are drawn whatever X calls the feed', async (e) => {
+  const h = await e.open('/i/trending/123');
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForFunction(() => document.getElementById('xmc-pill') && !document.getElementById('xmc-pill').hidden, null, { timeout: 8000 });
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('xmc-on')), false);
+    assert.equal((await page.locator('#xmc-pill').innerText()).trim(), 'Turn Columns On');
+    await page.locator('#xmc-pill').click();
+    await e.ready(page);
+    assert.ok(await page.evaluate(() => window.__xmc.view.cards.length) >= 6, 'its posts are in columns');
+  });
+});
+
 browserTest('the pages about lists (suggested lists) are X\'s own: the columns are for a List\'s posts and its people', async (e) => {
   const h = await e.open('/i/lists/suggested');
   await checked(h, async () => {

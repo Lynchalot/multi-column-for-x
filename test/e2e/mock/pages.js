@@ -136,6 +136,7 @@ function pageFor(path) {
   if (p === '/search') return timelinePage({ title: 'Search / X', tabs: [{ label: 'Top' }, { label: 'Latest', feed: 'SearchTimeline' }], selected: 1 });
   if (p === '/explore') return timelinePage({ title: 'Explore / X', tabs: [{ label: 'For you', feed: 'ExplorePage' }, { label: 'Trending', feed: 'ExplorePage' }], selected: 0 });
   if (p === '/threads') return timelinePage({ title: 'threads / X', tabs: [{ label: 'Posts', feed: 'ThreadsTimeline' }], selected: 0 });
+  if (p === '/i/trending/123') return timelinePage({ title: 'Story / X', tabs: [{ label: 'Posts', feed: 'StoryPosts' }], selected: 0 }); // (a story from Explore's Today's News: the feed's name is one the parser does not list)
   if (p === '/i/lists/suggested') return timelinePage({ title: 'Suggested lists / X', tabs: [{ label: 'Posts', feed: 'ListLatestTimeline' }], selected: 0 }); // (cards of lists on X; the stand-in gives it a feed, so that columns taking it over would show)
   if (p === '/i/lists/123') return timelinePage({ title: 'List / X', tabs: [{ label: 'Posts', feed: 'ListLatestTimeline' }], selected: 0, meta: 'ListByRestId' });
   if (p === '/user5') return timelinePage({ title: 'User Five (@user5) / X', tabs: [{ label: 'Posts', feed: 'UserTweets' }], selected: 0, meta: 'UserByScreenName' });

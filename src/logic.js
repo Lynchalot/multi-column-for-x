@@ -10,11 +10,13 @@ var XMCLogic = (function () {
   const isPeoplePage = (pathname) => /^\/(?!i\/)[^/]+\/(followers|following|verified_followers|followers_you_follow)\/?$/.test(pathname || '') || /^\/i\/lists\/\d+\/(members|followers)\/?$/.test(pathname || '');
   // A List's own page (its posts), not the pages about lists (suggested ones, creating one): those are cards of lists, not a timeline
   const isListPage = (pathname) => /^\/i\/lists\/\d+\/?$/.test(pathname || '');
+  // A story or topic page (what a press on a headline in Explore opens): X's own page, as Explore is, with the Columns pill to try them
+  const isStoryPage = (pathname) => /^\/i\/(trending|news|events|topics)\/[\w-]+\/?$/.test(pathname || '');
   function routeKind(pathname) {
     const p = (pathname || '').replace(/\/+$/, '') || '/';
     if (p === '/home') return 'home';
     if (p === '/search') return 'search';
-    if (p === '/explore' || p.startsWith('/explore/')) return 'explore';
+    if (p === '/explore' || p.startsWith('/explore/') || isStoryPage(p)) return 'explore';
     if (p === '/i/bookmarks') return 'bookmarks';
     if (isPeoplePage(p)) return 'people';
     if (p.startsWith('/i/lists/')) return 'list';
@@ -447,7 +449,7 @@ var XMCLogic = (function () {
   function contrast(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
   const xTheme = { LOOKS: X_LOOKS, parseColour, xSlot, themeRole, recolourValue, contrast };
 
-  const api = { xTheme, viewerRoute, attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, isPeoplePage, isListPage, isLikesPage, findWords, findOn, findMatch, findAccounts, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
+  const api = { xTheme, viewerRoute, attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, isPeoplePage, isListPage, isStoryPage, isLikesPage, findWords, findOn, findMatch, findAccounts, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

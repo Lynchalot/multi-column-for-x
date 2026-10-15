@@ -54,6 +54,9 @@ Start-up motion (`xmc-boot` on html while X's menu and sidebar fade in as the ve
 ## Added in 0.29.1
 The Columns pill follows `active` (the columns being up), not the address: during a visit the address is a post's and `eligible()` is false, which hid the pill for the length of every visit. Anything else that asks `eligible()` while X's hidden page may be away on a post has the same trap (`peeking`/`active` already hold the columns). X translates posts itself: `harvestTranslations` reads X's own translated words from its hidden page into `translations` (only when X says "Translated from" or shows "Show original"; English wording only, not seen on real X: `autoTranslate` in the diagnostics says whether it took anything), and the panel and comments show those at once.
 
+## Added in 0.49.7
+Story pages (`XMCLogic.isStoryPage`: `/i/trending|news|events|topics/ID`; routeKind `explore`) are in `isExploreSub`, so they are X's own with the pill (`state.trial`), and `parseResponse(json, url, reqBody, { any })` (main.js passes `any` on a story page) reads any response that carries posts under any op name, NOT_FEEDS or not. The URL and the op of a real story are guesses (the stand-in's `/i/trending/123` uses the feed name `StoryPosts`): ask for Copy diagnostics (`page`, `parse.ignoredOps`) from a real one if the pill is missing or the columns stay empty, then name the op in `FEED_OPS` and narrow `any`.
+
 ## Added in 0.49.6
 `eligible()` takes `/i/lists/` only for `XMCLogic.isListPage` (`/i/lists/<digits>`) and `isPeoplePage` (a List's members and followers); Suggested lists (`/i/lists/suggested`) and the rest under it are X's own. A new X page that is cards of things (not posts) must not be added to the `eligible()` list by prefix.
 

@@ -292,9 +292,10 @@ var XMCParse = (function () {
 
   // Whole response -> { op, feedKey, first, reqCursor, topCursor, bottomCursor, items }.
   // Returns null for responses that aren't timelines.
-  function parseResponse(json, url, reqBody) {
-    const op = opOf(url), people = !!op && PEOPLE_OPS.test(op);
-    if (!op || !(FEED_OPS.test(op) || people) || NOT_FEEDS.test(op)) {
+  // `opts.any`: a page whose feed has a name this version does not know (a story in Explore): a response that carries posts is a timeline whatever it is called
+  function parseResponse(json, url, reqBody, opts) {
+    const op = opOf(url), people = !!op && PEOPLE_OPS.test(op), any = !!(opts && opts.any) && !!op && hasTweetItems(json);
+    if (!op || !(FEED_OPS.test(op) || people || any) || (NOT_FEEDS.test(op) && !any)) {
       // an operation this version does not treat as a timeline that still carries posts (X renamed one?): not read, but counted, with its name
       if (op && !NOT_FEEDS.test(op) && hasTweetItems(json)) stats.ignoredOps[op] = (stats.ignoredOps[op] || 0) + 1;
       return null;

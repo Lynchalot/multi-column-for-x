@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.49.7
+- **A story or topic page from Explore can be tried in columns.** A press on a headline in Explore's Today's News opens a page of its own (I think `/i/trending/ID`; `/i/news/`, `/i/events/` and `/i/topics/` are covered too). Those pages are now X's own, like Explore, with the Turn Columns On pill to try columns, and there the extension reads any response that carries posts, whatever X calls it (the parser lists the feeds it knows by name, and a story's is not one of them). **Not seen on real X**: the address and the response are guesses. If the pill does not appear on a story, or the columns stay empty, Copy diagnostics from that page has the address (`page`) and the names of feeds it saw and did not read (`parse.ignoredOps`).
+- Tests: the route rule and the `any` rule in the parser; a story page on the stand-in (an unlisted feed name) is X's own until the pill is pressed, then its posts are in columns.
+
 ## 0.49.6
 - **The pages about lists are X's own, not columns.** Every address under `/i/lists/` took the columns, so Suggested lists (`/i/lists/suggested`, cards of lists, not posts) came up as an empty page of columns. Only a List's own page (`/i/lists/ID`) and its members and followers are columns now; Suggested lists, creating a list and the rest stay X's. `XMCLogic.isListPage` is the rule.
 - Tests: the route rule; the stand-in has `/i/lists/suggested` with a feed, so columns taking it over would show (none, and no Columns pill), and a List still has them.

@@ -41,6 +41,7 @@ Nobody working on this can log in to X, so this is the list of what only your ow
 36. **0.49.1:** NSFW only with a lot of sensitive posts on screen: is scrolling smoother than before? Do the blurred pictures still hide what is in them (as much as before)? Does a GIF stay still until you click "Sensitive content, click to view"? Does the spinner stay steady while it loads, and say "N of M match"?
 37. **0.49.2:** with a colour theme on, the profile page and the right sidebar on Home: can you read the names, bios, "Followed by", the sidebar's boxes and the white buttons' words (Follow, Get Verified, Subscribe)? A screenshot and Copy diagnostics (`xTheme`) if not.
 38. **0.49.4:** if the theme ever makes text on X's own pages unreadable it switches itself off there and a notice says so: then Copy diagnostics (`xTheme.tripped`, `xTheme.read`) and a screenshot.
-39. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
+39. **0.49.7:** Explore, Today's News, press a headline: is there a Turn Columns On pill, and does it give columns of the story's posts? If not, Copy diagnostics from that page (it has the address and the feeds it did not read).
+40. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
 
 What to send back: the table (2), the sample file (3), Copy diagnostics from anything that failed (it carries a `features` block), and a recording of anything that looked wrong.

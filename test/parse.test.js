@@ -250,6 +250,17 @@ test('the parser counts what it read and what it let go, so a change in X\'s sha
   assert.ok(Object.keys(P.stats.itemTypes).length > 0, 'the kinds of entry seen are listed');
 });
 
+test('on a story page (`any`) a response that carries posts is read whatever it is called, even under a name the parser keeps out; one with no posts still is not', () => {
+  const j = F.homeTimeline();
+  const url = 'https://x.com/i/api/graphql/zz/StoryPosts?variables={}';
+  assert.equal(P.parseResponse(j, url), null, 'not without it');
+  const r = P.parseResponse(j, url, undefined, { any: true });
+  assert.ok(r && r.items.length > 0, 'read with it');
+  assert.equal(r.op, 'StoryPosts');
+  assert.ok(P.parseResponse(j, 'https://x.com/i/api/graphql/zz/TrendsStoryDetail?variables={}', undefined, { any: true }).items.length > 0, 'a name with Trends in it too (X\u2019s lists of trends are kept out elsewhere)');
+  assert.equal(P.parseResponse({ data: { viewer: { settings: { a: 1 } } } }, 'https://x.com/i/api/graphql/zz/SomeSettings?variables={}', undefined, { any: true }), null);
+});
+
 test('a response under a name this version does not know, that carries posts, is not read but is counted by name; an item whose type is renamed is still found', () => {
   const j = F.homeTimeline();
   const n0 = P.stats.ignoredOps.BrandNewFeedV9 || 0;

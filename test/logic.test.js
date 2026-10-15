@@ -39,6 +39,8 @@ test('where you are decides the rule: profile and list reposts have their own sw
   assert.ok(ids(ctx({ where: 'list' }, s)).includes('1003'));
   assert.equal(L.routeKind('/home'), 'home');
   assert.equal(L.routeKind('/i/lists/123'), 'list');
+  for (const p of ['/i/trending/1934', '/i/trending/1934/', '/i/news/abc-1', '/i/events/77', '/i/topics/55']) { assert.equal(L.isStoryPage(p), true, p); assert.equal(L.routeKind(p), 'explore', p); }
+  for (const p of ['/i/trending', '/i/trending/1/2', '/explore', '/i/lists/suggested', '/trending/1']) assert.equal(L.isStoryPage(p), false, p);
   assert.equal(L.isListPage('/i/lists/123'), true); assert.equal(L.isListPage('/i/lists/123/'), true);
   for (const p of ['/i/lists/suggested', '/i/lists/create', '/i/lists/123/members', '/i/lists', '/me/lists']) assert.equal(L.isListPage(p), false, p);
   assert.equal(L.routeKind('/someone'), 'profile');
