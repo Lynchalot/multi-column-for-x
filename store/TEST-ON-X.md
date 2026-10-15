@@ -42,6 +42,7 @@ Nobody working on this can log in to X, so this is the list of what only your ow
 37. **0.49.2:** with a colour theme on, the profile page and the right sidebar on Home: can you read the names, bios, "Followed by", the sidebar's boxes and the white buttons' words (Follow, Get Verified, Subscribe)? A screenshot and Copy diagnostics (`xTheme`) if not.
 38. **0.49.4:** if the theme ever makes text on X's own pages unreadable it switches itself off there and a notice says so: then Copy diagnostics (`xTheme.tripped`, `xTheme.read`) and a screenshot.
 39. **0.49.7:** Explore, Today's News, press a headline: is there a Turn Columns On pill, and does it give columns of the story's posts? If not, Copy diagnostics from that page (it has the address and the feeds it did not read).
-40. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
+40. **0.49.8:** a light colour theme with X's black look: on a profile and Home, is the search box's text readable, does the dropdown under it (Recent) take the theme, and do the right sidebar's boxes? If the theme still switches itself off, or something stays dark or light, a screenshot and Copy diagnostics (`xTheme.fixed`, `xTheme.tripped`).
+41. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
 
 What to send back: the table (2), the sample file (3), Copy diagnostics from anything that failed (it carries a `features` block), and a recording of anything that looked wrong.

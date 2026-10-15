@@ -383,6 +383,10 @@ firefox('a colour theme on X\'s own pages in Firefox: X\'s base colour that a la
     assert.equal(g.c3, 'rgb(1, 2, 3)', 'an inline colour beats a rule, as on X');
     assert.equal(g.width, '1px', 'a width that a later rule gave is not undone by the shorthand\'s copy');
     assert.equal(g.colour, 'rgb(30, 30, 46)', 'and the shorthand\'s black is the theme\'s');
+    // and what the copy cannot reach is mended: pale text on a pale ground (not a colour of X's table) takes the theme's text colour, within a few seconds
+    await d.js(() => { const el = document.createElement('div'); el.id = 'u-text'; el.setAttribute('style', 'position: fixed; left: 320px; top: 260px; color: rgb(60, 60, 80); background-color: rgb(30, 30, 46);'); el.textContent = 'dark text on a dark ground'; document.getElementById('react-root').append(el); });
+    await d.waitFor(() => document.getElementById('u-text').hasAttribute('data-xmc-fix'), [], 12000, 'the repair to mark the text it could not read');
+    assert.notEqual(await d.js(() => getComputedStyle(document.getElementById('u-text')).color), 'rgb(60, 60, 80)', 'and its colour is not the one that could not be read');
   } finally {
     await home(r, d);
     await panel(d, async () => { await d.js(() => browser.storage.local.remove('theme')); });

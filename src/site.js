@@ -83,13 +83,14 @@ var XMCSite = (function () {
   // win over what X puts over it. They have X's own priority and come after X's in the page, so what wins on X wins here, an inline colour still wins, and the
   // theme's colours are what show. X adds rules as it draws new things, so the stylesheets are counted four times a second and the repeats made again when the
   // count changes. Not seen on real X: what it left alone is in the diagnostics (`xTheme.unmapped`).
-  let xThemeEl = null, xSig = '', xTimer = 0, xStats = null, xBuiltAt = 0, xList = [], xTripped = null, xCheckedAt = 0, xKey = '';
+  let xThemeEl = null, xSig = '', xTimer = 0, xStats = null, xBuiltAt = 0, xList = [], xTripped = null, xCheckedAt = 0, xKey = '', xRepairAt = 0, xRepairOn = true, xCursor = 0, xFixed = { text: 0, bg: 0, ph: 0, samples: [] };
   const xLook = () => {
     const c = XMCLogic.xTheme.parseColour(document.body && document.body.style.backgroundColor); // (X sets its page colour on <body> itself; the inline value is not touched by a stylesheet)
     if (c) return (c.r + c.g + c.b) / 3 > 127 ? 'light' : 'dark';
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   };
-  const xSheets = () => { const out = []; for (const sh of document.styleSheets) { const n = sh.ownerNode; if (n && n.tagName === 'STYLE' && !/^xmc-/.test(n.id || '')) out.push(sh); } return out; };
+  // X's style elements, and its linked sheets when the browser lets us read them (a cross-origin one does not, and is left)
+  const xSheets = () => { const out = []; for (const sh of document.styleSheets) { const n = sh.ownerNode; if (n && ((n.tagName === 'STYLE' && !/^xmc-/.test(n.id || '')) || (n.tagName === 'LINK' && !/^(moz|chrome)-extension:/.test(sh.href || '')))) out.push(sh); } return out; };
   const xRuleCount = (sheets) => { let n = 0; for (const sh of sheets) { try { n += sh.cssRules.length; } catch { /* not readable */ } } return n; };
   const COLOURISH = /color|^background|^border|^outline|shadow|^fill$|^stroke$|decoration|caret|column-rule/; // (properties that can hold a colour; the longhands, as a style lists them)
   // X's style rules as a list of { sel, at, decls: [[property, recoloured value, priority, changed]] }: the declarations that could hold a colour, in X's order
@@ -133,19 +134,118 @@ var XMCSite = (function () {
     close('');
     return { css: lines, rules, props: changed.size };
   }
+  // What the copy of X's stylesheet cannot reach: a colour in an element's own style attribute (a rule with !important beats it), and the marks the repair pass puts on elements
+  const INLINE_PROPS = ['color', 'background-color', 'border-color', 'border-top-color', 'border-bottom-color', 'border-left-color', 'border-right-color', 'fill', 'stroke'];
+  function extraRules(look, th) {
+    const P = XMCLogic.xTheme, out = [], table = P.LOOKS[look] || {};
+    for (const [slot, v] of Object.entries(table)) {
+      const to = P.themeRole(slot, th);
+      if (!to) continue;
+      const from = 'rgb(' + v[0] + ', ' + v[1] + ', ' + v[2] + ')', rgb = 'rgb(' + to.join(', ') + ')';
+      for (const prop of INLINE_PROPS) out.push('[style^="' + prop + ': ' + from + '"], [style*="; ' + prop + ': ' + from + '"] { ' + prop + ': ' + rgb + ' !important; }');
+    }
+    const fg = th.fg, bg = th.bg;
+    out.push('[data-xmc-fix="f"] { color: ' + fg + ' !important; }', '[data-xmc-fix="b"] { color: ' + bg + ' !important; }', '[data-xmc-fix="k"] { color: #000 !important; }', '[data-xmc-fix="w"] { color: #fff !important; }',
+      '[data-xmc-ph]::placeholder { color: ' + th.muted + ' !important; opacity: 1 !important; }');
+    for (const slot of ['bg', 'card', 'card2', 'line', 'pill', 'pillHover']) { const to = table[slot] && P.themeRole(slot, th); if (to) out.push('[data-xmc-bgfix="' + slot + '"] { background-color: rgb(' + to.join(', ') + ') !important; }'); }
+    return out;
+  }
+  const clearFixes = () => { xCursor = 0; for (const el of document.querySelectorAll('[data-xmc-fix], [data-xmc-bgfix], [data-xmc-ph]')) { el.removeAttribute('data-xmc-fix'); el.removeAttribute('data-xmc-bgfix'); el.removeAttribute('data-xmc-ph'); } xFixed = { text: 0, bg: 0, ph: 0, samples: [] }; };
+  // Is this element on screen right now (not hidden, not see-through, not away from the window)?
+  const shownNow = (el) => { try { return el.checkVisibility ? el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true, opacityProperty: true, visibilityProperty: true }) : true; } catch { return true; } };
+  // The first colour behind an element that is not see-through, or null where there is a picture
+  function colourBehind(el, cache, pageBg) {
+    const P = XMCLogic.xTheme, path = [];
+    let found, a = el;
+    for (; a && a !== document.documentElement; a = a.parentElement) {
+      if (cache.has(a)) { found = cache.get(a); break; }
+      path.push(a);
+      const s = getComputedStyle(a);
+      if (s.backgroundImage && s.backgroundImage !== 'none') { found = false; break; }
+      const c = P.parseColour(s.backgroundColor);
+      if (c && c.a >= 0.5) { found = c; break; }
+    }
+    if (found === undefined) found = pageBg;
+    for (const x of path) cache.set(x, found);
+    return found || null;
+  }
+  // The text and backgrounds on X's page that the copy of its stylesheet left in X's own colours (where it comes from is not known: an inline style, a rule in a sheet that cannot be read,
+  // an inherited colour): a text that cannot be read against what is behind it takes the theme's text colour (or its background's, or black or white: whichever reads), and a solid
+  // background in one of X's own colours that is not the theme's is made the theme's for that role. Marks on X's elements (`data-xmc-fix`, `data-xmc-bgfix`, `data-xmc-ph`), which React leaves
+  // alone; the rules for them are in the style element. Visible elements only, a few hundred a pass, in a few milliseconds.
+  function repairPass(look, th) {
+    const P = XMCLogic.xTheme, t0 = performance.now(), table = P.LOOKS[look] || {};
+    const pageBg = P.parseColour(getComputedStyle(document.body).backgroundColor) || { r: 0, g: 0, b: 0, a: 1 }, fg = P.parseColour(th.fg), bgT = P.parseColour(th.bg);
+    const mine = new Set(['bg', 'card', 'card2', 'line', 'fg', 'muted', 'pill', 'pillHover'].map((r) => { const c = P.themeRole(r, th); return c ? c.join(',') : ''; })); // (the theme's own colours are not X's, whatever X's table says of a unit or two)
+    const cache = new Map(), seen = new Set(), pick = (bg) => { // the first colour that reads on bg
+      for (const [k, c] of [['f', fg], ['b', bgT], ['k', { r: 0, g: 0, b: 0 }], ['w', { r: 255, g: 255, b: 255 }]]) if (P.contrast(c, bg) >= 4.5) return k;
+      return P.contrast({ r: 0, g: 0, b: 0 }, bg) > P.contrast({ r: 255, g: 255, b: 255 }, bg) ? 'k' : 'w';
+    };
+    const note = (el, from, to) => { if (xFixed.samples.length < 8) xFixed.samples.push({ tag: el.tagName.toLowerCase(), cls: String(el.getAttribute('class') || '').split(/\s+/).slice(0, 5).join(' '), from, to }); };
+    const roots = ['[data-testid="sidebarColumn"]', 'header[role="banner"]', '#layers', 'main', '#react-root'].map((q) => document.querySelector(q)).filter(Boolean);
+    let at = 0; // (how many of the elements in view, in order, have been passed: a pass that runs out of time carries on from there at the next, so a large page is all covered in a few passes)
+    for (const root of roots) {
+      if (!shownNow(root)) continue;
+      const bgAlso = root !== roots[roots.length - 1] && root.tagName !== 'MAIN'; // (backgrounds only in the sidebar, the menu and the layers: what X puts over the page; its main column is left to the stylesheet)
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, { acceptNode(el) {
+        if (/^(SCRIPT|STYLE|NOSCRIPT|SVG|PATH|IMG|VIDEO|CANVAS)$/i.test(el.tagName) || el.closest('#xmc-root')) return NodeFilter.FILTER_REJECT;
+        const r = el.getBoundingClientRect();
+        if (!r.width && !r.height) return NodeFilter.FILTER_SKIP;
+        if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return NodeFilter.FILTER_REJECT;
+        return shownNow(el) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      } });
+      for (let el = w.nextNode(); el; el = w.nextNode()) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+        if (at++ < xCursor) continue;
+        if (performance.now() - t0 > 14) { xCursor = at - 1; return; }
+        const cs = getComputedStyle(el);
+        if (bgAlso) {
+          const c = P.parseColour(cs.backgroundColor);
+          if (c && c.a >= 0.95 && !mine.has(c.r + ',' + c.g + ',' + c.b)) {
+            const slot = P.xSlot(look, c);
+            if (slot && table[slot] && ['bg', 'card', 'card2', 'line', 'pill', 'pillHover'].includes(slot) && el.getAttribute('data-xmc-bgfix') !== slot) { el.setAttribute('data-xmc-bgfix', slot); xFixed.bg++; note(el, 'background ' + c.r + ',' + c.g + ',' + c.b, slot); }
+          }
+        }
+        const typed = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA';
+        let text = typed && !!(el.value || el.placeholder);
+        if (!text) for (const n of el.childNodes) if (n.nodeType === 3 && n.nodeValue.trim()) { text = true; break; }
+        if (!text) continue;
+        const behind = colourBehind(el, cache, pageBg);
+        if (!behind) continue;
+        const colour = P.parseColour(cs.color);
+        if (colour && P.contrast(colour, behind) < 2.5) {
+          const k = pick(behind);
+          if (el.getAttribute('data-xmc-fix') !== k) { el.setAttribute('data-xmc-fix', k); xFixed.text++; note(el, 'text ' + colour.r + ',' + colour.g + ',' + colour.b, k); }
+        }
+        if (typed && !el.hasAttribute('data-xmc-ph')) {
+          const ph = P.parseColour(getComputedStyle(el, '::placeholder').color);
+          if (ph && P.contrast(ph, behind) < 1.8) { el.setAttribute('data-xmc-ph', '1'); xFixed.ph++; }
+        }
+      }
+    }
+    xCursor = 0;
+  }
+  function repairTick(look, th) {
+    if (!xRepairOn || !xThemeEl || xTripped || document.hidden || Date.now() - xRepairAt < 1200) return;
+    xRepairAt = Date.now();
+    try { repairPass(look, th); } catch { /* a page this could not read: left as it is */ }
+  }
   function syncNativeTheme() {
     const th = current && current.themeNative ? XMCSettings.themeOf(current.theme) : null;
-    if (!th) { if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } xSig = ''; xStats = null; xList = []; return; }
-    if (xTripped) { if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } xSig = ''; return; } // (it left text unreadable: off until the theme is chosen again or the page is loaded again)
+    if (!th) { if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; clearFixes(); } xSig = ''; xStats = null; xList = []; return; }
+    if (xTripped) { if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; clearFixes(); } xSig = ''; return; } // (it left text unreadable: off until the theme is chosen again or the page is loaded again)
     const look = xLook(), sheets = xSheets(), sig = look + '|' + th.id + '|' + xRuleCount(sheets);
-    if (sig === xSig && xThemeEl && xThemeEl.isConnected) { checkLegible(); return; }
+    if (sig === xSig && xThemeEl && xThemeEl.isConnected) { repairTick(look, th); checkLegible(); return; }
     if (xThemeEl && xThemeEl.isConnected && Date.now() - xBuiltAt < 800) return; // (X adds rules in bursts: the repeats are made once the burst has slowed)
     xSig = sig; xBuiltAt = Date.now();
     const list = [], stats = { unmapped: {} };
     for (const sh of sheets) { try { readRules(sh.cssRules, look, th, list, stats, ''); } catch { /* a sheet that cannot be read */ } }
     xList = list;
     const w = writeRules(list);
-    w.css.push(':root { color-scheme: ' + (th.dark ? 'dark' : 'light') + ' !important; }', 'html, body { background-color: ' + th.bg + ' !important; }');
+    w.css.push(...extraRules(look, th));
+    w.css.push(':root { color-scheme: ' + (th.dark ? 'dark' : 'light') + ' !important; }', 'html, body { background-color: ' + th.bg + ' !important; color: ' + th.fg + ' !important; }');
+    if (xSig !== sig || !xThemeEl) clearFixes();
     if (!xThemeEl) { xThemeEl = document.createElement('style'); xThemeEl.id = 'xmc-xtheme-css'; }
     if (!xThemeEl.isConnected || xThemeEl.nextElementSibling) document.head.append(xThemeEl); // (last in the page, so it comes after every rule of X's)
     const css = w.css.join('\n');
@@ -161,16 +261,21 @@ var XMCSite = (function () {
     const root = document.getElementById('react-root');
     if (!root || !document.body) return null;
     const P = XMCLogic.xTheme, pageBg = P.parseColour(getComputedStyle(document.body).backgroundColor) || { r: 0, g: 0, b: 0, a: 1 };
-    const els = [], seen = new Set(), walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    for (let n = walker.nextNode(); n && els.length < 480; n = walker.nextNode()) {
-      const el = n.parentElement;
-      if (!el || seen.has(el) || !n.nodeValue.trim() || /^(SCRIPT|STYLE|NOSCRIPT)$/.test(el.tagName)) continue;
-      seen.add(el); els.push(el);
+    const els = [], seen = new Set();
+    for (const q of ['[data-testid="sidebarColumn"]', 'header[role="banner"]', '#layers', 'main', '#react-root']) { // (the parts people see first: a sample from the top of the page alone would be all of X's timeline, which the columns hide)
+      const top = document.querySelector(q);
+      if (!top || !shownNow(top)) continue;
+      const walker = document.createTreeWalker(top, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(), got = 0; n && got < 160; n = walker.nextNode()) {
+        const el = n.parentElement;
+        if (!el || seen.has(el) || !n.nodeValue.trim() || /^(SCRIPT|STYLE|NOSCRIPT)$/.test(el.tagName)) continue;
+        seen.add(el); els.push(el); got++;
+      }
     }
     const step = Math.max(1, Math.floor(els.length / 90)), out = { n: 0, low: 0, samples: [] };
     for (let i = 0; i < els.length; i += step) {
       const el = els[i], r = el.getBoundingClientRect();
-      if (!r.width || !r.height || el.closest('[aria-hidden="true"]')) continue;
+      if (!r.width || !r.height || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth || el.closest('[aria-hidden="true"]') || !shownNow(el)) continue;
       const cs = getComputedStyle(el);
       if (cs.visibility === 'hidden' || cs.display === 'none') continue;
       const fg = P.parseColour(cs.color);
@@ -190,7 +295,9 @@ var XMCSite = (function () {
       out.low++;
       if (out.samples.length < 8) {
         const sample = { tag: el.tagName.toLowerCase(), cls: String(el.getAttribute('class') || '').split(/\s+/).slice(0, 6).join(' '), colour: cs.color, behind: 'rgb(' + bg.r + ',' + bg.g + ',' + bg.b + ')', ratio: Math.round(ratio * 10) / 10 };
-        if (deep) { // the rules of X's that set its colour (after the theme's colours went in), to see which one won
+        if (deep) { // the elements above it with their colours and style attributes (where the colour comes from), and the rules of X's that set its colour (after the theme's colours went in)
+          sample.above = [];
+          for (let a = el.parentElement, k = 0; a && a !== document.body && k < 7; a = a.parentElement, k++) sample.above.push({ tag: a.tagName.toLowerCase(), cls: String(a.getAttribute('class') || '').split(/\s+/).slice(0, 4).join(' '), colour: getComputedStyle(a).color, style: String(a.getAttribute('style') || '').slice(0, 90) });
           sample.rules = [];
           for (const rule of xList) {
             const d = rule.decls.find((x) => x[0] === 'color');
@@ -210,8 +317,9 @@ var XMCSite = (function () {
     let r = legibility(false);
     if (r && r.n >= 12 && r.low >= 6 && r.low / r.n >= 0.2) { r = legibility(true) || r; xTripped = { at: Date.now(), n: r.n, low: r.low, samples: r.samples }; xThemeEl.remove(); xThemeEl = null; xSig = ''; }
   }
-  function stopNativeTheme() { clearInterval(xTimer); xTimer = 0; if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } xSig = ''; const early = document.getElementById('xmc-early-bg'); if (early) early.remove(); }
-  const themeReport = () => { if (!xStats && !xTripped) return xStats; let read = null; try { read = legibility(true); } catch { /* none */ } return Object.assign({}, xStats, { read, tripped: xTripped }); };
+  function stopNativeTheme() { clearInterval(xTimer); xTimer = 0; if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } clearFixes(); xSig = ''; const early = document.getElementById('xmc-early-bg'); if (early) early.remove(); }
+  const themeReport = () => { if (!xStats && !xTripped) return xStats; let read = null; try { read = legibility(true); } catch { /* none */ } return Object.assign({}, xStats, { read, tripped: xTripped, fixed: xFixed }); };
+  const setRepair = (on) => { xRepairOn = !!on; if (!on) clearFixes(); };
 
   // things React may redraw, so they are re-applied now and then
   function refresh() {
@@ -297,5 +405,5 @@ var XMCSite = (function () {
     return out;
   }
 
-  return { apply, refresh, sidebarItems, stopNativeTheme, themeReport, BIRD };
+  return { apply, refresh, sidebarItems, stopNativeTheme, themeReport, setRepair, BIRD };
 })();

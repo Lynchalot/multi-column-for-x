@@ -6152,6 +6152,33 @@ browserTest('the sidebar items the settings list are named without the unread co
   });
 }, 60000);
 
+browserTest('the theme on X’s own pages mends what the copy of X’s stylesheet cannot reach: an X colour in an element’s own style, text that cannot be read, a leftover X background in the sidebar', async (e) => {
+  const h = await e.open('/user/status/90001/', { settings: { v: 11, hintSeen: true, theme: 'catppuccin-latte' } });
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForFunction(() => window.__xmc && document.getElementById('react-native-stylesheet') && document.getElementById('xmc-xtheme-css'));
+    await page.evaluate(() => {
+      document.body.style.backgroundColor = 'rgb(0, 0, 0)'; // X’s black look, in a light theme
+      const header = document.querySelector('header[role="banner"]'), root = document.getElementById('react-root');
+      const mk = (parent, id, style, text) => { const d = document.createElement('div'); d.id = id; d.setAttribute('style', style); d.textContent = text || ''; parent.append(d); };
+      mk(root, 'i-fg', 'position: fixed; left: 320px; top: 200px; color: rgb(231, 233, 234);', 'X’s text colour, in the element’s own style');
+      mk(root, 'i-bg', 'position: fixed; left: 320px; top: 230px; width: 100px; background-color: rgb(0, 0, 0); height: 20px;', '');
+      mk(root, 'u-text', 'position: fixed; left: 320px; top: 260px; color: rgb(240, 240, 241); background-color: rgb(239, 241, 245);', 'pale text on a pale page (no colour of X’s table)');
+      mk(header, 'u-bg', 'position: fixed; left: 320px; top: 320px; background-color: rgb(1, 1, 1); height: 30px; width: 120px;', 'a leftover'); // (a unit off X’s black, in the menu’s place)
+      mk(root, 'u-hidden', 'position: fixed; left: 320px; top: 290px; color: rgb(240, 240, 241); background-color: rgb(239, 241, 245); opacity: 0;', 'pale text nobody can see');
+    });
+    await page.waitForFunction(() => document.getElementById('u-text').hasAttribute('data-xmc-fix') && document.getElementById('u-bg').hasAttribute('data-xmc-bgfix'), null, { timeout: 12000 });
+    const g = await page.evaluate(() => { const c = (id, p) => getComputedStyle(document.getElementById(id))[p]; return { ifg: c('i-fg', 'color'), ibg: c('i-bg', 'backgroundColor'), utext: c('u-text', 'color'), ubg: c('u-bg', 'backgroundColor'), hiddenMarked: document.getElementById('u-hidden').hasAttribute('data-xmc-fix'), hidden: c('u-hidden', 'color') }; });
+    assert.deepEqual(g, { ifg: 'rgb(76, 79, 105)', ibg: 'rgb(239, 241, 245)', utext: 'rgb(76, 79, 105)', ubg: 'rgb(239, 241, 245)', hiddenMarked: false, hidden: 'rgb(240, 240, 241)' }, 'the inline X colours are the theme’s, the text that could not be read has the theme’s text colour, the leftover background the theme’s, and what nobody can see is not touched');
+    const rep = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).xTheme);
+    assert.ok(rep.fixed.text >= 1 && rep.fixed.bg >= 1 && !rep.tripped, 'counted in the diagnostics: ' + JSON.stringify(rep.fixed));
+    assert.ok(await page.evaluate(() => document.querySelectorAll('[data-xmc-bgfix]').length) <= 4, 'the theme’s own colours are not taken for X’s and marked over and over');
+    // switched off: the marks go with it
+    await page.evaluate(() => { window.__xmc.settings.themeNative = false; XMCSite.apply(window.__xmc.settings); });
+    await page.waitForFunction(() => !document.querySelector('[data-xmc-fix], [data-xmc-bgfix], [data-xmc-ph]'), null, { timeout: 3000 });
+  });
+}, 90000);
+
 browserTest('a colour theme on X’s own pages that leaves its text unreadable switches itself off, says so, and says which rules (and a page that reads fine is left alone)', async (e) => {
   const bad = await e.open('/user/status/90001/', { settings: { v: 11, hintSeen: true, theme: 'catppuccin-mocha' } });
   await checked(bad, async () => {
@@ -6162,13 +6189,14 @@ browserTest('a colour theme on X’s own pages that leaves its text unreadable s
     assert.equal(await page.evaluate(() => !!document.getElementById('xmc-xtheme-css') && !JSON.parse(window.__xmc.diagnostics()).xTheme.tripped), true, 'not switched off on a page that can be read');
     const rep = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).xTheme.read);
     assert.ok(rep && rep.n >= 1 && rep.low === 0, 'the sample was read: ' + JSON.stringify(rep));
-    // now text in the page’s own colour (what the mistake looked like)
+    // now text in the page’s own colour (what the mistake looked like), with the repair that would mend it switched off
     await page.evaluate(() => {
+      XMCSite.setRepair(false);
       document.body.style.backgroundColor = 'rgb(0, 0, 0)';
       const sheet = document.getElementById('react-native-stylesheet').sheet;
       sheet.insertRule('.r-u-text{color:rgba(0,0,0,1.00)}', sheet.cssRules.length); // (X’s black base: the theme’s background colour)
       const box = document.getElementById('react-root');
-      for (let i = 0; i < 60; i++) { const d = document.createElement('div'); d.className = 'r-u-text'; d.textContent = 'text ' + i; box.append(d); }
+      for (let i = 0; i < 60; i++) { const d = document.createElement('div'); d.className = 'r-u-text'; d.textContent = 'text ' + i; box.prepend(d); } // (first in the page: the sample takes the first of each part)
     });
     await page.waitForFunction(() => !document.getElementById('xmc-xtheme-css'), null, { timeout: 15000 });
     const t = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).xTheme);
