@@ -3,8 +3,9 @@
 // bottom of X's menu, say) and writes store/screenshots/own/<name>.png at 1280 wide, which make-slides.js then uses in place of the generated shot of that name.
 //   node store/prepare-own.js <folder with your screenshots>
 // The originals are never copied into the repository: only the blurred results are. Each entry of own-shots.json: { "src": file in the folder, "name": the slide's file name,
-// "blur": [[x, y, width, height], ...], "y": where the cut starts } in the original's pixels. The slide's picture is 16:10, so a taller window is cut to that shape from
-// the line `y` (the window's own edge, 8, if there is none): choose it so that what the slide is about is inside. A shot already 16:10 is left whole. Needs ImageMagick (convert).
+// "blur": [[x, y, width, height], ...], "y": where the cut starts, "x" and "w": a narrower cut, for a close-up } in the original's pixels. The slide's picture is 16:10, so a
+// taller window is cut to that shape from the line `y` (the window's own edge, 8, if there is none): choose it so that what the slide is about is inside. A shot already 16:10
+// is left whole. Needs ImageMagick (convert).
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
@@ -21,8 +22,9 @@ for (const s of shots) {
   const [w, h] = execFileSync('identify', ['-format', '%w %h', src + '[0]'], { encoding: 'utf8' }).trim().split(' ').map(Number);
   const args = [src + '[0]'];
   for (const [x, y, bw, bh] of s.blur || []) args.push('-region', `${bw}x${bh}+${x}+${y}`, '-scale', '6%', '-scale', '1667%', '-blur', '0x6', '+region'); // (a coarse mosaic, then a blur: nothing of a face or a name is left)
-  const cw = w - 2 * MARGIN, ch = Math.min(h - 2 * MARGIN, Math.round(cw / 1.6)), top = Math.max(MARGIN, Math.min(s.y || MARGIN, h - MARGIN - ch));
-  args.push('-crop', `${cw}x${ch}+${MARGIN}+${top}`, '+repage', '-resize', '1280x', '-strip', 'PNG24:' + path.join(OUT, s.name + '.png'));
+  const cw = s.w || w - 2 * MARGIN, ch = Math.min(h - 2 * MARGIN, Math.round(cw / 1.6)), top = Math.max(MARGIN, Math.min(s.y || MARGIN, h - MARGIN - ch));
+  const left = Math.max(MARGIN, Math.min(s.x || MARGIN, w - MARGIN - cw));
+  args.push('-crop', `${cw}x${ch}+${left}+${top}`, '+repage', '-resize', '1280x', '-strip', 'PNG24:' + path.join(OUT, s.name + '.png'));
   execFileSync('convert', args);
   console.log('wrote', s.name);
 }

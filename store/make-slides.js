@@ -18,6 +18,7 @@ const SLIDES = [
   { file: '08-reels', title: 'Doomscroll with style', bullets: ['One post at a time, scrolled up and down', 'Videos play with sound and loop', 'Shift + wheel or the arrow keys move to the next post'] },
   { file: '02-post-panel', title: 'Open a post without losing your place', bullets: ['View media with comments alongside', 'Like, bookmark and reply to posts and to comments', 'Close post to return to exactly where you were'] },
   { file: '09-reply-tools', title: 'Reply with pictures and emoji', bullets: ['Pictures, GIFs and emoji from the comment box', 'Reply to the post or to any comment in-panel'] },
+  { file: '11-media-wall', title: 'Media tabs as a gallery', bullets: ['Every picture and video in rows, edge to edge', 'Switch between Columns and Gallery in the top bar', 'Open a post, or start Reels from any picture'] },
   { file: '10-keys', title: 'Browse with your keyboard', bullets: ['Vim keys (j k, w a s d, f to like, o to open) or a simple set', 'Arrow keys step through pictures, then posts', 'Remap any key in settings'] },
   { file: '13-themes', title: 'Fourteen colour themes', bullets: ['Catppuccin, Gruvbox, Ros\u00e9 Pine, Dracula, Tokyo Night, Nord and more', 'The columns, the post panel and the settings follow', 'Or keep X\u2019s own colours'] },
   { file: '03-photo-viewer', title: 'Photos and video, done properly', bullets: ['Open photos in a viewer, with Download and Copy link', 'Original-size photos and the best video quality, one click', 'Point at a video for a muted preview'] },
