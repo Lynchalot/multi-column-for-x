@@ -35,7 +35,7 @@ Note: an unlisted add-on does not update itself. After the public listing is app
    homepage, support site (the GitHub issues page), privacy policy (paste the text of `PRIVACY.md`), notes to reviewer.
 5. Support / contributions link: your Ko-fi, https://ko-fi.com/falsehamartia
    (if the field refuses it, tell me; it only accepts certain donation sites).
-6. Icon: `store/icon-128.png`. Screenshots: `store/screenshots/slides/01-…06-` (see `store/listing.md`;
+6. Icon: `store/icon-128.png`. Screenshots: `store/screenshots/slides/01-…07-` (see `store/listing.md`;
    regenerate with `node store/make-screenshots.js` then `node store/make-slides.js`).
 7. Submit. Automatic checks run first; a person usually reads the notes for add-ons that run on a big site like x.com, so
    it can take from a few days to a couple of weeks. Replies come by email: answer them in the Developer Hub thread.

@@ -1,5 +1,5 @@
 'use strict';
-// Turns the plain screenshots into headline slides for the Firefox Add-ons page: a short headline, a few plain outcomes, and the
+// Turns the plain screenshots into headline slides for the Firefox Add-ons page: a short headline, a few plain lines beside it, and the
 // screen below it running off the bottom edge. (The page's own thumbnails are small; a headline says what to look at.)
 //   XMC_BROWSER=/path/to/chrome node store/make-slides.js        ->  store/screenshots/slides/01-columns.png ... 10-start.png (1280x800)
 // Run `node store/make-screenshots.js` first. To use a shot of your own, save it as store/screenshots/own/<same name>.png (e.g. own/01-columns.png)
@@ -14,27 +14,29 @@ const OUT = path.join(DIR, 'slides');
 // feed: true marks a shot of the feed itself. The stand-in feed is invented posts on generated art; a real one from X is better there,
 // so these are the ones to replace (own/<same name>.png). The wording is plain on purpose: the people reading it want a good extension, not an explanation.
 const SLIDES = [
-  { file: '01-columns', feed: true, title: 'Your feed in columns', bullets: ['See far more at once', 'Fits your screen, big or small', 'Hide Trending, Who to follow and Premium'] },
-  { file: '08-reels', title: 'Doomscroll with style', bullets: ['One post at a time, full screen', 'Videos play with sound and loop', 'Next post with the wheel or arrow keys'] },
-  { file: '02-post-panel', title: 'Open a post without losing your place', bullets: ['Pictures and comments side by side', 'Like, bookmark and reply right there', 'Close it and you\u2019re back where you were'] },
-  { file: '09-reply-tools', title: 'Reply with pictures and emoji', bullets: ['Add pictures, GIFs and emoji', 'Reply to the post or to any comment'] },
-  { file: '11-media-wall', title: 'Every picture, in a gallery', bullets: ['Photos and videos in rows, edge to edge', 'Switch between Columns and Gallery any time', 'Open a post, or start Reels from any picture'] },
-  { file: '10-keys', title: 'Browse with your keyboard', bullets: ['Scroll, like and open posts without the mouse', 'Pick a ready-made set of keys', 'Change any key you like'] },
-  { file: '13-themes', title: 'Fourteen colour themes', bullets: ['Catppuccin, Gruvbox, Ros\u00e9 Pine, Dracula, Nord and more', 'Dark or light, to suit you', 'Or keep X\u2019s own colours'] },
-  { file: '03-photo-viewer', title: 'Photos and video, done properly', bullets: ['Open photos big, with Download and Copy link', 'Save full-size photos and the best video in one click', 'Hover over a video for a quiet preview'] },
+  { file: '01-columns', feed: true, title: 'Your feed in columns', bullets: ['See far more at once, using your whole screen', 'Automatically fits your screen - big or small', 'Hide Trending, Who to follow and Premium boxes'] },
+  { file: '08-reels', title: 'Doomscroll with style', bullets: ['One post at a time, full screen', 'Videos play with sound and loop', 'Move to the next post with your mouse wheel or arrow keys'] },
+  { file: '02-post-panel', title: 'Open a post without losing your place', bullets: ['Pictures and comments side by side', 'Like, bookmark and reply, even to comments', 'Close it and you\u2019re back exactly where you were'] },
+  { file: '11-media-wall', title: 'Every picture, in a gallery', bullets: ['Every photo and video in rows, edge to edge', 'Switch between Columns and Gallery any time', 'Open a post, or start Reels from any picture'] },
+  { file: '10-keys', title: 'Browse with your keyboard', bullets: ['Scroll, like and open posts without the mouse', 'Choose a ready-made set of keys, or use none', 'Change any key to whatever you like'] },
+  { file: '13-themes', title: 'Fourteen colour themes', bullets: ['Catppuccin, Gruvbox, Ros\u00e9 Pine, Dracula, Tokyo Night, Nord and more', 'Dark or light, whichever suits you', 'Or keep X\u2019s own colours'] },
+  { file: '03-photo-viewer', title: 'Photos and video, done properly', bullets: ['Open photos and videos big, with dedicated Download and Copy Link buttons', 'Full-size photos and the best video, one click', 'Hover over a video for a quiet preview'] },
 ];
 
-// the slide colours ("Ink" on the wording page): near-black blue running up to a mid navy, white headline, a paler tint for the lines under it
-const PALETTE = { from: '#090f1a', mid: '#12233b', to: '#1d3f68', head: '#ffffff', text: '#c3d2e3', edge: 'rgba(255,255,255,.14)' };
+// the slide colours: near-black blue running up to a mid navy, white headline, a paler tint for the lines beside it, a light blue for the dots
+const PALETTE = { from: '#090f1a', mid: '#12233b', to: '#1d3f68', head: '#ffffff', text: '#d3deec', dot: '#6cb6ff', edge: 'rgba(255,255,255,.14)' };
 
+// the headline on the left, the lines on the right, the screen as large as the width allows, running off the bottom edge
 const html = (title, bullets, img) => `<!doctype html><meta charset="utf-8"><style>
   *{box-sizing:border-box;margin:0}
   body{width:1280px;height:800px;overflow:hidden;font-family:'Liberation Sans',Arial,sans-serif;color:${PALETTE.head};background:linear-gradient(160deg,${PALETTE.from} 0%,${PALETTE.mid} 58%,${PALETTE.to} 100%);position:relative}
-  h1{position:absolute;left:56px;top:34px;font-size:56px;line-height:64px;font-weight:700;letter-spacing:-0.5px}
-  ul{position:absolute;left:56px;top:108px;list-style:none;font-size:25px;line-height:34px;font-weight:700;color:${PALETTE.text}}
-  li:before{content:'–';display:inline-block;width:30px}
-  .shot{position:absolute;left:50%;top:${bullets.length > 2 ? 232 : 198}px;width:1060px;transform:translateX(-50%);border-radius:14px 14px 0 0;box-shadow:0 0 0 1px ${PALETTE.edge},0 18px 60px rgba(0,0,0,.5);display:block}
-</style><h1>${title}</h1><ul>${bullets.map((b) => `<li>${b}</li>`).join('')}</ul><img class="shot" src="${img}">`;
+  .head{position:absolute;left:56px;right:56px;top:26px;height:152px;display:flex;align-items:center;gap:40px}
+  h1{flex:0 0 470px;text-wrap:balance;font-size:48px;line-height:54px;font-weight:700;letter-spacing:-0.5px}
+  ul{flex:1;list-style:none;font-size:24px;line-height:31px;font-weight:700;color:${PALETTE.text}}
+  li{position:relative;padding-left:26px;margin:5px 0}
+  li:before{content:'';position:absolute;left:0;top:11px;width:10px;height:10px;border-radius:50%;background:${PALETTE.dot}}
+  .shot{position:absolute;left:56px;top:196px;width:1168px;border-radius:14px 14px 0 0;box-shadow:0 0 0 1px ${PALETTE.edge},0 18px 60px rgba(0,0,0,.5);display:block}
+</style><div class="head"><h1>${title}</h1><ul>${bullets.map((b) => `<li>${b}</li>`).join('')}</ul></div><img class="shot" src="${img}">`;
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });

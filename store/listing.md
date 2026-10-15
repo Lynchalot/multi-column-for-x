@@ -1,7 +1,7 @@
 # Add-on listing (addons.mozilla.org): copy and paste from here
 
-**Name:** Multi-Column for X
-(Option: "Multi-Column for X (Twitter)". Many people still search for "Twitter", and the add-on this listing is modelled on keeps the word in its name. Your call on the name.)
+**Name:** Multi-Column for X (Twitter)
+(The owner's choice: many people still search for "Twitter". The listing is at https://addons.mozilla.org/en-US/firefox/addon/multi-column-for-x/ and the owner looks after it. `manifest.json` still says "Multi-Column for X".)
 
 
 **Summary (max 250 characters):**
@@ -13,7 +13,6 @@ Multi-Column for X makes X (Twitter) feel the way it always should have. Your fe
 **Why you'll like it**
 - **Columns that fit your screen.** See far more at once, from one column to eight. New posts wait behind a button instead of shoving your feed down while you read.
 - **Open a post without losing your place.** The picture sits big next to the comments. Like, bookmark, reply and translate right there, then close it and you're back where you were.
-- **Reply with pictures, GIFs and emoji**, to the post or to any comment.
 - **Reels, if you want them.** One post at a time, full screen, like TikTok. Videos play with sound and loop, and posts you've already seen are skipped.
 - **Photo galleries.** A profile's Media tab as a wall of pictures, edge to edge.
 - **Save in one click.** Full-size photos and the best-quality video, into the folder you choose.
@@ -38,17 +37,16 @@ No tracking, no accounts, no data collected. Everything stays in your browser. O
 X and Twitter are trademarks of X Corp. This add-on is not affiliated with, endorsed by, or sponsored by X Corp.
 
 **Release notes (current version):**
-Your X feed in columns, posts that open beside their comments, replies with pictures, GIFs and emoji, Reels, a gallery for photos, one-click downloads, keyboard keys, fourteen colour themes and a welcome page to set it all up.
+Your X feed in columns, posts that open beside their comments, Reels, a gallery for photos, one-click downloads, keyboard keys, fourteen colour themes and a welcome page to set it all up.
 
-**Screenshots** (upload the headline slides in `store/screenshots/slides/`, in this order; `node store/make-screenshots.js` then `node store/make-slides.js` makes them: 1280x800. All eight are real shots of X (public posts; the owner's own profile at the foot of X's menu is blurred out: `store/own-shots.json` names the sources, the blurred places and the cut, `node store/prepare-own.js <folder>` makes `store/screenshots/own/*.png`, and `make-slides.js` uses those in place of the generated shot of the same name; a slide with no entry there falls back to a generated shot with invented accounts and posts). The plain shots are in `store/screenshots/` if you want any without a headline; the wording is in `SLIDES` in `store/make-slides.js`):
+**Screenshots** (upload the headline slides in `store/screenshots/slides/`, in this order; `node store/make-screenshots.js` then `node store/make-slides.js` makes them: 1280x800. All seven are real shots of X (public posts; the owner's own profile at the foot of X's menu is blurred out: `store/own-shots.json` names the sources, the blurred places and the cut, `node store/prepare-own.js <folder>` makes `store/screenshots/own/*.png`, and `make-slides.js` uses those in place of the generated shot of the same name; a slide with no entry there falls back to a generated shot with invented accounts and posts). The plain shots are in `store/screenshots/` if you want any without a headline; the wording is in `SLIDES` in `store/make-slides.js`. The Chrome Web Store takes five: use 1, 2, 3, 4 and 7):
 1. `01-columns.png` Your feed in columns.
 2. `02-reels.png` Doomscroll with style: one post at a time, with the rail of buttons on the picture.
 3. `03-post-panel.png` Open a post without losing your place.
-4. `04-reply-tools.png` Reply with pictures and emoji, from the comment box in the panel.
-5. `05-media-wall.png` Media tabs as a gallery.
-6. `06-keys.png` Browse with your keyboard.
-7. `07-themes.png` Fourteen colour themes (three of them side by side: cats, paintings and a light one).
-8. `08-photo-viewer.png` Photos and video, done properly: the viewer with Download and Copy link.
+4. `04-media-wall.png` Every picture, in a gallery.
+5. `05-keys.png` Browse with your keyboard.
+6. `06-themes.png` Fourteen colour themes (three of them side by side: cats, paintings and a light one).
+7. `07-photo-viewer.png` Photos and video, done properly: the viewer with Download and Copy link.
 (Not in the slides, still in `store/screenshots/`: the filters, the room, the starting points (the welcome page), the settings page and the settings in a panel.)
 
 **Support link ("Support" / contributions field):** https://ko-fi.com/falsehamartia
@@ -85,6 +83,6 @@ Everything user-visible in the options page is generated from `src/settings.js`.
 
 `popup.html` is the toolbar button's panel (the same generator as the options page, in a narrow layout). It and the files it loads are listed in `web_accessible_resources` for x.com and twitter.com only, because the gear in the columns' bar shows it in a frame over the page; it grants x.com's own scripts nothing but the ability to load those pages (they hold no secrets: the settings live in `storage.local`, which only the extension can read). If the frame does not load, the options page opens in a tab instead. The framed page tells its parent two things ("settings-ready", "settings-close") with `postMessage` to `*`: the messages hold no data, and the receiving side accepts them only from that frame's own window. Every `message` listener in the extension checks `event.source`. The tip shown on first run has one link, to the Ko-fi page, opened in a new tab only when pressed.
 
-**Screenshots:** `store/screenshots/slides/` (made by `node store/make-screenshots.js` then `node store/make-slides.js`; the first needs ImageMagick and the dev dependencies). They use the test stand-in for x.com with invented people and generated pictures, so no real post, name or logo is shown. To add one of your own feed, take it with the window about 1600x1000, public posts only, blur your own name, and size it with `store/frame-screenshots.sh`.
+**Screenshots:** `store/screenshots/slides/` (made by `node store/make-screenshots.js` then `node store/make-slides.js`; the first needs ImageMagick and the dev dependencies). The seven headline slides are screenshots of public posts on x.com with the extension running (the owner's own profile blurred out); the plain shots in `store/screenshots/` come from the test stand-in for x.com, with invented people and generated pictures.
 
 **Icon:** store/icon-128.png (the extension itself ships icons/icon.svg).
