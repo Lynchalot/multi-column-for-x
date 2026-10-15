@@ -64,14 +64,14 @@ X and Twitter are trademarks of X Corp. This add-on is not affiliated with, endo
 **Release notes (current version):**
 Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its picture, comments (loading as you scroll), like, bookmark, reply (with pictures, a GIF or emoji) and translate; video in the post; a Reels view; Vim and simple keys; one-click media downloads; filters, including an optional NSFW only view; fourteen colour themes; a welcome page for the first run; followers as a grid; a gallery for Media tabs; Bookmarks, Likes and Lists in the left menu; a menu for narrow windows; a settings page.
 
-**Screenshots** (upload the headline slides in `store/screenshots/slides/`, in this order; `node store/make-screenshots.js` then `node store/make-slides.js` makes them: 1280x800. Slides 1 to 5 and 8 are real shots of X (public posts; the owner's own profile at the foot of X's menu is blurred out: `store/own-shots.json` names the sources, the blurred places and the cut, `node store/prepare-own.js <folder>` makes `store/screenshots/own/*.png`, and `make-slides.js` uses those in place of the generated shot of the same name); slides 6 and 7 are generated, with invented accounts and posts. The plain shots are in `store/screenshots/` if you want any without a headline; the wording is in `SLIDES` in `store/make-slides.js`):
+**Screenshots** (upload the headline slides in `store/screenshots/slides/`, in this order; `node store/make-screenshots.js` then `node store/make-slides.js` makes them: 1280x800. All eight are real shots of X (public posts; the owner's own profile at the foot of X's menu is blurred out: `store/own-shots.json` names the sources, the blurred places and the cut, `node store/prepare-own.js <folder>` makes `store/screenshots/own/*.png`, and `make-slides.js` uses those in place of the generated shot of the same name; a slide with no entry there falls back to a generated shot with invented accounts and posts). The plain shots are in `store/screenshots/` if you want any without a headline; the wording is in `SLIDES` in `store/make-slides.js`):
 1. `01-columns.png` Your feed in columns.
 2. `02-reels.png` Doomscroll with style: one post at a time, with the rail of buttons on the picture.
 3. `03-post-panel.png` Open a post without losing your place.
 4. `04-reply-tools.png` Reply with pictures and emoji, from the comment box in the panel.
 5. `05-media-wall.png` Media tabs as a gallery.
-6. `06-keys.png` Browse with your keyboard: the card of keys.
-7. `07-themes.png` Fourteen colour themes (the feed in Catppuccin Mocha).
+6. `06-keys.png` Browse with your keyboard.
+7. `07-themes.png` Fourteen colour themes (a feed of cats in a dark theme).
 8. `08-photo-viewer.png` Photos and video, done properly: the viewer with Download and Copy link.
 (Not in the slides, still in `store/screenshots/`: the filters, the room, the starting points (the welcome page), the settings page and the settings in a panel.)
 
