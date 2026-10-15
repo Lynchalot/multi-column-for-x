@@ -5237,6 +5237,16 @@
       if (mine) mine.after(a); else if (replaceHistory) history.before(a); else after.after(a); // (in History's place, when it is hidden)
     }
   }
+  // The theme on X's own pages switches itself off when it leaves the text unreadable (site.js, legibility): say so once
+  let xTripSeen = false;
+  function xThemeWatch() {
+    const r = XMCSite.themeReport(), t = r && r.tripped;
+    if (!t) { xTripSeen = false; return; }
+    if (xTripSeen) return;
+    xTripSeen = true;
+    trace('xtheme-off', t.low + ' of ' + t.n + ' text elements unreadable: ' + JSON.stringify((t.samples || []).slice(0, 2)).slice(0, 400));
+    toast('The theme made text on X\u2019s own pages unreadable, so it is off there. Copy diagnostics shows why.');
+  }
   function scanNavItems() {
     guard('extra nav', syncExtraNav);
     const items = XMCSite.sidebarItems();
@@ -5612,6 +5622,7 @@
     if (tickN % 5 === 3) { guard('reply context', contextTick); guard('hint', updateHint); guard('history', tidyHistory); guard('panel entry', ensurePanelEntry); guard('viewer entry', ensureViewerEntry); }
     if (tickN % 5 === 1) { guard('list title', listTitle); guard('profile header', updateProfile); guard('sensitive notices', revealNative); }
     if (state.fail && tickN % 10 === 7) guard('x retry', pressXRetry);
+    if (tickN % 5 === 3) guard('x theme', xThemeWatch);
     guard('recycle', () => { if ((tickN % 10 === 5 && Date.now() - lastScrollAt > 500) || (tickN % 3 === 2 && view.cards.length - recycled > RECYCLE_LIVE)) recycleCards(false); }); // (and while scrolling on and on, once a lot is on the page: far-off posts give their nodes back without waiting for a pause. Inside the guard: whatever this reads may throw, and the tick must go on to fail open)
     if (tickN % 15 === 0) guard('floaters', scanFloaters); else if (tickN % 3 === 0 && state.shown) guard('floaters', updateFloaters);
     const quiet = state.posting && isModalRoute(); // our own reply automation: X's reply box is open, out of sight

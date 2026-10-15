@@ -47,6 +47,13 @@ test('the words black and white are colours too (X\u2019s base rules say `border
   assert.equal(T.recolourValue('blackish', 'dark', mocha), 'blackish');
 });
 
+test('how readable one colour is on another: black on white 21, the same colour 1, the order does not matter', () => {
+  assert.equal(Math.round(T.contrast({ r: 0, g: 0, b: 0 }, { r: 255, g: 255, b: 255 })), 21);
+  assert.equal(T.contrast({ r: 30, g: 30, b: 46 }, { r: 30, g: 30, b: 46 }), 1);
+  assert.equal(T.contrast({ r: 205, g: 214, b: 244 }, { r: 30, g: 30, b: 46 }), T.contrast({ r: 30, g: 30, b: 46 }, { r: 205, g: 214, b: 244 }));
+  assert.ok(T.contrast({ r: 205, g: 214, b: 244 }, { r: 30, g: 30, b: 46 }) > 7, 'Mocha text on Mocha\u2019s page');
+});
+
 test('X’s white look: white is the background, the dark text is the theme’s text, the same colours in either theme', () => {
   assert.equal(T.recolourValue('rgba(255,255,255,1.00)', 'light', latte), 'rgb(239, 241, 245)');
   assert.equal(T.recolourValue('rgba(255,255,255,1.00)', 'light', mocha), 'rgb(30, 30, 46)', 'a dark theme on X’s white page');

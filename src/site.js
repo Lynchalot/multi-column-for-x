@@ -83,7 +83,7 @@ var XMCSite = (function () {
   // win over what X puts over it. They have X's own priority and come after X's in the page, so what wins on X wins here, an inline colour still wins, and the
   // theme's colours are what show. X adds rules as it draws new things, so the stylesheets are counted four times a second and the repeats made again when the
   // count changes. Not seen on real X: what it left alone is in the diagnostics (`xTheme.unmapped`).
-  let xThemeEl = null, xSig = '', xTimer = 0, xStats = null, xBuiltAt = 0;
+  let xThemeEl = null, xSig = '', xTimer = 0, xStats = null, xBuiltAt = 0, xList = [], xTripped = null, xCheckedAt = 0, xKey = '';
   const xLook = () => {
     const c = XMCLogic.xTheme.parseColour(document.body && document.body.style.backgroundColor); // (X sets its page colour on <body> itself; the inline value is not touched by a stylesheet)
     if (c) return (c.r + c.g + c.b) / 3 > 127 ? 'light' : 'dark';
@@ -103,7 +103,7 @@ var XMCSite = (function () {
           const v = rule.style.getPropertyValue(p);
           if (!v) continue; // (a longhand of a shorthand with var() in it has no value to repeat)
           const nv = XMCLogic.xTheme.recolourValue(v, look, th, stats.unmapped);
-          decls.push([p, nv, rule.style.getPropertyPriority(p), nv !== v]);
+          decls.push([p, nv, rule.style.getPropertyPriority(p), nv !== v, v]);
         }
         if (decls.length) out.push({ sel: rule.selectorText, at, decls });
       } else if ((rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule) && rule.cssRules) {
@@ -135,13 +135,15 @@ var XMCSite = (function () {
   }
   function syncNativeTheme() {
     const th = current && current.themeNative ? XMCSettings.themeOf(current.theme) : null;
-    if (!th) { if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } xSig = ''; xStats = null; return; }
+    if (!th) { if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } xSig = ''; xStats = null; xList = []; return; }
+    if (xTripped) { if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } xSig = ''; return; } // (it left text unreadable: off until the theme is chosen again or the page is loaded again)
     const look = xLook(), sheets = xSheets(), sig = look + '|' + th.id + '|' + xRuleCount(sheets);
-    if (sig === xSig && xThemeEl && xThemeEl.isConnected) return;
+    if (sig === xSig && xThemeEl && xThemeEl.isConnected) { checkLegible(); return; }
     if (xThemeEl && xThemeEl.isConnected && Date.now() - xBuiltAt < 800) return; // (X adds rules in bursts: the repeats are made once the burst has slowed)
     xSig = sig; xBuiltAt = Date.now();
     const list = [], stats = { unmapped: {} };
     for (const sh of sheets) { try { readRules(sh.cssRules, look, th, list, stats, ''); } catch { /* a sheet that cannot be read */ } }
+    xList = list;
     const w = writeRules(list);
     w.css.push(':root { color-scheme: ' + (th.dark ? 'dark' : 'light') + ' !important; }', 'html, body { background-color: ' + th.bg + ' !important; }');
     if (!xThemeEl) { xThemeEl = document.createElement('style'); xThemeEl.id = 'xmc-xtheme-css'; }
@@ -150,9 +152,66 @@ var XMCSite = (function () {
     if (xThemeEl.textContent !== css) xThemeEl.textContent = css;
     const top = Object.entries(stats.unmapped).sort((a, b) => b[1] - a[1]).slice(0, 12);
     xStats = { look, theme: th.id, sheets: sheets.length, rules: w.rules, props: w.props, unmapped: top.map(([k, n]) => 'rgb(' + k + ') x' + n) };
+    xCheckedAt = Date.now() - 2500; // (the first look at whether the text can be read comes a second and a half from now)
+  }
+  // Can the text on X's page be read? A sample of its text elements (not ours): the colour of each against the first colour behind it that is not see-through (a picture
+  // behind it, and the element is left out). Written because the theme was once seen from outside to leave names and bios the colour of the page, and nobody working here
+  // can see real X: if a fifth of the sample cannot be read (a ratio under 1.6, and at least six of it) the theme goes off on this page and says so (`tripped` in the diagnostics, a toast).
+  function legibility(deep) {
+    const root = document.getElementById('react-root');
+    if (!root || !document.body) return null;
+    const P = XMCLogic.xTheme, pageBg = P.parseColour(getComputedStyle(document.body).backgroundColor) || { r: 0, g: 0, b: 0, a: 1 };
+    const els = [], seen = new Set(), walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n && els.length < 480; n = walker.nextNode()) {
+      const el = n.parentElement;
+      if (!el || seen.has(el) || !n.nodeValue.trim() || /^(SCRIPT|STYLE|NOSCRIPT)$/.test(el.tagName)) continue;
+      seen.add(el); els.push(el);
+    }
+    const step = Math.max(1, Math.floor(els.length / 90)), out = { n: 0, low: 0, samples: [] };
+    for (let i = 0; i < els.length; i += step) {
+      const el = els[i], r = el.getBoundingClientRect();
+      if (!r.width || !r.height || el.closest('[aria-hidden="true"]')) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      const fg = P.parseColour(cs.color);
+      if (!fg) continue;
+      let bg = null, image = false;
+      for (let a = el; a && a !== document.documentElement; a = a.parentElement) {
+        const s = a === el ? cs : getComputedStyle(a);
+        if (s.backgroundImage && s.backgroundImage !== 'none') { image = true; break; }
+        const c = P.parseColour(s.backgroundColor);
+        if (c && c.a >= 0.5) { bg = c; break; }
+      }
+      if (image) continue;
+      bg = bg || pageBg;
+      out.n++;
+      const ratio = P.contrast(fg, bg);
+      if (ratio >= 1.6) continue;
+      out.low++;
+      if (out.samples.length < 8) {
+        const sample = { tag: el.tagName.toLowerCase(), cls: String(el.getAttribute('class') || '').split(/\s+/).slice(0, 6).join(' '), colour: cs.color, behind: 'rgb(' + bg.r + ',' + bg.g + ',' + bg.b + ')', ratio: Math.round(ratio * 10) / 10 };
+        if (deep) { // the rules of X's that set its colour (after the theme's colours went in), to see which one won
+          sample.rules = [];
+          for (const rule of xList) {
+            const d = rule.decls.find((x) => x[0] === 'color');
+            let m = false;
+            if (d) { try { m = el.matches(rule.sel); } catch { /* not a selector for matches() */ } }
+            if (m) { sample.rules.push(rule.sel + ' { ' + d[4] + (d[3] ? ' -> ' + d[1] : '') + (d[2] ? ' !' + d[2] : '') + ' }'); if (sample.rules.length >= 8) break; }
+          }
+        }
+        out.samples.push(sample);
+      }
+    }
+    return out;
+  }
+  function checkLegible() {
+    if (!xThemeEl || xTripped || document.hidden || Date.now() - xCheckedAt < 4000) return;
+    xCheckedAt = Date.now();
+    let r = legibility(false);
+    if (r && r.n >= 12 && r.low >= 6 && r.low / r.n >= 0.2) { r = legibility(true) || r; xTripped = { at: Date.now(), n: r.n, low: r.low, samples: r.samples }; xThemeEl.remove(); xThemeEl = null; xSig = ''; }
   }
   function stopNativeTheme() { clearInterval(xTimer); xTimer = 0; if (xThemeEl) { xThemeEl.remove(); xThemeEl = null; } xSig = ''; const early = document.getElementById('xmc-early-bg'); if (early) early.remove(); }
-  const themeReport = () => xStats;
+  const themeReport = () => { if (!xStats && !xTripped) return xStats; let read = null; try { read = legibility(true); } catch { /* none */ } return Object.assign({}, xStats, { read, tripped: xTripped }); };
 
   // things React may redraw, so they are re-applied now and then
   function refresh() {
@@ -214,6 +273,8 @@ var XMCSite = (function () {
     }
     { // the theme on X's own pages: the stylesheet is read again as X adds to it; the page's colour is kept in a note so hook.js can paint it from the first moment
       const th = s.themeNative ? XMCSettings.themeOf(s.theme) : null;
+      const key = (s.themeNative ? 'on' : 'off') + '|' + s.theme;
+      if (key !== xKey) { xKey = key; xTripped = null; } // (a theme chosen again is tried again)
       if (th) { if (!xTimer) xTimer = setInterval(syncNativeTheme, 250); } else { clearInterval(xTimer); xTimer = 0; }
       try { if (th) localStorage.setItem('xmcThemeBg', th.bg + ' ' + (th.dark ? 'dark' : 'light')); else localStorage.removeItem('xmcThemeBg'); } catch { /* storage blocked */ }
       const early = document.getElementById('xmc-early-bg'); if (early && !th) early.remove(); // (turned off on this page: not left to the next load)

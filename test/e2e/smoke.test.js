@@ -6127,6 +6127,33 @@ browserTest('the sidebar items the settings list are named without the unread co
   });
 }, 60000);
 
+browserTest('a colour theme on X’s own pages that leaves its text unreadable switches itself off, says so, and says which rules (and a page that reads fine is left alone)', async (e) => {
+  const bad = await e.open('/user/status/90001/', { settings: { v: 11, hintSeen: true, theme: 'catppuccin-mocha' } });
+  await checked(bad, async () => {
+    const { page } = bad;
+    await page.waitForFunction(() => window.__xmc && document.getElementById('react-native-stylesheet') && document.getElementById('xmc-xtheme-css'));
+    // a page that reads fine: after a few checks the theme is still there
+    await page.waitForTimeout(6500);
+    assert.equal(await page.evaluate(() => !!document.getElementById('xmc-xtheme-css') && !JSON.parse(window.__xmc.diagnostics()).xTheme.tripped), true, 'not switched off on a page that can be read');
+    const rep = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).xTheme.read);
+    assert.ok(rep && rep.n >= 1 && rep.low === 0, 'the sample was read: ' + JSON.stringify(rep));
+    // now text in the page’s own colour (what the mistake looked like)
+    await page.evaluate(() => {
+      document.body.style.backgroundColor = 'rgb(0, 0, 0)';
+      const sheet = document.getElementById('react-native-stylesheet').sheet;
+      sheet.insertRule('.r-u-text{color:rgba(0,0,0,1.00)}', sheet.cssRules.length); // (X’s black base: the theme’s background colour)
+      const box = document.getElementById('react-root');
+      for (let i = 0; i < 60; i++) { const d = document.createElement('div'); d.className = 'r-u-text'; d.textContent = 'text ' + i; box.append(d); }
+    });
+    await page.waitForFunction(() => !document.getElementById('xmc-xtheme-css'), null, { timeout: 15000 });
+    const t = await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).xTheme);
+    assert.ok(t.tripped && t.tripped.low >= 5, 'it says it switched off: ' + JSON.stringify(t.tripped && { n: t.tripped.n, low: t.tripped.low }));
+    assert.ok(t.tripped.samples.some((s) => /r-u-text/.test(s.cls) && s.rules.some((r) => /r-u-text/.test(r))), 'and which rules were on the element: ' + JSON.stringify(t.tripped.samples.slice(0, 1)));
+    await page.waitForFunction(() => /unreadable/.test((document.querySelector('#xmc-toast') || {}).textContent || ''), null, { timeout: 8000 });
+    assert.ok(await page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).trace.some((r) => r[1] === 'xtheme-off')), 'and the trace has it');
+  });
+}, 120000);
+
 browserTest('a colour theme on X\u2019s own pages: the rules of X\u2019s stylesheet that have X\u2019s colours are repeated in the theme\u2019s, new ones as X adds them, and it goes away when it is switched off', async (e) => {
   const make = async (page, look) => page.evaluate((lk) => {
     const dark = lk === 'dark';

@@ -439,7 +439,11 @@ var XMCLogic = (function () {
       return c.a < 1 ? 'rgba(' + to.join(', ') + ', ' + c.a + ')' : 'rgb(' + to.join(', ') + ')';
     });
   }
-  const xTheme = { LOOKS: X_LOOKS, parseColour, xSlot, themeRole, recolourValue };
+  // how readable one colour is on another (WCAG's ratio of relative luminance, 1 to 21); colours are {r, g, b}
+  const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const lum = (c) => 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+  function contrast(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+  const xTheme = { LOOKS: X_LOOKS, parseColour, xSlot, themeRole, recolourValue, contrast };
 
   const api = { xTheme, viewerRoute, attachPlan, featureTracker, CONTROLS, controlSel, WORDS, wordPattern, threadPlan, DENSITIES, pageLayout, minColFor, repostLine, collapser, healthIssues, isMediaTab, videoAction, nextPaging, availableViews, isAbsolutePath, classifyResponse, buildDownloadPath, groupThreads, sortReplies, kindOf, routeKind, isPeoplePage, isLikesPage, findWords, findOn, findMatch, findAccounts, modeFor, viewsFor, passes, autoCols, formatFilename, mergeNew, cleanSegment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

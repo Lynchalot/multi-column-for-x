@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.49.4
+- **The theme on X's own pages checks that it left the text readable, and switches itself off on the page if it did not.** Every four seconds while it is on, a sample of the text on X's page (up to 90 elements, not ours) has the colour of each text compared with the first solid colour behind it; if a fifth of the sample (and at least six) has a contrast under 1.6, the theme's repeats are taken away on that page, a notice says "The theme made text on X's own pages unreadable, so it is off there", the trace has `xtheme-off`, and Copy diagnostics (`xTheme.tripped`, and `xTheme.read` at any time) lists the elements it found: their tags, class names, colours and the rules of X's that set their colour, before and after (no text from the page). Choosing a theme again, or switching *Use the theme on X's own pages* off and on, tries it again. Written because 0.49.0 and 0.49.1 left names, bios and the right sidebar the colour of the page on real X (fixed in 0.49.2, which the diagnostics pasted for 0.49.1 predate: they have no `props` in `xTheme`), and nobody working here can see real X.
+- Tests: contrast; a page that reads fine keeps its theme through several checks; a page with unreadable text (60 elements in the page's own colour) switches the theme off, says which rule was on the element, toasts, traces.
+
 ## 0.49.3
 - **"Hide "1Chat"" was not a typo: the 1 is X's unread count.** The sidebar items listed in Settings are named from the text of X's menu links, and X draws the unread count inside the link, so Chat read "1Chat" (and Notifications "99+Notifications"), changing as the count did. A count at the start or the end of the name (up to three digits and a +) is left out: "Chat", "Notifications". A name already saved with a count is corrected the next time x.com is open.
 - Tests: the names of sidebar items with a count in front or behind.
