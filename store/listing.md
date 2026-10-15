@@ -71,7 +71,7 @@ Columns on Home, Search, Lists, Bookmarks and profiles; a post panel with its pi
 4. `04-reply-tools.png` Reply with pictures and emoji, from the comment box in the panel.
 5. `05-media-wall.png` Media tabs as a gallery.
 6. `06-keys.png` Browse with your keyboard.
-7. `07-themes.png` Fourteen colour themes (a feed of cats in a dark theme).
+7. `07-themes.png` Fourteen colour themes (two of them side by side: cats in one, paintings in another).
 8. `08-photo-viewer.png` Photos and video, done properly: the viewer with Download and Copy link.
 (Not in the slides, still in `store/screenshots/`: the filters, the room, the starting points (the welcome page), the settings page and the settings in a panel.)
 
