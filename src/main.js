@@ -960,6 +960,7 @@
     retired = true;
     clearInterval(tickTimer);
     try { XMCSite.stopNativeTheme(); } catch { /* none to stop */ }
+    try { if (navWatch.obs) navWatch.obs.disconnect(); } catch { /* not made yet */ }
     root.remove(); toastEl.remove();
     if (pill.isConnected) pill.remove();
   }
@@ -5246,6 +5247,23 @@
       if (mine) mine.after(a); else if (replaceHistory) history.before(a); else after.after(a); // (in History's place, when it is hidden)
     }
   }
+  // X draws its menu again now and then (and a moment after the page opens): the extra entries are put back as that happens, in the same frame. On the slow pass
+  // alone (every two seconds) they came in late and everything under them, the Post button and the account at the foot, jumped down; the observer is put on
+  // the menu each tick (it is a new element when X has rebuilt its header), and what our own change just did is not looked at again.
+  const navWatch = { el: null, obs: null, busy: false };
+  function watchNav() {
+    const hd = pin.nav.el();
+    if (!hd || navWatch.el === hd) return;
+    if (navWatch.obs) navWatch.obs.disconnect();
+    navWatch.el = hd;
+    navWatch.obs = new MutationObserver(() => {
+      if (navWatch.busy || retired || !hd.isConnected) return;
+      navWatch.busy = true;
+      try { guard('extra nav', syncExtraNav); guard('menu names', markNavLabels); } finally { navWatch.busy = false; navWatch.obs.takeRecords(); } // (a menu X has just drawn gets its names marked at once too, so a folded menu does not show them for a moment)
+    });
+    navWatch.obs.observe(hd, { childList: true, subtree: true });
+    guard('extra nav', syncExtraNav); guard('menu names', markNavLabels); // (a menu that is already drawn)
+  }
   // The theme on X's own pages switches itself off when it leaves the text unreadable (site.js, legibility): say so once
   let xTripSeen = false;
   function xThemeWatch() {
@@ -5616,6 +5634,7 @@
       if (sd && sd.dataset.xmcStyle === undefined && !pin.side.fallback) guard('pin side', positionSide);
       if (nv && nv.dataset.xmcStyle === undefined && !pin.nav.fallback) guard('pin nav', positionNav);
     }
+    guard('watch nav', watchNav);
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }
     if (tickN % 4 === 0) { guard('logo toggle', syncLogoToggle); guard('menu names', markNavLabels); }

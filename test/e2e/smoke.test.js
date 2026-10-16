@@ -5167,6 +5167,29 @@ browserTest('Vim keys: d then a (and a then d) come back to the same card, howev
   });
 }, 90000);
 
+browserTest('the extra menu entries (Bookmarks, Likes, Lists) come back in the same frame when X draws its menu again, not on the next slow pass', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, navBookmarks: true, navLikes: true, navLists: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.querySelectorAll('[data-xmc-nav]').length === 3, null, { timeout: 8000 });
+    // X draws its menu again: the entries went with the old one. Microtasks only (no timer, no frame) may run before they are looked at.
+    const r = await page.evaluate(async () => {
+      const nav = document.querySelector('header[role="banner"] nav'), links = [...nav.children].filter((x) => !x.dataset.xmcNav).map((x) => x.cloneNode(true));
+      nav.replaceChildren(...links);
+      const gone = document.querySelectorAll('[data-xmc-nav]').length;
+      for (let i = 0; i < 4; i++) await Promise.resolve();
+      const mine = [...document.querySelectorAll('[data-xmc-nav]')].map((a) => a.dataset.xmcNav);
+      return { gone, mine, others: [...nav.querySelectorAll('a[href]')].filter((a) => !a.dataset.xmcNav).length };
+    });
+    assert.equal(r.gone, 0, 'they went with the old menu');
+    assert.deepEqual(r.mine, ['navBookmarks', 'navLikes', 'navLists'], 'and are back before anything is drawn');
+    // and not twice, whatever the observer does with its own changes
+    await page.waitForTimeout(700);
+    assert.equal(await page.locator('[data-xmc-nav]').count(), 3);
+  });
+}, 60000);
+
 browserTest('Vim keys: r turns a panel into Reels and back out; in Reels w and s go from post to post, j k and gg G scroll the comments, h and l the pictures and then the posts; and r from the columns starts at the ringed card', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
   await checked(h, async () => {

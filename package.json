@@ -1,6 +1,6 @@
 {
   "name": "multi-column-for-x",
-  "version": "0.49.10",
+  "version": "0.49.11",
   "private": true,
   "description": "Your X (Twitter) timeline in multiple columns, with in-card video, filters and media download button.",
   "scripts": {
