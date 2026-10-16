@@ -14,7 +14,7 @@ var XMCKeys = (function () {
     ['bottom', 'To the bottom (of the comments, in a panel or Reels)', 'Move'],
     ['halfDown', 'Half a page down', 'Move'],
     ['halfUp', 'Half a page up', 'Move'],
-    ['pageDown', 'A page down (plays or pauses a video in a panel)', 'Move'],
+    ['pageDown', 'A page down. Space itself opens the marked card on the columns, and plays or pauses a video in a panel', 'Move'],
     ['pageUp', 'A page up', 'Move'],
     ['cardUp', 'Mark the card above; in a panel or Reels the previous post', 'Cards'],
     ['cardLeft', 'Mark the card to the left; in a panel or Reels the previous post', 'Cards'],

@@ -4947,7 +4947,7 @@ const vimSettings = (more) => Object.assign({ v: 10, hintSeen: true, keyScheme: 
 const ringId = (page) => page.evaluate(() => { const c = document.querySelector('.xmc-card.xmc-kcard'); return c ? (/(?:tweet|number) (\d+)\b/.exec(c.innerText) || [])[1] : ''; });
 const ringCount = (page) => page.locator('.xmc-card.xmc-kcard').count();
 
-browserTest('Vim keys on the columns: j and k scroll, G and gg go to the end and back, Ctrl+D, Ctrl+U and Space page, and X’s own letter keys never see them', async (e) => {
+browserTest('Vim keys on the columns: j and k scroll, G and gg go to the end and back, Ctrl+D, Ctrl+U and Shift+Space page, Space opens the card, and X’s own letter keys never see them', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
   await checked(h, async () => {
     const { page } = h;
@@ -4964,10 +4964,20 @@ browserTest('Vim keys on the columns: j and k scroll, G and gg go to the end and
     assert.ok(Math.abs((await top()) - (await room()) / 2) <= 2, 'Ctrl+D: half a page');
     await page.keyboard.press('Control+u');
     assert.equal(await top(), 0, 'Ctrl+U: half a page back');
-    await page.keyboard.press('Space');
-    assert.ok(Math.abs((await top()) - (await room()) * 0.9) <= 2, 'Space: a page');
+    await page.keyboard.press('Control+d'); await page.keyboard.press('Control+d');
     await page.keyboard.press('Shift+Space');
-    assert.equal(await top(), 0, 'Shift+Space: a page back');
+    assert.ok(Math.abs((await top()) - (await room()) * 0.1) <= 3, 'Shift+Space: a page back (a page is Ctrl+D twice, or Space, which is below)');
+    await page.keyboard.press('Control+u'); await page.keyboard.press('Control+u'); await page.keyboard.press('Control+u');
+    assert.equal(await top(), 0);
+    // Space opens the card on the columns, as o does (a page down is j and Ctrl+D there); a held Space opens it once, and does not then pause or play
+    await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', repeat: true, bubbles: true })));
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator('.xmc-view').count(), 0, 'a held key does not open anything by itself');
+    await page.keyboard.press('Space');
+    await page.waitForSelector('.xmc-view', { timeout: 8000 });
+    assert.equal(await top(), 0, 'and it did not scroll a page');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.xmc-view:not(.xmc-out)'));
     await page.keyboard.press('G');
     await page.waitForFunction(() => document.querySelector('.xmc-scroller').scrollTop > 300); // (it goes to the end of what is loaded; the feed then loads more, so the end moves)
     await page.keyboard.press('g'); await page.keyboard.press('g');
@@ -4980,7 +4990,7 @@ browserTest('Vim keys on the columns: j and k scroll, G and gg go to the end and
     await page.waitForFunction(() => !document.querySelector('.xmc-vimlegend'));
     // a held key goes on scrolling; the keys that are bound or are plain letters never reach X's page
     await page.keyboard.press('x'); await page.keyboard.press('n'); await page.keyboard.press('j');
-    assert.deepEqual((await page.evaluate(() => window.__seen)).filter((k) => !/^(Control|Shift)$/.test(k)), [], 'X’s page saw none of them');
+    assert.deepEqual((await page.evaluate(() => window.__seen)).filter((k) => !/^(Control|Shift|Escape)$/.test(k)), [], 'X’s page saw none of them (Esc is the usual one, which closed the panel)');
   });
 }, 90000);
 
@@ -5125,6 +5135,37 @@ browserTest('Vim keys in a panel: l and h go through the pictures and then the p
     assert.equal(await page.evaluate(() => window.__paused), false, 'Space again: playing');
   });
 }, 120000);
+
+browserTest('Vim keys: d then a (and a then d) come back to the same card, however different the cards’ heights are in the neighbouring columns; a press down starts the height again', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    // cards of unlike heights, so that the one at the same height in the next column is not the one at the top of the same row
+    await page.evaluate(() => { document.querySelectorAll('.xmc-col').forEach((col, ci) => [...col.children].forEach((c, i) => { c.style.minHeight = (190 + ((ci * 71 + i * 53) % 170)) + 'px'; })); });
+    await page.waitForTimeout(300);
+    const where = () => page.evaluate(() => { const c = document.querySelector('.xmc-card.xmc-kcard'); const cols = [...document.querySelectorAll('.xmc-col')]; return { col: cols.indexOf(c.parentElement), n: cols.length, at: [...c.parentElement.children].indexOf(c) }; });
+    await page.keyboard.press('s'); // (shows the ring, nearest the middle of the window)
+    for (let i = 0; i < 2; i++) await page.keyboard.press('s');
+    let w = await where();
+    const start = await ringId(page);
+    const [out, back] = w.col < w.n - 1 ? ['d', 'a'] : ['a', 'd'];
+    for (let r = 0; r < 4; r++) {
+      await page.keyboard.press(out);
+      assert.notEqual((await where()).col, w.col, out + ': the next column over');
+      await page.keyboard.press(back);
+      assert.equal(await ringId(page), start, `${out} then ${back}, round ${r + 1}: the same card, not one higher up`);
+    }
+    // the other way round too
+    const [out2, back2] = out === 'd' ? ['a', 'd'] : ['d', 'a'];
+    if ((out2 === 'a' && w.col > 0) || (out2 === 'd' && w.col < w.n - 1)) {
+      for (let r = 0; r < 3; r++) { await page.keyboard.press(out2); await page.keyboard.press(back2); assert.equal(await ringId(page), start, `${out2} then ${back2}: the same card`); }
+    }
+    // a press down starts the height again (the next row's card, not the old height)
+    await page.keyboard.press(out); await page.keyboard.press('s'); await page.keyboard.press(back);
+    assert.notEqual(await ringId(page), start, 'after a press down the height is the new one');
+  });
+}, 90000);
 
 browserTest('Vim keys: r turns a panel into Reels and back out; in Reels w and s go from post to post, j k and gg G scroll the comments, h and l the pictures and then the posts; and r from the columns starts at the ringed card', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });

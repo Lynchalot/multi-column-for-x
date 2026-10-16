@@ -1376,7 +1376,7 @@
     if (!vimBinds || vimBindsFor !== settings.vimKeys) { vimBindsFor = settings.vimKeys; vimBinds = XMCKeys.matcher(XMCKeys.bindings(settings.vimKeys)); }
     return vimBinds(toks);
   };
-  const vk = { toks: [], timer: 0, hudTimer: 0, at: 0 }; // (at: when a key last did something on the columns)
+  const vk = { toks: [], timer: 0, hudTimer: 0, at: 0, tok: '', rep: false }; // (at: when a key last did something on the columns; tok and rep: the keys just matched, and whether the press is a held key's repeat)
   const keyHud = h('div', { id: 'xmc-keyhud', hidden: true, 'aria-hidden': 'true' });
   function vimHud(text, ms) { // bottom left: the key (or the first of two) just pressed
     if (!keyHud.isConnected) document.body.append(keyHud);
@@ -1456,13 +1456,18 @@
     const cardsIn = (c) => [...c.children].filter((x) => tweetOf.has(x) && !x.hidden);
     let next = null;
     if (i < 0) { const first = firstCardInView(); if (first) mark(first, true); return; }
-    if (dir === 'up' || dir === 'down') { const sib = cardsIn(col); next = sib[sib.indexOf(el) + (dir === 'down' ? 1 : -1)]; }
+    if (dir === 'up' || dir === 'down') { state.goal = null; const sib = cardsIn(col); next = sib[sib.indexOf(el) + (dir === 'down' ? 1 : -1)]; }
     else {
       const to = columns[i + (dir === 'right' ? 1 : -1)];
       if (to) {
-        const box = scroller.getBoundingClientRect(), y = Math.max(el.getBoundingClientRect().top, box.top + 40);
-        const sib = cardsIn(to), over = sib.find((c) => { const r = c.getBoundingClientRect(); return r.top <= y && r.bottom > y; });
-        next = over || sib.slice().sort((a, b) => Math.abs(a.getBoundingClientRect().top - y) - Math.abs(b.getBoundingClientRect().top - y))[0];
+        // The height is kept through a run of sideways presses (as a text cursor keeps its column): taken from each card's own top, a then d went to the card
+        // that covers the top of the one on the left, which is higher than where it began, and a few of them crept up the page. It is a place on the scrolled
+        // page, so a scroll between two presses changes nothing; a press up or down, or a ring put elsewhere, starts it again.
+        const box = scroller.getBoundingClientRect(), at = (c) => c.getBoundingClientRect().top - box.top + scroller.scrollTop;
+        const y = state.goal && state.goal.t === cur ? state.goal.y : Math.max(at(el), scroller.scrollTop + 40);
+        const sib = cardsIn(to), over = sib.find((c) => at(c) <= y && at(c) + c.getBoundingClientRect().height > y);
+        next = over || sib.slice().sort((a, b) => Math.abs(at(a) - y) - Math.abs(at(b) - y))[0];
+        if (next) state.goal = { y, t: tweetOf.get(next) };
       }
     }
     if (next) mark(tweetOf.get(next), true);
@@ -1514,7 +1519,8 @@
       }
       case 'halfDown': case 'halfUp': by(0.5, act === 'halfDown' ? 1 : -1); return true;
       case 'pageDown': case 'pageUp': {
-        if (act === 'pageDown' && !cols && !viewer) { const v = activeVideo(); if (v) { if (v.paused) v.play().catch(() => {}); else v.pause(); return true; } } // (Space on a video in a panel: play or pause, as on YouTube)
+        if (act === 'pageDown' && cols && vk.tok === 'Space') { if (!vk.rep) { const t = markedSeen() || startCard(); if (t) openPostView(t, false); } return true; } // (Space on the columns opens the card, as o does: a page down there is j and Ctrl+D; a held key opens it once)
+        if (act === 'pageDown' && !cols && !viewer) { const v = activeVideo(); if (v) { if (!vk.rep) { if (v.paused) v.play().catch(() => {}); else v.pause(); } return true; } } // (Space on a video in a panel: play or pause, as on YouTube; once for a held key)
         by(0.9, act === 'pageDown' ? 1 : -1);
         return true;
       }
@@ -1616,6 +1622,7 @@
     if (e.repeat && !(VIM_REPEAT.has(r.act) && (where === 'columns' || where === 'panel'))) return true;
     markSync();
     if (where === 'columns') vk.at = Date.now();
+    vk.tok = toks.join(' '); vk.rep = !!e.repeat;
     vimDo(r.act, where);
     return true;
   }
@@ -2022,12 +2029,14 @@
     if (ri < 0) return;
     let next = null;
     if (dir === 'left' || dir === 'right') {
+      state.goal = null;
       const sib = [...row.children], k = sib.indexOf(el) + (dir === 'right' ? 1 : -1);
       next = sib[k] || (dir === 'right' ? (gal.rows[ri + 1] || {}).firstElementChild : (gal.rows[ri - 1] || {}).lastElementChild);
     } else {
-      const to = gal.rows[ri + (dir === 'down' ? 1 : -1)], r = el.getBoundingClientRect(), cx = r.left + r.width / 2;
+      const to = gal.rows[ri + (dir === 'down' ? 1 : -1)], r = el.getBoundingClientRect();
+      const cx = state.goal && state.goal.t === cur ? state.goal.x : r.left + r.width / 2; // (the place along the row is kept through a run of presses up and down, as the height is in the columns)
       const mid = (x) => { const b = x.getBoundingClientRect(); return b.left + b.width / 2; };
-      if (to) next = [...to.children].sort((a, b) => Math.abs(cx - mid(a)) - Math.abs(cx - mid(b)))[0];
+      if (to) { next = [...to.children].sort((a, b) => Math.abs(cx - mid(a)) - Math.abs(cx - mid(b)))[0]; if (next) state.goal = { x: cx, t: tweetOf.get(next) }; }
     }
     if (next) mark(tweetOf.get(next), true);
   }
