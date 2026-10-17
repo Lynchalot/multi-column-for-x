@@ -3389,6 +3389,29 @@ browserTest('while X\'s hidden page is away on a post, the still copy that stand
   });
 }, 90000);
 
+browserTest('with Bookmarks, Likes and Lists added, X rebuilding its menu while the still copy stands in: the real menu has the entries again at once, so our Columns button is under its Post button and not in the middle of the entries', async (e) => {
+  const h = await e.open('/home/', { width: 1500, height: 850, settings: { v: 9, commentsIn: 'card', hintSeen: true, leftPanel: 'rail', navBookmarks: true, navLikes: true, navLists: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.documentElement.classList.contains('xmc-rail') && !document.documentElement.classList.contains('xmc-panelanim') && document.querySelectorAll('[data-xmc-nav]').length === 3, null, { timeout: 8000 });
+    await page.waitForTimeout(600);
+    await page.route('**/TweetDetail**', async (route) => { await new Promise((r) => setTimeout(r, 3500)); await route.continue().catch(() => {}); });
+    await page.evaluate(() => { const card = [...document.querySelectorAll('.xmc-card')].find((c) => c.querySelector('[data-act="reply"]')); card.querySelector('[data-act="reply"]').click(); });
+    await page.waitForSelector('#xmc-navfreeze', { timeout: 5000 });
+    // X draws its menu again while the copy is up: the new one has none of our entries (and no Columns button)
+    await page.evaluate(() => { const nav = document.querySelector('header[role="banner"] nav'); nav.replaceChildren(...[...nav.children].filter((x) => !x.dataset.xmcNav && x.id !== 'xmc-pill').map((x) => x.cloneNode(true))); });
+    await page.waitForTimeout(500);
+    const r = await page.evaluate(() => {
+      const top = (el) => (el ? Math.round(el.getBoundingClientRect().top) : null), copy = document.getElementById('xmc-navfreeze'), real = document.querySelector('header[role="banner"]');
+      return { entries: real.querySelectorAll('[data-xmc-nav]').length, realPost: top(real.querySelector('[data-testid="SideNav_NewTweet_Button"]')), copyPost: top(copy.querySelector('[data-xmc-tid="SideNav_NewTweet_Button"]')), pill: top(document.getElementById('xmc-pill')) };
+    });
+    assert.equal(r.entries, 3, 'the entries are in the new menu already: ' + JSON.stringify(r));
+    assert.equal(r.realPost, r.copyPost, 'the real Post button is where the copy’s is: ' + JSON.stringify(r));
+    assert.ok(r.pill !== null && r.pill > r.realPost, 'and the Columns button is below it, not among the entries: ' + JSON.stringify(r));
+  });
+}, 90000);
+
 browserTest('if the menu is not showing (hidden, clipped, covered) it is pinned again within a second or two, then again without the clip, and the diagnostics say what was found', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850, settings: { v: 9, hintSeen: true, leftPanel: 'rail' } });
   await checked(h, async () => {
