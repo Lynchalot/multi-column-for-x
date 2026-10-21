@@ -429,6 +429,14 @@ html.xmc-tidyReplies.xmc-onpost article[data-testid="tweet"][tabindex="0"] butto
 .xmc-nat-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .xmc-nat-btn:hover { color: #1d9bf0; background: rgba(29, 155, 240, .1); }
 .xmc-nat-btn[hidden] { display: none !important; }
+/* the sound button at the top of X's own video player (X's own is at the foot, under the bar that comes up when you point at the video) */
+.xmc-nat-snd { position: absolute; top: 10px; right: 10px; z-index: 7; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  background: rgba(0, 0, 0, .62); color: #fff; opacity: 1; transition: opacity .15s ease, background-color .12s ease; }
+.xmc-nat-snd.on { opacity: 0; }
+[data-testid="videoPlayer"]:hover .xmc-nat-snd, .xmc-nat-snd:hover, .xmc-nat-snd:focus-visible { opacity: 1; }
+.xmc-nat-snd:hover { background: rgba(0, 0, 0, .8); }
+.xmc-nat-snd svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xmc-nat-snd .snd-on { display: none; } .xmc-nat-snd.on .snd-on { display: block; } .xmc-nat-snd.on .snd-off { display: none; }
 
 /* X shifts its right column's contents with the page's scroll (sticky offsets); our column is pinned, and the hidden page
    scrolls constantly while loading, so let the contents sit still */

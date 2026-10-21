@@ -642,6 +642,31 @@ browserTest('Back closes a full-size picture and nothing behind it moves (from t
   });
 }, 90000);
 
+browserTest('X\'s own video players get a sound button at their top (X\'s own is under the bar that comes up when you point at the video); it sets the sound on the video, and a GIF gets none', async (e) => {
+  const h = await e.open('/user/status/90001/');
+  await checked(h, async () => {
+    const { page } = h;
+    await page.waitForFunction(() => document.querySelectorAll('.xmc-nat').length === 7, null, { timeout: 15000 });
+    await page.evaluate(() => {
+      const art = document.querySelector('article[data-testid="tweet"]');
+      const mk = (id, loop) => { const d = document.createElement('div'); d.setAttribute('data-testid', 'videoPlayer'); d.id = id; d.style.cssText = 'position:relative;width:300px;height:180px;background:#222'; const v = document.createElement('video'); v.muted = true; v.loop = loop; v.style.cssText = 'width:100%;height:100%'; d.append(v); art.append(d); };
+      mk('vp1', false); mk('gif1', true);
+    });
+    await page.waitForFunction(() => !!document.querySelector('#vp1 > .xmc-nat-snd'), null, { timeout: 8000 });
+    assert.equal(await page.locator('#gif1 .xmc-nat-snd').count(), 0, 'a GIF has no sound button');
+    const st = () => page.evaluate(() => { const v = document.querySelector('#vp1 video'), b = document.querySelector('#vp1 .xmc-nat-snd'); const r = b.getBoundingClientRect(), p = document.getElementById('vp1').getBoundingClientRect(); return { muted: v.muted, on: b.classList.contains('on'), atTop: r.top - p.top < 20, atRight: p.right - r.right < 20 }; });
+    let x = await st();
+    assert.deepEqual([x.muted, x.on, x.atTop, x.atRight], [true, false, true, true], 'muted, shown at the top right of the player: ' + JSON.stringify(x));
+    await page.locator('#vp1 .xmc-nat-snd').click();
+    x = await st();
+    assert.deepEqual([x.muted, x.on], [false, true], 'a press turns the sound on');
+    await page.evaluate(() => { document.querySelector('#vp1 video').muted = true; }); // (X's own button, or the video's, muting it: the button follows)
+    assert.equal((await st()).on, false, 'and follows a change made elsewhere');
+    await page.waitForTimeout(800);
+    assert.equal(await page.locator('#vp1 .xmc-nat-snd').count(), 1, 'one button, however often the page is looked at');
+  });
+}, 60000);
+
 browserTest('X\'s own full-size viewer gets Download and Copy link in its row of buttons, and the download is of the picture on show', async (e) => {
   const h = await e.open('/user/status/90001/');
   await checked(h, async () => {

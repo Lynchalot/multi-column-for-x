@@ -46,6 +46,7 @@ Nobody working on this can log in to X, so this is the list of what only your ow
 41. **0.49.9:** the search box in X's right panel with a theme on (dark and light): is the pill a whole rounded shape, with its fill and its border all round, or still two lines with a tick at each end? Click into it too (the border when it has the focus).
 42. **0.49.10:** on the columns with the Vim keys, press a then d (or d then a) several times with the ring on a card: does it come back to the same card each time, in a feed with posts of every height? And Space: does it open the ringed card (or the one under the pointer), and does Shift+Space still page up?
 43. **0.49.11:** with Bookmarks, Likes and Lists added to the left menu: reload x.com a few times, folded and unfolded. Do the three entries come in with the rest of the menu, or does the Post button still drop a moment later? Fold and unfold with the logo: if it still looks rough, a short screen recording.
-44. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
+44. **0.49.12:** on X's own page (columns off), a post with a video: is there a round speaker at the top right of the video (always while muted, and when you point at the player)? Does a press turn the sound on and off, and does X's own control bar still work? A GIF should have none.
+45. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
 
 What to send back: the table (2), the sample file (3), Copy diagnostics from anything that failed (it carries a `features` block), and a recording of anything that looked wrong.

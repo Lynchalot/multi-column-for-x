@@ -4443,6 +4443,29 @@
       mk('dl', item ? 'Download this picture or video' : 'Download the media in this post', 'download', () => { const p = live(); if (p) downloadMedia(p, item ? item(p) || undefined : undefined); else toast('Open the post once so the extension can see it'); }),
       mk('lnk', 'Copy link to this post', 'link', () => copyLink(live() || { url: '/i/status/' + id })));
   }
+  // X's own player keeps its volume button at the foot of the video, and the bar that comes up when you point at the video lies over that corner, so the button
+  // could not be pressed while you were pointing at it. A button of ours at the top of the player, which sets the sound on the video itself, is there whatever the
+  // bar does. (X's players are not seen from here: the player is found by its test id, else the video's grandparent; a GIF loops and has no sound, so gets none.)
+  function nativeSound(art) {
+    for (const v of art.querySelectorAll('video')) {
+      if (v.loop || (v.__xmcSnd && v.__xmcSnd.isConnected)) continue;
+      const box = v.closest('[data-testid="videoPlayer"]') || (v.parentElement && v.parentElement.parentElement);
+      if (!box || box === art) continue;
+      const off = icon('mute'), on = icon('sound'); off.classList.add('snd-off'); on.classList.add('snd-on');
+      const b = h('button', { type: 'button', className: 'xmc-nat-snd', title: 'Sound on / off', ariaLabel: 'Sound on or off' }, off, on);
+      const sync = () => b.classList.toggle('on', !v.muted && v.volume > 0);
+      sync();
+      b.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (v.muted || !v.volume) { v.muted = false; if (!v.volume) v.volume = 1; if (v.paused) v.play().catch(() => {}); } else v.muted = true;
+      });
+      for (const ev of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'dblclick']) b.addEventListener(ev, (e) => e.stopPropagation()); // (X's player takes a press on the video for play or pause, or for opening it)
+      if (!v.__xmcSndWired) { v.__xmcSndWired = true; v.addEventListener('volumechange', () => { const cur = v.__xmcSnd; if (cur) cur.classList.toggle('on', !v.muted && v.volume > 0); }); }
+      v.__xmcSnd = b;
+      if (getComputedStyle(box).position === 'static') box.style.position = 'relative'; // (the button is placed in it)
+      box.append(b);
+    }
+  }
   function decorateNative() {
     if (!settings.nativeTools) return;
     const col = mainCol();
@@ -4451,6 +4474,7 @@
     for (const art of arts) {
       const id = articleId(art);
       if (!id) continue;
+      nativeSound(art);
       let wrap = art.querySelector('.xmc-nat');
       const t = state.byId.get(id);
       if (!wrap) {
