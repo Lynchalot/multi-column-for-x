@@ -4458,6 +4458,7 @@
       b.addEventListener('click', (e) => {
         e.preventDefault(); e.stopPropagation();
         if (v.muted || !v.volume) { v.muted = false; if (!v.volume) v.volume = 1; if (v.paused) v.play().catch(() => {}); } else v.muted = true;
+        sync(); // (the video's own event comes a moment later: the button must not wait for it)
       });
       for (const ev of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'dblclick']) b.addEventListener(ev, (e) => e.stopPropagation()); // (X's player takes a press on the video for play or pause, or for opening it)
       if (!v.__xmcSndWired) { v.__xmcSndWired = true; v.addEventListener('volumechange', () => { const cur = v.__xmcSnd; if (cur) cur.classList.toggle('on', !v.muted && v.volume > 0); }); }

@@ -660,8 +660,10 @@ browserTest('X\'s own video players get a sound button at their top (X\'s own is
     await page.locator('#vp1 .xmc-nat-snd').click();
     x = await st();
     assert.deepEqual([x.muted, x.on], [false, true], 'a press turns the sound on');
-    await page.evaluate(() => { document.querySelector('#vp1 video').muted = true; }); // (X's own button, or the video's, muting it: the button follows)
-    assert.equal((await st()).on, false, 'and follows a change made elsewhere');
+    await page.evaluate(() => { document.querySelector('#vp1 video').muted = true; }); // (X's own button, or the video's, muting it: the button follows, when the video's event comes)
+    await page.waitForFunction(() => !document.querySelector('#vp1 .xmc-nat-snd').classList.contains('on'), null, { timeout: 3000 });
+    await page.locator('#vp1 .xmc-nat-snd').click(); // and the press after that unmutes again
+    assert.equal((await st()).muted, false, 'pressed again: sound on');
     await page.waitForTimeout(800);
     assert.equal(await page.locator('#vp1 .xmc-nat-snd').count(), 1, 'one button, however often the page is looked at');
   });
