@@ -2417,8 +2417,9 @@ browserTest('while comments are fetched on X\'s hidden side, the menu and the si
     assert.ok(during, 'a still copy of the menu is showing');
     assert.deepEqual([during.left, during.top], before, 'in the same place');
     assert.equal(during.visible, 'visible');
-    assert.equal(await page.evaluate(() => document.getElementById('xmc-navfreeze').innerText.includes('Turn Columns')), false, 'our button is not copied into the still menu');
-    assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('xmc-pill')).visibility), 'visible', 'our button stays');
+    // our button is in the copy as a picture, under the copy's Post button, and the real one (in the hidden menu) is not seen: one button on screen, in line with the copy
+    const pillOf = await page.evaluate(() => { const c = document.getElementById('xmc-navfreeze'), p = c.querySelector('.xmc-pill-copy'), post = c.querySelector('[data-xmc-tid="SideNav_NewTweet_Button"]'); return { copy: !!p, visible: p ? getComputedStyle(p).visibility : '', below: p && post ? p.getBoundingClientRect().top >= post.getBoundingClientRect().bottom - 1 : false, real: getComputedStyle(document.getElementById('xmc-pill')).visibility, id: p ? p.id : '' }; });
+    assert.deepEqual(pillOf, { copy: true, visible: 'visible', below: true, real: 'hidden', id: '' }, 'our button is in the still menu, under its Post button: ' + JSON.stringify(pillOf));
     await page.waitForFunction(() => !document.getElementById('xmc-navfreeze') && !document.documentElement.classList.contains('xmc-frozen'), null, { timeout: 25000 });
     await page.waitForSelector('header[role="banner"][data-xmc-style]', { timeout: 5000 });
     assert.deepEqual(await rect(), before, 'the real menu is back where it was');

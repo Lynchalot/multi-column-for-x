@@ -4876,7 +4876,7 @@
     for (const [el, id] of [[settings.hideSidebar || rightAway() ? null : pin.side.el(), 'xmc-sidefreeze'], [pin.nav.el(), 'xmc-navfreeze']]) { // the right column and the menu on the left
       if (!el || el.dataset.xmcStyle === undefined || !el.getBoundingClientRect().width) continue;
       const clone = el.cloneNode(true);
-      for (const mine of clone.querySelectorAll('#xmc-pill')) mine.remove(); // our own button stays where it is (below), never copied
+      for (const mine of clone.querySelectorAll('#xmc-pill')) mine.classList.add('xmc-pill-copy'); // our own button is in the copy as a picture (it has no id here, the class gives it its looks): the real one is in the hidden menu, which X may have laid out again without our entries, and it then showed among the icons
       for (const x of [clone, ...clone.querySelectorAll('[data-testid], [id]')]) { // (the fold rules need to know the Post button and the account button, so those two are kept under another name)
         const tid = x.getAttribute('data-testid');
         if (tid === 'SideNav_NewTweet_Button' || tid === 'SideNav_AccountSwitcher_Button') x.setAttribute('data-xmc-tid', tid);
@@ -4895,6 +4895,15 @@
     document.documentElement.classList.add('xmc-frozen'); // also hides a sidebar or menu X builds from scratch meanwhile
     trace('freeze', parts.length + ' still copies');
     sideFreeze = { parts, hardStop: Date.now() + 15000 };
+    setTimeout(() => { // what to read when a menu has clashed: did the real menu and the copy agree a moment after X redrew it? (the Post button's place, the entries each has)
+      try {
+        const nav = parts.find((x) => x.clone.id === 'xmc-navfreeze');
+        if (!sideFreeze || !nav || !nav.el.isConnected) return;
+        const at = (e) => { const f = e && e.querySelector('[data-testid="SideNav_NewTweet_Button"], [data-xmc-tid="SideNav_NewTweet_Button"]'); return f ? Math.round(f.getBoundingClientRect().top) : null; };
+        const real = pin.nav.el(), r = at(real), c = at(nav.clone);
+        if (real && r !== null && c !== null && Math.abs(r - c) > 3) trace('freeze-mismatch', JSON.stringify({ realPost: r, copyPost: c, realEntries: real.querySelectorAll('[data-xmc-nav]').length, copyEntries: nav.clone.querySelectorAll('[data-xmc-nav]').length, realLinks: real.querySelectorAll('nav a[href]').length, copyLinks: nav.clone.querySelectorAll('nav a[href]').length, pinned: real.dataset.xmcStyle !== undefined, sameHeader: real === nav.el }));
+      } catch { /* a diagnostic only */ }
+    }, 400);
   }
   function thawSidebar() {
     if (!sideFreeze) return;
