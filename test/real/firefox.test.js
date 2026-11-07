@@ -59,7 +59,7 @@ firefox('the extension loads: the install opened the settings at the presets, an
 
 firefox('the Vim keys in a real Firefox: s shows the ring, d and a go over the columns and come back to the same card, Space opens the card and Esc closes it, j scrolls the columns', async (r, d) => {
   await home(r, d);
-  await panel(d, async () => { await d.js(() => browser.storage.local.set({ keyScheme: 'vim', panelKeys: true })); });
+  await panel(d, async () => { await d.js(() => browser.storage.local.set({ keyScheme: 'vim', panelKeys: true })); }); // (a fresh install has them already: the later tests rely on that, so nothing is taken away at the end)
   await d.keys('Escape');
   await d.waitFor(() => !document.querySelector('#xmc-settings iframe'), [], 8000, 'the settings panel to close');
   await d.js(() => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); });
@@ -83,8 +83,6 @@ firefox('the Vim keys in a real Firefox: s shows the ring, d and a go over the c
   await d.js(() => { window.__zzTop = document.querySelector('.xmc-scroller').scrollTop; });
   await d.keys('j'); await sleep(500);
   assert.ok((await d.js(() => document.querySelector('.xmc-scroller').scrollTop - window.__zzTop)) >= 50, 'j scrolls the columns');
-  await panel(d, async () => { await d.js(() => browser.storage.local.remove(['keyScheme', 'panelKeys'])); });
-  await d.keys('Escape');
 });
 
 firefox('the page-world hook and the content scripts both run (the data comes through the hook; the cards are drawn by the isolated scripts)', async (r, d) => {
