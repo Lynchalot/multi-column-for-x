@@ -3440,6 +3440,60 @@ browserTest('with Bookmarks, Likes and Lists added, X rebuilding its menu while 
   });
 }, 90000);
 
+browserTest('X building its menu or sidebar again is never drawn unpinned, blank or without our entries: not at all when it takes the old one\'s place, and for one or two frames at most when it comes with a whole new branch of the page', async (e) => {
+  const h = await e.open('/home/', { width: 1600, height: 850, settings: { v: 10, hintSeen: true, leftPanel: 'full', navBookmarks: true, navLikes: true, navLists: true } });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    await page.waitForFunction(() => document.querySelectorAll('header[role="banner"] [data-xmc-nav]').length === 3 && document.querySelector('header[role="banner"]').dataset.xmcStyle !== undefined, null, { timeout: 8000 });
+    await page.waitForTimeout(800);
+    await page.evaluate(() => {
+      window.__fr = []; window.__rec = true;
+      const snap = () => {
+        const hd = document.querySelector('header[role="banner"]'), sd = document.querySelector('[data-testid="sidebarColumn"]');
+        const post = hd && hd.querySelector('[data-testid="SideNav_NewTweet_Button"]'), pill = document.getElementById('xmc-pill');
+        window.__fr.push({
+          nav: !!hd && hd.dataset.xmcStyle !== undefined && getComputedStyle(hd).visibility !== 'hidden',
+          side: !!sd && sd.dataset.xmcStyle !== undefined && getComputedStyle(sd).visibility !== 'hidden',
+          entries: hd ? hd.querySelectorAll('[data-xmc-nav]').length : 0,
+          pillBelow: !!(post && pill && pill.getBoundingClientRect().top > post.getBoundingClientRect().top),
+        });
+        if (window.__rec) requestAnimationFrame(snap);
+      };
+      requestAnimationFrame(snap);
+    });
+    // X's menu and sidebar built again, without our entries and without our button
+    const rebuild = (how) => page.evaluate((how) => {
+      const fresh = (el) => { const n = el.cloneNode(true); n.removeAttribute('data-xmc-style'); n.setAttribute('style', el.dataset.xmcStyle || ''); for (const x of n.querySelectorAll('[data-xmc-nav], #xmc-pill')) x.remove(); return n; };
+      const hd = document.querySelector('header[role="banner"]'), sd = document.querySelector('[data-testid="sidebarColumn"]');
+      if (how === 'in place') { hd.replaceWith(fresh(hd)); sd.replaceWith(fresh(sd)); return; }
+      const top = hd.parentElement.parentElement; // a whole branch: the old parent is no longer in the page either
+      const copy = top.cloneNode(true);
+      const nh = copy.querySelector('header[role="banner"]'), ns = copy.querySelector('[data-testid="sidebarColumn"]');
+      if (nh) nh.replaceWith(fresh(hd));
+      if (ns) ns.replaceWith(fresh(sd));
+      top.replaceWith(copy);
+    }, how);
+    const frames = async () => { const f = await page.evaluate(() => { const f = window.__fr; window.__fr = []; return f; }); return f; };
+    const worst = (fr, k) => { let best = 0, cur = 0; for (const x of fr) { cur = x[k] ? 0 : cur + 1; best = Math.max(best, cur); } return best; };
+    const check = (fr, name, most) => {
+      assert.ok(fr.length > 60, name + ': the frames were counted: ' + fr.length);
+      assert.ok(worst(fr, 'nav') <= most, name + ': the menu was blank or unpinned for ' + worst(fr, 'nav') + ' frames running');
+      assert.ok(worst(fr, 'side') <= most, name + ': the sidebar was blank or unpinned for ' + worst(fr, 'side') + ' frames running');
+      assert.ok(fr.filter((x) => x.nav && x.entries !== 3).length <= most, name + ': the menu was drawn without our three entries');
+      assert.ok(fr.filter((x) => x.nav && x.entries === 3 && !x.pillBelow).length <= most, name + ': and our button was among the icons or missing');
+    };
+    await frames();
+    for (let i = 0; i < 4; i++) { await rebuild('in place'); await page.waitForTimeout(450); }
+    check(await frames(), 'in the old one\'s place', 0);
+    for (let i = 0; i < 4; i++) { await rebuild('whole branch'); await page.waitForTimeout(450); }
+    check(await frames(), 'with a whole branch', 2);
+    await page.evaluate(() => { window.__rec = false; });
+    const end = await page.evaluate(() => ({ entries: document.querySelectorAll('header[role="banner"] [data-xmc-nav]').length, pinned: document.querySelector('header[role="banner"]').dataset.xmcStyle !== undefined, side: document.querySelector('[data-testid="sidebarColumn"]').dataset.xmcStyle !== undefined }));
+    assert.deepEqual(end, { entries: 3, pinned: true, side: true });
+  });
+}, 90000);
+
 browserTest('if the menu is not showing (hidden, clipped, covered) it is pinned again within a second or two, then again without the clip, and the diagnostics say what was found', async (e) => {
   const h = await e.open('/home/', { width: 1500, height: 850, settings: { v: 9, hintSeen: true, leftPanel: 'rail' } });
   await checked(h, async () => {

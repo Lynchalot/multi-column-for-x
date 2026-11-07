@@ -462,6 +462,10 @@ html.xmc-on [data-testid="sidebarColumn"] [style*="sticky"] { position: static !
 /* While X's page is being driven (or rebuilds its sidebars), a sidebar that isn't ours yet must not show where X put it */
 html.xmc-on.xmc-pinside [data-testid="sidebarColumn"]:not([data-xmc-style]) { visibility: hidden !important; }
 html.xmc-on.xmc-pinnav header[role="banner"]:not([data-xmc-style]) { visibility: hidden !important; }
+/* and a menu or sidebar that X has just built (it has no pin yet) starts an animation that does nothing to look at: the script hears of it
+   (animationstart, main.js) before the next frame is drawn and pins it then, not at its next pass up to a tenth of a second later */
+@keyframes xmc-newbar { from { outline-offset: 0; } to { outline-offset: 0.01px; } }
+html.xmc-on.xmc-pinnav header[role="banner"]:not([data-xmc-style]), html.xmc-on.xmc-pinside [data-testid="sidebarColumn"]:not([data-xmc-style]) { animation: xmc-newbar 0.05s; }
 /* the still copy of the sidebar is showing: no real sidebar (including one X has just built) may show through */
 html.xmc-frozen [data-testid="sidebarColumn"], html.xmc-frozen header[role="banner"] { visibility: hidden !important; }
 html.xmc-frozen #xmc-sidefreeze, html.xmc-frozen #xmc-navfreeze { visibility: visible !important; }

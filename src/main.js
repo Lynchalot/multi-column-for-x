@@ -961,6 +961,7 @@
     clearInterval(tickTimer);
     try { XMCSite.stopNativeTheme(); } catch { /* none to stop */ }
     try { if (navWatch.obs) navWatch.obs.disconnect(); } catch { /* not made yet */ }
+    try { if (barWatch.obs) barWatch.obs.disconnect(); } catch { /* not made yet */ }
     root.remove(); toastEl.remove();
     if (pill.isConnected) pill.remove();
   }
@@ -5671,6 +5672,37 @@
     }
   }
 
+  // A menu or sidebar that X has just built has no pin: pin it (the menu with its extra entries, names and Columns button too). Run from
+  // the tick, and from the animation the stylesheet starts on such an element (`animationstart`: before the next frame is drawn, so it
+  // is never seen unpinned, or hidden while it waits for the next tick).
+  function pinNew(by) {
+    if (!state.shown) return;
+    const sd = pin.side.el(), nv = pin.nav.el();
+    if (sd && sd.dataset.xmcStyle === undefined && !pin.side.fallback) { trace('rebuilt', 'sidebar, pinned by ' + by); guard('pin side', positionSide); }
+    if (nv && nv.dataset.xmcStyle === undefined && !pin.nav.fallback) {
+      trace('rebuilt', 'menu, pinned by ' + by); // (how often X draws its menu again, and which of the three got there first: the observer on its parent, the animation, or the tick)
+      guard('pin nav', positionNav);
+      guard('watch nav', watchNav);
+      guard('menu names', markNavLabels);
+      if (!pin.nav.el().contains(pill)) guard('pill', placePill);
+    }
+  }
+  document.addEventListener('animationstart', (e) => {
+    if (e.animationName !== 'xmc-newbar' || !ready || retired || document.documentElement.dataset.xmcInstance !== instance) return;
+    pinNew('animation');
+  }, true);
+  // X putting a new menu or sidebar in the place of the old one (the same parent) is heard at once, before any frame: the animation above
+  // is the net for the rest (it comes a frame later), and the tick under that
+  const barWatch = { parents: [], obs: null };
+  function watchBars() {
+    const parents = [pin.nav.el(), pin.side.el()].map((el) => el && el.parentElement).filter((el, i, all) => el && all.indexOf(el) === i);
+    if (parents.length === barWatch.parents.length && parents.every((el, i) => el === barWatch.parents[i])) return;
+    if (barWatch.obs) barWatch.obs.disconnect();
+    barWatch.parents = parents;
+    barWatch.obs = new MutationObserver(() => { if (!retired) guard('pin new', () => pinNew('observer')); });
+    for (const el of parents) barWatch.obs.observe(el, { childList: true });
+  }
+
   const CORE_STEPS = new Set(['tick', 'render', 'pump', 'position', 'tabs', 'tab rules', 'bar']);
   const coreErrors = [];
   const guard = (name, fn) => {
@@ -5690,11 +5722,8 @@
   function tick() {
     if (!ready) return;
     if (document.documentElement.dataset.xmcInstance !== instance) { retire(); return; }
-    if (state.shown) { // a sidebar X has just rebuilt must be pinned at once, not at the next slow pass
-      const sd = pin.side.el(), nv = pin.nav.el();
-      if (sd && sd.dataset.xmcStyle === undefined && !pin.side.fallback) guard('pin side', positionSide);
-      if (nv && nv.dataset.xmcStyle === undefined && !pin.nav.fallback) guard('pin nav', positionNav);
-    }
+    pinNew('tick'); // a sidebar X has just rebuilt must be pinned at once, not at the next slow pass
+    guard('watch bars', watchBars);
     guard('watch nav', watchNav);
     if (sideFreeze && (Date.now() > sideFreeze.hardStop || (!state.peek && !state.posting && !onPostPage() && !isModalRoute() && Date.now() - (state.lastPeekEnd || 0) > 700))) thawSidebar();
     if (tickN % 20 === 0) { guard('site', () => XMCSite.refresh()); guard('sidebar items', scanNavItems); }

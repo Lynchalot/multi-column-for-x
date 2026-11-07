@@ -441,3 +441,24 @@ firefox('a colour theme on X\'s own pages in Firefox: X\'s base colour that a la
     await panel(d, async () => { await d.js(() => browser.storage.local.remove('theme')); });
   }
 });
+
+firefox('X building its menu and sidebar again in the old one\'s place, in Firefox: the menu is pinned and showing, the sidebar pinned, by the time the page\'s own script has ended, before a frame can be drawn', async (r, d) => {
+  await home(r, d);
+  await d.waitFor(() => { const hd = document.querySelector('header[role="banner"]'), sd = document.querySelector('[data-testid="sidebarColumn"]'); return !!hd && hd.dataset.xmcStyle !== undefined && !!sd && sd.dataset.xmcStyle !== undefined; }, [], 12000, 'the pinned menu and sidebar');
+  await sleep(800);
+  // (no timers and no frame callbacks: a headless Firefox hardly runs either. The observer's work comes at the end of the script that made the change, ahead of any frame)
+  const g = await d.js(async () => {
+    const out = [];
+    for (let i = 0; i < 3; i++) {
+      const hd = document.querySelector('header[role="banner"]'), sd = document.querySelector('[data-testid="sidebarColumn"]');
+      const fresh = (el) => { const n = el.cloneNode(true); n.removeAttribute('data-xmc-style'); n.setAttribute('style', el.dataset.xmcStyle || ''); for (const x of n.querySelectorAll('[data-xmc-nav], #xmc-pill')) x.remove(); return n; };
+      const nh = fresh(hd), ns = fresh(sd);
+      hd.replaceWith(nh); sd.replaceWith(ns);
+      const right = document.querySelector('header[role="banner"]') === nh && document.querySelector('[data-testid="sidebarColumn"]') === ns;
+      await null; await null; // (the observers' callbacks are queued ahead of these)
+      out.push({ right, nav: nh.dataset.xmcStyle !== undefined && getComputedStyle(nh).visibility !== 'hidden' && nh.style.position === 'fixed', side: ns.dataset.xmcStyle !== undefined && ns.style.position === 'fixed' }); // (a fresh install has the right panel slid away: pinned, not shown)
+    }
+    return out;
+  });
+  for (const x of g) assert.deepEqual({ right: x.right, nav: x.nav, side: x.side }, { right: true, nav: true, side: true }, 'pinned and showing at once: ' + JSON.stringify(g));
+});

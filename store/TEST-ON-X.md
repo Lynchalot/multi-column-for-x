@@ -49,6 +49,7 @@ Nobody working on this can log in to X, so this is the list of what only your ow
 44. **0.49.12:** on X's own page (columns off), a post with a video: is there a round speaker at the top right of the video (always while muted, and when you point at the player)? Does a press turn the sound on and off, and does X's own control bar still work? A GIF should have none.
 45. **0.49.13:** scroll a feed for a while with the extra menu entries on and the menu folded: does the Columns button ever show among the menu's icons now? If it does, Copy diagnostics straight afterwards (the trace has `freeze-mismatch` lines if the real menu and the still copy disagreed) and a screenshot.
 46. **0.49.14 (diagnostics only):** if the Vim keys do nothing, or the left menu flickers, Copy diagnostics straight afterwards (the ⚠ button in the top bar, or a post's ... menu). `keys` says what the last key met and `panels.unpins` and the `trace` say why the menu was let go.
-47. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
+47. **0.49.15:** scroll for a while, switching between Home and other feeds, with the menu pinned: does the left menu still blink out, jump or redraw (with or without the extra entries)? If it does, Copy diagnostics straight afterwards and look at the `trace` for `rebuilt` lines (X drawing its menu again; `by observer` means it was caught at once) and `unpin`/`resize`/`freeze` lines near it, plus a short screen recording.
+48. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
 
 What to send back: the table (2), the sample file (3), Copy diagnostics from anything that failed (it carries a `features` block), and a recording of anything that looked wrong.
