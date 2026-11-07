@@ -57,6 +57,36 @@ firefox('the extension loads: the install opened the settings at the presets, an
   assert.equal((await d.js(() => document.getElementById('xmc-pill').dataset.text)).trim(), 'Turn Columns Off'); // (a fresh install starts with the menu on icons: the pill is its icon, and its words are in data-text)
 });
 
+firefox('the Vim keys in a real Firefox: s shows the ring, d and a go over the columns and come back to the same card, Space opens the card and Esc closes it, j scrolls the columns', async (r, d) => {
+  await home(r, d);
+  await panel(d, async () => { await d.js(() => browser.storage.local.set({ keyScheme: 'vim', panelKeys: true })); });
+  await d.keys('Escape');
+  await d.waitFor(() => !document.querySelector('#xmc-settings iframe'), [], 8000, 'the settings panel to close');
+  await d.js(() => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); });
+  await sleep(400);
+  const ring = () => d.js(() => { const c = document.querySelector('.xmc-card.xmc-kcard'); if (!c) return null; const cols = [...document.querySelectorAll('.xmc-col')]; return { col: cols.indexOf(c.parentElement), n: cols.length, at: [...c.parentElement.children].indexOf(c), id: (/(?:tweet|number) (\d+)\b/.exec(c.innerText) || [])[1] }; });
+  await d.keys('s'); await sleep(400);
+  let a = await ring();
+  assert.ok(a, 'the first press shows the ring');
+  await d.keys('s'); await sleep(300);
+  a = await ring();
+  const [out, back] = a.col < a.n - 1 ? ['d', 'a'] : ['a', 'd'];
+  await d.keys(out); await sleep(300);
+  const b = await ring();
+  assert.notEqual(b.col, a.col, out + ' goes to the next column over: ' + JSON.stringify([a, b]));
+  await d.keys(back); await sleep(300);
+  assert.equal((await ring()).id, a.id, out + ' then ' + back + ' comes back to the same card');
+  await d.keys(' ');
+  await d.waitFor(() => !!document.querySelector('.xmc-view:not(.xmc-out)'), [], 8000, 'Space to open the card');
+  await d.keys('Escape');
+  await d.waitFor(() => !document.querySelector('.xmc-view:not(.xmc-out)'), [], 8000, 'Esc to close it');
+  await d.js(() => { window.__zzTop = document.querySelector('.xmc-scroller').scrollTop; });
+  await d.keys('j'); await sleep(500);
+  assert.ok((await d.js(() => document.querySelector('.xmc-scroller').scrollTop - window.__zzTop)) >= 50, 'j scrolls the columns');
+  await panel(d, async () => { await d.js(() => browser.storage.local.remove(['keyScheme', 'panelKeys'])); });
+  await d.keys('Escape');
+});
+
 firefox('the page-world hook and the content scripts both run (the data comes through the hook; the cards are drawn by the isolated scripts)', async (r, d) => {
   await home(r, d);
   const n = await d.js(() => document.querySelectorAll('.xmc-card').length);

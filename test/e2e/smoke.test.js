@@ -5187,6 +5187,37 @@ browserTest('Vim keys in a panel: l and h go through the pictures and then the p
   });
 }, 120000);
 
+browserTest('Copy diagnostics says what the last key press met: handled, or why not (a box with the focus, no key of ours, the Vim keys off), and how many key presses reached the page', async (e) => {
+  const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
+  await checked(h, async () => {
+    const { page } = h;
+    await e.ready(page);
+    const keys = () => page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).keys);
+    let k = await keys();
+    assert.deepEqual([k.scheme, k.vimOn, k.where, k.seen, k.last], ['vim', true, 'columns', 0, null], 'before any key: ' + JSON.stringify(k));
+    await page.keyboard.press('s');
+    k = await keys();
+    assert.equal(k.seen >= 1, true);
+    assert.deepEqual([k.last.key, k.last.handled, k.last.why, k.last.trusted], ['s', true, '', true], 'a key of ours: ' + JSON.stringify(k.last));
+    await page.keyboard.press('x'); // (no key of ours: kept from X, said so)
+    k = await keys();
+    assert.match(k.last.why, /no key of ours is x/);
+    await page.evaluate(() => { const i = document.createElement('input'); i.id = 'zz-box'; document.body.append(i); i.focus(); });
+    await page.keyboard.press('s');
+    k = await keys();
+    assert.deepEqual([k.last.handled, /typing in input#zz-box/.test(k.last.why), k.active], [false, true, 'input#zz-box'], 'with a box focused: ' + JSON.stringify(k));
+    await page.evaluate(() => document.getElementById('zz-box').remove());
+  });
+  const off = await e.open('/home/', { width: 1700, height: 900, settings: { v: 10, hintSeen: true, cols: 3 } }); // (the Simple keys)
+  await checked(off, async () => {
+    await e.ready(off.page);
+    await off.page.keyboard.press('s');
+    const k = await off.page.evaluate(() => JSON.parse(window.__xmc.diagnostics()).keys);
+    assert.deepEqual([k.scheme, k.vimOn], ['classic', false]);
+    assert.equal(k.last.key, 's');
+  });
+}, 90000);
+
 browserTest('Vim keys: d then a (and a then d) come back to the same card, however different the cards’ heights are in the neighbouring columns; a press down starts the height again', async (e) => {
   const h = await e.open('/home/', { width: 1700, height: 900, settings: vimSettings() });
   await checked(h, async () => {

@@ -48,6 +48,7 @@ Nobody working on this can log in to X, so this is the list of what only your ow
 43. **0.49.11:** with Bookmarks, Likes and Lists added to the left menu: reload x.com a few times, folded and unfolded. Do the three entries come in with the rest of the menu, or does the Post button still drop a moment later? Fold and unfold with the logo: if it still looks rough, a short screen recording.
 44. **0.49.12:** on X's own page (columns off), a post with a video: is there a round speaker at the top right of the video (always while muted, and when you point at the player)? Does a press turn the sound on and off, and does X's own control bar still work? A GIF should have none.
 45. **0.49.13:** scroll a feed for a while with the extra menu entries on and the menu folded: does the Columns button ever show among the menu's icons now? If it does, Copy diagnostics straight afterwards (the trace has `freeze-mismatch` lines if the real menu and the still copy disagreed) and a screenshot.
-46. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
+46. **0.49.14 (diagnostics only):** if the Vim keys do nothing, or the left menu flickers, Copy diagnostics straight afterwards (the ⚠ button in the top bar, or a post's ... menu). `keys` says what the last key met and `panels.unpins` and the `trace` say why the menu was let go.
+47. Anything odd: a post's `...` menu, "Copy diagnostics", and a short recording.
 
 What to send back: the table (2), the sample file (3), Copy diagnostics from anything that failed (it carries a `features` block), and a recording of anything that looked wrong.

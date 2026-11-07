@@ -1581,11 +1581,17 @@
   }
   const VIM_REPEAT = new Set(['down', 'up', 'halfDown', 'halfUp', 'pageDown', 'pageUp', 'cardUp', 'cardDown', 'cardLeft', 'cardRight', 'left', 'right']);
   function vimKey(e) {
-    if (!vimOn() || e.isComposing || e.altKey || e.metaKey || typingIn(e.target) || menuEl || settingsPanel) return false;
+    const no = (why) => { keyDiag.why = why; return false; };
+    if (!vimOn()) return no('the Vim keys are off (' + settings.keyScheme + ', panel keys ' + (settings.panelKeys ? 'on' : 'off') + ')');
+    if (e.isComposing) return no('composing text');
+    if (e.altKey || e.metaKey) return no('Alt or Meta is held');
+    if (typingIn(e.target)) return no('typing in ' + keyEl(e.target));
+    if (menuEl) return no('a menu is open');
+    if (settingsPanel) return no('the settings panel is open');
     const where = vimWhere();
-    if (!where) return false;
+    if (!where) return no('the columns are not showing (nothing for the keys to act on)');
     const tok = XMCKeys.token(e);
-    if (!tok) return false;
+    if (!tok) return no('a modifier on its own, or a combination with no key name');
     if (tok === 'Esc') { // a key halfway through two goes; with none, the ring goes (in the columns); anything else is the usual Esc
       if (vk.toks.length) { vimClear(); e.preventDefault(); e.stopPropagation(); return true; }
       const card = document.querySelector('.xmc-vimlegend');
@@ -1593,7 +1599,7 @@
       if (where === 'columns' && marked()) { mark(null); e.preventDefault(); e.stopPropagation(); return true; }
       return false;
     }
-    if (/^(Enter|Space|S-Space|S-Enter)$/.test(tok) && interactive(e.target)) return false; // (a button, a link or a video has these for itself)
+    if (/^(Enter|Space|S-Space|S-Enter)$/.test(tok) && interactive(e.target)) return no('a button, link or video has the focus: it has Enter and Space for itself (' + keyEl(e.target) + ')'); // (a button, a link or a video has these for itself)
     if (/^(Left|Right|Up|Down|Enter|S-Left|S-Right|S-Up|S-Down)$/.test(tok) && !vk.toks.length) { // (the arrows and Enter are the usual ones unless a key is bound to them)
       if (vimMatch([tok]).kind !== 'match') {
         if (tok === 'Enter' && where === 'columns' && !e.repeat) { const t = markedSeen() || startCard(); if (t) { e.preventDefault(); e.stopPropagation(); openPostView(t, false); return true; } }
@@ -1607,8 +1613,8 @@
     if (r.kind === 'none' && vk.toks.length) { vimClear(); toks = [tok]; r = vimMatch(toks); } // (g, then x: the g is dropped and x tried on its own)
     if (r.kind === 'none') { // not a key of ours: a plain letter is kept from X's page (its own shortcuts), the rest is left alone
       vimClear();
-      if (tok.length === 1) { e.stopPropagation(); if (settings.keyEcho) vimHud(XMCKeys.label([tok]), 700); return true; }
-      return false;
+      if (tok.length === 1) { e.stopPropagation(); if (settings.keyEcho) vimHud(XMCKeys.label([tok]), 700); keyDiag.why = 'no key of ours is ' + tok + ' (kept from X)'; return true; }
+      return no('no key of ours is ' + tok);
     }
     e.preventDefault(); e.stopPropagation();
     clearTimeout(vk.timer);
@@ -1646,14 +1652,31 @@
     const away = (e) => { if (e.isTrusted && !card.contains(e.target)) { card.remove(); document.removeEventListener('pointerdown', away, true); } };
     setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
   }
+  // What the last key press met, for Copy diagnostics: a key that does nothing says why (the scheme is off, a box has the focus, the columns are not showing, no
+  // binding), and `seen` counting from zero says no key reaches the page at all (the focus is in the browser's own window, or something ahead of us keeps them).
+  const keyDiag = { seen: 0, last: null, why: '' };
+  const keyEl = (el) => (el && el.tagName ? el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/)[0] : '') : '');
+  function keyNote(e) {
+    keyDiag.seen++; keyDiag.why = '';
+    if (/^(Shift|Control|Alt|Meta|AltGraph|CapsLock)$/.test(e.key)) return;
+    keyDiag.last = { key: e.key, code: e.code, alt: e.altKey, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey, trusted: e.isTrusted, repeat: e.repeat, at: Date.now(), target: keyEl(e.target), handled: false, why: '' };
+  }
+  function keysReport() {
+    const l = keyDiag.last;
+    return { scheme: settings.keyScheme, panelKeys: settings.panelKeys, vimOn: vimOn(), where: vimWhere(), docHasFocus: document.hasFocus(), active: keyEl(document.activeElement), seen: keyDiag.seen,
+      last: l ? Object.assign({}, l, { at: undefined, ago: Math.round((Date.now() - l.at) / 1000) + ' s' }) : null };
+  }
   window.addEventListener('keydown', (e) => {
+    keyNote(e);
     if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.code === 'BracketLeft' || e.code === 'BracketRight') && !/^(input|textarea|select)$/i.test((e.target || {}).tagName || '') && !(e.target && e.target.isContentEditable) && document.documentElement.classList.contains('xmc-on') && !root.hidden) {
       e.preventDefault(); e.stopPropagation(); setPanel(e.code === 'BracketLeft' ? 'left' : 'right'); return; // Alt+[ the menu, Alt+] the right panel
     }
     if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) { const open = lightbox ? lightbox.el : postView ? postView.el : null; if (open) trapTab(e, open); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.dataset && e.target.dataset.lb !== undefined && e.target.getAttribute('role') === 'button') { e.preventDefault(); e.target.click(); }
     if (e.target && e.target.closest && e.target.closest('.xmc-emoji') && (e.key === 'Escape' || /^Arrow/.test(e.key))) return; // (the emoji picker's own: it moves over the emoji and closes itself)
-    if (settings.keyScheme === 'vim' ? vimKey(e) : (panelKey(e) || feedKey(e))) return;
+    const keyDone = settings.keyScheme === 'vim' ? vimKey(e) : (panelKey(e) || feedKey(e));
+    if (keyDiag.last && keyDiag.last.at) { keyDiag.last.handled = !!keyDone; keyDiag.last.why = keyDiag.why || (keyDone || settings.keyScheme === 'vim' ? '' : 'the Simple keys have no use for it'); }
+    if (keyDone) return;
     if (e.key === 'Escape' && !lightbox && !menuEl && e.target && e.target.matches && e.target.matches('textarea.xmc-cbox')) { e.preventDefault(); e.stopPropagation(); e.target.blur(); return; } // (Esc leaves the comment box first: what is typed stays, the panel stays)
     if (e.key === 'Escape') { if (lightbox) closeLightbox(); else if (menuEl) closeMenu(); else if (postView) { if (postView.parent) openPostView(postView.parent, true); else if (postView.back) openPostView(postView.back.t, true, false, postView.back.back ? { back: postView.back.back } : undefined); else closePostView(); } }
     if (lightbox && e.key === 'ArrowRight') stepLightbox(1);
@@ -2331,7 +2354,7 @@
       log: { thisLoad: loadId, kept: !!settings.keepLog, earlier: earlierLog() }, // (from before this page load, and from other x.com tabs; the times are this computer's)
       commentTimes: state.commentTimes || [],
       commentFailures: state.commentFailures || [],
-      commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, translateProbe: state.translateProbe || null, translateTimes: state.translateTimes || [], autoTranslate: state.autoXlate || null, popProbe: state.popProbe || null, panels: panelProbe(), cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
+      commentsInProgress: state.peek ? state.peek.id : null, moreProbe: state.moreProbe || null, translateProbe: state.translateProbe || null, translateTimes: state.translateTimes || [], autoTranslate: state.autoXlate || null, popProbe: state.popProbe || null, panels: panelProbe(), keys: keysReport(), cachedConversations: state.details.size, tabMenuTrace: state.tabTrace || [], health: state.health.map((i) => i.key),
       tabs: { labels: realTabs().map((x) => x.textContent.trim().slice(0, 20)), xSelected: realTabs().findIndex((x) => x.getAttribute('aria-selected') === 'true'), weThink: state.sel, homeInit: state.homeInit, awaiting: !!state.awaiting, dropdownTabs: [...state.menuTabs], picked: state.sub, onFeed: state.cur.key ? state.cur.key.split('|')[0] : null },
       floating: floatingReport(),
       corner: cornerReport(),
@@ -4855,10 +4878,13 @@
     if (minL === Infinity) { const b = nav.getBoundingClientRect(); minL = b.left; maxR = b.right; }
     return { minL, maxR };
   }
-  function unpin(which) {
+  const unpinCount = { nav: {}, side: {} }; // (how often each menu was let go, and why: a menu that is let go and pinned again over and over is what shows as a flicker)
+  function unpin(which, why = '') {
     const el = pin[which].el();
     if (!el || el.dataset.xmcStyle === undefined) return;
-    trace('unpin', which + (pin[which].fallback ? ' (pin check gave up)' : ''));
+    const reason = why || (pin[which].fallback ? 'pin check gave up' : 'no reason given');
+    unpinCount[which][reason] = (unpinCount[which][reason] || 0) + 1;
+    trace('unpin', which + ' (' + reason + ')');
     if (el.dataset.xmcStyle) el.setAttribute('style', el.dataset.xmcStyle); else el.removeAttribute('style');
     delete el.dataset.xmcStyle;
     if (which === 'nav') {
@@ -4915,13 +4941,14 @@
     document.documentElement.classList.remove('xmc-frozen');
     for (const { clone } of parts) clone.remove();
   }
-  const navRestore = () => { thawSidebar(); unpin('nav'); unpin('side'); };
+  const navRestore = (why = 'restore') => { thawSidebar(); unpin('nav', why); unpin('side', why); };
   let resizeTimer = 0;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     fitSync();
     resizeTimer = setTimeout(() => { // once you stop: X may have swapped layouts, so re-measure the sidebars
-      navRestore();
+      trace('resize', innerWidth + 'x' + innerHeight); // (a window that keeps changing size, a browser sidebar that slides in and out, makes the menu let go and pin again each time it settles)
+      navRestore('window resized');
       if (!root.hidden) { guard('position', position); relayoutIfNeeded(); }
     }, 200);
   });
@@ -4957,7 +4984,7 @@
       const b = link && link.getBoundingClientRect();
       const ok = probeOk(b, nav);
       p.fails = ok ? 0 : p.fails + 1;
-      if (p.fails >= 3) { p.fallback = true; p.retryAt = Date.now() + 10000; unpin('nav'); return; }
+      if (p.fails >= 3) { p.fallback = true; p.retryAt = Date.now() + 10000; unpin('nav', 'pin check failed three times'); return; }
     }
     root.style.left = (p.width + 20) + 'px';
   }
@@ -5008,7 +5035,7 @@
   function positionSide() {
     const p = pin.side, side = p.el();
     if (sideFreeze && side && side.dataset.xmcStyle !== undefined) return; // a still copy is showing; leave a pinned one alone (a new one still gets pinned, hidden)
-    if (!side || settings.hideSidebar) { root.style.right = floatStrip() + 'px'; unpin('side'); return; }
+    if (!side || settings.hideSidebar) { root.style.right = floatStrip() + 'px'; unpin('side', 'right panel hidden'); return; }
     if (p.fallback && Date.now() > p.retryAt) { p.fallback = false; p.fails = 0; }
     if (side.dataset.xmcStyle === undefined) {
       const r = side.getBoundingClientRect();
@@ -5028,7 +5055,7 @@
       const b = probe && probe.getBoundingClientRect();
       const ok = probeOk(b, side);
       p.fails = ok ? 0 : p.fails + 1;
-      if (p.fails >= 3) { p.fallback = true; p.retryAt = Date.now() + 10000; unpin('side'); root.style.right = '0px'; return; }
+      if (p.fails >= 3) { p.fallback = true; p.retryAt = Date.now() + 10000; unpin('side', 'pin check failed three times'); root.style.right = '0px'; return; }
     }
     root.style.right = rightAway() ? Math.max(floatStrip(), 24) + 'px' : (p.width + 8 + 24) + 'px'; // (away: only the tab's strip, and room for Grok and Chat)
   }
@@ -5114,7 +5141,7 @@
     if (menuHeals === 2) html.classList.add('xmc-noclip');
     trace('menu gone', JSON.stringify(state.menuGone) + (menuHeals === 2 ? ': pinned again without the clip' : ': pinned again'));
     html.classList.remove('xmc-frozen'); // (it is only ever on while a still copy stands in; with none it would hide the menu for good)
-    unpin('nav'); positionNav();
+    unpin('nav', 'menu not showing'); positionNav();
   }
   const shape = (el, d = 0) => { // an outline of a link's markup: tags, roles and the words of the name, nothing else
     const tag = el.tagName.toLowerCase();
@@ -5136,7 +5163,7 @@
       left: settings.leftPanel, right: settings.rightPanel, classes: ['xmc-rail', 'xmc-sidehide', 'xmc-panelanim', 'xmc-noclip', 'xmc-frozen'].filter((c) => html.classList.contains(c)).join(' '),
       navLinks: links.length, namesFound: marked.length, namesStillShowing: html.classList.contains('xmc-rail') ? marked.filter((x) => x.getBoundingClientRect().width > 1).length : null,
       header: box(hdr), icons: m ? [Math.round(m.minL), Math.round(m.maxR)] : null, iconsClamped: mc ? [Math.round(mc.minL), Math.round(mc.maxR)] : null, widestLinks: widest, columnsFrom: root.style.left, columnsTo: root.style.right, side: box(side),
-      tab: sideTab.hidden ? 'hidden' : sideTab.style.right, failed: state.railFail || null, menuGone: state.menuGone || null, menuHeals, linkShape: tpl ? shape(tpl) : '',
+      tab: sideTab.hidden ? 'hidden' : sideTab.style.right, viewport: [innerWidth, innerHeight, window.devicePixelRatio], unpins: unpinCount, failed: state.railFail || null, menuGone: state.menuGone || null, menuHeals, linkShape: tpl ? shape(tpl) : '',
     };
   }
   // The logo (the bird, or the X) at the top of X's menu folds and unfolds it: Home already goes home, so the logo is free for this, and
@@ -5188,7 +5215,7 @@
   function settlePanels() { // the slide has stopped: measure the menu again, and lay the posts out for the room there now is
     const html = document.documentElement;
     html.classList.remove('xmc-panelanim');
-    unpin('nav'); positionNav(); positionSide();
+    unpin('nav', 'panels settled'); positionNav(); positionSide();
     if (pill.isConnected && !pill.hidden) placePill();
     railCheck();
     if (!root.hidden && colCount() !== columns.length && layoutHeld()) relayoutIfNeeded();
@@ -5698,7 +5725,7 @@
     const route = routeKey();
     const active = ok && state.failed !== route;
     state.shown = active;
-    if (!active) { navRestore(); wasActive = false; }
+    if (!active) { navRestore('columns not showing'); wasActive = false; }
     document.documentElement.classList.toggle('xmc-on', active);
     if (document.documentElement.classList.contains('xmc-veil')) { // decided: X's page is either hidden by the columns or meant to be seen
       document.documentElement.classList.remove('xmc-veil');
